@@ -3,8 +3,6 @@
 A native Windows companion app for WireGuard that automatically switches
 VPN tunnels based on your current WiFi network.
 
-<img width="1425" height="951" alt="Screenshot 2026-03-12 134756" src="https://github.com/user-attachments/assets/de9e0fb4-23bd-437a-8c42-f03331c82399" />
-
 ---
 
 ## Build Instructions

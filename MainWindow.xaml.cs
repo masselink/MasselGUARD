@@ -112,6 +112,29 @@ namespace WGWifiSwitcher
         [DllImport("user32.dll")] static extern int GetWindowLong(IntPtr h, int i);
         [DllImport("user32.dll")] static extern int SetWindowLong(IntPtr h, int i, int v);
 
+        // ── Wlan native API ───────────────────────────────────────────────────
+        [DllImport("wlanapi.dll")] static extern uint WlanOpenHandle(uint clientVersion, IntPtr reserved, out uint negotiatedVersion, out IntPtr clientHandle);
+        [DllImport("wlanapi.dll")] static extern uint WlanCloseHandle(IntPtr clientHandle, IntPtr reserved);
+        [DllImport("wlanapi.dll")] static extern uint WlanRegisterNotification(IntPtr clientHandle, uint dwNotifSource, bool bIgnoreDuplicate, WlanNotificationCallback funcCallback, IntPtr pCallbackContext, IntPtr pReserved, out uint pdwPrevNotifSource);
+
+        private const uint WLAN_NOTIFICATION_SOURCE_ACM = 0x00000008;
+        private const uint WLAN_NOTIFICATION_SOURCE_ALL = 0x0000FFFF;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct WLAN_NOTIFICATION_DATA
+        {
+            public uint NotificationSource;
+            public uint NotificationCode;
+            public Guid InterfaceGuid;
+            public uint dwDataSize;
+            public IntPtr pData;
+        }
+
+        private delegate void WlanNotificationCallback(ref WLAN_NOTIFICATION_DATA data, IntPtr context);
+
+        private IntPtr _wlanHandle = IntPtr.Zero;
+        private WlanNotificationCallback? _wlanCallback; // keep reference to prevent GC
+
         protected override void OnSourceInitialized(EventArgs e)
         {
             base.OnSourceInitialized(e);
@@ -137,39 +160,75 @@ namespace WGWifiSwitcher
 
         private void SetupTimer()
         {
-            _timer.Interval = TimeSpan.FromSeconds(3);
-            _timer.Tick += Timer_Tick;
+            // Slow timer — only refreshes status display every 10s, does NOT drive WiFi detection
+            _timer.Interval = TimeSpan.FromSeconds(10);
+            _timer.Tick += (_, _) => UpdateStatusDisplay();
             _timer.Start();
+
+            // Register for instant WiFi change notifications via WlanApi
+            RegisterWifiEvents();
+
+            // Set initial state
+            var wifi = GetCurrentSsid();
+            _lastWifi = wifi;
+            UpdateStatusDisplay(wifi);
         }
 
-        private void Timer_Tick(object? sender, EventArgs e)
+        // Called by WlanApi callback when connection state changes
+        private void OnWifiChanged()
+        {
+            var wifi = GetCurrentSsid();
+            UpdateStatusDisplay(wifi);
+            if (wifi == _lastWifi) return;
+            _lastWifi = wifi;
+            Log("WiFi changed to: " + (wifi ?? "disconnected"), LogLevel.Info);
+            ApplyRules(wifi);
+        }
+
+        private void UpdateStatusDisplay(string? wifi = null)
+        {
+            wifi ??= GetCurrentSsid();
+            WifiLabel.Text       = wifi ?? "Not connected";
+            WifiLabel.Foreground = wifi != null
+                ? (SolidColorBrush)FindResource("Text")
+                : (SolidColorBrush)FindResource("Sub");
+
+            foreach (var rule in _rules)
+                rule.StatusText = (!string.IsNullOrEmpty(rule.Tunnel) && GetTunnelStatus(rule.Tunnel))
+                    ? "\u25cf active" : "\u2014";
+
+            var active = GetActiveTunnelNames();
+            TunnelLabel.Text       = active.Count > 0 ? string.Join(", ", active) : "\u2014";
+            TunnelLabel.Foreground = active.Count > 0
+                ? (SolidColorBrush)FindResource("Green")
+                : (SolidColorBrush)FindResource("Sub");
+
+            ((App)System.Windows.Application.Current).UpdateTrayStatus(TunnelLabel.Text, active.Count > 0);
+        }
+
+        private void RegisterWifiEvents()
         {
             try
             {
-                var wifi = GetCurrentSsid();
-                WifiLabel.Text       = wifi ?? "Not connected";
-                WifiLabel.Foreground = wifi != null
-                    ? (SolidColorBrush)FindResource("Text")
-                    : (SolidColorBrush)FindResource("Sub");
+                uint result = WlanOpenHandle(2, IntPtr.Zero, out _, out _wlanHandle);
+                if (result != 0) { Log("WlanApi unavailable (code " + result + "), using timer fallback.", LogLevel.Warn); _wlanHandle = IntPtr.Zero; return; }
 
-                foreach (var rule in _rules)
-                    rule.StatusText = (!string.IsNullOrEmpty(rule.Tunnel) && GetTunnelStatus(rule.Tunnel))
-                        ? "\u25cf active" : "\u2014";
+                // Keep delegate alive — GC would collect it otherwise and crash
+                _wlanCallback = (ref WLAN_NOTIFICATION_DATA data, IntPtr ctx) =>
+                {
+                    // ACM codes 9 = connected, 10 = disconnected, 21 = roaming
+                    if (data.NotificationSource == WLAN_NOTIFICATION_SOURCE_ACM &&
+                        (data.NotificationCode == 9 || data.NotificationCode == 10 || data.NotificationCode == 21))
+                    {
+                        // Must marshal back to UI thread
+                        Dispatcher.BeginInvoke(new Action(OnWifiChanged));
+                    }
+                };
 
-                var active = GetActiveTunnelNames();
-                TunnelLabel.Text       = active.Count > 0 ? string.Join(", ", active) : "\u2014";
-                TunnelLabel.Foreground = active.Count > 0
-                    ? (SolidColorBrush)FindResource("Green")
-                    : (SolidColorBrush)FindResource("Sub");
-
-                ((App)System.Windows.Application.Current).UpdateTrayStatus(TunnelLabel.Text, active.Count > 0);
-
-                if (wifi == _lastWifi) return;
-                _lastWifi = wifi;
-                Log("WiFi changed to: " + (wifi ?? "disconnected"), LogLevel.Info);
-                ApplyRules(wifi);
+                WlanRegisterNotification(_wlanHandle, WLAN_NOTIFICATION_SOURCE_ACM, true, _wlanCallback, IntPtr.Zero, IntPtr.Zero, out _);
+                Log("WiFi event monitoring active.", LogLevel.Ok);
             }
-            catch (Exception ex) { Log("Timer error: " + ex.Message, LogLevel.Warn); }
+            catch (Exception ex) { Log("WlanApi error: " + ex.Message + " — using timer fallback.", LogLevel.Warn); }
         }
 
         // ── Rule logic ───────────────────────────────────────────────────────
@@ -544,7 +603,17 @@ namespace WGWifiSwitcher
 
         private void MinimizeBtn_Click(object sender, RoutedEventArgs e) => Hide();
         private void CloseBtn_Click(object sender, RoutedEventArgs e)    => Hide();
-        private void Window_Closing(object sender, CancelEventArgs e)    { e.Cancel = true; Hide(); }
+        private void Window_Closing(object sender, CancelEventArgs e)
+        {
+            e.Cancel = true;
+            Hide();
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            if (_wlanHandle != IntPtr.Zero) { WlanCloseHandle(_wlanHandle, IntPtr.Zero); _wlanHandle = IntPtr.Zero; }
+            base.OnClosed(e);
+        }
 
         private void UpdateAdminLabel()
         {

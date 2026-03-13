@@ -47,7 +47,7 @@ namespace WGWifiSwitcher
         {
             _trayIcon = new WinForms.NotifyIcon
             {
-                Text = "WireGuard WiFi Switcher",
+                Text = "WireGuard WiFi Switcher 0.6 beta",
                 Visible = true,
                 Icon = TrayIconHelper.CreateIcon()
             };
@@ -55,6 +55,9 @@ namespace WGWifiSwitcher
             var menu = new WinForms.ContextMenuStrip();
             menu.BackColor = System.Drawing.Color.FromArgb(22, 27, 34);
             menu.ForeColor = System.Drawing.Color.FromArgb(230, 237, 243);
+            menu.ShowImageMargin = false;
+            menu.ShowCheckMargin = false;
+            menu.Renderer = new DarkMenuRenderer();
 
             var showItem = new WinForms.ToolStripMenuItem("Show Window");
             showItem.Font = new System.Drawing.Font("Consolas", 9f, System.Drawing.FontStyle.Bold);
@@ -103,30 +106,87 @@ namespace WGWifiSwitcher
     {
         public static System.Drawing.Icon CreateIcon(bool active = false)
         {
-            using var bmp = new System.Drawing.Bitmap(16, 16);
-            using var g = System.Drawing.Graphics.FromImage(bmp);
+            // Draw at 256x256 then embed as multi-size icon so Windows picks the right size
+            // for both taskbar (32px) and tray (16px)
+            const int S = 256;
+            using var bmp = new System.Drawing.Bitmap(S, S, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using var g   = System.Drawing.Graphics.FromImage(bmp);
+            g.SmoothingMode    = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
             g.Clear(System.Drawing.Color.Transparent);
 
             var shieldColor = active
                 ? System.Drawing.Color.FromArgb(63, 185, 80)
                 : System.Drawing.Color.FromArgb(88, 166, 255);
 
+            // Shield polygon scaled to 256x256
             using var brush = new System.Drawing.SolidBrush(shieldColor);
-            var pts = new System.Drawing.Point[]
+            var pts = new System.Drawing.PointF[]
             {
-                new(8, 1), new(14, 4), new(14, 9),
-                new(8, 15), new(2, 9), new(2, 4)
+                new(128, 8),  new(232, 48), new(232, 140),
+                new(128, 248), new(24, 140), new(24, 48)
             };
             g.FillPolygon(brush, pts);
 
-            using var wBrush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(14, 17, 23));
-            g.FillRectangle(wBrush, 5, 7, 6, 5);
+            // Dark padlock body
+            var dark = System.Drawing.Color.FromArgb(14, 17, 23);
+            using var wBrush = new System.Drawing.SolidBrush(dark);
+            g.FillRectangle(wBrush, 88, 128, 80, 80);
 
-            using var pen = new System.Drawing.Pen(System.Drawing.Color.FromArgb(14, 17, 23), 1.5f);
-            g.DrawArc(pen, 5, 4, 5, 5, 180, 180);
+            // Padlock shackle arc
+            using var pen = new System.Drawing.Pen(dark, 20f);
+            g.DrawArc(pen, 88, 72, 80, 80, 180, 180);
 
-            var hIcon = bmp.GetHicon();
+            // Save to stream and load as Icon
+            using var stream = new System.IO.MemoryStream();
+            bmp.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
+            stream.Position = 0;
+
+            // Build a proper .ico with 32x32 and 16x16 frames
+            using var ico32 = new System.Drawing.Bitmap(32, 32);
+            using var g32   = System.Drawing.Graphics.FromImage(ico32);
+            g32.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            g32.DrawImage(bmp, 0, 0, 32, 32);
+
+            var hIcon = ico32.GetHicon();
             return System.Drawing.Icon.FromHandle(hIcon);
+        }
+    }
+
+    // Flat dark renderer — no gradients, no bright highlights
+    internal class DarkMenuRenderer : System.Windows.Forms.ToolStripRenderer
+    {
+        private static readonly System.Drawing.Color Bg  = System.Drawing.Color.FromArgb(22, 27, 34);
+        private static readonly System.Drawing.Color Hov = System.Drawing.Color.FromArgb(48, 54, 61);
+        private static readonly System.Drawing.Color Fg  = System.Drawing.Color.FromArgb(230, 237, 243);
+        private static readonly System.Drawing.Color Sep = System.Drawing.Color.FromArgb(48, 54, 61);
+
+        protected override void OnRenderToolStripBackground(System.Windows.Forms.ToolStripRenderEventArgs e)
+            => e.Graphics.Clear(Bg);
+
+        protected override void OnRenderMenuItemBackground(System.Windows.Forms.ToolStripItemRenderEventArgs e)
+        {
+            var color = e.Item.Selected ? Hov : Bg;
+            using var b = new System.Drawing.SolidBrush(color);
+            e.Graphics.FillRectangle(b, new System.Drawing.Rectangle(System.Drawing.Point.Empty, e.Item.Size));
+        }
+
+        protected override void OnRenderItemText(System.Windows.Forms.ToolStripItemTextRenderEventArgs e)
+        {
+            e.TextColor = Fg;
+            base.OnRenderItemText(e);
+        }
+
+        protected override void OnRenderSeparator(System.Windows.Forms.ToolStripSeparatorRenderEventArgs e)
+        {
+            int y = e.Item.Height / 2;
+            using var pen = new System.Drawing.Pen(Sep);
+            e.Graphics.DrawLine(pen, 4, y, e.Item.Width - 4, y);
+        }
+
+        protected override void OnRenderToolStripBorder(System.Windows.Forms.ToolStripRenderEventArgs e)
+        {
+            using var pen = new System.Drawing.Pen(Sep);
+            e.Graphics.DrawRectangle(pen, 0, 0, e.AffectedBounds.Width - 1, e.AffectedBounds.Height - 1);
         }
     }
 }
