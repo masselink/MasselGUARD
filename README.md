@@ -1,35 +1,49 @@
 # WireGuard Client and WiFi Switcher
 
-**Version 1.0** — by [Harold Masselink](https://github.com/masselink/WGClientWifiSwitcher)
+**Version 0.8 beta** — by [Harold Masselink](https://github.com/masselink/WGClientWifiSwitcher)
 
-A native Windows companion app for WireGuard that automatically switches VPN tunnels based on your current WiFi network. Built with C# / WPF on .NET 10 (LTS) — no Electron, no bloat.
+A native Windows companion app for WireGuard that automatically connects and disconnects VPN tunnels based on your current WiFi network (SSID). Also works as a lightweight manual tunnel client — no need to open the WireGuard GUI for day-to-day use. Built with C# / WPF on .NET 8.
 
----
-
-## What it does
-
-Define rules that map WiFi networks to WireGuard tunnels. When you connect to a known network the right tunnel activates automatically. When you move to an unknown network a configurable default action kicks in. Everything happens instantly using the Windows WLAN notification API — no polling.
-
-The app also works as a lightweight manual tunnel client. Connect and disconnect tunnels directly from the main window or the system tray without opening the WireGuard GUI.
-
----
+<img width="818" height="476" alt="Screenshot 2026-03-14 132437" src="https://github.com/user-attachments/assets/00ac1e75-a3ba-47b1-b106-170d15386268" />
 
 ## Features
 
-| | |
-|---|---|
-| **Auto-switching** | Instant reaction to WiFi changes via `WlanRegisterNotification`. Rules applied on startup too. |
-| **Rule manager** | Map any SSID to any tunnel. Leave tunnel blank to disconnect on that network. |
-| **Default action** | Do nothing / disconnect all / activate a fallback tunnel when no rule matches. |
-| **Tunnel panel** | Live status for every tunnel. Connect or disconnect with one click. |
-| **System tray** | Coloured dot per tunnel, click to toggle. Icon turns green when connected. |
-| **WireGuard log** | Opens a live-tailing log window (last 24h + streaming via `/dumplog /tail`). |
-| **Multi-language** | Ships with English and Dutch. Add any language by dropping a JSON file in `lang\`. |
-| **Auto-detection** | Finds WireGuard via registry. Reads `.conf` and `.conf.dpapi` files automatically. |
-| **Single instance** | Named mutex prevents duplicate launches. Shows a styled dialog if already running. |
-| **Dependency check** | Verifies `wireguard.exe` is present before opening. Styled error screen with GitHub link if not. |
-| **Dark theme** | Frameless WPF window, Consolas font, fully themed controls. |
-| **No installer** | Single `.exe` + `lang\` folder. Config at `%APPDATA%\WGClientWifiSwitcher\config.json`. |
+### Automatic switching
+- Reacts **instantly** to WiFi changes using `WlanRegisterNotification` (Windows WLAN API). No polling.
+- Rules fire on **startup** — the current network is detected and matched immediately when the app launches.
+- Each rule maps a WiFi SSID to a WireGuard tunnel. Leave the tunnel blank to disconnect on that network.
+- **Default action** when no rule matches: do nothing, disconnect all, or activate a named fallback tunnel.
+
+### Tunnel panel
+- Lists all known tunnels with live connection status (● Connected / ○ Disconnected).
+- Connect or disconnect any tunnel with one click — no WireGuard GUI needed.
+- Status refreshes every 10 seconds and instantly after any manual change.
+
+### WireGuard integration
+- **Open WireGuard GUI** button in the status bar launches the official WireGuard app directly.
+- **Show Log** button opens a dark-themed log window showing the last 24 hours of WireGuard log history, then tails new entries live using `wireguard /dumplog /tail`. Closes cleanly and stops the tail process.
+- **Auto-detects** the WireGuard install directory from the Windows registry (`HKLM\SOFTWARE\WireGuard`). No manual configuration needed in most cases.
+- Finds `.conf` and `.conf.dpapi` (DPAPI-encrypted) config files automatically. Falls back to reading `WireGuardTunnel$*` Windows services if files are not accessible.
+
+### System tray
+- Minimises to tray on close. Double-click to restore.
+- Right-click the tray icon for a **Tunnels** submenu — each tunnel shows a coloured dot (green = connected) and can be toggled with a single click.
+- **Disconnect All** at the top of the submenu stops all active tunnels at once.
+- Tray icon turns green when any tunnel is active.
+
+### Startup dependency check
+- On launch, verifies that `wireguard.exe` is available before showing the main window.
+- If a dependency is missing, displays a styled error screen explaining what is needed with a link to the project GitHub page.
+
+### Activity log
+- Colour-coded, timestamped log of every WiFi change, tunnel switch, rule match, and error.
+- Newest entries appear at the top — no scrolling needed to see the latest activity.
+
+### UI
+- Frameless dark WPF window — Consolas font, draggable, resizable with grip.
+- Fully themed: custom scrollbars, ComboBoxes, radio buttons, tooltips, and tray context menu all match the dark palette.
+- No installer needed. Single `.exe`, config stored in `%APPDATA%\WGClientWifiSwitcher\config.json`.
+- UAC elevation requested automatically on launch via app manifest — no runtime prompt.
 
 ---
 
@@ -38,9 +52,9 @@ The app also works as a lightweight manual tunnel client. Connect and disconnect
 | | |
 |---|---|
 | OS | Windows 10 or Windows 11 (x64) |
-| Runtime | [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) — free, ~60 MB, LTS until November 2028 |
-| WireGuard | [WireGuard for Windows](https://www.wireguard.com/install/), with tunnels already imported |
-| Rights | Administrator — requested automatically via UAC on launch |
+| Runtime | [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) — free, ~50 MB, pre-installed on many machines |
+| WireGuard | [WireGuard for Windows](https://www.wireguard.com/install/), tunnels already imported |
+| Rights | Administrator (requested automatically via UAC on launch) |
 
 ---
 
@@ -75,22 +89,20 @@ Output: `dist\WGClientWifiSwitcher.exe` and `dist\lang\`
 
 ## Configuration
 
-Config file: `%APPDATA%\WGClientWifiSwitcher\config.json`
-
 ### WireGuard install directory
 
-Auto-detected from the registry in this order:
+The app auto-detects the WireGuard install directory from the registry on first launch. Config files are read from the `Data\Configurations` subfolder of the install directory. Detection order:
 
-1. `HKLM\SOFTWARE\WireGuard` → `InstallDirectory`
+1. `HKLM\SOFTWARE\WireGuard` → `InstallDirectory` (written by the WireGuard installer)
 2. `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\WireGuard` → `InstallLocation`
-3. `%ProgramFiles%\WireGuard` and `C:\WireGuard`
-4. Installed `WireGuardTunnel$*` Windows services (fallback when conf files are not readable)
-
-Config files are read from `<InstallDirectory>\Data\Configurations`.
+3. `%ProgramFiles%\WireGuard` and `C:\WireGuard` as hardcoded fallbacks
+4. `WireGuardTunnel$*` Windows services (fallback when config files are not readable)
 
 ### Rules
 
 Each rule maps a **WiFi SSID** → **WireGuard tunnel**. Rules are evaluated top-to-bottom; the first match wins. Leave the tunnel field blank to disconnect all tunnels on that network.
+
+The tunnel dropdown is populated from the discovered config files. You can also type a name directly — it must match exactly as shown in the WireGuard app.
 
 ### Default action
 
@@ -126,7 +138,7 @@ Language files live in `lang\` next to the executable. The picker in the title b
 
 ## Auto-start at login (optional)
 
-The app requires administrator rights. Register a scheduled task to avoid the UAC prompt every time:
+Run once in an elevated PowerShell to register a scheduled task that launches the app at login with admin rights — no UAC prompt each time:
 
 ```powershell
 $exe     = "C:\path\to\dist\WGClientWifiSwitcher.exe"
@@ -143,17 +155,13 @@ Register-ScheduledTask -TaskName "WGClientWifiSwitcher" `
 
 ```
 WGClientWifiSwitcher/
-├── BUILD.bat                   ← Double-click to build
-├── WGClientWifiSwitcher.csproj ← .NET 10, WPF + WinForms
-├── app.manifest                ← requireAdministrator UAC elevation
-├── App.xaml                    ← Global dark theme styles
-├── App.xaml.cs                 ← Startup, tray icon, single-instance, dependency check
-├── Lang.cs                     ← Language manager — loads lang/*.json, live switching
-├── MainWindow.xaml             ← UI layout (all strings bound to Lang.Instance)
-├── MainWindow.xaml.cs          ← Application logic
-├── lang/
-│   ├── en.json                 ← English
-│   └── nl.json                 ← Nederlands
+├── BUILD.bat                  ← Double-click to build
+├── WGClientWifiSwitcher.csproj
+├── app.manifest               ← requireAdministrator UAC elevation
+├── App.xaml                   ← Global dark theme styles
+├── App.xaml.cs                ← App startup, tray icon, tray menu, dependency check
+├── MainWindow.xaml            ← Main UI layout
+├── MainWindow.xaml.cs         ← All app logic
 └── Views/
     ├── RuleDialog.xaml         ← Add / Edit rule dialog
     └── RuleDialog.xaml.cs
