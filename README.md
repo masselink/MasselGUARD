@@ -6,7 +6,7 @@ A native Windows companion app for WireGuard that automatically switches VPN tun
 
 ---
 
-<img width="818" height="476" alt="563539851-00ac1e75-a3ba-47b1-b106-170d15386268" src="https://github.com/user-attachments/assets/5f0f4a2e-7fba-4039-9fc4-6055c1bab6c7" />
+<img width="818" height="476" alt="Screenshot" src="https://github.com/user-attachments/assets/5f0f4a2e-7fba-4039-9fc4-6055c1bab6c7" />
 
 ## What it does
 
