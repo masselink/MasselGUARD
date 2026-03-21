@@ -1,11 +1,11 @@
 @echo off
-title WireGuard Client and WiFi Switcher v1.0 — Build
+title WireGuard Client and WiFi Switcher v1.1 — Build
 setlocal
 echo.
 echo  ====================================
 echo   WireGuard Client and WiFi Switcher
 echo  ====================================
-echo           v1.0  by Harold Masselink
+echo           v1.1  by Harold Masselink
 echo  ====================================
 echo           (Using Claude.ai)
 echo  ====================================
@@ -33,9 +33,9 @@ pause & exit /b 1
 :version_ok
 
 echo.
-echo  Building...
+echo  Publishing (single-file, framework-dependent, win-x64)...
 echo.
-dotnet build WGClientWifiSwitcher.csproj -c Release -o dist
+dotnet publish WGClientWifiSwitcher.csproj -c Release -o dist
 if errorlevel 1 (
     echo.
     echo  BUILD FAILED. See output above.
@@ -49,8 +49,9 @@ if exist "dist\WGClientWifiSwitcher.exe" (
     echo  ==========================================
     echo.
     echo   Output: dist\WGClientWifiSwitcher.exe
+    echo          dist\lang\
     echo.
-    echo   NOTE: The target machine needs .NET 10 Desktop Runtime:
+    echo   NOTE: Target machine requires .NET 10 Desktop Runtime:
     echo   https://dotnet.microsoft.com/download/dotnet/10.0
 ) else (
     echo  ERROR: exe not found after build.

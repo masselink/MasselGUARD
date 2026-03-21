@@ -106,6 +106,12 @@
                                Foreground="{StaticResource Green}" VerticalAlignment="Center"/>
 
                     <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="InstallBtn"
+                                Content="{Binding [BtnInstall], Source={x:Static local:Lang.Instance}}"
+                                Style="{StaticResource FlatBtn}"
+                                FontSize="10" Padding="10,4" Margin="0,0,6,0"
+                                Click="InstallBtn_Click"
+                                ToolTip="{Binding [TooltipInstall], Source={x:Static local:Lang.Instance}}"/>
                         <Button Content="{Binding [BtnOpenWireGuard], Source={x:Static local:Lang.Instance}}"
                                 Style="{StaticResource FlatBtn}"
                                 FontSize="10" Padding="10,4" Margin="0,0,6,0"

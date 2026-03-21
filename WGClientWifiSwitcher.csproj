@@ -10,10 +10,20 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Strip all framework satellite resource folders (tr, ru, fr, de, etc.)
+         The app uses its own lang/*.json files for localisation — these
+         WPF/WinForms satellite assemblies are not needed. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- Single-file framework-dependent publish — bundles app + NuGet dlls
+         into one exe. Runtime is NOT included; .NET 10 Desktop Runtime must
+         be installed on the target machine. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.0" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>

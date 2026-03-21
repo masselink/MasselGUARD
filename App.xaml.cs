@@ -233,7 +233,7 @@ namespace WGClientWifiSwitcher
         {
             _trayIcon = new WinForms.NotifyIcon
             {
-                Text = "WireGuard Client and WiFi Switcher v1.0.1",
+                Text = "WireGuard Client and WiFi Switcher v1.1",
                 Visible = true,
                 Icon = TrayIconHelper.CreateIcon()
             };
@@ -264,6 +264,12 @@ namespace WGClientWifiSwitcher
 
             _trayIcon.ContextMenuStrip = _trayMenu;
             _trayIcon.DoubleClick += (_, _) => ShowMainWindow();
+        }
+
+        public void ShutdownApp()
+        {
+            _trayIcon!.Visible = false;
+            Shutdown();
         }
 
         private void ShowMainWindow()
@@ -512,48 +518,64 @@ namespace WGClientWifiSwitcher
         public static System.Drawing.Icon CreateIcon(bool active = false)
         {
             const int S = 256;
-            const int OUT = 48;
-            using var bmp = RenderIcon(S, active);
+            using var src = RenderIcon(S, active);
 
-            // Scale to output size
-            using var scaled = new System.Drawing.Bitmap(OUT, OUT);
-            using (var g = System.Drawing.Graphics.FromImage(scaled))
-            {
-                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                g.SmoothingMode     = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                g.DrawImage(bmp, 0, 0, OUT, OUT);
-            }
-
-            // Build a proper .ico via memory stream so the Icon owns its data
-            // and does not rely on an HICON handle that may be freed prematurely.
+            // Write a proper multi-size .ico: 256, 48, 32, 16 frames
+            // Windows picks the best size for taskbar, tray, alt-tab, etc.
+            int[] sizes = { 256, 48, 32, 16 };
             using var ms = new System.IO.MemoryStream();
-            WriteIco(ms, scaled);
+            WriteMultiSizeIco(ms, src, sizes);
             ms.Position = 0;
             return new System.Drawing.Icon(ms);
         }
 
-        // Writes a minimal single-frame .ico file to a stream.
-        private static void WriteIco(System.IO.Stream s, System.Drawing.Bitmap bmp)
+        private static void WriteMultiSizeIco(System.IO.Stream s,
+            System.Drawing.Bitmap src, int[] sizes)
         {
-            using var imgStream = new System.IO.MemoryStream();
-            bmp.Save(imgStream, System.Drawing.Imaging.ImageFormat.Png);
-            var imgBytes = imgStream.ToArray();
+            // Pre-render each size as PNG bytes
+            var frames = new List<byte[]>();
+            foreach (var sz in sizes)
+            {
+                using var scaled = new System.Drawing.Bitmap(sz, sz);
+                using (var g = System.Drawing.Graphics.FromImage(scaled))
+                {
+                    g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                    g.SmoothingMode     = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                    g.DrawImage(src, 0, 0, sz, sz);
+                }
+                using var ms2 = new System.IO.MemoryStream();
+                scaled.Save(ms2, System.Drawing.Imaging.ImageFormat.Png);
+                frames.Add(ms2.ToArray());
+            }
+
+            int n = sizes.Length;
+            int headerSize = 6 + n * 16; // ICONDIR + n × ICONDIRENTRY
 
             using var w = new System.IO.BinaryWriter(s, System.Text.Encoding.UTF8, leaveOpen: true);
             // ICONDIR
-            w.Write((short)0);          // reserved
-            w.Write((short)1);          // type: icon
-            w.Write((short)1);          // image count
-            // ICONDIRENTRY
-            w.Write((byte)bmp.Width);   // width  (0 = 256)
-            w.Write((byte)bmp.Height);  // height (0 = 256)
-            w.Write((byte)0);           // colour count
-            w.Write((byte)0);           // reserved
-            w.Write((short)1);          // colour planes
-            w.Write((short)32);         // bits per pixel
-            w.Write(imgBytes.Length);   // image data size
-            w.Write(6 + 16);            // offset to image data (ICONDIR + 1 × ICONDIRENTRY)
-            w.Write(imgBytes);
+            w.Write((short)0); // reserved
+            w.Write((short)1); // type: icon
+            w.Write((short)n); // count
+
+            // Write ICONDIRENTRY for each frame
+            int offset = headerSize;
+            for (int i = 0; i < n; i++)
+            {
+                int sz = sizes[i];
+                w.Write((byte)(sz >= 256 ? 0 : sz)); // width  (0 = 256)
+                w.Write((byte)(sz >= 256 ? 0 : sz)); // height (0 = 256)
+                w.Write((byte)0);                    // colour count
+                w.Write((byte)0);                    // reserved
+                w.Write((short)1);                   // colour planes
+                w.Write((short)32);                  // bits per pixel
+                w.Write(frames[i].Length);           // data size
+                w.Write(offset);                     // offset
+                offset += frames[i].Length;
+            }
+
+            // Write pixel data
+            foreach (var frame in frames)
+                w.Write(frame);
         }
 
         // ── Renderer — shield + chevron, matches title bar icon exactly ───

@@ -112,8 +112,7 @@ namespace WGClientWifiSwitcher
             // Prefer lang/ next to the exe; fall back to next to the .dll (debug)
             var exeDir = Path.GetDirectoryName(
                 Environment.ProcessPath
-                ?? Assembly.GetExecutingAssembly().Location
-                ?? ".")!;
+                ?? AppContext.BaseDirectory)!;
             return Path.Combine(exeDir, "lang");
         }
 
