@@ -1,7 +1,7 @@
 {
   "_language": "English",
   "_code": "en",
-  "AppTitle": "WireGuard Client and WiFi Switcher v1.1",
+  "AppTitle": "WireGuard Client and WiFi Switcher v1.1.2",
   "StatusWifi": "WiFi:",
   "StatusActiveTunnel": "Active tunnel:",
   "StatusScanning": "Scanning…",
@@ -140,5 +140,11 @@
   "InstallDeleteSource": "Delete the original application files from:\n{0}?",
   "InstallDeleteSourceTitle": "Remove original files?",
   "UninstallRemoveCurrent": "The application is running from a different location than the install folder.\n\nRemove the current running files from:\n{0}\n\nafter closing?",
-  "UninstallRemoveCurrentTitle": "Remove current files?"
+  "UninstallRemoveCurrentTitle": "Remove current files?",
+  "InstallLocationTitle": "Choose install location",
+  "InstallLocationDefault": "Default location:",
+  "InstallLocationNote": "The subfolder 'WG Client and WiFi Switcher' will be created inside the selected folder.",
+  "InstallLocationCurrent": "Install into:",
+  "BtnBrowse": "Browse…",
+  "BtnInstallHere": "Install here"
 }

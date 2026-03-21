@@ -1019,16 +1019,12 @@ namespace WGClientWifiSwitcher
                 return;
             }
 
-            // Let user pick the parent folder (default: Program Files)
-            using var dlg = new System.Windows.Forms.FolderBrowserDialog
-            {
-                Description        = Lang.T("InstallSelectFolder"),
-                UseDescriptionForTitle = true,
-                SelectedPath       = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles)
-            };
-            if (dlg.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+            // Show styled location picker — defaults to Program Files\WG Client and WiFi Switcher
+            var defaultParent = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            var chosenParent  = ShowInstallLocationDialog(defaultParent);
+            if (chosenParent == null) return;
 
-            var installDir = Path.Combine(dlg.SelectedPath, InstallFolderName);
+            var installDir = Path.Combine(chosenParent, InstallFolderName);
 
             try
             {
@@ -1256,6 +1252,180 @@ Register-ScheduledTask -TaskName 'WGClientWifiSwitcher' `
                 ShowDialog(Lang.T("UninstallFailed", ex.Message), Lang.T("UninstallTitle"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        // Styled install location picker — shows default path, Browse button, install-into preview
+        private string? ShowInstallLocationDialog(string defaultParent)
+        {
+            var Br = (string key) => (SolidColorBrush)FindResource(key);
+
+            string selectedParent = defaultParent;
+            string? result        = null;
+
+            var win = new Window
+            {
+                Title                 = Lang.T("InstallLocationTitle"),
+                Width                 = 520,
+                SizeToContent         = SizeToContent.Height,
+                WindowStyle           = WindowStyle.None,
+                AllowsTransparency    = true,
+                Background            = System.Windows.Media.Brushes.Transparent,
+                ResizeMode            = ResizeMode.NoResize,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner                 = this
+            };
+
+            var root = new System.Windows.Controls.Border
+            {
+                Background      = Br("Bg"),
+                BorderBrush     = Br("Border"),
+                BorderThickness = new Thickness(1),
+                CornerRadius    = new CornerRadius(6)
+            };
+
+            var outer = new System.Windows.Controls.Grid();
+            outer.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = new GridLength(44) });
+            outer.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = GridLength.Auto });
+            outer.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = new GridLength(52) });
+
+            // ── Title bar ────────────────────────────────────────────────────
+            var titleBar = new System.Windows.Controls.Border
+            {
+                Background   = Br("Panel"),
+                CornerRadius = new CornerRadius(6, 6, 0, 0)
+            };
+            var titleText = new System.Windows.Controls.TextBlock
+            {
+                Text              = Lang.T("InstallLocationTitle"),
+                FontFamily        = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize          = 12, FontWeight = FontWeights.Bold,
+                Foreground        = Br("Accent"),
+                Margin            = new Thickness(16, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            titleBar.Child = titleText;
+            titleBar.MouseLeftButtonDown += (_, e) =>
+            {
+                if (e.LeftButton == System.Windows.Input.MouseButtonState.Pressed) win.DragMove();
+            };
+            System.Windows.Controls.Grid.SetRow(titleBar, 0);
+            outer.Children.Add(titleBar);
+
+            // ── Content ───────────────────────────────────────────────────────
+            var content = new System.Windows.Controls.StackPanel
+            {
+                Margin = new Thickness(20, 16, 20, 16)
+            };
+
+            // Note about subfolder
+            content.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text         = Lang.T("InstallLocationNote"),
+                FontFamily   = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize     = 11,
+                Foreground   = Br("Sub"),
+                TextWrapping = System.Windows.TextWrapping.Wrap,
+                Margin       = new Thickness(0, 0, 0, 16)
+            });
+
+            // "Install into:" label + path preview (updates when Browse is clicked)
+            content.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text       = Lang.T("InstallLocationCurrent"),
+                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize   = 10,
+                Foreground = Br("Sub"),
+                Margin     = new Thickness(0, 0, 0, 4)
+            });
+
+            var pathPreview = new System.Windows.Controls.Border
+            {
+                Background      = Br("Card"),
+                BorderBrush     = Br("Border"),
+                BorderThickness = new Thickness(1),
+                CornerRadius    = new CornerRadius(4),
+                Padding         = new Thickness(10, 7, 10, 7),
+                Margin          = new Thickness(0, 0, 0, 16)
+            };
+            var pathText = new System.Windows.Controls.TextBlock
+            {
+                Text         = Path.Combine(selectedParent, InstallFolderName),
+                FontFamily   = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize     = 11,
+                Foreground   = Br("Text"),
+                TextWrapping = System.Windows.TextWrapping.Wrap
+            };
+            pathPreview.Child = pathText;
+            content.Children.Add(pathPreview);
+
+            // Browse button
+            var browseBtn = new System.Windows.Controls.Button
+            {
+                Content             = Lang.T("BtnBrowse"),
+                Style               = (Style)FindResource("FlatBtn"),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Padding             = new Thickness(16, 6, 16, 6)
+            };
+            browseBtn.Click += (_, _) =>
+            {
+                using var folderDlg = new System.Windows.Forms.FolderBrowserDialog
+                {
+                    Description            = Lang.T("InstallSelectFolder"),
+                    UseDescriptionForTitle = true,
+                    SelectedPath           = selectedParent
+                };
+                if (folderDlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    selectedParent   = folderDlg.SelectedPath;
+                    pathText.Text    = Path.Combine(selectedParent, InstallFolderName);
+                }
+            };
+            content.Children.Add(browseBtn);
+
+            System.Windows.Controls.Grid.SetRow(content, 1);
+            outer.Children.Add(content);
+
+            // ── Button bar ────────────────────────────────────────────────────
+            var btnBar = new System.Windows.Controls.Border
+            {
+                Background   = Br("Panel"),
+                CornerRadius = new CornerRadius(0, 0, 6, 6)
+            };
+            var btnStack = new System.Windows.Controls.StackPanel
+            {
+                Orientation         = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment   = VerticalAlignment.Center,
+                Margin              = new Thickness(0, 0, 16, 0)
+            };
+
+            var cancelBtn = new System.Windows.Controls.Button
+            {
+                Content = Lang.T("BtnCancel"),
+                Style   = (Style)FindResource("FlatBtn"),
+                Padding = new Thickness(20, 6, 20, 6),
+                Margin  = new Thickness(0, 0, 8, 0)
+            };
+            cancelBtn.Click += (_, _) => { result = null; win.Close(); };
+
+            var installBtn = new System.Windows.Controls.Button
+            {
+                Content = Lang.T("BtnInstallHere"),
+                Style   = (Style)FindResource("PrimaryBtn"),
+                Padding = new Thickness(20, 6, 20, 6)
+            };
+            installBtn.Click += (_, _) => { result = selectedParent; win.Close(); };
+
+            btnStack.Children.Add(cancelBtn);
+            btnStack.Children.Add(installBtn);
+            btnBar.Child = btnStack;
+            System.Windows.Controls.Grid.SetRow(btnBar, 2);
+            outer.Children.Add(btnBar);
+
+            root.Child  = outer;
+            win.Content = root;
+            win.ShowDialog();
+            return result;
         }
 
         // Styled dark dialog matching app theme — replaces MessageBox.Show

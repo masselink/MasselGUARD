@@ -1,7 +1,7 @@
 {
   "_language": "Nederlands",
   "_code": "nl",
-  "AppTitle": "WireGuard Client en WiFi Switcher v1.1",
+  "AppTitle": "WireGuard Client en WiFi Switcher v1.1.2",
   "StatusWifi": "WiFi:",
   "StatusActiveTunnel": "Actieve tunnel:",
   "StatusScanning": "Scannen…",
@@ -140,5 +140,11 @@
   "InstallDeleteSource": "De originele applicatiebestanden verwijderen uit:\n{0}?",
   "InstallDeleteSourceTitle": "Originele bestanden verwijderen?",
   "UninstallRemoveCurrent": "De applicatie wordt uitgevoerd vanuit een andere locatie dan de installatiemap.\n\nHuidige bestanden verwijderen uit:\n{0}\n\nna het afsluiten?",
-  "UninstallRemoveCurrentTitle": "Huidige bestanden verwijderen?"
+  "UninstallRemoveCurrentTitle": "Huidige bestanden verwijderen?",
+  "InstallLocationTitle": "Installatiemap kiezen",
+  "InstallLocationDefault": "Standaardlocatie:",
+  "InstallLocationNote": "De submap 'WG Client and WiFi Switcher' wordt aangemaakt in de geselecteerde map.",
+  "InstallLocationCurrent": "Installeren in:",
+  "BtnBrowse": "Bladeren…",
+  "BtnInstallHere": "Hier installeren"
 }

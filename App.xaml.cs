@@ -233,7 +233,7 @@ namespace WGClientWifiSwitcher
         {
             _trayIcon = new WinForms.NotifyIcon
             {
-                Text = "WireGuard Client and WiFi Switcher v1.1",
+                Text = "WireGuard Client and WiFi Switcher v1.1.2",
                 Visible = true,
                 Icon = TrayIconHelper.CreateIcon()
             };

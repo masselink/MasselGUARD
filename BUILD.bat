@@ -1,11 +1,11 @@
 @echo off
-title WireGuard Client and WiFi Switcher v1.1 — Build
+title WireGuard Client and WiFi Switcher v1.1.2 — Build
 setlocal
 echo.
 echo  ====================================
 echo   WireGuard Client and WiFi Switcher
 echo  ====================================
-echo           v1.1  by Harold Masselink
+echo           v1.1.2  by Harold Masselink
 echo  ====================================
 echo           (Using Claude.ai)
 echo  ====================================

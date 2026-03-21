@@ -1,6 +1,6 @@
 # WireGuard Client and WiFi Switcher
 
-**Version 1.1** — by [Harold Masselink](https://github.com/masselink/WGClientWifiSwitcher)
+**Version 1.1.2** — by [Harold Masselink](https://github.com/masselink/WGClientWifiSwitcher)
 
 ---
 
@@ -194,7 +194,7 @@ Language files live in `lang\` next to the executable. The picker in the title b
 {
   "_language": "Deutsch",
   "_code": "de",
-  "AppTitle": "WireGuard Client und WiFi Switcher v1.1",
+  "AppTitle": "WireGuard Client und WiFi Switcher v1.1.2",
   "BtnAddRule": "\uFF0B  Regel hinzufügen"
 }
 ```
