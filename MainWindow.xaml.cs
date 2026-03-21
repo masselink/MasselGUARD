@@ -279,29 +279,15 @@ namespace WGClientWifiSwitcher
         // Returns tunnel names from all known sources
         internal static List<string> GetAvailableTunnels()
         {
-            var results = new List<string>();
+            // Only return tunnels managed by this app — no auto-discovery of
+            // WireGuard client configs or services. Users must explicitly import.
+            if (!Directory.Exists(TunnelStorageDir)) return new List<string>();
 
-            // Strategy 0: app's own managed tunnel store (%APPDATA%\...\tunnels\)
-            if (Directory.Exists(TunnelStorageDir))
-            {
-                var ownTunnels = Directory.GetFiles(TunnelStorageDir, "*.conf")
-                    .Select(f => Path.GetFileNameWithoutExtension(f))
-                    .Where(n => !string.IsNullOrEmpty(n))
-                    .OrderBy(n => n)
-                    .ToList();
-                results.AddRange(ownTunnels!);
-            }
-
-            // Strategy 1: scan .conf files from WireGuard install directories
-            var fromFiles = GetTunnelsFromFiles();
-            foreach (var t in fromFiles)
-                if (!results.Contains(t, StringComparer.OrdinalIgnoreCase))
-                    results.Add(t);
-
-            if (results.Count > 0) return results;
-
-            // Strategy 2: read tunnel names from installed Windows services
-            return GetTunnelsFromServices();
+            return Directory.GetFiles(TunnelStorageDir, "*.conf")
+                .Select(f => Path.GetFileNameWithoutExtension(f))
+                .Where(n => !string.IsNullOrEmpty(n))
+                .OrderBy(n => n)
+                .ToList()!;
         }
 
         private static List<string> GetTunnelsFromFiles()
