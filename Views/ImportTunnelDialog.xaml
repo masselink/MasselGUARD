@@ -1,0 +1,81 @@
+<Window x:Class="WGClientWifiSwitcher.Views.ImportTunnelDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:WGClientWifiSwitcher"
+        Title="{Binding [ImportTitle], Source={x:Static local:Lang.Instance}}"
+        Width="460" SizeToContent="Height"
+        WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner">
+
+    <Border Background="{StaticResource Bg}"
+            BorderBrush="{StaticResource Accent}"
+            BorderThickness="1" CornerRadius="6">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="44"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="52"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title bar -->
+            <Border Grid.Row="0" Background="{StaticResource Panel}"
+                    CornerRadius="6,6,0,0"
+                    MouseLeftButtonDown="TitleBar_MouseDown">
+                <Grid>
+                    <TextBlock Text="{Binding [ImportTitle], Source={x:Static local:Lang.Instance}}"
+                               FontFamily="Consolas" FontSize="13" FontWeight="Bold"
+                               Foreground="{StaticResource Accent}"
+                               VerticalAlignment="Center" Margin="16,0"/>
+                    <Button Content="✕" Style="{StaticResource DangerBtn}"
+                            HorizontalAlignment="Right" Padding="10,4" Margin="0,0,8,0"
+                            BorderThickness="0" Background="Transparent"
+                            Click="CloseBtn_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Import options -->
+            <StackPanel Grid.Row="1" Margin="20,16,20,16">
+
+                <!-- From file -->
+                <Button Content="{Binding [ImportFromFile], Source={x:Static local:Lang.Instance}}"
+                        Style="{StaticResource FlatBtn}"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                        Padding="16,10" Margin="0,0,0,8"
+                        Click="ImportFromFile_Click"/>
+
+                <!-- From WireGuard client -->
+                <Button x:Name="ImportFromWireGuardBtn"
+                        Content="{Binding [ImportFromWireGuard], Source={x:Static local:Lang.Instance}}"
+                        Style="{StaticResource FlatBtn}"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                        Padding="16,10" Margin="0,0,0,8"
+                        Click="ImportFromWireGuard_Click"/>
+
+                <!-- QR scan -->
+                <Button Content="{Binding [ImportFromQR], Source={x:Static local:Lang.Instance}}"
+                        Style="{StaticResource FlatBtn}"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                        Padding="16,10"
+                        Click="ImportFromQR_Click"/>
+
+                <!-- Status label -->
+                <TextBlock x:Name="StatusLabel"
+                           FontFamily="Consolas" FontSize="10"
+                           Foreground="{StaticResource Sub}"
+                           TextWrapping="Wrap" Margin="0,12,0,0"
+                           Visibility="Collapsed"/>
+            </StackPanel>
+
+            <!-- Button bar -->
+            <Border Grid.Row="2" Background="{StaticResource Panel}" CornerRadius="0,0,6,6">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                            VerticalAlignment="Center" Margin="0,0,16,0">
+                    <Button Content="{Binding [BtnCancel], Source={x:Static local:Lang.Instance}}"
+                            Style="{StaticResource FlatBtn}" Padding="20,6"
+                            Click="CloseBtn_Click"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>
