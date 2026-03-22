@@ -1039,8 +1039,8 @@ namespace WGClientWifiSwitcher
             foreach (var c in Path.GetInvalidFileNameChars())
                 name = name.Replace(c, '_');
 
-            // Check for duplicate
-            if (File.Exists(TunnelPath(name)))
+            // Check for duplicate in config
+            if (_cfg.Tunnels.Any(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase)))
             {
                 var overwrite = ShowDialog(
                     Lang.T("ImportDuplicate", name),
