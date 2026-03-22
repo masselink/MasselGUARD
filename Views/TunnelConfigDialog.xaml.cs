@@ -123,14 +123,12 @@ namespace WGClientWifiSwitcher.Views
         // ── Generate WireGuard private key (Curve25519) ───────────────────────
         private void GenerateKey_Click(object sender, RoutedEventArgs e)
         {
-            // WireGuard uses Curve25519 — generate a random 32-byte scalar,
-            // clamp it per RFC 7748, then base64-encode
-            var key = new byte[32];
-            RandomNumberGenerator.Fill(key);
-            key[0]  &= 248;
-            key[31] &= 127;
-            key[31] |= 64;
-            PrivateKeyBox.Text = Convert.ToBase64String(key);
+            // Use tunnel.dll if available (generates proper Curve25519 keypair including public key)
+            // Falls back to pure C# clamping if tunnel.dll is absent
+            var (priv, pub) = TunnelDll.GenerateKeypair();
+            PrivateKeyBox.Text = priv;
+            if (!string.IsNullOrEmpty(pub))
+                PublicKeyBox.Text = pub; // only populated when tunnel.dll provides it
         }
 
         // ── Validate and save ─────────────────────────────────────────────────

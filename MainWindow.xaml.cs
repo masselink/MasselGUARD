@@ -644,7 +644,6 @@ namespace WGClientWifiSwitcher
         internal static string LastError = "";
 
         // Ensure WireGuardManager (the WireGuard system service) is running.
-        // This is installed by WireGuard independently of the GUI and manages all tunnels.
         private static void EnsureManagerRunning()
         {
             try
@@ -657,15 +656,38 @@ namespace WGClientWifiSwitcher
                     mgr.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(8));
                 }
             }
-            catch { /* manager may not exist on all installs — tunnel service handles it */ }
+            catch { }
         }
 
         private static bool StartTunnel(string tunnel)
         {
-            // Make sure the WireGuard manager service is up first
+            LastError = "";
+            var stored = _cfg.Tunnels.FirstOrDefault(t =>
+                string.Equals(t.Name, tunnel, StringComparison.OrdinalIgnoreCase));
+
+            // ── Local tunnel: use tunnel.dll if available ─────────────────────
+            if (stored?.Source == "local" && TunnelDll.IsTunnelDllAvailable())
+            {
+                var confPath = stored.Path;
+                if (string.IsNullOrEmpty(confPath) || !File.Exists(confPath))
+                {
+                    LastError = "Local tunnel .conf file not found: " + confPath;
+                    return false;
+                }
+
+                // Already running?
+                if (TunnelDll.IsRunning(tunnel)) return true;
+
+                if (TunnelDll.StartTunnel(tunnel, confPath, out var err))
+                    return true;
+
+                LastError = "tunnel.dll: " + err;
+                return false;
+            }
+
+            // ── WireGuard tunnel (or local tunnel without tunnel.dll): use ServiceController + wireguard.exe ─
             EnsureManagerRunning();
 
-            // Primary: ServiceController — works without GUI, requires only the system service
             try
             {
                 using var svc = new ServiceController(SvcName(tunnel));
@@ -679,8 +701,7 @@ namespace WGClientWifiSwitcher
                 LastError = "ServiceController: " + ex1.Message;
             }
 
-            // Fallback: wireguard.exe /installtunnelservice — registers and starts in one step
-            // Works if the service was never registered (e.g. after a reinstall)
+            // Fallback: wireguard.exe /installtunnelservice
             string searched;
             var conf = FindConfPath(tunnel, out searched);
             if (conf != null)
@@ -703,7 +724,20 @@ namespace WGClientWifiSwitcher
 
         private static bool StopTunnel(string tunnel)
         {
-            // Primary: ServiceController
+            LastError = "";
+            var stored = _cfg.Tunnels.FirstOrDefault(t =>
+                string.Equals(t.Name, tunnel, StringComparison.OrdinalIgnoreCase));
+
+            // ── Local tunnel: use tunnel.dll if available ─────────────────────
+            if (stored?.Source == "local" && TunnelDll.IsTunnelDllAvailable())
+            {
+                if (!TunnelDll.IsRunning(tunnel)) return true;
+                if (TunnelDll.StopTunnel(tunnel, out var err)) return true;
+                LastError = "tunnel.dll: " + err;
+                return false;
+            }
+
+            // ── WireGuard tunnel: use ServiceController ───────────────────────
             try
             {
                 using var svc = new ServiceController(SvcName(tunnel));
@@ -736,6 +770,11 @@ namespace WGClientWifiSwitcher
 
         private static bool GetTunnelStatus(string tunnel)
         {
+            var stored = _cfg.Tunnels.FirstOrDefault(t =>
+                string.Equals(t.Name, tunnel, StringComparison.OrdinalIgnoreCase));
+            if (stored?.Source == "local" && TunnelDll.IsTunnelDllAvailable())
+                return TunnelDll.IsRunning(tunnel);
+
             try
             {
                 using var svc = new ServiceController(SvcName(tunnel));

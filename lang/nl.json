@@ -238,5 +238,10 @@
   "TunnelUnavailableTooltip": "Configuratiebestand niet meer gevonden — verwijder dit item",
   "TunnelConnectUnavailable": "Kan geen verbinding maken: tunnel '{0}' is niet meer beschikbaar.\nHet configuratiebestand kon niet worden gevonden.\nVerwijder het tunnelitem en importeer het opnieuw.",
   "TunnelConnectUnavailableTitle": "Tunnel niet beschikbaar",
-  "LogTunnelUnavailable": "Tunnel '{0}' is niet meer beschikbaar — configuratiebestand niet gevonden."
+  "LogTunnelUnavailable": "Tunnel '{0}' is niet meer beschikbaar — configuratiebestand niet gevonden.",
+  "SettingsSectionDll": "WIREGUARD DLL",
+  "DllStatusPresent": "tunnel.dll + wireguard.dll — gereed",
+  "DllStatusMissing": "tunnel.dll of wireguard.dll niet gevonden",
+  "DllStatusHint": "Plaats tunnel.dll en wireguard.dll naast het exe-bestand om lokale tunnels te gebruiken zonder de WireGuard-client.",
+  "DllDownloadHint": "Haal wireguard.dll op via: download.wireguard.com/wireguard-nt/  |  tunnel.dll: bouwen via github.com/WireGuard/wireguard-windows/embeddable-dll-service"
 }

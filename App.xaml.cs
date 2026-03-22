@@ -20,6 +20,20 @@ namespace WGClientWifiSwitcher
         {
             base.OnStartup(e);
 
+            // ── 0. Service host mode ─────────────────────────────────────────
+            // When Windows starts this exe as a WireGuardTunnel$ service it passes:
+            //   WGClientWifiSwitcher.exe /service "path\to\tunnel.conf"
+            // In that case skip all UI, load tunnel.dll, and run the tunnel.
+            var args = Environment.GetCommandLineArgs();
+            if (args.Length == 3 &&
+                string.Equals(args[1], "/service", StringComparison.OrdinalIgnoreCase))
+            {
+                var confPath = args[2];
+                var exitCode = TunnelDll.RunAsService(confPath);
+                Environment.Exit(exitCode);
+                return;
+            }
+
             // ── 1. Load language immediately — needed by all dialogs below ───
             Lang.Instance.Load(AppConfig.LoadLanguage());
 

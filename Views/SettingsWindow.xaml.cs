@@ -31,6 +31,7 @@ namespace WGClientWifiSwitcher.Views
             Closed += (_, _) => Lang.Instance.LanguageChanged -= OnLanguageChanged;
 
             RefreshInstallState();
+            RefreshDllStatus();
             RefreshUpdateState();
             VersionLabel.Text = Lang.T("SettingsVersion") + " " + Lang.T("AppTitle");
         }
@@ -40,6 +41,7 @@ namespace WGClientWifiSwitcher.Views
             Dispatcher.BeginInvoke(() =>
             {
                 RefreshInstallState();
+                RefreshDllStatus();
                 RefreshUpdateState();
                 VersionLabel.Text = Lang.T("SettingsVersion") + " " + Lang.T("AppTitle");
                 CheckUpdateBtn.Content = Lang.T("BtnCheckUpdate");
@@ -73,6 +75,22 @@ namespace WGClientWifiSwitcher.Views
         {
             _main.RunInstallPublic();
             RefreshInstallState();
+        }
+
+        private void RefreshDllStatus()
+        {
+            bool available = TunnelDll.IsTunnelDllAvailable();
+            DllStatusLabel.Text = available
+                ? Lang.T("DllStatusPresent")
+                : Lang.T("DllStatusMissing");
+            DllStatusLabel.SetResourceReference(ForegroundProperty,
+                available ? "Green" : "Red");
+            DllHintLabel.Text = available
+                ? ""
+                : Lang.T("DllDownloadHint");
+            DllHintLabel.Visibility = available
+                ? Visibility.Collapsed
+                : Visibility.Visible;
         }
 
         // ── Update state ─────────────────────────────────────────────────────

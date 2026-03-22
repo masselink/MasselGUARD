@@ -238,5 +238,10 @@
   "TunnelUnavailableTooltip": "Config file no longer found — delete this entry",
   "TunnelConnectUnavailable": "Cannot connect: tunnel '{0}' is no longer available.\nThe config file could not be found.\nDelete the tunnel entry and re-import it.",
   "TunnelConnectUnavailableTitle": "Tunnel unavailable",
-  "LogTunnelUnavailable": "Tunnel '{0}' is no longer available — config file not found."
+  "LogTunnelUnavailable": "Tunnel '{0}' is no longer available — config file not found.",
+  "SettingsSectionDll": "WIREGUARD DLL",
+  "DllStatusPresent": "tunnel.dll + wireguard.dll — ready",
+  "DllStatusMissing": "tunnel.dll or wireguard.dll not found",
+  "DllStatusHint": "Place tunnel.dll and wireguard.dll next to the exe to enable local tunnels without the WireGuard client.",
+  "DllDownloadHint": "Get wireguard.dll: download.wireguard.com/wireguard-nt/  |  tunnel.dll: build from github.com/WireGuard/wireguard-windows/embeddable-dll-service"
 }

@@ -32,5 +32,15 @@
     <Content Include="lang\*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <!-- tunnel.dll and wireguard.dll are optional — place them next to the exe
+         to enable local tunnels without the WireGuard client.
+         Download: wireguard.dll  → https://download.wireguard.com/wireguard-nt/
+                   tunnel.dll     → build from github.com/WireGuard/wireguard-windows/embeddable-dll-service -->
+    <Content Include="tunnel.dll" Condition="Exists('tunnel.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="wireguard.dll" Condition="Exists('wireguard.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>

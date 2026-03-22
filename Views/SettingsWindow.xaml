@@ -92,6 +92,25 @@
                     </Grid>
                 </Border>
 
+                <!-- WIREGUARD DLL section -->
+                <TextBlock Text="{Binding [SettingsSectionDll], Source={x:Static local:Lang.Instance}}"
+                           FontFamily="Consolas" FontSize="10" FontWeight="Bold"
+                           Foreground="{StaticResource Sub}" Margin="0,0,0,8"/>
+
+                <Border Background="{StaticResource Card}"
+                        BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="4" Padding="14,12" Margin="0,0,0,20">
+                    <StackPanel>
+                        <TextBlock x:Name="DllStatusLabel"
+                                   FontFamily="Consolas" FontSize="11"
+                                   TextWrapping="Wrap"/>
+                        <TextBlock x:Name="DllHintLabel"
+                                   FontFamily="Consolas" FontSize="9"
+                                   Foreground="{StaticResource Sub}"
+                                   TextWrapping="Wrap" Margin="0,6,0,0"/>
+                    </StackPanel>
+                </Border>
+
                 <!-- UPDATES section -->
                 <TextBlock Text="{Binding [SettingsSectionUpdate], Source={x:Static local:Lang.Instance}}"
                            FontFamily="Consolas" FontSize="10" FontWeight="Bold"
