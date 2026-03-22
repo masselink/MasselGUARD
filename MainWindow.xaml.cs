@@ -44,97 +44,40 @@ namespace WGClientWifiSwitcher
     }
 
     // Represents a known tunnel with live status for the manual panel
-    public enum TunnelType { Local, WireGuard }
-
     public class TunnelEntry : System.ComponentModel.INotifyPropertyChanged
     {
-        private bool _active      = false;
-        private bool _available   = true;
+        private bool _active = false;
 
-        public string     Name   { get; set; } = "";
-        public TunnelType Type   { get; set; } = TunnelType.Local;
+        public string Name   { get; set; } = "";
 
         public bool Active
         {
             get => _active;
-            set { _active = value; OnProp(); OnProp(nameof(StatusText)); OnProp(nameof(StatusColor)); OnProp(nameof(ButtonLabel)); OnProp(nameof(ButtonEnabled)); }
+            set { _active = value; OnProp(); OnProp(nameof(StatusText)); OnProp(nameof(StatusColor)); OnProp(nameof(ButtonLabel)); }
         }
 
-        public bool IsAvailable
-        {
-            get => _available;
-            set { _available = value; OnProp(); OnProp(nameof(StatusText)); OnProp(nameof(StatusColor)); OnProp(nameof(NameColor)); OnProp(nameof(NameDecoration)); OnProp(nameof(ButtonEnabled)); OnProp(nameof(ButtonTooltip)); }
-        }
-
-        public bool WireGuardInstalled { get; set; } = true;
-
-        // ── Display ──────────────────────────────────────────────────────────
-        public string StatusText =>
-            !_available ? Lang.T("TunnelUnavailable") :
-            _active     ? Lang.T("TunnelStatusConnected") :
-                          Lang.T("TunnelStatusDisconnected");
-
+        public string StatusText  => _active ? Lang.T("TunnelStatusConnected") : Lang.T("TunnelStatusDisconnected");
         public System.Windows.Media.SolidColorBrush StatusColor =>
-            !_available
-                ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(247, 129, 102)) // red/warn
-                : _active
-                    ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(63, 185, 80))
-                    : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(139, 148, 158));
-
-        public System.Windows.Media.SolidColorBrush NameColor =>
-            _available
-                ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(230, 237, 243))
+            _active
+                ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(63, 185, 80))
                 : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(139, 148, 158));
+        public string ButtonLabel => _active ? Lang.T("TunnelBtnDisconnect") : Lang.T("TunnelBtnConnect");
 
-        public System.Windows.TextDecorationCollection? NameDecoration =>
-            _available ? null : System.Windows.TextDecorations.Strikethrough;
-
-        public string ButtonLabel   => _active ? Lang.T("TunnelBtnDisconnect") : Lang.T("TunnelBtnConnect");
-        public bool   ButtonEnabled => _available && (Type == TunnelType.Local || WireGuardInstalled);
-        public string ButtonTooltip =>
-            !_available                             ? Lang.T("TunnelUnavailableTooltip") :
-            (!WireGuardInstalled && Type != TunnelType.Local) ? Lang.T("TunnelWireGuardNotInstalled") : "";
-
-        public string TypeLabel => Type == TunnelType.Local
-            ? Lang.T("TunnelTypeLocal")
-            : Lang.T("TunnelTypeWireGuard");
-
-        public System.Windows.Media.SolidColorBrush TypeColor =>
-            Type == TunnelType.Local
-                ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(88, 166, 255))
-                : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(139, 148, 158));
-
-        public void RefreshLabels()
-        {
-            OnProp(nameof(StatusText));
-            OnProp(nameof(ButtonLabel));
-            OnProp(nameof(TypeLabel));
-        }
+        public void RefreshLabels() { OnProp(nameof(StatusText)); OnProp(nameof(ButtonLabel)); }
 
         public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
         private void OnProp([System.Runtime.CompilerServices.CallerMemberName] string? n = null)
             => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(n));
     }
 
-    public class StoredTunnel
-    {
-        public string  Name   { get; set; } = "";
-        public string  Config { get; set; } = "";  // raw .conf text — used for locally created tunnels
-        public string  Source { get; set; } = "local"; // "local" or "wireguard"
-        public string? Path   { get; set; } = null;    // original file path — used for wireguard tunnels
-    }
-
     public class AppConfig
     {
-        public List<TunnelRule>   Rules              { get; set; } = new();
-        public List<StoredTunnel> Tunnels            { get; set; } = new();
-        public string             DefaultAction      { get; set; } = "none";
-        public string             DefaultTunnel      { get; set; } = "";
-        public string             InstallDirectory   { get; set; } = @"C:\Program Files\WireGuard";
-        public string             Language           { get; set; } = "en";
-        public string?            InstalledPath      { get; set; } = null;
-        public DateTime           LastUpdateCheck    { get; set; } = DateTime.MinValue;
-        public string?            LatestKnownVersion { get; set; } = null;
+        public List<TunnelRule> Rules            { get; set; } = new();
+        public string           DefaultAction    { get; set; } = "none";
+        public string           DefaultTunnel    { get; set; } = "";
+        public string           InstallDirectory { get; set; } = @"C:\Program Files\WireGuard";
+        public string           Language         { get; set; } = "en";
+        public string?          InstalledPath    { get; set; } = null;
 
         [JsonIgnore]
         public string ConfDirectory => string.IsNullOrWhiteSpace(InstallDirectory)
@@ -249,21 +192,15 @@ namespace WGClientWifiSwitcher
             return null;
         }
 
-        // Returns the .conf file path — both local and WireGuard use a stored path reference
+        // Search known locations for a tunnel's .conf file
         private static string? FindConfPath(string tunnel, out string searched)
         {
-            searched = "";
-
-            // Check stored reference (both local and wireguard)
-            var stored = _cfg.Tunnels.FirstOrDefault(t =>
-                string.Equals(t.Name, tunnel, StringComparison.OrdinalIgnoreCase));
-            if (stored != null && !string.IsNullOrEmpty(stored.Path) && File.Exists(stored.Path))
-                return stored.Path;
-
-            // Fallback: scan WireGuard install directories
             var dirs = new List<string>();
+
+            // User-configured directory first
             if (!string.IsNullOrWhiteSpace(_cfg.ConfDirectory))
                 dirs.Add(_cfg.ConfDirectory);
+
             dirs.AddRange(new[]
             {
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),       "WireGuard"),
@@ -273,23 +210,35 @@ namespace WGClientWifiSwitcher
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),          "WireGuard", "Data"),
                 @"C:\WireGuard",
             });
+
+            var tried = new System.Text.StringBuilder();
             foreach (var dir in dirs)
             {
-                var p  = Path.Combine(dir, tunnel + ".conf");
-                if (File.Exists(p))  return p;
+                var p = Path.Combine(dir, tunnel + ".conf");
+                if (File.Exists(p)) { searched = tried.ToString(); return p; }
                 var pd = Path.Combine(dir, tunnel + ".conf.dpapi");
-                if (File.Exists(pd)) return pd;
+                if (File.Exists(pd)) { searched = tried.ToString(); return pd; }
             }
+            searched = tried.ToString();
             return null;
         }
+
         private static string? FindConfPath(string tunnel) => FindConfPath(tunnel, out _);
-        // Returns tunnel names stored in config.json
-        internal static List<string> GetAvailableTunnels() =>
-            _cfg.Tunnels
-                .Select(t => t.Name)
-                .Where(n => !string.IsNullOrEmpty(n))
-                .OrderBy(n => n)
-                .ToList();
+
+        // Returns tunnel names from .conf files in the configured directory
+        internal static List<string> GetAvailableTunnels()
+        {
+            // Strategy 1: scan .conf files from configured/known directories
+            var fromFiles = GetTunnelsFromFiles();
+            if (fromFiles.Count > 0) return fromFiles;
+
+            // Strategy 2: read tunnel names from installed Windows services
+            // WireGuard registers each tunnel as WireGuardTunnel$<name> — readable by admins
+            var fromServices = GetTunnelsFromServices();
+            if (fromServices.Count > 0) return fromServices;
+
+            return new List<string>();
+        }
 
         private static List<string> GetTunnelsFromFiles()
         {
@@ -388,28 +337,32 @@ namespace WGClientWifiSwitcher
 
             Loaded += (_, _) =>
             {
+                // Populate language picker
+                foreach (var (code, name) in Lang.AvailableLanguages())
+                    LanguagePicker.Items.Add(new LangItem(code, name));
+                LanguagePicker.DisplayMemberPath = "Name";
+                LanguagePicker.SelectedItem = LanguagePicker.Items
+                    .Cast<LangItem>().FirstOrDefault(i => i.Code == Lang.Instance.CurrentCode)
+                    ?? LanguagePicker.Items.Cast<LangItem>().FirstOrDefault();
+
                 // Refresh TunnelEntry labels when language changes
                 Lang.Instance.LanguageChanged += (_, _) =>
                     Dispatcher.BeginInvoke(() =>
                     {
                         foreach (var t in _tunnels) t.RefreshLabels();
                         UpdateAdminLabel();
-                        UpdateFooterLabel();
+                        UpdateInstallButton();
                         RebuildLog();
                     });
 
                 UpdateAdminLabel();
-                UpdateFooterLabel();
+                UpdateInstallButton();
                 var startedFrom = Environment.ProcessPath
                     ?? AppContext.BaseDirectory;
                 Log("LogStartedFrom", LogLevel.Info, startedFrom);
                 Log("LogAppStarted", LogLevel.Info);
                 LoadConfig();
                 SetupTimer();
-
-                // Background update check — once every 7 days
-                if ((DateTime.UtcNow - _cfg.LastUpdateCheck).TotalDays >= 7)
-                    _ = UpdateChecker.CheckAsync(_cfg, SaveConfig, Dispatcher);
             };
         }
 
@@ -608,17 +561,6 @@ namespace WGClientWifiSwitcher
 
         private void SwitchTo(string target)
         {
-            // Check availability before attempting connection
-            var entry = _tunnels.FirstOrDefault(t =>
-                string.Equals(t.Name, target, StringComparison.OrdinalIgnoreCase));
-            if (entry != null && !entry.IsAvailable)
-            {
-                Log("LogTunnelUnavailable", LogLevel.Warn, target);
-                Dispatcher.BeginInvoke(() =>
-                    ShowErrorBanner(Lang.T("TunnelConnectUnavailable", target)));
-                return;
-            }
-
             foreach (var name in GetActiveTunnelNames().Where(n => n != target))
             {
                 StopTunnel(name);
@@ -912,168 +854,6 @@ namespace WGClientWifiSwitcher
             DeleteBtn.IsEnabled = sel;
         }
 
-        // ── Tunnel management ──────────────────────────────────────────────────
-
-        // Keep TunnelStorageDir for legacy .conf file migration only
-        private static readonly string TunnelStorageDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "WGClientWifiSwitcher", "tunnels");
-
-        public static string TunnelStorageDirPublic => TunnelStorageDir;
-
-        // ── Config-based tunnel CRUD ──────────────────────────────────────────
-
-        private void SaveTunnelConfig(string name, string config, string source = "local", string? filePath = null)
-        {
-            if (source == "local")
-            {
-                // Write the config to a .conf file in the tunnels directory
-                Directory.CreateDirectory(TunnelStorageDir);
-                filePath = System.IO.Path.Combine(TunnelStorageDir, name + ".conf");
-                File.WriteAllText(filePath, config, System.Text.Encoding.UTF8);
-                config = ""; // don't duplicate in config.json
-            }
-
-            var existing = _cfg.Tunnels.FirstOrDefault(t =>
-                string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
-            if (existing != null)
-            {
-                existing.Config = config;
-                existing.Source = source;
-                existing.Path   = filePath;
-            }
-            else
-            {
-                _cfg.Tunnels.Add(new StoredTunnel
-                {
-                    Name   = name,
-                    Config = config,
-                    Source = source,
-                    Path   = filePath
-                });
-            }
-            SaveConfig();
-        }
-
-        private string? LoadTunnelConfig(string name)
-        {
-            var stored = _cfg.Tunnels.FirstOrDefault(t =>
-                string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
-            if (stored == null) return null;
-
-            // Both local and wireguard tunnels use a file path reference
-            if (!string.IsNullOrEmpty(stored.Path) && File.Exists(stored.Path))
-                return File.ReadAllText(stored.Path, System.Text.Encoding.UTF8);
-
-            // Fallback: inline config (legacy entries before this change)
-            return string.IsNullOrEmpty(stored.Config) ? null : stored.Config;
-        }
-
-        private void DeleteTunnelConfig(string name)
-        {
-            var stored = _cfg.Tunnels.FirstOrDefault(t =>
-                string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
-
-            // Delete the .conf file for locally managed tunnels
-            if (stored?.Source == "local" &&
-                !string.IsNullOrEmpty(stored.Path) &&
-                File.Exists(stored.Path))
-            {
-                try { File.Delete(stored.Path); } catch { }
-            }
-
-            _cfg.Tunnels.RemoveAll(t =>
-                string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
-            SaveConfig();
-        }
-
-        private void TunnelsListView_SelectionChanged(object sender,
-            System.Windows.Controls.SelectionChangedEventArgs e)
-        {
-            var entry = TunnelsListView.SelectedItem as TunnelEntry;
-            bool sel  = entry != null;
-            // Edit only makes sense for locally managed tunnels
-            EditTunnelBtn.IsEnabled   = sel && entry?.Type == TunnelType.Local;
-            DeleteTunnelBtn.IsEnabled = sel;
-        }
-
-        private void AddTunnel_Click(object sender, RoutedEventArgs e)
-        {
-            var dlg = new Views.TunnelConfigDialog { Owner = this };
-            if (dlg.ShowDialog() != true) return;
-            SaveTunnelConfig(dlg.ResultName!, dlg.ResultConfig!);
-            Log("TunnelSavedLog", LogLevel.Ok, dlg.ResultName!);
-            RefreshTunnelDropdowns();
-        }
-
-        private void EditTunnel_Click(object sender, RoutedEventArgs e)
-        {
-            if (TunnelsListView.SelectedItem is not TunnelEntry entry) return;
-            var config = LoadTunnelConfig(entry.Name);
-            var dlg    = new Views.TunnelConfigDialog(entry.Name, config) { Owner = this };
-            if (dlg.ShowDialog() != true) return;
-
-            // If name changed, delete old file
-            if (!string.Equals(dlg.ResultName, entry.Name, StringComparison.OrdinalIgnoreCase))
-                DeleteTunnelConfig(entry.Name);
-
-            SaveTunnelConfig(dlg.ResultName!, dlg.ResultConfig!);
-            Log("TunnelSavedLog", LogLevel.Ok, dlg.ResultName!);
-            RefreshTunnelDropdowns();
-        }
-
-        private void ImportTunnel_Click(object sender, RoutedEventArgs e)
-        {
-            var alreadyImported = new HashSet<string>(
-                _cfg.Tunnels.Select(t => t.Name),
-                StringComparer.OrdinalIgnoreCase);
-            var dlg = new Views.ImportTunnelDialog(alreadyImported) { Owner = this };
-            dlg.TunnelImported += (name, config, source, path) =>
-                SaveImportedTunnel(name, config, source, path);
-            dlg.ShowDialog();
-        }
-
-        private void SaveImportedTunnel(string name, string config, string source = "local", string? path = null)
-        {
-            // Sanitise name
-            foreach (var c in Path.GetInvalidFileNameChars())
-                name = name.Replace(c, '_');
-
-            // Check for duplicate
-            if (File.Exists(TunnelPath(name)))
-            {
-                var overwrite = ShowDialog(
-                    Lang.T("ImportDuplicate", name),
-                    Lang.T("ImportDuplicateTitle"),
-                    MessageBoxButton.YesNo, MessageBoxImage.Question);
-                if (overwrite != MessageBoxResult.Yes) return;
-            }
-
-            try
-            {
-                SaveTunnelConfig(name, config, source, path);
-                Log("TunnelImportedLog", LogLevel.Ok, name);
-                Dispatcher.BeginInvoke(RefreshTunnelDropdowns);
-            }
-            catch (Exception ex)
-            {
-                Log("ImportFailed", LogLevel.Warn, ex.Message);
-            }
-        }
-
-        private void DeleteTunnel_Click(object sender, RoutedEventArgs e)
-        {
-            if (TunnelsListView.SelectedItem is not TunnelEntry entry) return;
-            var confirm = ShowDialog(
-                Lang.T("DeleteTunnelConfirm", entry.Name),
-                Lang.T("DeleteTunnelTitle"),
-                MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (confirm != MessageBoxResult.Yes) return;
-            DeleteTunnelConfig(entry.Name);
-            Log("TunnelDeletedLog", LogLevel.Warn, entry.Name);
-            RefreshTunnelDropdowns();
-        }
-
         private void AuthorLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             try { Process.Start(new ProcessStartInfo("https://github.com/masselink/WGClientWifiSwitcher")
@@ -1105,40 +885,20 @@ namespace WGClientWifiSwitcher
             DefaultTunnelBox.Text = prev;
 
             // Rebuild tunnel panel list
-            var active      = GetActiveTunnelNames();
-            var wgInstalled = FindWireGuardExe() != null;
+            var active = GetActiveTunnelNames();
             _tunnels.Clear();
             foreach (var t in tunnels)
-            {
-                var stored = _cfg.Tunnels.FirstOrDefault(s =>
-                    string.Equals(s.Name, t, StringComparison.OrdinalIgnoreCase));
-                var isLocal = stored?.Source != "wireguard";
-                _tunnels.Add(new TunnelEntry
-                {
-                    Name               = t,
-                    Active             = active.Contains(t),
-                    Type               = isLocal ? TunnelType.Local : TunnelType.WireGuard,
-                    WireGuardInstalled = wgInstalled
-                });
-            }
+                _tunnels.Add(new TunnelEntry { Name = t, Active = active.Contains(t) });
 
             // Rebuild tray menu
             ((App)System.Windows.Application.Current).RebuildTrayTunnelMenu(tunnels, active);
-
-            // Check availability of all tunnels
-            CheckTunnelAvailability();
         }
 
         // Called from UpdateStatusDisplay to refresh live Active flags without rebuilding
         private void RefreshTunnelEntryStatuses()
         {
-            var active      = GetActiveTunnelNames();
-            var wgInstalled = FindWireGuardExe() != null;
-            foreach (var e in _tunnels)
-            {
-                e.WireGuardInstalled = wgInstalled;
-                e.Active = active.Contains(e.Name);
-            }
+            var active = GetActiveTunnelNames();
+            foreach (var e in _tunnels) e.Active = active.Contains(e.Name);
             ((App)System.Windows.Application.Current).RebuildTrayTunnelMenu(
                 _tunnels.Select(t => t.Name).ToList(), active);
         }
@@ -1175,47 +935,6 @@ namespace WGClientWifiSwitcher
             Log("LogManualDisconnect", LogLevel.Info, tunnel);
             bool ok = StopTunnel(tunnel);
             Log("LogManualConnectResult", ok ? LogLevel.Ok : LogLevel.Warn, tunnel, ok ? Lang.T("TunnelStatusDisconnected") : Lang.T("LogTunnelFailed"));
-        }
-
-        // ── Tunnel availability ────────────────────────────────────────────────
-
-        /// <summary>
-        /// Checks whether each tunnel's config file still exists.
-        /// Marks unavailable tunnels visually and logs a warning for newly unavailable ones.
-        /// Called on startup and every time the window is shown.
-        /// </summary>
-        private void CheckTunnelAvailability()
-        {
-            var wgInstalled = FindWireGuardExe() != null;
-            foreach (var entry in _tunnels)
-            {
-                bool available = IsTunnelConfigAvailable(entry.Name, entry.Type);
-                if (!available && entry.IsAvailable)
-                    Log("LogTunnelUnavailable", LogLevel.Warn, entry.Name);
-                entry.IsAvailable          = available;
-                entry.WireGuardInstalled   = wgInstalled;
-            }
-        }
-
-        private static bool IsTunnelConfigAvailable(string name, TunnelType type)
-        {
-            var stored = _cfg.Tunnels.FirstOrDefault(t =>
-                string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
-            if (stored == null) return false;
-
-            // Both local (.conf in tunnels dir) and wireguard (WG install path) use a file reference
-            return !string.IsNullOrEmpty(stored.Path) && File.Exists(stored.Path);
-        }
-
-        private void ShowErrorBanner(string message)
-        {
-            ErrorBannerText.Text    = message;
-            ErrorBanner.Visibility  = System.Windows.Visibility.Visible;
-        }
-
-        private void DismissBanner_Click(object sender, RoutedEventArgs e)
-        {
-            ErrorBanner.Visibility = System.Windows.Visibility.Collapsed;
         }
 
         private void TunnelToggle_Click(object sender, RoutedEventArgs e)
@@ -1263,37 +982,26 @@ namespace WGClientWifiSwitcher
 
         private void UpdateInstallButton()
         {
-            // Notify settings window to refresh its install state if open
-            if (_settingsWindow != null && _settingsWindow.IsVisible)
-                _settingsWindow.RefreshInstallState();
-            UpdateFooterLabel();
-        }
-
-        private void UpdateFooterLabel()
-        {
-            var installedPath = GetInstalledPath();
-            var currentDir    = Path.GetDirectoryName(
-                Environment.ProcessPath ?? AppContext.BaseDirectory) ?? "";
-            bool installed = installedPath != null &&
-                             File.Exists(Path.Combine(installedPath, "WGClientWifiSwitcher.exe"));
-            bool runningFromInstall = installed &&
-                string.Equals(currentDir, installedPath, StringComparison.OrdinalIgnoreCase);
-
-            if (installed && runningFromInstall)
+            if (IsInstalled())
             {
-                FooterLabel.Text       = Lang.T("StatusManaged");
-                FooterLabel.Foreground = (SolidColorBrush)FindResource("Green");
-            }
-            else if (installed && !runningFromInstall)
-            {
-                FooterLabel.Text       = Lang.T("StatusManagedPortable");
-                FooterLabel.Foreground = (SolidColorBrush)FindResource("Sub");
+                InstallBtn.Content  = Lang.T("BtnUninstall");
+                InstallBtn.ToolTip  = Lang.T("TooltipUninstall");
+                InstallBtn.SetResourceReference(ForegroundProperty, "Red");
             }
             else
             {
-                FooterLabel.Text       = Lang.T("StatusPortable");
-                FooterLabel.Foreground = (SolidColorBrush)FindResource("Sub");
+                InstallBtn.Content  = Lang.T("BtnInstall");
+                InstallBtn.ToolTip  = Lang.T("TooltipInstall");
+                InstallBtn.SetResourceReference(ForegroundProperty, "Accent");
             }
+        }
+
+        private void InstallBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (IsInstalled())
+                RunUninstall();
+            else
+                RunInstall();
         }
 
         private void RunInstall()
@@ -2187,36 +1895,11 @@ Register-ScheduledTask -TaskName 'WGClientWifiSwitcher' `
         private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
         { if (e.LeftButton == MouseButtonState.Pressed) DragMove(); }
 
-        private Views.SettingsWindow? _settingsWindow;
-
-        private void SettingsBtn_Click(object sender, RoutedEventArgs e)
+        private void LanguagePicker_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
         {
-            if (_settingsWindow != null && _settingsWindow.IsVisible)
-            {
-                _settingsWindow.Activate();
-                return;
-            }
-            _settingsWindow = new Views.SettingsWindow(this) { Owner = this };
-            _settingsWindow.Show();
-        }
-
-        // Public wrappers used by SettingsWindow
-        public bool   IsInstalledCheck()        => IsInstalled();
-        public string? GetInstalledPathPublic()  => GetInstalledPath();
-        public AppConfig GetConfig()             => _cfg;
-        public void   SaveConfigPublic()         => SaveConfig();
-        public void   RunInstallPublic()
-        {
-            if (IsInstalled()) RunUninstall();
-            else               RunInstall();
-        }
-
-        protected override void OnActivated(EventArgs e)
-        {
-            base.OnActivated(e);
-            // Recheck availability every time the window is brought to the foreground
-            if (_tunnels.Count > 0)
-                CheckTunnelAvailability();
+            if (_loading) return;
+            if (LanguagePicker.SelectedItem is LangItem item)
+                Lang.Instance.Load(item.Code);
         }
 
         private void CloseBtn_Click(object sender, RoutedEventArgs e)    => Hide();

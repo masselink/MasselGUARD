@@ -490,21 +490,5 @@
             </Setter>
         </Style>
 
-        <!-- Shared label styles used across windows -->
-        <Style x:Key="SectionLabel" TargetType="TextBlock">
-            <Setter Property="Foreground"  Value="{StaticResource Sub}"/>
-            <Setter Property="FontFamily"  Value="Consolas"/>
-            <Setter Property="FontSize"    Value="10"/>
-            <Setter Property="FontWeight"  Value="Bold"/>
-            <Setter Property="Margin"      Value="0,0,0,6"/>
-        </Style>
-
-        <Style x:Key="FormLabel" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource Sub}"/>
-            <Setter Property="FontFamily" Value="Consolas"/>
-            <Setter Property="FontSize"   Value="10"/>
-            <Setter Property="Margin"     Value="0,0,0,4"/>
-        </Style>
-
     </Application.Resources>
 </Application>
