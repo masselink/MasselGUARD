@@ -116,16 +116,25 @@ namespace WGClientWifiSwitcher
             => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(n));
     }
 
+    public class StoredTunnel
+    {
+        public string  Name   { get; set; } = "";
+        public string  Config { get; set; } = "";  // raw .conf text — used for locally created tunnels
+        public string  Source { get; set; } = "local"; // "local" or "wireguard"
+        public string? Path   { get; set; } = null;    // original file path — used for wireguard tunnels
+    }
+
     public class AppConfig
     {
-        public List<TunnelRule> Rules            { get; set; } = new();
-        public string           DefaultAction    { get; set; } = "none";
-        public string           DefaultTunnel    { get; set; } = "";
-        public string           InstallDirectory { get; set; } = @"C:\Program Files\WireGuard";
-        public string           Language         { get; set; } = "en";
-        public string?          InstalledPath    { get; set; } = null;
-        public DateTime         LastUpdateCheck  { get; set; } = DateTime.MinValue;
-        public string?          LatestKnownVersion { get; set; } = null;
+        public List<TunnelRule>   Rules              { get; set; } = new();
+        public List<StoredTunnel> Tunnels            { get; set; } = new();
+        public string             DefaultAction      { get; set; } = "none";
+        public string             DefaultTunnel      { get; set; } = "";
+        public string             InstallDirectory   { get; set; } = @"C:\Program Files\WireGuard";
+        public string             Language           { get; set; } = "en";
+        public string?            InstalledPath      { get; set; } = null;
+        public DateTime           LastUpdateCheck    { get; set; } = DateTime.MinValue;
+        public string?            LatestKnownVersion { get; set; } = null;
 
         [JsonIgnore]
         public string ConfDirectory => string.IsNullOrWhiteSpace(InstallDirectory)
@@ -240,18 +249,21 @@ namespace WGClientWifiSwitcher
             return null;
         }
 
-        // Search known locations for a tunnel's .conf file
+        // Returns the .conf file path — both local and WireGuard use a stored path reference
         private static string? FindConfPath(string tunnel, out string searched)
         {
+            searched = "";
+
+            // Check stored reference (both local and wireguard)
+            var stored = _cfg.Tunnels.FirstOrDefault(t =>
+                string.Equals(t.Name, tunnel, StringComparison.OrdinalIgnoreCase));
+            if (stored != null && !string.IsNullOrEmpty(stored.Path) && File.Exists(stored.Path))
+                return stored.Path;
+
+            // Fallback: scan WireGuard install directories
             var dirs = new List<string>();
-
-            // App's own tunnel storage first
-            dirs.Add(TunnelStorageDir);
-
-            // User-configured WireGuard directory
             if (!string.IsNullOrWhiteSpace(_cfg.ConfDirectory))
                 dirs.Add(_cfg.ConfDirectory);
-
             dirs.AddRange(new[]
             {
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),       "WireGuard"),
@@ -261,34 +273,23 @@ namespace WGClientWifiSwitcher
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),          "WireGuard", "Data"),
                 @"C:\WireGuard",
             });
-
-            var tried = new System.Text.StringBuilder();
             foreach (var dir in dirs)
             {
-                var p = Path.Combine(dir, tunnel + ".conf");
-                if (File.Exists(p)) { searched = tried.ToString(); return p; }
+                var p  = Path.Combine(dir, tunnel + ".conf");
+                if (File.Exists(p))  return p;
                 var pd = Path.Combine(dir, tunnel + ".conf.dpapi");
-                if (File.Exists(pd)) { searched = tried.ToString(); return pd; }
+                if (File.Exists(pd)) return pd;
             }
-            searched = tried.ToString();
             return null;
         }
-
         private static string? FindConfPath(string tunnel) => FindConfPath(tunnel, out _);
-
-        // Returns tunnel names from all known sources
-        internal static List<string> GetAvailableTunnels()
-        {
-            // Only return tunnels managed by this app — no auto-discovery of
-            // WireGuard client configs or services. Users must explicitly import.
-            if (!Directory.Exists(TunnelStorageDir)) return new List<string>();
-
-            return Directory.GetFiles(TunnelStorageDir, "*.conf")
-                .Select(f => Path.GetFileNameWithoutExtension(f))
+        // Returns tunnel names stored in config.json
+        internal static List<string> GetAvailableTunnels() =>
+            _cfg.Tunnels
+                .Select(t => t.Name)
                 .Where(n => !string.IsNullOrEmpty(n))
                 .OrderBy(n => n)
-                .ToList()!;
-        }
+                .ToList();
 
         private static List<string> GetTunnelsFromFiles()
         {
@@ -913,32 +914,77 @@ namespace WGClientWifiSwitcher
 
         // ── Tunnel management ──────────────────────────────────────────────────
 
+        // Keep TunnelStorageDir for legacy .conf file migration only
         private static readonly string TunnelStorageDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "WGClientWifiSwitcher", "tunnels");
 
-        // Public accessor for use by import dialog
         public static string TunnelStorageDirPublic => TunnelStorageDir;
 
-        private static string TunnelPath(string name) =>
-            Path.Combine(TunnelStorageDir, name + ".conf");
+        // ── Config-based tunnel CRUD ──────────────────────────────────────────
 
-        private static void SaveTunnelConfig(string name, string config)
+        private void SaveTunnelConfig(string name, string config, string source = "local", string? filePath = null)
         {
-            Directory.CreateDirectory(TunnelStorageDir);
-            File.WriteAllText(TunnelPath(name), config, System.Text.Encoding.UTF8);
+            if (source == "local")
+            {
+                // Write the config to a .conf file in the tunnels directory
+                Directory.CreateDirectory(TunnelStorageDir);
+                filePath = System.IO.Path.Combine(TunnelStorageDir, name + ".conf");
+                File.WriteAllText(filePath, config, System.Text.Encoding.UTF8);
+                config = ""; // don't duplicate in config.json
+            }
+
+            var existing = _cfg.Tunnels.FirstOrDefault(t =>
+                string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                existing.Config = config;
+                existing.Source = source;
+                existing.Path   = filePath;
+            }
+            else
+            {
+                _cfg.Tunnels.Add(new StoredTunnel
+                {
+                    Name   = name,
+                    Config = config,
+                    Source = source,
+                    Path   = filePath
+                });
+            }
+            SaveConfig();
         }
 
-        private static string? LoadTunnelConfig(string name)
+        private string? LoadTunnelConfig(string name)
         {
-            var path = TunnelPath(name);
-            return File.Exists(path) ? File.ReadAllText(path, System.Text.Encoding.UTF8) : null;
+            var stored = _cfg.Tunnels.FirstOrDefault(t =>
+                string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (stored == null) return null;
+
+            // Both local and wireguard tunnels use a file path reference
+            if (!string.IsNullOrEmpty(stored.Path) && File.Exists(stored.Path))
+                return File.ReadAllText(stored.Path, System.Text.Encoding.UTF8);
+
+            // Fallback: inline config (legacy entries before this change)
+            return string.IsNullOrEmpty(stored.Config) ? null : stored.Config;
         }
 
-        private static void DeleteTunnelConfig(string name)
+        private void DeleteTunnelConfig(string name)
         {
-            var path = TunnelPath(name);
-            if (File.Exists(path)) File.Delete(path);
+            var stored = _cfg.Tunnels.FirstOrDefault(t =>
+                string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
+
+            // Delete the .conf file for locally managed tunnels
+            if (stored?.Source == "local" &&
+                !string.IsNullOrEmpty(stored.Path) &&
+                File.Exists(stored.Path))
+            {
+                try { File.Delete(stored.Path); } catch { }
+            }
+
+            _cfg.Tunnels.RemoveAll(t =>
+                string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
+            SaveConfig();
         }
 
         private void TunnelsListView_SelectionChanged(object sender,
@@ -978,12 +1024,16 @@ namespace WGClientWifiSwitcher
 
         private void ImportTunnel_Click(object sender, RoutedEventArgs e)
         {
-            var dlg = new Views.ImportTunnelDialog { Owner = this };
-            dlg.TunnelImported += (name, config) => SaveImportedTunnel(name, config);
+            var alreadyImported = new HashSet<string>(
+                _cfg.Tunnels.Select(t => t.Name),
+                StringComparer.OrdinalIgnoreCase);
+            var dlg = new Views.ImportTunnelDialog(alreadyImported) { Owner = this };
+            dlg.TunnelImported += (name, config, source, path) =>
+                SaveImportedTunnel(name, config, source, path);
             dlg.ShowDialog();
         }
 
-        private void SaveImportedTunnel(string name, string config)
+        private void SaveImportedTunnel(string name, string config, string source = "local", string? path = null)
         {
             // Sanitise name
             foreach (var c in Path.GetInvalidFileNameChars())
@@ -1001,7 +1051,7 @@ namespace WGClientWifiSwitcher
 
             try
             {
-                SaveTunnelConfig(name, config);
+                SaveTunnelConfig(name, config, source, path);
                 Log("TunnelImportedLog", LogLevel.Ok, name);
                 Dispatcher.BeginInvoke(RefreshTunnelDropdowns);
             }
@@ -1055,13 +1105,14 @@ namespace WGClientWifiSwitcher
             DefaultTunnelBox.Text = prev;
 
             // Rebuild tunnel panel list
-            var active   = GetActiveTunnelNames();
+            var active      = GetActiveTunnelNames();
             var wgInstalled = FindWireGuardExe() != null;
             _tunnels.Clear();
             foreach (var t in tunnels)
             {
-                var isLocal = Directory.Exists(TunnelStorageDir) &&
-                    File.Exists(Path.Combine(TunnelStorageDir, t + ".conf"));
+                var stored = _cfg.Tunnels.FirstOrDefault(s =>
+                    string.Equals(s.Name, t, StringComparison.OrdinalIgnoreCase));
+                var isLocal = stored?.Source != "wireguard";
                 _tunnels.Add(new TunnelEntry
                 {
                     Name               = t,
@@ -1148,22 +1199,12 @@ namespace WGClientWifiSwitcher
 
         private static bool IsTunnelConfigAvailable(string name, TunnelType type)
         {
-            // Local tunnels: check our own storage dir
-            if (type == TunnelType.Local)
-                return File.Exists(Path.Combine(TunnelStorageDir, name + ".conf"));
+            var stored = _cfg.Tunnels.FirstOrDefault(t =>
+                string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (stored == null) return false;
 
-            // WireGuard tunnels: check via FindConfPath or service existence
-            var path = FindConfPath(name);
-            if (path != null) return true;
-
-            // Also accept if the Windows service still exists (DPAPI-encrypted conf)
-            try
-            {
-                using var svc = new System.ServiceProcess.ServiceController("WireGuardTunnel$" + name);
-                _ = svc.Status; // throws if service doesn't exist
-                return true;
-            }
-            catch { return false; }
+            // Both local (.conf in tunnels dir) and wireguard (WG install path) use a file reference
+            return !string.IsNullOrEmpty(stored.Path) && File.Exists(stored.Path);
         }
 
         private void ShowErrorBanner(string message)

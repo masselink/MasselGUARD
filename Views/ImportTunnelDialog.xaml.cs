@@ -14,12 +14,15 @@ namespace WGClientWifiSwitcher.Views
 {
     public partial class ImportTunnelDialog : Window
     {
-        // Raised when a config is successfully parsed — name + raw config text
-        public event Action<string, string>? TunnelImported;
+        // Raised when a config is successfully parsed — name + raw config text + source + optional original file path
+        public event Action<string, string, string, string?>? TunnelImported;
 
-        public ImportTunnelDialog()
+        private readonly HashSet<string> _alreadyImported;
+
+        public ImportTunnelDialog(HashSet<string>? alreadyImported = null)
         {
             InitializeComponent();
+            _alreadyImported = alreadyImported ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             // Disable WireGuard import option if WireGuard is not installed
             var wgInstalled = MainWindow.FindWireGuardExe() != null;
@@ -46,7 +49,7 @@ namespace WGClientWifiSwitcher.Views
             {
                 var text = File.ReadAllText(dlg.FileName, System.Text.Encoding.UTF8);
                 var name = Path.GetFileNameWithoutExtension(dlg.FileName);
-                TunnelImported?.Invoke(name, text);
+                TunnelImported?.Invoke(name, text, "local", dlg.FileName);
                 Close();
             }
             catch (Exception ex)
@@ -65,25 +68,14 @@ namespace WGClientWifiSwitcher.Views
                 return;
             }
 
-            // Collect already-imported names so picker can mark them
-            var alreadyImported = GetAlreadyImportedNames();
-
-            var picker = new WireGuardPickerDialog(configs, alreadyImported) { Owner = this };
+            // Collect already-imported names from the field passed by MainWindow
+            var picker = new WireGuardPickerDialog(configs, _alreadyImported) { Owner = this };
             if (picker.ShowDialog() != true || picker.SelectedTunnels.Count == 0) return;
 
-            foreach (var (name, config) in picker.SelectedTunnels)
-                TunnelImported?.Invoke(name, config);
+            foreach (var (name, _, path) in picker.SelectedTunnels)
+                TunnelImported?.Invoke(name, "", "wireguard", path);
 
             Close();
-        }
-
-        private static HashSet<string> GetAlreadyImportedNames()
-        {
-            var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            if (!Directory.Exists(MainWindow.TunnelStorageDirPublic)) return result;
-            foreach (var f in Directory.GetFiles(MainWindow.TunnelStorageDirPublic, "*.conf"))
-                result.Add(Path.GetFileNameWithoutExtension(f));
-            return result;
         }
 
         private static List<(string name, string path)> FindWireGuardConfigs()
@@ -140,7 +132,7 @@ namespace WGClientWifiSwitcher.Views
 
                 // The QR content is the raw WireGuard config text
                 var name = "QR-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
-                TunnelImported?.Invoke(name, result);
+                TunnelImported?.Invoke(name, result, "local", null);
                 Close();
             }
             catch (OperationCanceledException) { }
@@ -236,7 +228,7 @@ namespace WGClientWifiSwitcher.Views
     // ── Multi-select tunnel picker for WireGuard import ──────────────────────
     public class WireGuardPickerDialog : Window
     {
-        public List<(string name, string config)> SelectedTunnels { get; } = new();
+        public List<(string name, string config, string path)> SelectedTunnels { get; } = new();
 
         private readonly List<(string name, string path)> _configs;
         private readonly HashSet<string>                   _alreadyImported;
@@ -433,12 +425,8 @@ namespace WGClientWifiSwitcher.Views
                 {
                     if (_checkBoxes[i].IsChecked != true) continue;
                     var (name, path) = _configs[i];
-                    try
-                    {
-                        var cfg = File.ReadAllText(path, System.Text.Encoding.UTF8);
-                        SelectedTunnels.Add((name, cfg));
-                    }
-                    catch { }
+                    // Store path only — no config content for WireGuard references
+                    SelectedTunnels.Add((name, "", path));
                 }
                 if (SelectedTunnels.Count == 0) return; // nothing checked
                 DialogResult = true;
