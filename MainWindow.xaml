@@ -1,10 +1,10 @@
-<Window x:Class="WGClientWifiSwitcher.MainWindow"
+<Window x:Class="MasselGUARD.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:WGClientWifiSwitcher"
+        xmlns:local="clr-namespace:MasselGUARD"
         Title="{Binding [AppTitle], Source={x:Static local:Lang.Instance}}"
-        Height="640" Width="1100"
-        MinHeight="500" MinWidth="900"
+        Height="640" Width="1200"
+        MinHeight="500" MinWidth="980"
         Background="{StaticResource Bg}"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -98,18 +98,6 @@
                                FontSize="11" FontWeight="Bold" Margin="6,0,0,0"
                                Foreground="{StaticResource Green}" VerticalAlignment="Center"/>
 
-                    <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Content="{Binding [BtnOpenWireGuard], Source={x:Static local:Lang.Instance}}"
-                                Style="{StaticResource FlatBtn}"
-                                FontSize="10" Padding="10,4" Margin="0,0,6,0"
-                                Click="OpenWireGuardGui_Click"
-                                ToolTip="{Binding [TooltipWireGuard], Source={x:Static local:Lang.Instance}}"/>
-                        <Button Content="{Binding [BtnShowLog], Source={x:Static local:Lang.Instance}}"
-                                Style="{StaticResource FlatBtn}"
-                                FontSize="10" Padding="10,4"
-                                Click="ShowWireGuardLog_Click"
-                                ToolTip="{Binding [TooltipLog], Source={x:Static local:Lang.Instance}}"/>
-                    </StackPanel>
                 </Grid>
             </Border>
 
@@ -139,20 +127,20 @@
             <!-- ── Main content ──────────────────────────────────────────── -->
             <Grid Grid.Row="4" Margin="14,12,14,8">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="3*"/>
-                    <ColumnDefinition Width="10"/>
                     <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="3*"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- LEFT: Tunnels + Rules -->
                 <Grid Grid.Column="0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*" MinHeight="120"/>
+                        <RowDefinition Height="2*" MinHeight="80"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="10"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*" MinHeight="60"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
@@ -182,7 +170,7 @@
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="{Binding [TunnelColName], Source={x:Static local:Lang.Instance}}"
-                                                Width="180">
+                                                Width="160">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
                                             <TextBlock Text="{Binding Name}"
@@ -194,7 +182,7 @@
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
                                 <GridViewColumn Header="{Binding [TunnelColType], Source={x:Static local:Lang.Instance}}"
-                                                Width="80">
+                                                Width="70">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
                                             <TextBlock Text="{Binding TypeLabel}"
@@ -204,7 +192,7 @@
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
                                 <GridViewColumn Header="{Binding [TunnelColStatus], Source={x:Static local:Lang.Instance}}"
-                                                Width="110">
+                                                Width="90">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
                                             <TextBlock Text="{Binding StatusText}"
@@ -212,7 +200,7 @@
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
-                                <GridViewColumn Header="" Width="110">
+                                <GridViewColumn Header="{Binding [TunnelColAction], Source={x:Static local:Lang.Instance}}" Width="95">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
                                             <Button Content="{Binding ButtonLabel}"
@@ -231,6 +219,7 @@
                     <!-- Tunnel management buttons -->
                     <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
                         <Button Content="{Binding [BtnAddTunnel], Source={x:Static local:Lang.Instance}}"
+                                x:Name="AddTunnelBtn"
                                 Style="{StaticResource GreenBtn}" FontSize="10" Padding="10,3"
                                 Click="AddTunnel_Click"/>
                         <Button Content="{Binding [BtnEditTunnel], Source={x:Static local:Lang.Instance}}"
@@ -248,10 +237,15 @@
                     </StackPanel>
 
                     <!-- Rules panel — hidden in manual mode -->
-                    <StackPanel Grid.Row="4" Grid.RowSpan="3" x:Name="RulesPanel">
+                    <Grid Grid.Row="4" Grid.RowSpan="3" x:Name="RulesPanel">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
                         <!-- Rules header + count badge -->
-                        <Grid Margin="0,0,0,6">
+                        <Grid Grid.Row="0" Margin="0,0,0,6">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
@@ -270,8 +264,9 @@
                             </Border>
                         </Grid>
 
-                        <ListView x:Name="RulesListView"
-                                  MinHeight="60" MaxHeight="200"
+                        <ListView Grid.Row="1" x:Name="RulesListView"
+                                  MinHeight="60"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                                   SelectionChanged="RulesListView_SelectionChanged">
                             <ListView.View>
                                 <GridView>
@@ -285,7 +280,7 @@
                             </ListView.View>
                         </ListView>
 
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0">
                             <Button Content="{Binding [BtnAddRule], Source={x:Static local:Lang.Instance}}"
                                     Style="{StaticResource GreenBtn}" Click="AddRule_Click"/>
                             <Button Content="{Binding [BtnEditRule], Source={x:Static local:Lang.Instance}}"
@@ -297,7 +292,7 @@
                                     Click="DeleteRule_Click"
                                     x:Name="DeleteBtn" IsEnabled="False"/>
                         </StackPanel>
-                    </StackPanel>
+                    </Grid>
                 </Grid>
 
                 <!-- RIGHT: Default action + log -->
@@ -359,7 +354,7 @@
                                      Padding="8"
                                      VerticalScrollBarVisibility="Auto"
                                      HorizontalScrollBarVisibility="Disabled">
-                            <FlowDocument x:Name="LogDocument" PageWidth="9999"/>
+                            <FlowDocument x:Name="LogDocument"/>
                         </RichTextBox>
                     </Border>
                 </Grid>
@@ -381,9 +376,9 @@
                         <TextBlock x:Name="AuthorLink" FontSize="10"
                                    Foreground="{StaticResource Accent}"
                                    Cursor="Hand" TextDecorations="Underline"
-                                   Text="WGClientWifiSwitcher"
+                                   Text="MasselGUARD"
                                    MouseLeftButtonUp="AuthorLink_Click"
-                                   ToolTip="https://github.com/masselink/WGClientWifiSwitcher"/>
+                                   ToolTip="https://github.com/masselink/MasselGUARD"/>
                         <TextBlock Foreground="{StaticResource Sub}" FontSize="10"
                                    Text="{Binding [FooterAuthor], Source={x:Static local:Lang.Instance}}"/>
                     </StackPanel>

@@ -1,7 +1,7 @@
-<Window x:Class="WGClientWifiSwitcher.Views.SettingsWindow"
+<Window x:Class="MasselGUARD.Views.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:WGClientWifiSwitcher"
+        xmlns:local="clr-namespace:MasselGUARD"
         Title="{Binding [SettingsTitle], Source={x:Static local:Lang.Instance}}"
         Width="420" SizeToContent="Height"
         WindowStyle="None" AllowsTransparency="True"
@@ -35,7 +35,8 @@
             </Border>
 
             <!-- Content -->
-            <StackPanel Grid.Row="1" Margin="20,16,20,20">
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="20,16,20,20">
 
                 <!-- MODE section -->
                 <TextBlock Text="{Binding [SettingsSectionMode], Source={x:Static local:Lang.Instance}}"
@@ -64,6 +65,61 @@
                                       Margin="12,0,0,0" VerticalAlignment="Center"
                                       Checked="ManualMode_Changed"
                                       Unchecked="ManualMode_Changed"
+                                      Style="{StaticResource ToggleSwitch}"/>
+                    </Grid>
+                </Border>
+
+                <!-- LOG LEVEL section -->
+                <TextBlock Text="{Binding [SettingsSectionLog], Source={x:Static local:Lang.Instance}}"
+                           FontFamily="Consolas" FontSize="10" FontWeight="Bold"
+                           Foreground="{StaticResource Sub}" Margin="0,0,0,8"/>
+
+                <Border Background="{StaticResource Card}"
+                        BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="4" Padding="14,12" Margin="0,0,0,20">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding [SettingsLogLevel], Source={x:Static local:Lang.Instance}}"
+                                   FontFamily="Consolas" FontSize="11"
+                                   Foreground="{StaticResource Text}"
+                                   VerticalAlignment="Center"/>
+                        <ComboBox Grid.Column="1" x:Name="LogLevelPicker"
+                                  MinWidth="100" FontSize="11" Padding="8,4"
+                                  SelectionChanged="LogLevel_Changed"/>
+                    </Grid>
+                </Border>
+
+                <!-- LOCAL TUNNELS BETA section -->
+                <TextBlock Text="{Binding [SettingsSectionLocalTunnels], Source={x:Static local:Lang.Instance}}"
+                           FontFamily="Consolas" FontSize="10" FontWeight="Bold"
+                           Foreground="{StaticResource Sub}" Margin="0,0,0,8"/>
+
+                <Border Background="{StaticResource Card}"
+                        BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="4" Padding="14,12" Margin="0,0,0,20">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{Binding [SettingsLocalTunnelsLabel], Source={x:Static local:Lang.Instance}}"
+                                       FontFamily="Consolas" FontSize="11"
+                                       Foreground="{StaticResource Text}"/>
+                            <TextBlock Text="{Binding [SettingsLocalTunnelsDesc], Source={x:Static local:Lang.Instance}}"
+                                       FontFamily="Consolas" FontSize="9"
+                                       Foreground="{StaticResource Sub}"
+                                       TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <ToggleButton Grid.Column="1" x:Name="LocalTunnelsToggle"
+                                      Width="44" Height="22"
+                                      Margin="12,0,0,0" VerticalAlignment="Center"
+                                      Checked="LocalTunnels_Changed"
+                                      Unchecked="LocalTunnels_Changed"
                                       Style="{StaticResource ToggleSwitch}"/>
                     </Grid>
                 </Border>
@@ -123,22 +179,33 @@
                     </Grid>
                 </Border>
 
-                <!-- WIREGUARD DLL section -->
-                <TextBlock Text="{Binding [SettingsSectionDll], Source={x:Static local:Lang.Instance}}"
+                <!-- WIREGUARD CLIENT section -->
+                <TextBlock x:Name="WireGuardSectionLabel"
+                           Text="{Binding [SettingsSectionWireGuard], Source={x:Static local:Lang.Instance}}"
                            FontFamily="Consolas" FontSize="10" FontWeight="Bold"
                            Foreground="{StaticResource Sub}" Margin="0,0,0,8"/>
 
-                <Border Background="{StaticResource Card}"
+                <Border x:Name="WireGuardSectionCard"
+                        Background="{StaticResource Card}"
                         BorderBrush="{StaticResource Border}" BorderThickness="1"
                         CornerRadius="4" Padding="14,12" Margin="0,0,0,20">
                     <StackPanel>
-                        <TextBlock x:Name="DllStatusLabel"
-                                   FontFamily="Consolas" FontSize="11"
+                        <TextBlock Text="{Binding [SettingsWireGuardDesc], Source={x:Static local:Lang.Instance}}"
+                                   FontFamily="Consolas" FontSize="10"
+                                   Foreground="{StaticResource Sub}" Margin="0,0,0,10"
                                    TextWrapping="Wrap"/>
-                        <TextBlock x:Name="DllHintLabel"
-                                   FontFamily="Consolas" FontSize="9"
-                                   Foreground="{StaticResource Sub}"
-                                   TextWrapping="Wrap" Margin="0,6,0,0"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="{Binding [BtnOpenWireGuard], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}"
+                                    FontSize="10" Padding="12,6" Margin="0,0,8,0"
+                                    Click="OpenWireGuard_Click"
+                                    ToolTip="{Binding [TooltipWireGuard], Source={x:Static local:Lang.Instance}}"/>
+                            <Button Content="{Binding [BtnShowLog], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}"
+                                    FontSize="10" Padding="12,6"
+                                    Click="ShowWireGuardLog_Click"
+                                    ToolTip="{Binding [TooltipLog], Source={x:Static local:Lang.Instance}}"/>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
@@ -188,6 +255,7 @@
                            Foreground="{StaticResource Sub}"/>
 
             </StackPanel>
+            </ScrollViewer>
         </Grid>
     </Border>
 </Window>

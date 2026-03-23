@@ -6,21 +6,21 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 
-namespace WGClientWifiSwitcher
+namespace MasselGUARD
 {
     /// <summary>
     /// Checks GitHub Releases for a newer version and can auto-update by downloading
-    /// WGClientWifiSwitcher.zip, extracting it next to the running exe, and relaunching.
+    /// MasselGUARD.zip, extracting it next to the running exe, and relaunching.
     ///
     /// GitHub API endpoint:
-    ///   GET https://api.github.com/repos/masselink/WGClientWifiSwitcher/releases/latest
+    ///   GET https://api.github.com/repos/masselink/MasselGUARD/releases/latest
     ///
-    /// The release must contain an asset named WGClientWifiSwitcher.zip.
+    /// The release must contain an asset named MasselGUARD.zip.
     /// The tag name is used as the version string (e.g. "v2.0.1").
     /// </summary>
     public static class UpdateChecker
     {
-        private const string ApiUrl     = "https://api.github.com/repos/masselink/WGClientWifiSwitcher/releases/latest";
+        private const string ApiUrl     = "https://api.github.com/repos/masselink/MasselGUARD/releases/latest";
         private const string CurrentVersion = "2.0";   // keep in sync with AppTitle
 
         // ── Public: silent background check (called on startup) ──────────────
@@ -54,15 +54,15 @@ namespace WGClientWifiSwitcher
             IProgress<string> progress, AppConfig cfg, Action saveConfig)
         {
             if (release.ZipUrl == null)
-                throw new InvalidOperationException("No WGClientWifiSwitcher.zip asset in release.");
+                throw new InvalidOperationException("No MasselGUARD.zip asset in release.");
 
             var currentExe = Environment.ProcessPath
                 ?? AppContext.BaseDirectory;
             var currentDir = Path.GetDirectoryName(currentExe)!;
             var tempZip    = Path.Combine(Path.GetTempPath(),
-                $"WGClientWifiSwitcher_update_{release.TagName}.zip");
+                $"MasselGUARD_update_{release.TagName}.zip");
             var tempDir    = Path.Combine(Path.GetTempPath(),
-                $"WGClientWifiSwitcher_update_{release.TagName}");
+                $"MasselGUARD_update_{release.TagName}");
 
             progress.Report(Lang.T("UpdateDownloading", release.TagName));
 
@@ -87,9 +87,9 @@ namespace WGClientWifiSwitcher
             progress.Report(Lang.T("UpdateApplying"));
 
             // Find the exe inside the extracted zip (may be in a subfolder)
-            var newExe = FindFile(tempDir, "WGClientWifiSwitcher.exe");
+            var newExe = FindFile(tempDir, "MasselGUARD.exe");
             if (newExe == null)
-                throw new FileNotFoundException("WGClientWifiSwitcher.exe not found in update zip.");
+                throw new FileNotFoundException("MasselGUARD.exe not found in update zip.");
 
             var extractedRoot = Path.GetDirectoryName(newExe)!;
 
@@ -144,7 +144,7 @@ namespace WGClientWifiSwitcher
                 foreach (var asset in assets.EnumerateArray())
                 {
                     var name = asset.TryGetProperty("name", out var n) ? n.GetString() : null;
-                    if (string.Equals(name, "WGClientWifiSwitcher.zip",
+                    if (string.Equals(name, "MasselGUARD.zip",
                             StringComparison.OrdinalIgnoreCase))
                     {
                         zipUrl = asset.TryGetProperty("browser_download_url", out var u)
@@ -159,7 +159,7 @@ namespace WGClientWifiSwitcher
         private static HttpClient MakeClient()
         {
             var client = new HttpClient();
-            client.DefaultRequestHeaders.Add("User-Agent", "WGClientWifiSwitcher");
+            client.DefaultRequestHeaders.Add("User-Agent", "MasselGUARD");
             client.Timeout = TimeSpan.FromSeconds(30);
             return client;
         }

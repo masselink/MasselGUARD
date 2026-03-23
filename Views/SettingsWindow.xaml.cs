@@ -2,7 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Input;
 
-namespace WGClientWifiSwitcher.Views
+namespace MasselGUARD.Views
 {
     public partial class SettingsWindow : Window
     {
@@ -14,6 +14,14 @@ namespace WGClientWifiSwitcher.Views
         {
             InitializeComponent();
             _main = main;
+
+            // Populate log level picker
+            LogLevelPicker.Items.Add(Lang.T("LogLevelNormal"));
+            LogLevelPicker.Items.Add(Lang.T("LogLevelDebug"));
+            LogLevelPicker.SelectedIndex = _main.GetConfig().LogLevelSetting == "debug" ? 1 : 0;
+
+            // Initialise local tunnels toggle
+            LocalTunnelsToggle.IsChecked = _main.GetConfig().EnableLocalTunnels;
 
             // Populate language picker
             foreach (var (code, name) in Lang.AvailableLanguages())
@@ -33,6 +41,7 @@ namespace WGClientWifiSwitcher.Views
 
             RefreshInstallState();
             RefreshDllStatus();
+            RefreshWireGuardSection();
             RefreshUpdateState();
 
             // Initialise manual mode toggle without firing the handler
@@ -47,6 +56,7 @@ namespace WGClientWifiSwitcher.Views
             {
                 RefreshInstallState();
                 RefreshDllStatus();
+                RefreshWireGuardSection();
                 RefreshUpdateState();
                 VersionLabel.Text = Lang.T("SettingsVersion") + " " + Lang.T("AppTitle");
                 CheckUpdateBtn.Content = Lang.T("BtnCheckUpdate");
@@ -62,6 +72,38 @@ namespace WGClientWifiSwitcher.Views
             _main.ApplyManualMode();
         }
 
+        private void LocalTunnels_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            var cfg = _main.GetConfig();
+            cfg.EnableLocalTunnels = LocalTunnelsToggle.IsChecked == true;
+            _main.SaveConfigPublic();
+            _main.ApplyLocalTunnelModePublic();
+        }
+
+        private void LogLevel_Changed(object sender,
+            System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            if (_loading) return;
+            var cfg = _main.GetConfig();
+            cfg.LogLevelSetting = LogLevelPicker.SelectedIndex == 1 ? "debug" : "normal";
+            _main.SaveConfigPublic();
+        }
+
+        private void OpenWireGuard_Click(object sender, RoutedEventArgs e) =>
+            _main.OpenWireGuardGui();
+
+        private void ShowWireGuardLog_Click(object sender, RoutedEventArgs e) =>
+            _main.OpenWireGuardLog();
+
+        private void RefreshWireGuardSection()
+        {
+            bool wgInstalled = MainWindow.FindWireGuardExe() != null;
+            var vis = wgInstalled ? Visibility.Visible : Visibility.Collapsed;
+            WireGuardSectionLabel.Visibility = vis;
+            WireGuardSectionCard.Visibility  = vis;
+        }
+
         // ── Install state ────────────────────────────────────────────────────
         public void RefreshInstallState()
         {
@@ -71,9 +113,20 @@ namespace WGClientWifiSwitcher.Views
                 InstallStatusLabel.Text     = Lang.T("AlreadyInstalled", path ?? "");
                 InstallPathLabel.Text       = path ?? "";
                 InstallPathLabel.Visibility = Visibility.Visible;
-                InstallBtn.Content          = Lang.T("BtnUninstall");
-                InstallBtn.SetResourceReference(ForegroundProperty, "Red");
-                InstallBtn.ToolTip          = Lang.T("TooltipUninstall");
+
+                if (_main.IsRunningPortableWhileInstalled())
+                {
+                    // Portable copy running alongside install — offer to update
+                    InstallBtn.Content = Lang.T("BtnUpdate");
+                    InstallBtn.SetResourceReference(ForegroundProperty, "Green");
+                    InstallBtn.ToolTip = Lang.T("TooltipUpdate");
+                }
+                else
+                {
+                    InstallBtn.Content = Lang.T("BtnUninstall");
+                    InstallBtn.SetResourceReference(ForegroundProperty, "Red");
+                    InstallBtn.ToolTip = Lang.T("TooltipUninstall");
+                }
             }
             else
             {
@@ -91,21 +144,7 @@ namespace WGClientWifiSwitcher.Views
             RefreshInstallState();
         }
 
-        private void RefreshDllStatus()
-        {
-            bool available = TunnelDll.IsTunnelDllAvailable();
-            DllStatusLabel.Text = available
-                ? Lang.T("DllStatusPresent")
-                : Lang.T("DllStatusMissing");
-            DllStatusLabel.SetResourceReference(ForegroundProperty,
-                available ? "Green" : "Red");
-            DllHintLabel.Text = available
-                ? ""
-                : Lang.T("DllDownloadHint");
-            DllHintLabel.Visibility = available
-                ? Visibility.Collapsed
-                : Visibility.Visible;
-        }
+        private void RefreshDllStatus() { /* DLLs no longer required for local tunnels */ }
 
         // ── Update state ─────────────────────────────────────────────────────
         private void RefreshUpdateState()

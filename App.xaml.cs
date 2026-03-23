@@ -6,7 +6,7 @@ using System.Threading;
 using System.Windows;
 using WinForms = System.Windows.Forms;
 
-namespace WGClientWifiSwitcher
+namespace MasselGUARD
 {
     public partial class App : System.Windows.Application
     {
@@ -20,20 +20,6 @@ namespace WGClientWifiSwitcher
         {
             base.OnStartup(e);
 
-            // ── 0. Service host mode ─────────────────────────────────────────
-            // When Windows starts this exe as a WireGuardTunnel$ service it passes:
-            //   WGClientWifiSwitcher.exe /service "path\to\tunnel.conf"
-            // In that case skip all UI, load tunnel.dll, and run the tunnel.
-            var args = Environment.GetCommandLineArgs();
-            if (args.Length == 3 &&
-                string.Equals(args[1], "/service", StringComparison.OrdinalIgnoreCase))
-            {
-                var confPath = args[2];
-                var exitCode = TunnelDll.RunAsService(confPath);
-                Environment.Exit(exitCode);
-                return;
-            }
-
             // ── 1. Load language immediately — needed by all dialogs below ───
             Lang.Instance.Load(AppConfig.LoadLanguage());
 
@@ -43,7 +29,7 @@ namespace WGClientWifiSwitcher
             {
                 _instanceMutex = new Mutex(
                     initiallyOwned: true,
-                    name: "Global\\WGClientWifiSwitcher_SingleInstance",
+                    name: "Global\\MasselGUARD_SingleInstance",
                     out isNewInstance);
             }
             catch (UnauthorizedAccessException)
@@ -81,7 +67,7 @@ namespace WGClientWifiSwitcher
         {
             _trayIcon = new WinForms.NotifyIcon
             {
-                Text = "WireGuard Client and WiFi Switcher v2.0",
+                Text = "MasselGUARD v2.0",
                 Visible = true,
                 Icon = TrayIconHelper.CreateIcon()
             };
@@ -291,7 +277,7 @@ namespace WGClientWifiSwitcher
                 Height     = 40,
                 Child      = new System.Windows.Controls.TextBlock
                 {
-                    Text              = "WireGuard Client and WiFi Switcher",
+                    Text              = "MasselGUARD",
                     FontFamily        = new System.Windows.Media.FontFamily("Consolas"),
                     FontSize          = 12, FontWeight = FontWeights.Bold,
                     Foreground        = Br(accent),
@@ -329,7 +315,7 @@ namespace WGClientWifiSwitcher
 
             var win = new Window
             {
-                Title                 = "WireGuard Client and WiFi Switcher — Already running",
+                Title                 = "MasselGUARD — Already running",
                 Width                 = 440,
                 SizeToContent         = SizeToContent.Height,
                 WindowStyle           = WindowStyle.None,

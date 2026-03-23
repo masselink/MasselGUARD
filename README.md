@@ -1,6 +1,6 @@
-# WireGuard Client and WiFi Switcher
+# MasselGUARD
 
-**Version 2.0** — by [Harold Masselink](https://github.com/masselink/WGClientWifiSwitcher)
+**Version 2.0** — by [Harold Masselink](https://github.com/masselink/MasselGUARD)
 
 ---
 
@@ -51,7 +51,7 @@ The app also works as a lightweight manual tunnel client. Connect and disconnect
 
 1. Install [WireGuard for Windows](https://www.wireguard.com/install/) and import your tunnels
 2. Install the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)
-3. Run `WGClientWifiSwitcher.exe` directly — no installation required
+3. Run `MasselGUARD.exe` directly — no installation required
 4. Click **＋ Add Rule** to map a WiFi SSID to a tunnel
 5. The app minimises to the system tray — the icon turns green when a tunnel is active
 
@@ -65,7 +65,7 @@ The app has a built-in installer accessible from the **⬇ Install** button in t
 
 1. Click **⬇ Install** in the status bar
 2. Select a parent folder (defaults to `%ProgramFiles%`) — the app installs into `<folder>\WG Client and WiFi Switcher\`
-3. A Start Menu shortcut is created at `Programs\WG Client and WiFi Switcher\WireGuard Client and WiFi Switcher.lnk` with the app icon
+3. A Start Menu shortcut is created at `Programs\WG Client and WiFi Switcher\MasselGUARD.lnk` with the app icon
 4. You are asked whether to **start automatically at Windows login** — if yes, a scheduled task is registered with `RunLevel Highest` so the app launches elevated without a UAC prompt every time
 5. You are asked whether to **delete the original files** from the folder you ran the app from
 6. The current instance closes and the installed copy launches automatically
@@ -82,15 +82,15 @@ You are asked whether to keep your configuration and rules for a possible future
 
 | Answer | What happens |
 |---|---|
-| **Yes** | `%APPDATA%\WGClientWifiSwitcher\config.json` is kept. All rules, the default action, language preference, and WireGuard install path are preserved. |
-| **No** | The entire `%APPDATA%\WGClientWifiSwitcher\` folder is deleted, including `config.json` with all rules and settings. |
+| **Yes** | `%APPDATA%\MasselGUARD\config.json` is kept. All rules, the default action, language preference, and WireGuard install path are preserved. |
+| **No** | The entire `%APPDATA%\MasselGUARD\` folder is deleted, including `config.json` with all rules and settings. |
 
 **Step 3 — Automatic removal**
 The following are always removed without asking:
 
-- The scheduled auto-start task (`WGClientWifiSwitcher`) from Task Scheduler
+- The scheduled auto-start task (`MasselGUARD`) from Task Scheduler
 - The Start Menu shortcut folder (`Programs\WG Client and WiFi Switcher\`)
-- The registry key `HKLM\SOFTWARE\WGClientWifiSwitcher`
+- The registry key `HKLM\SOFTWARE\MasselGUARD`
 - The `InstalledPath` field in `config.json` (if kept)
 - The install folder (`WG Client and WiFi Switcher\` inside Program Files or wherever it was installed)
 
@@ -111,8 +111,8 @@ The application logs "Uninstall complete. Closing application." and exits after 
 
 The installer stores the install location in two places:
 
-- **`%APPDATA%\WGClientWifiSwitcher\config.json`** — `InstalledPath` field (primary)
-- **`HKLM\SOFTWARE\WGClientWifiSwitcher`** — `InstallPath` registry value (fallback)
+- **`%APPDATA%\MasselGUARD\config.json`** — `InstalledPath` field (primary)
+- **`HKLM\SOFTWARE\MasselGUARD`** — `InstallPath` registry value (fallback)
 
 The app checks both on startup to determine whether to show the Install or Uninstall button. If you move the installed exe manually, clear `InstalledPath` from `config.json` and the app will treat itself as not installed.
 
@@ -121,11 +121,11 @@ The app checks both on startup to determine whether to show the Install or Unins
 If you prefer to register the scheduled task manually:
 
 ```powershell
-$exe     = "C:\Program Files\WG Client and WiFi Switcher\WGClientWifiSwitcher.exe"
+$exe     = "C:\Program Files\WG Client and WiFi Switcher\MasselGUARD.exe"
 $action  = New-ScheduledTaskAction -Execute $exe
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $prin    = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest
-Register-ScheduledTask -TaskName "WGClientWifiSwitcher" `
+Register-ScheduledTask -TaskName "MasselGUARD" `
     -Action $action -Trigger $trigger -Principal $prin
 ```
 
@@ -133,7 +133,7 @@ Register-ScheduledTask -TaskName "WGClientWifiSwitcher" `
 
 ## Configuration
 
-Config file: `%APPDATA%\WGClientWifiSwitcher\config.json`
+Config file: `%APPDATA%\MasselGUARD\config.json`
 
 ```json
 {
@@ -213,13 +213,13 @@ Language files live in `lang\` next to the executable. The picker in the title b
 Double-click `BUILD.bat`, or run in a terminal:
 
 ```
-dotnet publish WGClientWifiSwitcher.csproj -c Release -o dist
+dotnet publish MasselGUARD.csproj -c Release -o dist
 ```
 
 Output:
 ```
 dist\
-├── WGClientWifiSwitcher.exe     ← single file (~500 KB)
+├── MasselGUARD.exe     ← single file (~500 KB)
 └── lang\
     ├── en.json
     └── nl.json
@@ -232,7 +232,7 @@ dist\
 On startup the activity log shows (bottom to top = oldest to newest):
 
 ```
-HH:MM:SS  Started from: C:\...\WGClientWifiSwitcher.exe
+HH:MM:SS  Started from: C:\...\MasselGUARD.exe
 HH:MM:SS  Application started.
 HH:MM:SS  Startup WiFi: HomeNetwork — applying rules.
 ```
@@ -244,9 +244,9 @@ App-generated messages are fully translated when you switch language. External m
 ## Project structure
 
 ```
-WGClientWifiSwitcher/
+MasselGUARD/
 ├── BUILD.bat                   ← Double-click to publish
-├── WGClientWifiSwitcher.csproj ← .NET 10, single-file publish
+├── MasselGUARD.csproj ← .NET 10, single-file publish
 ├── app.manifest                ← requireAdministrator UAC elevation
 ├── App.xaml                    ← Global dark theme styles
 ├── App.xaml.cs                 ← Startup, tray icon, single-instance, dependency check

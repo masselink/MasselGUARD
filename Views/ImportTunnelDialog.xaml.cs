@@ -10,7 +10,7 @@ using Microsoft.Win32;
 using ZXing;
 using ZXing.Windows.Compatibility;
 
-namespace WGClientWifiSwitcher.Views
+namespace MasselGUARD.Views
 {
     public partial class ImportTunnelDialog : Window
     {

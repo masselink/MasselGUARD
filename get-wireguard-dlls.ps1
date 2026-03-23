@@ -9,35 +9,60 @@ $wgDll = Join-Path $Deps 'wireguard.dll'
 $tnDll = Join-Path $Deps 'tunnel.dll'
 
 # ------ wireguard.dll ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# Source: https://download.wireguard.com/wireguard-nt/
-# Pre-built and signed by WireGuard LLC.
+# IMPORTANT: wireguard.dll from the wireguard-nt download server does NOT install
+# the WireGuardNT kernel driver on its own --- it expects the driver to already be
+# present (installed by WireGuard for Windows). Without the driver, tunnel.dll
+# fails immediately with ERROR_FILE_NOT_FOUND.
+#
+# Strategy 1: copy wireguard.dll from an existing WireGuard for Windows install
+#             (this dll works because WireGuard already installed the kernel driver)
+# Strategy 2: download from wireguard-nt (only works if WireGuard is also installed
+#             to provide the kernel driver)
 Write-Host '  [1/2] wireguard.dll...'
 if (Test-Path $wgDll) {
     Write-Host '         Already cached.'
 } else {
-    Write-Host '         Finding latest wireguard-nt version...'
-    $page = (Invoke-WebRequest 'https://download.wireguard.com/wireguard-nt/' -UseBasicParsing).Content
-    $ver  = [regex]::Matches($page, 'wireguard-nt-([\d.]+)\.zip') |
-            ForEach-Object { $_.Groups[1].Value } |
-            Sort-Object { [version]$_ } |
-            Select-Object -Last 1
-    if (-not $ver) { throw 'Cannot determine latest wireguard-nt version.' }
+    # Strategy 1: copy from local WireGuard installation
+    $localWg = @(
+        'C:\Program Files\WireGuard\wireguard.dll',
+        'C:\Program Files (x86)\WireGuard\wireguard.dll'
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 
-    Write-Host "         Downloading wireguard-nt-$ver.zip..."
-    $zip = Join-Path $Deps "wireguard-nt-$ver.zip"
-    Invoke-WebRequest "https://download.wireguard.com/wireguard-nt/wireguard-nt-$ver.zip" `
-        -OutFile $zip -UseBasicParsing
+    if ($localWg) {
+        Write-Host "         Copying from local WireGuard install: $localWg"
+        Copy-Item $localWg $wgDll -Force
+        Write-Host '         wireguard.dll ready (from local WireGuard install)'
+        Write-Host '         NOTE: WireGuard for Windows must remain installed for'
+        Write-Host '               the kernel driver to be available at runtime.'
+    } else {
+        # Strategy 2: download from wireguard-nt (requires WireGuard kernel driver
+        # to be installed separately for tunnel.dll to work at runtime)
+        Write-Host '         WireGuard not installed locally.'
+        Write-Host '         Downloading from wireguard-nt (WireGuard must still be'
+        Write-Host '         installed on the target machine for kernel driver support)...'
+        $page = (Invoke-WebRequest 'https://download.wireguard.com/wireguard-nt/' -UseBasicParsing).Content
+        $ver  = [regex]::Matches($page, 'wireguard-nt-([\d.]+)\.zip') |
+                ForEach-Object { $_.Groups[1].Value } |
+                Sort-Object { [version]$_ } |
+                Select-Object -Last 1
+        if (-not $ver) { throw 'Cannot determine latest wireguard-nt version.' }
 
-    $ext = Join-Path $Deps "wireguard-nt-$ver"
-    Expand-Archive $zip $ext -Force
-    Remove-Item $zip -Force
+        Write-Host "         Downloading wireguard-nt-$ver.zip..."
+        $zip = Join-Path $Deps "wireguard-nt-$ver.zip"
+        Invoke-WebRequest "https://download.wireguard.com/wireguard-nt/wireguard-nt-$ver.zip" `
+            -OutFile $zip -UseBasicParsing
 
-    $dll = Get-ChildItem $ext -Recurse -Filter 'wireguard.dll' |
-           Where-Object { $_.DirectoryName -match 'amd64' } |
-           Select-Object -First 1
-    if (-not $dll) { throw 'wireguard.dll (amd64) not found in wireguard-nt zip.' }
-    Copy-Item $dll.FullName $wgDll -Force
-    Write-Host "         wireguard.dll ready (v$ver)"
+        $ext = Join-Path $Deps "wireguard-nt-$ver"
+        Expand-Archive $zip $ext -Force
+        Remove-Item $zip -Force
+
+        $dll = Get-ChildItem $ext -Recurse -Filter 'wireguard.dll' |
+               Where-Object { $_.DirectoryName -match 'amd64' } |
+               Select-Object -First 1
+        if (-not $dll) { throw 'wireguard.dll (amd64) not found in wireguard-nt zip.' }
+        Copy-Item $dll.FullName $wgDll -Force
+        Write-Host "         wireguard.dll ready (v$ver)"
+    }
 }
 
 # ------ tunnel.dll ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

@@ -21,7 +21,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 
-namespace WGClientWifiSwitcher
+namespace MasselGUARD
 {
     public class TunnelRule : INotifyPropertyChanged
     {
@@ -136,6 +136,8 @@ namespace WGClientWifiSwitcher
         public DateTime           LastUpdateCheck    { get; set; } = DateTime.MinValue;
         public string?            LatestKnownVersion { get; set; } = null;
         public bool               ManualMode         { get; set; } = false;
+        public string             LogLevelSetting    { get; set; } = "normal";
+        public bool               EnableLocalTunnels { get; set; } = false;
 
         [JsonIgnore]
         public string ConfDirectory => string.IsNullOrWhiteSpace(InstallDirectory)
@@ -150,7 +152,7 @@ namespace WGClientWifiSwitcher
         // ── Language persistence helpers ─────────────────────────────────────
         private static readonly string ConfigPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "WGClientWifiSwitcher", "config.json");
+            "MasselGUARD", "config.json");
 
         public static void SaveLanguage(string code)
         {
@@ -187,13 +189,15 @@ namespace WGClientWifiSwitcher
     {
         private static readonly string ConfigPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "WGClientWifiSwitcher", "config.json");
+            "MasselGUARD", "config.json");
 
         private static AppConfig _cfg = new();
         private readonly ObservableCollection<TunnelRule>  _rules   = new();
         private readonly ObservableCollection<TunnelEntry> _tunnels = new();
         private string? _lastWifi;
         private readonly DispatcherTimer _timer = new();
+        private Ringlogger?              _ringlogger;
+        private string                   _ringloggerTunnel = "";
         private bool _loading = false;
 
         // WireGuard executable — derived from configured install directory
@@ -287,6 +291,7 @@ namespace WGClientWifiSwitcher
         // Returns tunnel names stored in config.json
         internal static List<string> GetAvailableTunnels() =>
             _cfg.Tunnels
+                .Where(t => _cfg.EnableLocalTunnels || t.Source != "local")
                 .Select(t => t.Name)
                 .Where(n => !string.IsNullOrEmpty(n))
                 .OrderBy(n => n)
@@ -407,11 +412,26 @@ namespace WGClientWifiSwitcher
                 Log("LogAppStarted", LogLevel.Info);
                 LoadConfig();
                 ApplyManualMode();
+                ApplyLocalTunnelMode();
                 SetupTimer();
+
+                // (Local tunnels use wireguard.exe /installtunnelservice — no DLLs needed)
 
                 // Background update check — once every 7 days
                 if ((DateTime.UtcNow - _cfg.LastUpdateCheck).TotalDays >= 7)
                     _ = UpdateChecker.CheckAsync(_cfg, SaveConfig, Dispatcher);
+
+                // If running portable while installed elsewhere, prompt to update
+                if (IsRunningPortableWhileInstalled())
+                {
+                    var installPath = GetInstalledPath()!;
+                    var result = ShowDialog(
+                        Lang.T("UpdatePromptMessage", installPath),
+                        Lang.T("UpdatePromptTitle"),
+                        MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    if (result == MessageBoxResult.Yes)
+                        RunUpdate();
+                }
             };
         }
 
@@ -479,9 +499,9 @@ namespace WGClientWifiSwitcher
 
         private void SetupTimer()
         {
-            // Slow timer — only refreshes status display every 10s, does NOT drive WiFi detection
-            _timer.Interval = TimeSpan.FromSeconds(10);
-            _timer.Tick += (_, _) => UpdateStatusDisplay();
+            // Timer: refreshes status and polls the tunnel.dll ring-log
+            _timer.Interval = TimeSpan.FromSeconds(2);
+            _timer.Tick += (_, _) => { UpdateStatusDisplay(); PollRinglogger(); };
             _timer.Start();
 
             // Register for instant WiFi change notifications via WlanApi
@@ -502,6 +522,37 @@ namespace WGClientWifiSwitcher
                 ApplyRules(null);
             }
         }
+
+        private void PollRinglogger()
+        {
+            // Find any running local tunnel and tail its ring-log from tunnel.dll
+            var running = _cfg.Tunnels.FirstOrDefault(t =>
+                t.Source == "local" && TunnelDll.IsRunning(t.Name));
+
+            if (running == null)
+            {
+                if (_ringlogger != null)
+                {
+                    _ringlogger.Dispose();
+                    _ringlogger = null;
+                    _ringloggerTunnel = "";
+                }
+                return;
+            }
+
+            if (!string.Equals(running.Name, _ringloggerTunnel,
+                StringComparison.OrdinalIgnoreCase))
+            {
+                _ringlogger?.Dispose();
+                var logPath = TunnelDll.GetLogFilePath(running.Name, ConfPath(running.Name));
+                _ringlogger = new Ringlogger(logPath);
+                _ringloggerTunnel = running.Name;
+            }
+
+            foreach (var (_, text) in _ringlogger!.CollectNewLines())
+                LogRaw($"[wg] {text}", LogLevel.Debug);
+        }
+
 
         // Called by WlanApi callback when connection state changes
         private void OnWifiChanged()
@@ -662,33 +713,23 @@ namespace WGClientWifiSwitcher
             catch { }
         }
 
-        private static bool StartTunnel(string tunnel)
+        private bool StartTunnel(string tunnel)
         {
             LastError = "";
             var stored = _cfg.Tunnels.FirstOrDefault(t =>
                 string.Equals(t.Name, tunnel, StringComparison.OrdinalIgnoreCase));
 
-            // ── Local tunnel: use tunnel.dll if available ─────────────────────
-            if (stored?.Source == "local" && TunnelDll.IsTunnelDllAvailable())
+            // ── Local tunnel — tunnel.dll + wireguard.dll ─────────────────────
+            if (stored?.Source == "local")
             {
-                var confPath = stored.Path;
-                if (string.IsNullOrEmpty(confPath) || !File.Exists(confPath))
-                {
-                    LastError = "Local tunnel .conf file not found: " + confPath;
-                    return false;
-                }
-
-                // Already running?
-                if (TunnelDll.IsRunning(tunnel)) return true;
-
-                if (TunnelDll.StartTunnel(tunnel, confPath, out var err))
-                    return true;
-
-                LastError = "tunnel.dll: " + err;
-                return false;
+                var confPath = ConfPath(tunnel);
+                bool ok = TunnelDll.Connect(tunnel, confPath,
+                    msg => LogRaw(msg, LogLevel.Debug), out var err);
+                if (!ok) LastError = err;
+                return ok;
             }
 
-            // ── WireGuard tunnel (or local tunnel without tunnel.dll): use ServiceController + wireguard.exe ─
+            // ── WireGuard GUI tunnel ──────────────────────────────────────────
             EnsureManagerRunning();
 
             try
@@ -701,7 +742,7 @@ namespace WGClientWifiSwitcher
             }
             catch (Exception ex1)
             {
-                LastError = "ServiceController: " + ex1.Message;
+                LastError = $"ServiceController: {ex1.Message}";
             }
 
             // Fallback: wireguard.exe /installtunnelservice
@@ -709,35 +750,31 @@ namespace WGClientWifiSwitcher
             var conf = FindConfPath(tunnel, out searched);
             if (conf != null)
             {
-                string err2;
-                if (RunProcess(WgExe, "/installtunnelservice \"" + conf + "\"", out err2))
+                if (RunProcess(WgExe, $"/installtunnelservice \"{conf}\"", out var err2))
                 {
                     System.Threading.Thread.Sleep(1500);
                     return true;
                 }
-                LastError += "  wireguard.exe: " + err2;
+                LastError += $"  wireguard.exe: {err2}";
             }
             else
-            {
-                LastError += "  No .conf found. Searched: " + searched;
-            }
+                LastError += $"  No .conf found. Searched: {searched}";
 
             return false;
         }
 
-        private static bool StopTunnel(string tunnel)
+        private bool StopTunnel(string tunnel)
         {
             LastError = "";
             var stored = _cfg.Tunnels.FirstOrDefault(t =>
                 string.Equals(t.Name, tunnel, StringComparison.OrdinalIgnoreCase));
 
-            // ── Local tunnel: use tunnel.dll if available ─────────────────────
-            if (stored?.Source == "local" && TunnelDll.IsTunnelDllAvailable())
+            // ── Local tunnel ──────────────────────────────────────────────────
+            if (stored?.Source == "local")
             {
-                if (!TunnelDll.IsRunning(tunnel)) return true;
-                if (TunnelDll.StopTunnel(tunnel, out var err)) return true;
-                LastError = "tunnel.dll: " + err;
-                return false;
+                TunnelDll.Disconnect(tunnel, out var err);
+                if (!string.IsNullOrEmpty(err)) LastError = err;
+                return true;
             }
 
             // ── WireGuard tunnel: use ServiceController ───────────────────────
@@ -771,11 +808,12 @@ namespace WGClientWifiSwitcher
             catch (Exception ex) { output = ex.Message; return false; }
         }
 
-        private static bool GetTunnelStatus(string tunnel)
+        private bool GetTunnelStatus(string tunnel)
         {
             var stored = _cfg.Tunnels.FirstOrDefault(t =>
                 string.Equals(t.Name, tunnel, StringComparison.OrdinalIgnoreCase));
-            if (stored?.Source == "local" && TunnelDll.IsTunnelDllAvailable())
+
+            if (stored?.Source == "local")
                 return TunnelDll.IsRunning(tunnel);
 
             try
@@ -958,24 +996,92 @@ namespace WGClientWifiSwitcher
 
         // ── Tunnel management ──────────────────────────────────────────────────
 
-        // Keep TunnelStorageDir for legacy .conf file migration only
+        /// <summary>
+        // ── Tunnel storage ───────────────────────────────────────────────────
+        // .conf files are stored in ProgramData so the SYSTEM service account
+        // can read them. The directory and each file are ACL-locked to:
+        //   SYSTEM          — FullControl  (service can read/write)
+        //   Current user    — FullControl  (app can manage)
+        //   Administrators  — FullControl  (admin management)
+        // All other users have no access — private keys stay private.
         private static readonly string TunnelStorageDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "WGClientWifiSwitcher", "tunnels");
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "MasselGUARD", "tunnels");
 
         public static string TunnelStorageDirPublic => TunnelStorageDir;
 
-        // ── Config-based tunnel CRUD ──────────────────────────────────────────
+        private static string ConfPath(string name) =>
+            Path.Combine(TunnelStorageDir, name + ".conf");
 
-        private void SaveTunnelConfig(string name, string config, string source = "local", string? filePath = null)
+        // ── ACL helpers ───────────────────────────────────────────────────────
+
+        private static void ApplySecureAcl(string path, bool isDirectory = false)
+        {
+            try
+            {
+                var flags = System.Security.AccessControl.InheritanceFlags.None;
+                var prop  = System.Security.AccessControl.PropagationFlags.None;
+                if (isDirectory)
+                {
+                    flags = System.Security.AccessControl.InheritanceFlags.ContainerInherit |
+                            System.Security.AccessControl.InheritanceFlags.ObjectInherit;
+                }
+
+                System.Security.AccessControl.FileSystemSecurity acl = isDirectory
+                    ? new System.IO.DirectoryInfo(path).GetAccessControl()
+                    : new System.IO.FileInfo(path).GetAccessControl();
+
+                acl.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+
+                foreach (System.Security.AccessControl.FileSystemAccessRule r in
+                    acl.GetAccessRules(true, true,
+                        typeof(System.Security.Principal.SecurityIdentifier)))
+                    acl.RemoveAccessRule(r);
+
+                void Add(System.Security.Principal.IdentityReference id) =>
+                    acl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(
+                        id,
+                        System.Security.AccessControl.FileSystemRights.FullControl,
+                        flags, prop,
+                        System.Security.AccessControl.AccessControlType.Allow));
+
+                Add(new System.Security.Principal.SecurityIdentifier(
+                    System.Security.Principal.WellKnownSidType.LocalSystemSid, null));
+                Add(new System.Security.Principal.SecurityIdentifier(
+                    System.Security.Principal.WellKnownSidType.BuiltinAdministratorsSid, null));
+                Add(System.Security.Principal.WindowsIdentity.GetCurrent().User!);
+
+                if (isDirectory)
+                    new System.IO.DirectoryInfo(path).SetAccessControl(
+                        (System.Security.AccessControl.DirectorySecurity)acl);
+                else
+                    new System.IO.FileInfo(path).SetAccessControl(
+                        (System.Security.AccessControl.FileSecurity)acl);
+            }
+            catch { /* best-effort */ }
+        }
+
+        private static void EnsureTunnelsDirExists()
+        {
+            if (!Directory.Exists(TunnelStorageDir))
+            {
+                Directory.CreateDirectory(TunnelStorageDir);
+                ApplySecureAcl(TunnelStorageDir, isDirectory: true);
+            }
+        }
+
+        // ── Tunnel CRUD ───────────────────────────────────────────────────────
+
+        private void SaveTunnelConfig(string name, string config,
+            string source = "local", string? filePath = null)
         {
             if (source == "local")
             {
-                // Write the config to a .conf file in the tunnels directory
-                Directory.CreateDirectory(TunnelStorageDir);
-                filePath = System.IO.Path.Combine(TunnelStorageDir, name + ".conf");
+                EnsureTunnelsDirExists();
+                filePath = ConfPath(name);
                 File.WriteAllText(filePath, config, System.Text.Encoding.UTF8);
-                config = ""; // don't duplicate in config.json
+                ApplySecureAcl(filePath);
+                config = "";
             }
 
             var existing = _cfg.Tunnels.FirstOrDefault(t =>
@@ -989,12 +1095,7 @@ namespace WGClientWifiSwitcher
             else
             {
                 _cfg.Tunnels.Add(new StoredTunnel
-                {
-                    Name   = name,
-                    Config = config,
-                    Source = source,
-                    Path   = filePath
-                });
+                    { Name = name, Config = config, Source = source, Path = filePath });
             }
             SaveConfig();
         }
@@ -1004,12 +1105,8 @@ namespace WGClientWifiSwitcher
             var stored = _cfg.Tunnels.FirstOrDefault(t =>
                 string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
             if (stored == null) return null;
-
-            // Both local and wireguard tunnels use a file path reference
             if (!string.IsNullOrEmpty(stored.Path) && File.Exists(stored.Path))
                 return File.ReadAllText(stored.Path, System.Text.Encoding.UTF8);
-
-            // Fallback: inline config (legacy entries before this change)
             return string.IsNullOrEmpty(stored.Config) ? null : stored.Config;
         }
 
@@ -1017,19 +1114,14 @@ namespace WGClientWifiSwitcher
         {
             var stored = _cfg.Tunnels.FirstOrDefault(t =>
                 string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
-
-            // Delete the .conf file for locally managed tunnels
             if (stored?.Source == "local" &&
-                !string.IsNullOrEmpty(stored.Path) &&
-                File.Exists(stored.Path))
-            {
+                !string.IsNullOrEmpty(stored.Path) && File.Exists(stored.Path))
                 try { File.Delete(stored.Path); } catch { }
-            }
-
             _cfg.Tunnels.RemoveAll(t =>
                 string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
             SaveConfig();
         }
+
 
         private void TunnelsListView_SelectionChanged(object sender,
             System.Windows.Controls.SelectionChangedEventArgs e)
@@ -1120,7 +1212,7 @@ namespace WGClientWifiSwitcher
 
         private void AuthorLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            try { Process.Start(new ProcessStartInfo("https://github.com/masselink/WGClientWifiSwitcher")
+            try { Process.Start(new ProcessStartInfo("https://github.com/masselink/MasselGUARD")
                       { UseShellExecute = true }); }
             catch { }
         }
@@ -1258,7 +1350,10 @@ namespace WGClientWifiSwitcher
                 string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
             if (stored == null) return false;
 
-            // Both local (.conf in tunnels dir) and wireguard (WG install path) use a file reference
+            if (stored.Source == "local")
+                return File.Exists(ConfPath(name));
+
+            // WireGuard tunnel: original file path must still exist
             return !string.IsNullOrEmpty(stored.Path) && File.Exists(stored.Path);
         }
 
@@ -1284,9 +1379,9 @@ namespace WGClientWifiSwitcher
         // ── Install / Uninstall ────────────────────────────────────────────────
 
         private static readonly string InstallRegKey =
-            @"SOFTWARE\WGClientWifiSwitcher";
+            @"SOFTWARE\MasselGUARD";
         private static readonly string InstallFolderName =
-            "WG Client and WiFi Switcher";
+            "MasselGUARD";
 
         private static string? GetInstalledPath()
         {
@@ -1314,7 +1409,7 @@ namespace WGClientWifiSwitcher
         }
 
         private static bool IsInstalled() =>
-            GetInstalledPath() is string p && File.Exists(Path.Combine(p, "WGClientWifiSwitcher.exe"));
+            GetInstalledPath() is string p && File.Exists(Path.Combine(p, "MasselGUARD.exe"));
 
         private void UpdateInstallButton()
         {
@@ -1330,7 +1425,7 @@ namespace WGClientWifiSwitcher
             var currentDir    = Path.GetDirectoryName(
                 Environment.ProcessPath ?? AppContext.BaseDirectory) ?? "";
             bool installed = installedPath != null &&
-                             File.Exists(Path.Combine(installedPath, "WGClientWifiSwitcher.exe"));
+                             File.Exists(Path.Combine(installedPath, "MasselGUARD.exe"));
             bool runningFromInstall = installed &&
                 string.Equals(currentDir, installedPath, StringComparison.OrdinalIgnoreCase);
 
@@ -1359,10 +1454,19 @@ namespace WGClientWifiSwitcher
         /// <summary>Shows/hides the rules and default-action panels based on ManualMode.</summary>
         internal void ApplyManualMode()
         {
-            var vis = _cfg.ManualMode ? Visibility.Collapsed : Visibility.Visible;
-            RulesPanel.Visibility         = vis;
-            DefaultActionPanel.Visibility = vis;
+            RulesPanel.Visibility = _cfg.ManualMode ? Visibility.Collapsed : Visibility.Visible;
+            DefaultActionPanel.Visibility = Visibility.Visible;
             UpdateFooterLabel();
+        }
+
+        internal void ApplyLocalTunnelMode()
+        {
+            bool enabled = _cfg.EnableLocalTunnels;
+            // Hide Add and Edit buttons when local tunnels are disabled
+            AddTunnelBtn.Visibility  = enabled ? Visibility.Visible : Visibility.Collapsed;
+            EditTunnelBtn.Visibility = enabled ? Visibility.Visible : Visibility.Collapsed;
+            // Refresh list to show/hide local tunnels
+            RefreshTunnelDropdowns();
         }
 
         private void RunInstall()
@@ -1380,7 +1484,7 @@ namespace WGClientWifiSwitcher
                 return;
             }
 
-            // Show styled location picker — defaults to Program Files\WG Client and WiFi Switcher
+            // Show styled location picker — defaults to Program Files\MasselGUARD
             var defaultParent = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             var chosenParent  = ShowInstallLocationDialog(defaultParent);
             if (chosenParent == null) return;
@@ -1407,10 +1511,10 @@ namespace WGClientWifiSwitcher
                         File.Copy(file, Path.Combine(destLang, Path.GetFileName(file)), overwrite: true);
                 }
 
-                var installedExe = Path.Combine(installDir, "WGClientWifiSwitcher.exe");
+                var installedExe = Path.Combine(installDir, "MasselGUARD.exe");
 
                 // Save icon as .ico file in install dir for the Start Menu shortcut
-                var icoPath = Path.Combine(installDir, "WGClientWifiSwitcher.ico");
+                var icoPath = Path.Combine(installDir, "MasselGUARD.ico");
                 using (var icon = TrayIconHelper.CreateIcon(false))
                 using (var fs = File.Create(icoPath))
                     icon.Save(fs);
@@ -1420,13 +1524,13 @@ namespace WGClientWifiSwitcher
                     Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
                     InstallFolderName);
                 Directory.CreateDirectory(startMenuDir);
-                var shortcutPath = Path.Combine(startMenuDir, "WireGuard Client and WiFi Switcher.lnk");
+                var shortcutPath = Path.Combine(startMenuDir, "MasselGUARD.lnk");
                 RunPowerShell($@"
 $s = (New-Object -ComObject WScript.Shell).CreateShortcut('{shortcutPath}')
 $s.TargetPath      = '{installedExe}'
 $s.WorkingDirectory = '{installDir}'
 $s.IconLocation    = '{icoPath},0'
-$s.Description     = 'WireGuard Client and WiFi Switcher'
+$s.Description     = 'MasselGUARD'
 $s.Save()");
 
                 // 3. Write registry entry + config.json
@@ -1451,7 +1555,7 @@ $exe     = '{installedExe}'
 $action  = New-ScheduledTaskAction -Execute $exe
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $prin    = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest
-Register-ScheduledTask -TaskName 'WGClientWifiSwitcher' `
+Register-ScheduledTask -TaskName 'MasselGUARD' `
     -Action $action -Trigger $trigger -Principal $prin -Force");
 
                     if (taskResult)
@@ -1530,9 +1634,12 @@ Register-ScheduledTask -TaskName 'WGClientWifiSwitcher' `
             {
                 Log("UninstallProgress", LogLevel.Info);
 
+                // Stop all running tunnel services first so tunnel.dll is released
+                StopAllTunnelServices();
+
                 // 1. Remove scheduled task
                 var taskRemoved = RunPowerShell(
-                    "Unregister-ScheduledTask -TaskName 'WGClientWifiSwitcher' -Confirm:$false -ErrorAction SilentlyContinue");
+                    "Unregister-ScheduledTask -TaskName 'MasselGUARD' -Confirm:$false -ErrorAction SilentlyContinue");
                 if (taskRemoved) Log("UninstallRemovedTask", LogLevel.Ok);
 
                 // 2. Remove Start Menu shortcut
@@ -1552,7 +1659,7 @@ Register-ScheduledTask -TaskName 'WGClientWifiSwitcher' `
                 {
                     var configDir = Path.Combine(
                         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                        "WGClientWifiSwitcher");
+                        "MasselGUARD");
                     if (Directory.Exists(configDir))
                         Directory.Delete(configDir, recursive: true);
                 }
@@ -1567,9 +1674,12 @@ Register-ScheduledTask -TaskName 'WGClientWifiSwitcher' `
 
                 if (isRunningFromInstall)
                 {
-                    // Running from install folder — delete it after exit
+                    // Running from install folder — schedule deletion after this process exits
+                    // Use a loop in cmd to wait for the exe to be released before deleting
                     Process.Start(new ProcessStartInfo("cmd.exe",
-                        $"/c timeout /t 2 /nobreak >nul & rd /s /q \"{installDir}\"")
+                        $"/c timeout /t 3 /nobreak >nul & " +
+                        $"del /f /q \"{Path.Combine(installDir, "MasselGUARD.exe")}\" >nul 2>&1 & " +
+                        $"rd /s /q \"{installDir}\"")
                     {
                         CreateNoWindow  = true,
                         UseShellExecute = false
@@ -2181,7 +2291,7 @@ Register-ScheduledTask -TaskName 'WGClientWifiSwitcher' `
 
         // ── Logging ────────────────────────────────────────────────────────────
 
-        private enum LogLevel { Info, Ok, Warn }
+        private enum LogLevel { Debug, Info, Ok, Warn }
         private static readonly SolidColorBrush LInfo = new(Color.FromRgb(88,  166, 255));
         private static readonly SolidColorBrush LOk   = new(Color.FromRgb(63,  185,  80));
         private static readonly SolidColorBrush LWarn = new(Color.FromRgb(247, 129, 102));
@@ -2196,6 +2306,7 @@ Register-ScheduledTask -TaskName 'WGClientWifiSwitcher' `
         // Log a translatable message by key (app-generated messages)
         private void Log(string key, LogLevel level, params object[] args)
         {
+            if (level == LogLevel.Debug && _cfg.LogLevelSetting != "debug") return;
             var entry = new LogEntry(DateTime.Now, level, key, args, null);
             _logEntries.Insert(0, entry);
             if (_logEntries.Count > MaxLogEntries) _logEntries.RemoveAt(_logEntries.Count - 1);
@@ -2205,11 +2316,15 @@ Register-ScheduledTask -TaskName 'WGClientWifiSwitcher' `
         // Log a raw untranslatable string (e.g. OS error messages, WireGuard internals)
         private void LogRaw(string message, LogLevel level)
         {
+            if (level == LogLevel.Debug && _cfg.LogLevelSetting != "debug") return;
             var entry = new LogEntry(DateTime.Now, level, null, null, message);
             _logEntries.Insert(0, entry);
             if (_logEntries.Count > MaxLogEntries) _logEntries.RemoveAt(_logEntries.Count - 1);
             RenderLogEntry(entry, prepend: true);
         }
+
+        private void LogDebug(string key, params object[] args) =>
+            Log(key, LogLevel.Debug, args);
 
         private void RenderLogEntry(LogEntry entry, bool prepend)
         {
@@ -2222,7 +2337,7 @@ Register-ScheduledTask -TaskName 'WGClientWifiSwitcher' `
                 var para = new Paragraph { Margin = new Thickness(0) };
                 para.Inlines.Add(new Run(entry.Time.ToString("HH:mm:ss") + "  ") { Foreground = LTime });
                 para.Inlines.Add(new Run(text) { Foreground = entry.Level switch
-                    { LogLevel.Ok => LOk, LogLevel.Warn => LWarn, _ => LInfo } });
+                    { LogLevel.Ok => LOk, LogLevel.Warn => LWarn, LogLevel.Debug => LTime, _ => LInfo } });
 
                 if (prepend)
                 {
@@ -2270,14 +2385,138 @@ Register-ScheduledTask -TaskName 'WGClientWifiSwitcher' `
         }
 
         // Public wrappers used by SettingsWindow
+        public void LogDebugPublic(string key, params object[] args) => LogDebug(key, args);
+        public void OpenWireGuardGui()  => OpenWireGuardGui_Click(this, new RoutedEventArgs());
+        public void OpenWireGuardLog()  => ShowWireGuardLog_Click(this, new RoutedEventArgs());
+        public void ApplyLocalTunnelModePublic() => ApplyLocalTunnelMode();
         public bool   IsInstalledCheck()        => IsInstalled();
         public string? GetInstalledPathPublic()  => GetInstalledPath();
         public AppConfig GetConfig()             => _cfg;
         public void   SaveConfigPublic()         => SaveConfig();
-        public void   RunInstallPublic()
+
+        /// <summary>True when running from a different directory than the install path.</summary>
+        public bool IsRunningPortableWhileInstalled()
         {
-            if (IsInstalled()) RunUninstall();
-            else               RunInstall();
+            var installedPath = GetInstalledPath();
+            if (installedPath == null) return false;
+            var currentDir = Path.GetDirectoryName(
+                Environment.ProcessPath ?? AppContext.BaseDirectory) ?? "";
+            return !string.Equals(currentDir, installedPath, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public void RunInstallPublic()
+        {
+            if (!IsInstalled())        RunInstall();
+            else if (IsRunningPortableWhileInstalled()) RunUpdate();
+            else                       RunUninstall();
+        }
+
+        /// <summary>
+        /// Overwrites the installed version with the currently running portable copy.
+        /// Copies all files from the current exe directory into the install directory,
+        /// then relaunches from the installed location.
+        /// </summary>
+        private void RunUpdate()
+        {
+            var installDir = GetInstalledPath()!;
+            var currentExe = Environment.ProcessPath ?? AppContext.BaseDirectory;
+            var sourceDir  = Path.GetDirectoryName(currentExe)!;
+
+            try
+            {
+                Log("InstallProgress", LogLevel.Info);
+
+                // Stop all running WireGuardTunnel$ services — they hold tunnel.dll open
+                StopAllTunnelServices();
+
+                // Copy all files from current dir → install dir (overwrite)
+                foreach (var file in Directory.GetFiles(sourceDir))
+                {
+                    var dest = Path.Combine(installDir, Path.GetFileName(file));
+                    // Rename running exe instead of copying over it directly
+                    if (string.Equals(Path.GetFileName(file), "MasselGUARD.exe",
+                        StringComparison.OrdinalIgnoreCase) && File.Exists(dest))
+                    {
+                        var old = dest + ".old";
+                        if (File.Exists(old)) File.Delete(old);
+                        File.Move(dest, old);
+                    }
+                    File.Copy(file, dest, overwrite: true);
+                }
+
+                // Copy lang subfolder
+                var sourceLang = Path.Combine(sourceDir, "lang");
+                if (Directory.Exists(sourceLang))
+                {
+                    var destLang = Path.Combine(installDir, "lang");
+                    Directory.CreateDirectory(destLang);
+                    foreach (var file in Directory.GetFiles(sourceLang))
+                        File.Copy(file, Path.Combine(destLang, Path.GetFileName(file)), overwrite: true);
+                }
+
+                // Clean up renamed old exe
+                var oldExe = Path.Combine(installDir, "MasselGUARD.exe.old");
+                if (File.Exists(oldExe))
+                    try { File.Delete(oldExe); } catch { }
+
+                Log("UpdateDoneRestart", LogLevel.Ok);
+
+                // Relaunch from installed location
+                var installedExe = Path.Combine(installDir, "MasselGUARD.exe");
+                Process.Start(new ProcessStartInfo(installedExe) { UseShellExecute = true });
+                System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+                    ((App)System.Windows.Application.Current).ShutdownApp());
+            }
+            catch (Exception ex)
+            {
+                Log("InstallFailed", LogLevel.Warn, ex.Message);
+                ShowDialog(Lang.T("InstallFailed", ex.Message), Lang.T("InstallTitle"),
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Stops and deletes all WireGuardTunnel$ services so tunnel.dll is released
+        /// before install/update tries to overwrite it.
+        /// </summary>
+        private void StopAllTunnelServices()
+        {
+            try
+            {
+                foreach (var t in _cfg.Tunnels.Where(t => t.Source == "local"))
+                {
+                    if (TunnelDll.IsRunning(t.Name))
+                    {
+                        Log("LogStoppedTunnel", LogLevel.Info, t.Name, "");
+                        TunnelDll.Disconnect(t.Name, out _);
+                    }
+                }
+            }
+            catch { }
+
+            // Sweep orphaned WireGuardTunnel$ services not in config
+            try
+            {
+                foreach (var svc in ServiceController.GetServices())
+                {
+                    if (!svc.ServiceName.StartsWith("WireGuardTunnel$",
+                        StringComparison.OrdinalIgnoreCase)) continue;
+                    var name = svc.ServiceName.Substring("WireGuardTunnel$".Length);
+                    if (_cfg.Tunnels.Any(t => string.Equals(t.Name, name,
+                        StringComparison.OrdinalIgnoreCase))) continue;
+                    try
+                    {
+                        var stored = _cfg.Tunnels.FirstOrDefault(t =>
+                            string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
+                        if (stored?.Source == "local")
+                            TunnelDll.Disconnect(name, out _);
+                        else if (svc.Status != ServiceControllerStatus.Stopped)
+                            svc.Stop();
+                    }
+                    catch { }
+                }
+            }
+            catch { }
         }
 
         protected override void OnActivated(EventArgs e)

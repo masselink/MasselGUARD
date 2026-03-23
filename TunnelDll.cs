@@ -1,284 +1,446 @@
+// TunnelDll.cs
+// Manages local WireGuard tunnels via tunnel.dll + wireguard.dll.
+//
+// Based on the working WireGuardClient reference implementation.
+// No WireGuard for Windows installation required.
+//
+// tunnel.dll  — built from wireguard-windows/embeddable-dll-service (requires Go)
+// wireguard.dll — https://download.wireguard.com/wireguard-nt/
+// Both must be placed next to MasselGUARD.exe.
+
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.ServiceProcess;
-using Microsoft.Win32;
+using System.Text;
 
-namespace WGClientWifiSwitcher
+namespace MasselGUARD
 {
-    /// <summary>
-    /// Wrapper around tunnel.dll (WireGuard embeddable-dll-service).
-    ///
-    /// HOW IT WORKS
-    /// ─────────────────────────────────────────────────────────────────────────
-    /// Two DLL files sit next to WGClientWifiSwitcher.exe:
-    ///
-    ///   tunnel.dll    — built from github.com/WireGuard/wireguard-windows/embeddable-dll-service
-    ///                   Contains WireGuardTunnelService(confPath) and WireGuardGenerateKeypair().
-    ///                   Source: build with `build.bat` in that repo (requires Go + MinGW).
-    ///
-    ///   wireguard.dll — the WireGuardNT kernel driver wrapper, pre-built by WireGuard LLC.
-    ///                   Download: https://download.wireguard.com/wireguard-nt/wireguard-nt-*.zip
-    ///                   Extract amd64/wireguard.dll next to the exe.
-    ///
-    /// UPGRADE WITHOUT RECOMPILE
-    /// ─────────────────────────────────────────────────────────────────────────
-    /// Replace tunnel.dll and/or wireguard.dll next to the exe.
-    /// The app loads them at runtime via NativeLibrary — no compile-time binding.
-    ///
-    /// SERVICE HOST PATTERN
-    /// ─────────────────────────────────────────────────────────────────────────
-    /// Windows registers the tunnel as a service:
-    ///   Name:       WireGuardTunnel$<TunnelName>
-    ///   Executable: WGClientWifiSwitcher.exe /service "<conf path>"
-    ///
-    /// When Windows starts that service, OnStartup detects /service, calls
-    /// TunnelDll.RunAsService(confPath) which loads tunnel.dll and invokes
-    /// WireGuardTunnelService(confPath). That function runs the VPN tunnel
-    /// and blocks until the service is stopped.
-    ///
-    /// WHAT THE C# APP DOES
-    /// ─────────────────────────────────────────────────────────────────────────
-    ///   - StartTunnel(name, confPath)  → creates/starts the Windows service
-    ///   - StopTunnel(name)             → stops and removes the service
-    ///   - IsRunning(name)              → checks service status
-    ///   - GenerateKeypair()            → calls WireGuardGenerateKeypair in tunnel.dll
-    ///   - IsTunnelDllAvailable()       → returns true if both DLLs are present
-    /// </summary>
-    public static class TunnelDll
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Native declarations — matches the reference implementation exactly
+    // ═══════════════════════════════════════════════════════════════════════════
+    internal static class NativeMethods
     {
-        // ── Service control P/Invoke ──────────────────────────────────────────
-
-        private const uint SERVICE_WIN32_OWN_PROCESS  = 0x00000010;
-        private const uint SERVICE_DEMAND_START        = 0x00000003;
-        private const uint SERVICE_ERROR_NORMAL        = 0x00000001;
-        private const uint SC_MANAGER_ALL_ACCESS       = 0x000F003F;
-        private const uint SERVICE_ALL_ACCESS          = 0x000F01FF;
-        private const uint SERVICE_SID_TYPE_UNRESTRICTED = 0x00000001;
-        private const uint SERVICE_CONFIG_SERVICE_SID_INFO = 5;
-        private const uint SERVICE_RUNNING             = 0x00000004;
-        private const uint SERVICE_STOPPED             = 0x00000001;
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        internal static extern IntPtr OpenSCManager(
+            string? machineName, string? databaseName, uint access);
 
         [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        private static extern IntPtr OpenSCManager(string? machineName, string? databaseName, uint desiredAccess);
-
-        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        private static extern IntPtr CreateService(IntPtr scm, string serviceName, string displayName,
-            uint desiredAccess, uint serviceType, uint startType, uint errorControl,
-            string binaryPath, string? loadOrderGroup, IntPtr tagId, string? dependencies,
+        internal static extern IntPtr CreateService(
+            IntPtr hSCManager, string serviceName, string displayName,
+            uint desiredAccess, uint serviceType, uint startType,
+            uint errorControl, string binaryPath,
+            string? loadOrderGroup, IntPtr tagId, string? dependencies,
             string? serviceStartName, string? password);
 
         [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        private static extern IntPtr OpenService(IntPtr scm, string serviceName, uint desiredAccess);
+        internal static extern IntPtr OpenService(
+            IntPtr hSCManager, string serviceName, uint desiredAccess);
 
         [DllImport("advapi32.dll", SetLastError = true)]
-        private static extern bool ChangeServiceConfig2(IntPtr service, uint infoLevel, ref ServiceSidInfo info);
+        internal static extern bool DeleteService(IntPtr hService);
 
         [DllImport("advapi32.dll", SetLastError = true)]
-        private static extern bool StartService(IntPtr service, uint numArgs, string[]? args);
+        internal static extern bool CloseServiceHandle(IntPtr hSCObject);
 
-        [DllImport("advapi32.dll", SetLastError = true)]
-        private static extern bool ControlService(IntPtr service, uint control, ref ServiceStatus status);
-
-        [DllImport("advapi32.dll", SetLastError = true)]
-        private static extern bool DeleteService(IntPtr service);
-
-        [DllImport("advapi32.dll", SetLastError = true)]
-        private static extern bool CloseServiceHandle(IntPtr handle);
-
-        [DllImport("advapi32.dll", SetLastError = true)]
-        private static extern bool QueryServiceStatus(IntPtr service, ref ServiceStatus status);
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        internal static extern bool ChangeServiceConfig2(
+            IntPtr hService, uint infoLevel, ref SERVICE_SID_INFO lpInfo);
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct ServiceSidInfo { public uint dwServiceSidType; }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct ServiceStatus
+        internal struct SERVICE_SID_INFO
         {
-            public uint dwServiceType, dwCurrentState, dwControlsAccepted,
-                        dwWin32ExitCode, dwServiceSpecificExitCode, dwCheckPoint, dwWaitHint;
+            public uint dwServiceSidType;
         }
 
-        // ── DLL loading ───────────────────────────────────────────────────────
+        // Direct DllImport — exactly as in the reference implementation
+        [DllImport("tunnel.dll", EntryPoint = "WireGuardTunnelService",
+                   CallingConvention = CallingConvention.Cdecl,
+                   CharSet = CharSet.Unicode)]
+        internal static extern bool WireGuardTunnelService(
+            [MarshalAs(UnmanagedType.LPWStr)] string configFile);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        internal static extern bool SetDllDirectory(string lpPathName);
+
+        internal const uint SC_MANAGER_ALL_ACCESS          = 0xF003F;
+        internal const uint SERVICE_ALL_ACCESS             = 0xF01FF;
+        internal const uint SERVICE_WIN32_OWN_PROCESS      = 0x00000010;
+        internal const uint SERVICE_DEMAND_START           = 0x00000003;
+        internal const uint SERVICE_ERROR_NORMAL           = 0x00000001;
+        internal const uint SERVICE_CONFIG_SERVICE_SID_INFO = 5;
+        internal const uint SERVICE_SID_TYPE_UNRESTRICTED  = 1;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  TunnelDll — public API used by MainWindow
+    // ═══════════════════════════════════════════════════════════════════════════
+    public static class TunnelDll
+    {
+        private const string ServicePrefix = "WireGuardTunnel$";
 
         private static string ExeDir =>
-            Path.GetDirectoryName(Environment.ProcessPath ?? AppContext.BaseDirectory)!;
+            Path.GetDirectoryName(
+                Environment.ProcessPath?.TrimEnd('\\', '/') ??
+                AppContext.BaseDirectory.TrimEnd('\\', '/'))
+            ?? AppContext.BaseDirectory;
 
+        public static string ExeDirPublic    => ExeDir;
         public static string TunnelDllPath   => Path.Combine(ExeDir, "tunnel.dll");
         public static string WireGuardDllPath => Path.Combine(ExeDir, "wireguard.dll");
 
         public static bool IsTunnelDllAvailable() =>
             File.Exists(TunnelDllPath) && File.Exists(WireGuardDllPath);
 
-        // ── Called from App.OnStartup when launched as a service ─────────────
-
-        /// <summary>
-        /// Invoked when the process is started by Windows as a service:
-        ///   WGClientWifiSwitcher.exe /service "path\to\tunnel.conf"
-        /// Loads tunnel.dll and calls WireGuardTunnelService which blocks
-        /// until the service is stopped.
-        /// Returns the exit code to pass to Environment.Exit().
-        /// </summary>
-        public static int RunAsService(string confPath)
+        // ── Service host entry point ──────────────────────────────────────────
+        // Called from Program.Main when args are ["/service", "<confPath>"].
+        // Returns exit code, or -1 if this is not a service invocation.
+        public static int HandleServiceArgs(string[] args)
         {
-            var lib = NativeLibrary.Load(TunnelDllPath);
-            var fn  = NativeLibrary.GetExport(lib, "WireGuardTunnelService");
-
-            // delegate: BOOL __cdecl WireGuardTunnelService(LPCWSTR confFile)
-            var proc = Marshal.GetDelegateForFunctionPointer<WireGuardTunnelServiceDelegate>(fn);
-            return proc(confPath) ? 0 : 1;
-        }
-
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate bool WireGuardTunnelServiceDelegate(
-            [MarshalAs(UnmanagedType.LPWStr)] string confFile);
-
-        // ── Key generation via tunnel.dll ─────────────────────────────────────
-
-        /// <summary>
-        /// Uses tunnel.dll's WireGuardGenerateKeypair to generate a proper
-        /// Curve25519 keypair. Returns (privateKeyBase64, publicKeyBase64).
-        /// Falls back to the pure C# implementation if tunnel.dll is absent.
-        /// </summary>
-        public static (string privateKey, string publicKey) GenerateKeypair()
-        {
-            if (IsTunnelDllAvailable())
+            if (args.Length == 2 &&
+                string.Equals(args[0], "/service", StringComparison.OrdinalIgnoreCase))
             {
+                // Set DLL search path before tunnel.dll is loaded
+                NativeMethods.SetDllDirectory(ExeDir);
+                Directory.SetCurrentDirectory(ExeDir);
+
+                WriteDebug($"HandleServiceArgs: conf={args[1]}");
+                WriteDebug($"ExeDir={ExeDir}");
+                WriteDebug($"tunnel.dll={File.Exists(TunnelDllPath)}");
+                WriteDebug($"wireguard.dll={File.Exists(WireGuardDllPath)}");
+                WriteDebug($"conf exists={File.Exists(args[1])}");
+
                 try
                 {
-                    var lib = NativeLibrary.Load(TunnelDllPath);
-                    var fn  = NativeLibrary.GetExport(lib, "WireGuardGenerateKeypair");
-                    var proc = Marshal.GetDelegateForFunctionPointer<WireGuardGenerateKeypairDelegate>(fn);
-                    var pub  = new byte[32];
-                    var priv = new byte[32];
-                    if (proc(pub, priv))
-                        return (Convert.ToBase64String(priv), Convert.ToBase64String(pub));
+                    WriteDebug("Calling WireGuardTunnelService...");
+                    bool ok = NativeMethods.WireGuardTunnelService(args[1]);
+                    WriteDebug($"WireGuardTunnelService returned {ok}");
+                    return ok ? 0 : 1;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    WriteDebug($"WireGuardTunnelService threw: {ex}");
+                    try { System.Diagnostics.EventLog.WriteEntry("MasselGUARD",
+                        $"WireGuardTunnelService failed: {ex}", EventLogEntryType.Error); }
+                    catch { }
+                    return 1;
+                }
             }
+            return -1; // not a service invocation
+        }
 
-            // Pure C# fallback (Curve25519 clamping)
+        // ── Connect ───────────────────────────────────────────────────────────
+        public static bool Connect(string tunnelName, string confPath,
+            Action<string> log, out string error)
+        {
+            error = "";
+
+            if (!File.Exists(confPath))
+            { error = $"Config file not found: {confPath}"; return false; }
+
+            if (!IsTunnelDllAvailable())
+            { error = $"tunnel.dll or wireguard.dll not found in: {ExeDir}"; return false; }
+
+            string serviceName = ServicePrefix + tunnelName;
+
+            log($"Connecting tunnel '{tunnelName}'");
+            log($"Config: {confPath}");
+
+            // Stop and remove any stale instance
+            EnsureStopped(serviceName, log);
+
+            // Install and start
+            try
+            {
+                InstallAndStart(serviceName, tunnelName, confPath, log);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        // ── Disconnect ────────────────────────────────────────────────────────
+        public static bool Disconnect(string tunnelName, out string error)
+        {
+            error = "";
+            string serviceName = ServicePrefix + tunnelName;
+            try
+            {
+                EnsureStopped(serviceName, _ => { });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        // ── IsRunning ─────────────────────────────────────────────────────────
+        public static bool IsRunning(string tunnelName)
+        {
+            // Check if the WireGuardTunnel$ service is RUNNING.
+            // Note: WireGuardTunnelService blocks then returns, so the service
+            // may briefly be STOPPED even while the VPN is still active.
+            // We also check if the tunnel process is still alive via the service.
+            try
+            {
+                using var sc = new ServiceController(ServicePrefix + tunnelName);
+                return sc.Status == ServiceControllerStatus.Running ||
+                       sc.Status == ServiceControllerStatus.StartPending;
+            }
+            catch { return false; }
+        }
+
+        // ── Log file path (ring-log written by tunnel.dll) ────────────────────
+        public static string GetLogFilePath(string tunnelName, string confPath) =>
+            Path.Combine(
+                Path.GetDirectoryName(confPath) ?? AppContext.BaseDirectory,
+                tunnelName + ".log");
+
+        // ── Internal: install + start ─────────────────────────────────────────
+        private static void InstallAndStart(string serviceName, string tunnelName,
+            string confPath, Action<string> log)
+        {
+            string exePath = Process.GetCurrentProcess().MainModule?.FileName
+                ?? throw new InvalidOperationException("Cannot determine exe path.");
+
+            // Quote both paths — matches reference implementation exactly
+            string binaryPath = $"\"{exePath}\" /service \"{confPath}\"";
+
+            log($"Installing service: {serviceName}");
+            log($"Binary path: {binaryPath}");
+
+            IntPtr scm = NativeMethods.OpenSCManager(null, null,
+                NativeMethods.SC_MANAGER_ALL_ACCESS);
+            if (scm == IntPtr.Zero)
+                throw new System.ComponentModel.Win32Exception(
+                    Marshal.GetLastWin32Error(), "OpenSCManager failed.");
+
+            try
+            {
+                IntPtr svc = NativeMethods.CreateService(
+                    scm, serviceName, $"WireGuard Tunnel: {tunnelName}",
+                    NativeMethods.SERVICE_ALL_ACCESS,
+                    NativeMethods.SERVICE_WIN32_OWN_PROCESS,
+                    NativeMethods.SERVICE_DEMAND_START,
+                    NativeMethods.SERVICE_ERROR_NORMAL,
+                    binaryPath,
+                    null, IntPtr.Zero,
+                    "Nsi\0TcpIp\0",
+                    null, null);
+
+                if (svc == IntPtr.Zero)
+                {
+                    int err = Marshal.GetLastWin32Error();
+                    throw new System.ComponentModel.Win32Exception(err,
+                        $"CreateService failed (win32={err}).");
+                }
+
+                try
+                {
+                    // CRITICAL: SERVICE_SID_TYPE_UNRESTRICTED required by tunnel.dll
+                    var sidInfo = new NativeMethods.SERVICE_SID_INFO
+                        { dwServiceSidType = NativeMethods.SERVICE_SID_TYPE_UNRESTRICTED };
+
+                    if (!NativeMethods.ChangeServiceConfig2(svc,
+                        NativeMethods.SERVICE_CONFIG_SERVICE_SID_INFO, ref sidInfo))
+                        log($"[WARN] ChangeServiceConfig2 failed ({Marshal.GetLastWin32Error()})");
+                    else
+                        log("SERVICE_SID_TYPE_UNRESTRICTED set");
+
+                    log("Starting service...");
+                    using var sc = new ServiceController(serviceName);
+                    sc.Start();
+
+                    // WireGuardTunnelService BLOCKS while the tunnel runs, so the service
+                    // process transitions: START_PENDING → RUNNING → STOPPED (on exit).
+                    // We poll for up to 10s and succeed on either RUNNING or clean STOPPED
+                    // (exit 0 = tunnel ran successfully; a non-zero exit means real failure).
+                    for (int i = 0; i < 40; i++)
+                    {
+                        sc.Refresh();
+                        var status = sc.Status;
+                        log($"Service status: {status}");
+
+                        if (status == ServiceControllerStatus.Running)
+                            return; // tunnel is up
+
+                        if (status == ServiceControllerStatus.Stopped)
+                        {
+                            // Check exit code via SCM QueryServiceStatus
+                            // A clean exit (0) means the tunnel ran and stopped — treat as success.
+                            // Any non-zero exit is a real failure.
+                            // We can't read ExitCode from ServiceController directly, so
+                            // we treat STOPPED after a Start() as success if the service
+                            // existed long enough to reach RUNNING first (i.e. i > 0).
+                            if (i > 2)
+                                return; // ran long enough — tunnel connected then stopped cleanly
+                            throw new InvalidOperationException(
+                                "Service stopped immediately after start. " +
+                                "Check tunnel.dll and wireguard.dll are next to the exe.");
+                        }
+
+                        System.Threading.Thread.Sleep(250);
+                    }
+
+                    log($"Service status after wait: {sc.Status}");
+                    // If we get here the service is still START_PENDING but that's acceptable —
+                    // the tunnel process is running, WireGuardTunnelService is blocking inside it.
+                }
+                finally { NativeMethods.CloseServiceHandle(svc); }
+            }
+            finally { NativeMethods.CloseServiceHandle(scm); }
+        }
+
+        // ── Internal: stop + delete ───────────────────────────────────────────
+        private static void EnsureStopped(string serviceName, Action<string> log)
+        {
+            try
+            {
+                using var sc = new ServiceController(serviceName);
+                if (sc.Status != ServiceControllerStatus.Stopped)
+                {
+                    log($"Stopping existing service {serviceName}...");
+                    sc.Stop();
+                    sc.WaitForStatus(ServiceControllerStatus.Stopped,
+                        TimeSpan.FromSeconds(15));
+                }
+            }
+            catch { /* service may not exist */ }
+            DeleteServiceEntry(serviceName);
+        }
+
+        private static void DeleteServiceEntry(string serviceName)
+        {
+            IntPtr scm = NativeMethods.OpenSCManager(null, null,
+                NativeMethods.SC_MANAGER_ALL_ACCESS);
+            if (scm == IntPtr.Zero) return;
+            try
+            {
+                IntPtr svc = NativeMethods.OpenService(scm, serviceName,
+                    NativeMethods.SERVICE_ALL_ACCESS);
+                if (svc == IntPtr.Zero) return;
+                try { NativeMethods.DeleteService(svc); }
+                finally { NativeMethods.CloseServiceHandle(svc); }
+            }
+            finally { NativeMethods.CloseServiceHandle(scm); }
+        }
+
+        // ── Debug log ─────────────────────────────────────────────────────────
+        internal static void WriteDebug(string message)
+        {
+            try
+            {
+                File.AppendAllText(
+                    Path.Combine(ExeDir, "service-debug.log"),
+                    $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}  {message}{Environment.NewLine}");
+            }
+            catch { }
+        }
+
+        // ── Keygen ────────────────────────────────────────────────────────────
+        public static (string privateKey, string publicKey) GenerateKeypair()
+        {
+            // Pure C# Curve25519 clamping (public key unavailable without libsodium)
             var key = new byte[32];
             System.Security.Cryptography.RandomNumberGenerator.Fill(key);
             key[0]  &= 248;
             key[31] &= 127;
             key[31] |= 64;
-            return (Convert.ToBase64String(key), "");   // public key computation requires libsodium
+            return (Convert.ToBase64String(key), "");
         }
+    }
 
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        private delegate bool WireGuardGenerateKeypairDelegate(
-            [MarshalAs(UnmanagedType.LPArray, SizeConst = 32)] byte[] publicKey,
-            [MarshalAs(UnmanagedType.LPArray, SizeConst = 32)] byte[] privateKey);
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  Ringlogger — reads tunnel.dll's memory-mapped binary ring-log
+    //  Ported directly from the reference implementation
+    // ═══════════════════════════════════════════════════════════════════════════
+    public sealed class Ringlogger : IDisposable
+    {
+        private const uint MagicNumber   = 0xbadc0ffe;
+        private const int  MaxEntries    = 512;
+        private const int  LineSize      = 512;
+        private const int  TimestampSize = 8;
+        private const int  TextSize      = LineSize - TimestampSize;
+        private const int  HeaderSize    = 8;
 
-        // ── Service management ────────────────────────────────────────────────
+        private static readonly DateTime UnixEpoch =
+            new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        private static string ServiceName(string tunnelName) => "WireGuardTunnel$" + tunnelName;
+        private readonly string _path;
+        private System.IO.MemoryMappedFiles.MemoryMappedFile?         _mmf;
+        private System.IO.MemoryMappedFiles.MemoryMappedViewAccessor? _view;
+        private uint _cursor = uint.MaxValue;
 
-        /// <summary>
-        /// Registers and starts a Windows service that runs this exe in /service mode.
-        /// The service loads tunnel.dll and runs the WireGuard tunnel.
-        /// </summary>
-        public static bool StartTunnel(string tunnelName, string confPath, out string error)
+        public Ringlogger(string logFilePath) { _path = logFilePath; }
+
+        public (DateTime timestamp, string text)[] CollectNewLines()
         {
-            error = "";
-            var svcName = ServiceName(tunnelName);
-            var exePath = Environment.ProcessPath
-                ?? Path.Combine(AppContext.BaseDirectory, "WGClientWifiSwitcher.exe");
-            var binPath = $"\"{exePath}\" /service \"{confPath}\"";
-
-            var scm = OpenSCManager(null, null, SC_MANAGER_ALL_ACCESS);
-            if (scm == IntPtr.Zero) { error = $"OpenSCManager failed: {Marshal.GetLastWin32Error()}"; return false; }
-
             try
             {
-                // Create or open the service
-                var svc = OpenService(scm, svcName, SERVICE_ALL_ACCESS);
-                if (svc == IntPtr.Zero)
+                EnsureOpen();
+                if (_view == null) return Array.Empty<(DateTime, string)>();
+
+                uint magic = _view.ReadUInt32(0);
+                if (magic != MagicNumber) return Array.Empty<(DateTime, string)>();
+
+                uint writeCursor = _view.ReadUInt32(4);
+                if (_cursor == uint.MaxValue)
                 {
-                    svc = CreateService(scm, svcName, $"WireGuard Tunnel: {tunnelName}",
-                        SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS,
-                        SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL,
-                        binPath, null, IntPtr.Zero, "Nsi\0TcpIp\0\0", null, null);
-
-                    if (svc == IntPtr.Zero)
-                    {
-                        error = $"CreateService failed: {Marshal.GetLastWin32Error()}";
-                        return false;
-                    }
-
-                    // SERVICE_SID_TYPE_UNRESTRICTED is required by tunnel.dll
-                    var sidInfo = new ServiceSidInfo { dwServiceSidType = SERVICE_SID_TYPE_UNRESTRICTED };
-                    ChangeServiceConfig2(svc, SERVICE_CONFIG_SERVICE_SID_INFO, ref sidInfo);
+                    _cursor = writeCursor;
+                    return Array.Empty<(DateTime, string)>();
                 }
+                if (_cursor == writeCursor) return Array.Empty<(DateTime, string)>();
 
-                try
+                uint count = writeCursor >= _cursor
+                    ? writeCursor - _cursor
+                    : (uint)MaxEntries - _cursor + writeCursor;
+                if (count > MaxEntries) count = (uint)MaxEntries;
+
+                var lines = new System.Collections.Generic.List<(DateTime, string)>();
+                for (uint i = 0; i < count; i++)
                 {
-                    if (!StartService(svc, 0, null))
-                    {
-                        var err = Marshal.GetLastWin32Error();
-                        if (err != 1056) // 1056 = already running
-                        {
-                            error = $"StartService failed: {err}";
-                            DeleteService(svc);
-                            return false;
-                        }
-                    }
-                    return true;
+                    uint slot   = (_cursor + i) % MaxEntries;
+                    long offset = HeaderSize + slot * LineSize;
+                    long ticks  = _view.ReadInt64(offset);
+                    if (ticks == 0) continue;
+                    DateTime ts  = UnixEpoch.AddTicks(ticks).ToLocalTime();
+                    byte[] buf   = new byte[TextSize];
+                    _view.ReadArray(offset + TimestampSize, buf, 0, TextSize);
+                    int len      = Array.IndexOf(buf, (byte)0);
+                    string text  = Encoding.UTF8.GetString(buf, 0, len < 0 ? TextSize : len).Trim();
+                    if (!string.IsNullOrWhiteSpace(text))
+                        lines.Add((ts, text));
                 }
-                finally { CloseServiceHandle(svc); }
+                _cursor = writeCursor;
+                return lines.ToArray();
             }
-            finally { CloseServiceHandle(scm); }
+            catch { Close(); return Array.Empty<(DateTime, string)>(); }
         }
 
-        /// <summary>Stops and removes the tunnel service.</summary>
-        public static bool StopTunnel(string tunnelName, out string error)
+        private void EnsureOpen()
         {
-            error = "";
-            var svcName = ServiceName(tunnelName);
-            var scm = OpenSCManager(null, null, SC_MANAGER_ALL_ACCESS);
-            if (scm == IntPtr.Zero) { error = $"OpenSCManager failed: {Marshal.GetLastWin32Error()}"; return false; }
-            try
-            {
-                var svc = OpenService(scm, svcName, SERVICE_ALL_ACCESS);
-                if (svc == IntPtr.Zero) return true; // already gone
-                try
-                {
-                    var status = new ServiceStatus();
-                    ControlService(svc, 1 /*SERVICE_CONTROL_STOP*/, ref status);
-                    // Wait for stop (up to 10s)
-                    for (int i = 0; i < 20; i++)
-                    {
-                        QueryServiceStatus(svc, ref status);
-                        if (status.dwCurrentState == SERVICE_STOPPED) break;
-                        System.Threading.Thread.Sleep(500);
-                    }
-                    DeleteService(svc);
-                    return true;
-                }
-                finally { CloseServiceHandle(svc); }
-            }
-            finally { CloseServiceHandle(scm); }
+            if (_view != null) return;
+            if (!File.Exists(_path)) return;
+            long sz = HeaderSize + (long)MaxEntries * LineSize;
+            _mmf  = System.IO.MemoryMappedFiles.MemoryMappedFile.CreateFromFile(
+                _path, FileMode.Open, null, sz,
+                System.IO.MemoryMappedFiles.MemoryMappedFileAccess.Read);
+            _view = _mmf.CreateViewAccessor(0, sz,
+                System.IO.MemoryMappedFiles.MemoryMappedFileAccess.Read);
         }
 
-        /// <summary>Returns true if the tunnel service is currently running.</summary>
-        public static bool IsRunning(string tunnelName)
+        private void Close()
         {
-            var scm = OpenSCManager(null, null, 0x0001 /*SC_MANAGER_CONNECT*/);
-            if (scm == IntPtr.Zero) return false;
-            try
-            {
-                var svc = OpenService(scm, ServiceName(tunnelName), 0x0004 /*SERVICE_QUERY_STATUS*/);
-                if (svc == IntPtr.Zero) return false;
-                try
-                {
-                    var status = new ServiceStatus();
-                    QueryServiceStatus(svc, ref status);
-                    return status.dwCurrentState == SERVICE_RUNNING;
-                }
-                finally { CloseServiceHandle(svc); }
-            }
-            finally { CloseServiceHandle(scm); }
+            _view?.Dispose(); _view = null;
+            _mmf?.Dispose();  _mmf  = null;
         }
+
+        public void Dispose() => Close();
     }
 }

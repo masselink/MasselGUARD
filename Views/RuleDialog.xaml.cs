@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Input;
 
-namespace WGClientWifiSwitcher.Views
+namespace MasselGUARD.Views
 {
     public partial class RuleDialog : Window
     {
