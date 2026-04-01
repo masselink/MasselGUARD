@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>MasselGUARD</AssemblyName>
+    <RootNamespace>MasselGUARD</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <StartupObject>MasselGUARD.Program</StartupObject>
+    <!-- Strip all framework satellite resource folders (tr, ru, fr, de, etc.)
+         The app uses its own lang/*.json files for localisation — these
+         WPF/WinForms satellite assemblies are not needed. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- Single-file framework-dependent publish — bundles app + NuGet dlls
+         into one exe. Runtime is NOT included; .NET 10 Desktop Runtime must
+         be installed on the target machine. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <ApplicationIcon>MasselGUARD.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />
+    <PackageReference Include="ZXing.Net" Version="0.16.9" />
+    <PackageReference Include="ZXing.Net.Bindings.Windows.Compatibility" Version="0.16.9" />
+  </ItemGroup>
+
+  <!-- Explicitly exclude the deps\ build cache — it contains third-party C# source
+       (wireguard-windows demo project) that must never be compiled by this project. -->
+  <ItemGroup>
+    <Compile Remove="deps\**" />
+    <Content Remove="deps\**" />
+    <EmbeddedResource Remove="deps\**" />
+    <None Remove="deps\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="MasselGUARD.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="lang\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- tunnel.dll + wireguard.dll enable standalone local tunnels.
+         tunnel.dll bundles the WireGuardNT kernel driver — no WireGuard for
+         Windows installation required on the target machine.
+         Build:    tunnel.dll    → wireguard-windows/embeddable-dll-service (Go)
+         Download: wireguard.dll → https://download.wireguard.com/wireguard-nt/
+         Both are optional; place them next to the exe to enable local tunnels. -->
+    <Content Include="tunnel.dll" Condition="Exists('tunnel.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="wireguard.dll" Condition="Exists('wireguard.dll')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

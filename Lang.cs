@@ -7,7 +7,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 
-namespace WGClientWifiSwitcher
+namespace MasselGUARD
 {
     /// <summary>
     /// Static localisation manager.

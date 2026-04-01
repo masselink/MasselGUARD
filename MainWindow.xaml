@@ -1,10 +1,10 @@
-<Window x:Class="WGClientWifiSwitcher.MainWindow"
+<Window x:Class="MasselGUARD.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:WGClientWifiSwitcher"
+        xmlns:local="clr-namespace:MasselGUARD"
         Title="{Binding [AppTitle], Source={x:Static local:Lang.Instance}}"
-        Height="640" Width="1100"
-        MinHeight="500" MinWidth="900"
+        Height="640" Width="1200"
+        MinHeight="500" MinWidth="980"
         Background="{StaticResource Bg}"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -13,13 +13,6 @@
         Closing="Window_Closing">
 
     <Window.Resources>
-        <Style x:Key="SectionLabel" TargetType="TextBlock">
-            <Setter Property="Foreground"  Value="{StaticResource Sub}"/>
-            <Setter Property="FontFamily"  Value="Consolas"/>
-            <Setter Property="FontSize"    Value="10"/>
-            <Setter Property="FontWeight"  Value="Bold"/>
-            <Setter Property="Margin"      Value="0,0,0,6"/>
-        </Style>
     </Window.Resources>
 
     <Border BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="6">
@@ -28,6 +21,7 @@
                 <RowDefinition Height="48"/>
                 <RowDefinition Height="38"/>
                 <RowDefinition Height="1"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="28"/>
             </Grid.RowDefinitions>
@@ -57,14 +51,13 @@
                                    VerticalAlignment="Center"/>
                     </StackPanel>
 
-                    <!-- Window controls: language picker + close -->
+                    <!-- Window controls: settings cog + close -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                                 VerticalAlignment="Center" Margin="0,0,8,0">
-                        <ComboBox x:Name="LanguagePicker"
-                                  FontSize="11" Padding="8,3"
-                                  Margin="0,0,6,0" MinWidth="80"
-                                  ToolTip="Language / Taal"
-                                  SelectionChanged="LanguagePicker_SelectionChanged"/>
+                        <Button Content="⚙" Style="{StaticResource FlatBtn}"
+                                FontSize="14" Padding="8,4" Margin="0,0,4,0"
+                                Click="SettingsBtn_Click"
+                                ToolTip="{Binding [TooltipSettings], Source={x:Static local:Lang.Instance}}"/>
                         <Button Content="✕" Style="{StaticResource DangerBtn}"
                                 Padding="10,4" BorderThickness="0" Background="Transparent"
                                 Click="CloseBtn_Click"
@@ -105,67 +98,128 @@
                                FontSize="11" FontWeight="Bold" Margin="6,0,0,0"
                                Foreground="{StaticResource Green}" VerticalAlignment="Center"/>
 
-                    <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button x:Name="InstallBtn"
-                                Content="{Binding [BtnInstall], Source={x:Static local:Lang.Instance}}"
-                                Style="{StaticResource FlatBtn}"
-                                FontSize="10" Padding="10,4" Margin="0,0,6,0"
-                                Click="InstallBtn_Click"
-                                ToolTip="{Binding [TooltipInstall], Source={x:Static local:Lang.Instance}}"/>
-                        <Button Content="{Binding [BtnOpenWireGuard], Source={x:Static local:Lang.Instance}}"
-                                Style="{StaticResource FlatBtn}"
-                                FontSize="10" Padding="10,4" Margin="0,0,6,0"
-                                Click="OpenWireGuardGui_Click"
-                                ToolTip="{Binding [TooltipWireGuard], Source={x:Static local:Lang.Instance}}"/>
-                        <Button Content="{Binding [BtnShowLog], Source={x:Static local:Lang.Instance}}"
-                                Style="{StaticResource FlatBtn}"
-                                FontSize="10" Padding="10,4"
-                                Click="ShowWireGuardLog_Click"
-                                ToolTip="{Binding [TooltipLog], Source={x:Static local:Lang.Instance}}"/>
+                    <!-- Action buttons — right-aligned in column 6 -->
+                    <StackPanel Grid.Column="6" Orientation="Horizontal"
+                                HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Margin="0,0,4,0">
+                        <!-- Quick Connect: Standalone + Mixed mode only -->
+                        <Button x:Name="QuickConnectBtn"
+                                Content="{Binding [BtnQuickConnect], Source={x:Static local:Lang.Instance}}"
+                                Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                Visibility="Collapsed"
+                                ToolTip="{Binding [TooltipQuickConnect], Source={x:Static local:Lang.Instance}}"
+                                Click="QuickConnect_Click"/>
+                        <!-- Open WireGuard GUI: Companion + Mixed only -->
+                        <Button x:Name="OpenWgBtn"
+                                Content="{Binding [BtnOpenWireGuard], Source={x:Static local:Lang.Instance}}"
+                                Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                Margin="6,0,0,0" Visibility="Collapsed"
+                                ToolTip="{Binding [TooltipWireGuard], Source={x:Static local:Lang.Instance}}"
+                                Click="OpenWireGuardGui_Click"/>
+                        <!-- WireGuard Log: Companion + Mixed AND a WireGuard tunnel is active -->
+                        <Button x:Name="WireGuardLogBtn"
+                                Content="{Binding [BtnShowLog], Source={x:Static local:Lang.Instance}}"
+                                Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                Margin="6,0,0,0" Visibility="Collapsed"
+                                ToolTip="{Binding [TooltipLog], Source={x:Static local:Lang.Instance}}"
+                                Click="ShowWireGuardLog_Click"/>
                     </StackPanel>
+
                 </Grid>
             </Border>
 
             <Rectangle Grid.Row="2" Fill="{StaticResource Border}"/>
 
+            <!-- ── Error banner (hidden by default) ── -->
+            <Border Grid.Row="3" x:Name="ErrorBanner"
+                    Background="#3D1A1A" BorderBrush="#F78166" BorderThickness="0,0,0,1"
+                    Padding="14,6" Visibility="Collapsed">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="ErrorBannerText" Grid.Column="0"
+                               FontFamily="Consolas" FontSize="11"
+                               Foreground="#F78166" TextWrapping="Wrap"
+                               VerticalAlignment="Center"/>
+                    <Button Grid.Column="1" Content="✕"
+                            Style="{StaticResource DangerBtn}"
+                            FontSize="11" Padding="8,2" Margin="12,0,0,0"
+                            BorderThickness="0" Background="Transparent"
+                            Click="DismissBanner_Click"/>
+                </Grid>
+            </Border>
+
             <!-- ── Main content ──────────────────────────────────────────── -->
-            <Grid Grid.Row="3" Margin="14,12,14,8">
+            <Grid Grid.Row="4" Margin="14,12,14,8">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="3*"/>
-                    <ColumnDefinition Width="10"/>
                     <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="3*"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- LEFT: Tunnels + Rules -->
                 <Grid Grid.Column="0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="2*" MinHeight="80"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="10"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="2*"/>
+                        <RowDefinition Height="*" MinHeight="60"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0"
-                               Text="{Binding [SectionTunnels], Source={x:Static local:Lang.Instance}}"
-                               Style="{StaticResource SectionLabel}"/>
+                    <!-- Tunnels header + count badge -->
+                    <Grid Grid.Row="0" Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding [SectionTunnels], Source={x:Static local:Lang.Instance}}"
+                                   Style="{StaticResource SectionLabel}" Margin="0"/>
+                        <Border Grid.Column="1" x:Name="TunnelCountBadge"
+                                Background="{StaticResource Border}"
+                                CornerRadius="8" Padding="6,1" Margin="6,0,0,0"
+                                VerticalAlignment="Center">
+                            <TextBlock x:Name="TunnelCountLabel"
+                                       FontFamily="Consolas" FontSize="9"
+                                       Foreground="{StaticResource Sub}" Text="0"/>
+                        </Border>
+                    </Grid>
 
                     <ListView Grid.Row="1" x:Name="TunnelsListView"
-                              MaxHeight="180"
-                              ScrollViewer.VerticalScrollBarVisibility="Auto">
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              SelectionChanged="TunnelsListView_SelectionChanged">
                         <ListView.View>
                             <GridView>
                                 <GridViewColumn Header="{Binding [TunnelColName], Source={x:Static local:Lang.Instance}}"
-                                                Width="240">
+                                                Width="160">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
-                                            <TextBlock Text="{Binding Name}" FontFamily="Consolas" FontSize="11"/>
+                                            <TextBlock Text="{Binding Name}"
+                                                       Foreground="{Binding NameColor}"
+                                                       TextDecorations="{Binding NameDecoration}"
+                                                       FontFamily="Consolas" FontSize="11"
+                                                       ToolTip="{Binding ButtonTooltip}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn Header="{Binding [TunnelColType], Source={x:Static local:Lang.Instance}}"
+                                                Width="70">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding TypeLabel}"
+                                                       Foreground="{Binding TypeColor}"
+                                                       FontSize="10" FontFamily="Consolas"/>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
                                 <GridViewColumn Header="{Binding [TunnelColStatus], Source={x:Static local:Lang.Instance}}"
-                                                Width="120">
+                                                Width="90">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
                                             <TextBlock Text="{Binding StatusText}"
@@ -173,10 +227,12 @@
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>
                                 </GridViewColumn>
-                                <GridViewColumn Header="" Width="110">
+                                <GridViewColumn Header="{Binding [TunnelColAction], Source={x:Static local:Lang.Instance}}" Width="95">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
                                             <Button Content="{Binding ButtonLabel}"
+                                                    IsEnabled="{Binding ButtonEnabled}"
+                                                    ToolTip="{Binding ButtonTooltip}"
                                                     Click="TunnelToggle_Click"
                                                     Padding="10,3" FontSize="10"
                                                     Style="{StaticResource FlatBtn}"/>
@@ -187,36 +243,84 @@
                         </ListView.View>
                     </ListView>
 
-                    <TextBlock Grid.Row="3"
-                               Text="{Binding [SectionRules], Source={x:Static local:Lang.Instance}}"
-                               Style="{StaticResource SectionLabel}"/>
-
-                    <ListView Grid.Row="4" x:Name="RulesListView"
-                              SelectionChanged="RulesListView_SelectionChanged">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="{Binding [RuleColSsid], Source={x:Static local:Lang.Instance}}"
-                                                Width="200"
-                                                DisplayMemberBinding="{Binding Ssid}"/>
-                                <GridViewColumn Header="{Binding [RuleColTunnel], Source={x:Static local:Lang.Instance}}"
-                                                Width="170"
-                                                DisplayMemberBinding="{Binding TunnelDisplay}"/>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-
-                    <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,8,0,0">
-                        <Button Content="{Binding [BtnAddRule], Source={x:Static local:Lang.Instance}}"
-                                Style="{StaticResource GreenBtn}" Click="AddRule_Click"/>
-                        <Button Content="{Binding [BtnEditRule], Source={x:Static local:Lang.Instance}}"
-                                Style="{StaticResource FlatBtn}"
-                                Margin="8,0" Click="EditRule_Click"
-                                x:Name="EditBtn" IsEnabled="False"/>
-                        <Button Content="{Binding [BtnDeleteRule], Source={x:Static local:Lang.Instance}}"
-                                Style="{StaticResource DangerBtn}"
-                                Click="DeleteRule_Click"
-                                x:Name="DeleteBtn" IsEnabled="False"/>
+                    <!-- Tunnel management buttons -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button Content="{Binding [BtnAddTunnel], Source={x:Static local:Lang.Instance}}"
+                                x:Name="AddTunnelBtn"
+                                Style="{StaticResource GreenBtn}" FontSize="10" Padding="10,3"
+                                Click="AddTunnel_Click"/>
+                        <Button Content="{Binding [BtnEditTunnel], Source={x:Static local:Lang.Instance}}"
+                                Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                Margin="6,0,0,0" x:Name="EditTunnelBtn" IsEnabled="False"
+                                Click="EditTunnel_Click"/>
+                        <Button Content="{Binding [BtnImportTunnel], Source={x:Static local:Lang.Instance}}"
+                                Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                Margin="6,0,0,0"
+                                Click="ImportTunnel_Click"/>
+                        <!-- Morphing action button: Delete / Unlink / Remove depending on selection -->
+                        <Button x:Name="DeleteTunnelBtn"
+                                Style="{StaticResource DangerBtn}" FontSize="10" Padding="10,3"
+                                Margin="6,0,0,0" IsEnabled="False"
+                                Click="DeleteTunnel_Click"/>
                     </StackPanel>
+
+                    <!-- Rules panel — hidden in manual mode -->
+                    <Grid Grid.Row="4" Grid.RowSpan="3" x:Name="RulesPanel">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Rules header + count badge -->
+                        <Grid Grid.Row="0" Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding [SectionRules], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SectionLabel}" Margin="0"/>
+                            <Border Grid.Column="1" x:Name="RuleCountBadge"
+                                    Background="{StaticResource Border}"
+                                    CornerRadius="8" Padding="6,1" Margin="6,0,0,0"
+                                    VerticalAlignment="Center">
+                                <TextBlock x:Name="RuleCountLabel"
+                                           FontFamily="Consolas" FontSize="9"
+                                           Foreground="{StaticResource Sub}" Text="0"/>
+                            </Border>
+                        </Grid>
+
+                        <ListView Grid.Row="1" x:Name="RulesListView"
+                                  MinHeight="60"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                  SelectionChanged="RulesListView_SelectionChanged">
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Header="{Binding [RuleColSsid], Source={x:Static local:Lang.Instance}}"
+                                                    Width="200"
+                                                    DisplayMemberBinding="{Binding Ssid}"/>
+                                    <GridViewColumn Header="{Binding [RuleColTunnel], Source={x:Static local:Lang.Instance}}"
+                                                    Width="170"
+                                                    DisplayMemberBinding="{Binding TunnelDisplay}"/>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="{Binding [BtnAddRule], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource GreenBtn}" Click="AddRule_Click"/>
+                            <Button Content="{Binding [BtnEditRule], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}"
+                                    Margin="8,0" Click="EditRule_Click"
+                                    x:Name="EditBtn" IsEnabled="False"/>
+                            <Button Content="{Binding [BtnDeleteRule], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource DangerBtn}"
+                                    Click="DeleteRule_Click"
+                                    x:Name="DeleteBtn" IsEnabled="False"/>
+                        </StackPanel>
+                    </Grid>
                 </Grid>
 
                 <!-- RIGHT: Default action + log -->
@@ -229,37 +333,39 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0"
-                               Text="{Binding [SectionDefaultAction], Source={x:Static local:Lang.Instance}}"
-                               Style="{StaticResource SectionLabel}"/>
+                    <!-- Default action panel — hidden in manual mode -->
+                    <StackPanel Grid.Row="0" Grid.RowSpan="2" x:Name="DefaultActionPanel">
+                        <TextBlock Text="{Binding [SectionDefaultAction], Source={x:Static local:Lang.Instance}}"
+                                   Style="{StaticResource SectionLabel}"/>
 
-                    <Border Grid.Row="1" Background="{StaticResource Card}"
-                            BorderBrush="{StaticResource Border}" BorderThickness="1"
-                            CornerRadius="4" Padding="12,10">
-                        <StackPanel>
-                            <TextBlock Text="{Binding [DefaultActionPrompt], Source={x:Static local:Lang.Instance}}"
-                                       FontSize="10" Foreground="{StaticResource Sub}" Margin="0,0,0,8"/>
-                            <RadioButton x:Name="ActionNone"
-                                         Content="{Binding [DefaultActionNone], Source={x:Static local:Lang.Instance}}"
-                                         Checked="DefaultAction_Changed" Tag="none"/>
-                            <RadioButton x:Name="ActionDiscon"
-                                         Content="{Binding [DefaultActionDisconnect], Source={x:Static local:Lang.Instance}}"
-                                         Checked="DefaultAction_Changed" Tag="disconnect"/>
-                            <RadioButton x:Name="ActionActivate" Margin="0,3,0,0"
-                                         Checked="DefaultAction_Changed" Tag="activate">
-                                <RadioButton.Content>
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding [DefaultActionActivate], Source={x:Static local:Lang.Instance}}"
-                                                   VerticalAlignment="Center"/>
-                                        <ComboBox x:Name="DefaultTunnelBox" Margin="8,0,0,0"
-                                                  MinWidth="140" FontSize="11" IsEditable="True"
-                                                  SelectionChanged="DefaultTunnelBox_SelectionChanged"
-                                                  LostFocus="DefaultTunnelBox_LostFocus"/>
-                                    </StackPanel>
-                                </RadioButton.Content>
-                            </RadioButton>
-                        </StackPanel>
-                    </Border>
+                        <Border Background="{StaticResource Card}"
+                                BorderBrush="{StaticResource Border}" BorderThickness="1"
+                                CornerRadius="4" Padding="12,10">
+                            <StackPanel>
+                                <TextBlock Text="{Binding [DefaultActionPrompt], Source={x:Static local:Lang.Instance}}"
+                                           FontSize="10" Foreground="{StaticResource Sub}" Margin="0,0,0,8"/>
+                                <RadioButton x:Name="ActionNone"
+                                             Content="{Binding [DefaultActionNone], Source={x:Static local:Lang.Instance}}"
+                                             Checked="DefaultAction_Changed" Tag="none"/>
+                                <RadioButton x:Name="ActionDiscon"
+                                             Content="{Binding [DefaultActionDisconnect], Source={x:Static local:Lang.Instance}}"
+                                             Checked="DefaultAction_Changed" Tag="disconnect"/>
+                                <RadioButton x:Name="ActionActivate" Margin="0,3,0,0"
+                                             Checked="DefaultAction_Changed" Tag="activate">
+                                    <RadioButton.Content>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding [DefaultActionActivate], Source={x:Static local:Lang.Instance}}"
+                                                       VerticalAlignment="Center"/>
+                                            <ComboBox x:Name="DefaultTunnelBox" Margin="8,0,0,0"
+                                                      MinWidth="140" FontSize="11" IsEditable="True"
+                                                      SelectionChanged="DefaultTunnelBox_SelectionChanged"
+                                                      LostFocus="DefaultTunnelBox_LostFocus"/>
+                                        </StackPanel>
+                                    </RadioButton.Content>
+                                </RadioButton>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
 
                     <TextBlock Grid.Row="3"
                                Text="{Binding [SectionActivityLog], Source={x:Static local:Lang.Instance}}"
@@ -276,14 +382,14 @@
                                      Padding="8"
                                      VerticalScrollBarVisibility="Auto"
                                      HorizontalScrollBarVisibility="Disabled">
-                            <FlowDocument x:Name="LogDocument" PageWidth="9999"/>
+                            <FlowDocument x:Name="LogDocument"/>
                         </RichTextBox>
                     </Border>
                 </Grid>
             </Grid>
 
             <!-- ── Footer ────────────────────────────────────────────────── -->
-            <Border Grid.Row="4" Background="{StaticResource Panel}" CornerRadius="0,0,6,6">
+            <Border Grid.Row="5" Background="{StaticResource Panel}" CornerRadius="0,0,6,6">
                 <Grid Margin="14,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -291,7 +397,6 @@
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock x:Name="FooterLabel" Grid.Column="0"
-                               Text="{Binding [StatusReady], Source={x:Static local:Lang.Instance}}"
                                Foreground="{StaticResource Sub}" FontSize="10"
                                VerticalAlignment="Center"/>
                     <StackPanel Grid.Column="1" Orientation="Horizontal"
@@ -299,9 +404,9 @@
                         <TextBlock x:Name="AuthorLink" FontSize="10"
                                    Foreground="{StaticResource Accent}"
                                    Cursor="Hand" TextDecorations="Underline"
-                                   Text="WGClientWifiSwitcher"
+                                   Text="MasselGUARD"
                                    MouseLeftButtonUp="AuthorLink_Click"
-                                   ToolTip="https://github.com/masselink/WGClientWifiSwitcher"/>
+                                   ToolTip="https://github.com/masselink/MasselGUARD"/>
                         <TextBlock Foreground="{StaticResource Sub}" FontSize="10"
                                    Text="{Binding [FooterAuthor], Source={x:Static local:Lang.Instance}}"/>
                     </StackPanel>
@@ -311,7 +416,7 @@
                 </Grid>
             </Border>
 
-            <ResizeGrip Grid.Row="4" HorizontalAlignment="Right"
+            <ResizeGrip Grid.Row="5" HorizontalAlignment="Right"
                         VerticalAlignment="Bottom" Margin="0,0,2,2" Opacity="0.4"/>
         </Grid>
     </Border>

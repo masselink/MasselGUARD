@@ -1,0 +1,315 @@
+<Window x:Class="MasselGUARD.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:MasselGUARD"
+        Title="{Binding [SettingsTitle], Source={x:Static local:Lang.Instance}}"
+        Width="440" SizeToContent="Height"
+        WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner">
+
+    <Border Background="{StaticResource Bg}"
+            BorderBrush="{StaticResource Accent}"
+            BorderThickness="1" CornerRadius="6">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="44"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title bar -->
+            <Border Grid.Row="0" Background="{StaticResource Panel}"
+                    CornerRadius="6,6,0,0"
+                    MouseLeftButtonDown="TitleBar_MouseDown">
+                <Grid>
+                    <TextBlock Text="{Binding [SettingsTitle], Source={x:Static local:Lang.Instance}}"
+                               FontFamily="Consolas" FontSize="13" FontWeight="Bold"
+                               Foreground="{StaticResource Accent}"
+                               VerticalAlignment="Center" Margin="16,0"/>
+                    <Button Content="&#x2715;" Style="{StaticResource DangerBtn}"
+                            HorizontalAlignment="Right"
+                            Padding="10,4" Margin="0,0,8,0"
+                            BorderThickness="0" Background="Transparent"
+                            Click="CloseBtn_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Content -->
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="20,16,20,20">
+
+                <!-- ══ APP MODE ══════════════════════════════════════════════ -->
+                <TextBlock Text="{Binding [SettingsSectionAppMode], Source={x:Static local:Lang.Instance}}"
+                           FontFamily="Consolas" FontSize="10" FontWeight="Bold"
+                           Foreground="{StaticResource Sub}" Margin="0,0,0,8"/>
+
+                <Border Background="{StaticResource Card}"
+                        BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="4" Padding="14,12" Margin="0,0,0,20">
+                    <StackPanel>
+                        <!-- Standalone -->
+                        <RadioButton x:Name="ModeStandalone"
+                                     GroupName="AppMode"
+                                     Checked="Mode_Changed"
+                                     Style="{StaticResource ModeRadio}"
+                                     Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="{Binding [ModeStandaloneLabel], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                           Foreground="{StaticResource Text}"/>
+                                <TextBlock Text="{Binding [ModeStandaloneDesc], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="Consolas" FontSize="9"
+                                           Foreground="{StaticResource Sub}"
+                                           TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <!-- Companion -->
+                        <RadioButton x:Name="ModeCompanion"
+                                     GroupName="AppMode"
+                                     Checked="Mode_Changed"
+                                     Style="{StaticResource ModeRadio}"
+                                     Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="{Binding [ModeCompanionLabel], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                           Foreground="{StaticResource Text}"/>
+                                <TextBlock Text="{Binding [ModeCompanionDesc], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="Consolas" FontSize="9"
+                                           Foreground="{StaticResource Sub}"
+                                           TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <!-- Mixed -->
+                        <RadioButton x:Name="ModeMixed"
+                                     GroupName="AppMode"
+                                     Checked="Mode_Changed"
+                                     Style="{StaticResource ModeRadio}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding [ModeMixedLabel], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="Consolas" FontSize="11" FontWeight="Bold"
+                                           Foreground="{StaticResource Text}"/>
+                                <TextBlock Text="{Binding [ModeMixedDesc], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="Consolas" FontSize="9"
+                                           Foreground="{StaticResource Sub}"
+                                           TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </RadioButton>
+
+                        <!-- DLL status — shown in Standalone + Mixed -->
+                        <Border x:Name="DllStatusPanel"
+                                Background="{StaticResource Panel}"
+                                BorderBrush="{StaticResource Border}" BorderThickness="1"
+                                CornerRadius="3" Padding="10,7" Margin="0,12,0,0">
+                            <StackPanel>
+                                <TextBlock x:Name="DllStatusLabel"
+                                           FontFamily="Consolas" FontSize="10"
+                                           Foreground="{StaticResource Sub}"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding [DllStatusHint], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="Consolas" FontSize="9"
+                                           Foreground="{StaticResource Sub}"
+                                           TextWrapping="Wrap" Margin="0,4,0,0"
+                                           Opacity="0.7"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ══ AUTOMATION MODE ═══════════════════════════════════════ -->
+                <TextBlock Text="{Binding [SettingsSectionMode], Source={x:Static local:Lang.Instance}}"
+                           FontFamily="Consolas" FontSize="10" FontWeight="Bold"
+                           Foreground="{StaticResource Sub}" Margin="0,0,0,8"/>
+
+                <Border Background="{StaticResource Card}"
+                        BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="4" Padding="14,12" Margin="0,0,0,20">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{Binding [SettingsModeLabel], Source={x:Static local:Lang.Instance}}"
+                                       FontFamily="Consolas" FontSize="11"
+                                       Foreground="{StaticResource Text}"/>
+                            <TextBlock Text="{Binding [SettingsModeDescription], Source={x:Static local:Lang.Instance}}"
+                                       FontFamily="Consolas" FontSize="9"
+                                       Foreground="{StaticResource Sub}"
+                                       TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <ToggleButton Grid.Column="1" x:Name="ManualModeToggle"
+                                      Width="44" Height="22"
+                                      Margin="12,0,0,0" VerticalAlignment="Center"
+                                      Checked="ManualMode_Changed"
+                                      Unchecked="ManualMode_Changed"
+                                      Style="{StaticResource ToggleSwitch}"/>
+                    </Grid>
+                </Border>
+
+                <!-- ══ WIREGUARD CLIENT ══════════════════════════════════════ -->
+                <TextBlock x:Name="WireGuardSectionLabel"
+                           Text="{Binding [SettingsSectionWireGuard], Source={x:Static local:Lang.Instance}}"
+                           FontFamily="Consolas" FontSize="10" FontWeight="Bold"
+                           Foreground="{StaticResource Sub}" Margin="0,0,0,8"/>
+
+                <Border x:Name="WireGuardSectionCard"
+                        Background="{StaticResource Card}"
+                        BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="4" Padding="14,12" Margin="0,0,0,20">
+                    <StackPanel>
+                        <TextBlock Text="{Binding [SettingsWireGuardDesc], Source={x:Static local:Lang.Instance}}"
+                                   FontFamily="Consolas" FontSize="10"
+                                   Foreground="{StaticResource Sub}" Margin="0,0,0,10"
+                                   TextWrapping="Wrap"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="{Binding [BtnOpenWireGuard], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}"
+                                    FontSize="10" Padding="12,6" Margin="0,0,8,0"
+                                    Click="OpenWireGuard_Click"
+                                    ToolTip="{Binding [TooltipWireGuard], Source={x:Static local:Lang.Instance}}"/>
+                            <Button Content="{Binding [BtnShowLog], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}"
+                                    FontSize="10" Padding="12,6"
+                                    Click="ShowWireGuardLog_Click"
+                                    ToolTip="{Binding [TooltipLog], Source={x:Static local:Lang.Instance}}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- ══ LOG LEVEL ═════════════════════════════════════════════ -->
+                <TextBlock Text="{Binding [SettingsSectionLog], Source={x:Static local:Lang.Instance}}"
+                           FontFamily="Consolas" FontSize="10" FontWeight="Bold"
+                           Foreground="{StaticResource Sub}" Margin="0,0,0,8"/>
+
+                <Border Background="{StaticResource Card}"
+                        BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="4" Padding="14,12" Margin="0,0,0,20">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding [SettingsLogLevel], Source={x:Static local:Lang.Instance}}"
+                                   FontFamily="Consolas" FontSize="11"
+                                   Foreground="{StaticResource Text}"
+                                   VerticalAlignment="Center"/>
+                        <ComboBox Grid.Column="1" x:Name="LogLevelPicker"
+                                  MinWidth="100" FontSize="11" Padding="8,4"
+                                  SelectionChanged="LogLevel_Changed"/>
+                    </Grid>
+                </Border>
+
+                <!-- ══ LANGUAGE ══════════════════════════════════════════════ -->
+                <TextBlock Text="{Binding [SettingsSectionLanguage], Source={x:Static local:Lang.Instance}}"
+                           FontFamily="Consolas" FontSize="10" FontWeight="Bold"
+                           Foreground="{StaticResource Sub}" Margin="0,0,0,8"/>
+
+                <Border Background="{StaticResource Card}"
+                        BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="4" Padding="14,12" Margin="0,0,0,20">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding [SettingsLanguageLabel], Source={x:Static local:Lang.Instance}}"
+                                   FontFamily="Consolas" FontSize="11"
+                                   Foreground="{StaticResource Text}"
+                                   VerticalAlignment="Center"/>
+                        <ComboBox Grid.Column="1" x:Name="LanguagePicker"
+                                  MinWidth="130" FontSize="11" Padding="8,4"
+                                  SelectionChanged="LanguagePicker_SelectionChanged"/>
+                    </Grid>
+                </Border>
+
+                <!-- ══ INSTALLATION ══════════════════════════════════════════ -->
+                <TextBlock Text="{Binding [SettingsSectionInstall], Source={x:Static local:Lang.Instance}}"
+                           FontFamily="Consolas" FontSize="10" FontWeight="Bold"
+                           Foreground="{StaticResource Sub}" Margin="0,0,0,8"/>
+
+                <Border Background="{StaticResource Card}"
+                        BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="4" Padding="14,12" Margin="0,0,0,20">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock x:Name="InstallStatusLabel"
+                                       FontFamily="Consolas" FontSize="11"
+                                       Foreground="{StaticResource Text}"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock x:Name="InstallPathLabel"
+                                       FontFamily="Consolas" FontSize="10"
+                                       Foreground="{StaticResource Sub}"
+                                       TextWrapping="Wrap" Margin="0,4,0,0"/>
+                            <!-- Suppress the "update installed version?" startup prompt -->
+                            <CheckBox x:Name="SuppressUpdatePromptToggle"
+                                      Content="{Binding [SettingsSuppressUpdatePrompt], Source={x:Static local:Lang.Instance}}"
+                                      FontFamily="Consolas" FontSize="10"
+                                      Foreground="{StaticResource Sub}"
+                                      Margin="0,8,0,0"
+                                      Checked="SuppressUpdatePrompt_Changed"
+                                      Unchecked="SuppressUpdatePrompt_Changed"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" x:Name="InstallBtn"
+                                Style="{StaticResource FlatBtn}"
+                                FontSize="11" Padding="14,6" Margin="12,0,0,0"
+                                VerticalAlignment="Center"
+                                Click="InstallBtn_Click"/>
+                    </Grid>
+                </Border>
+
+                <!-- ══ UPDATES ════════════════════════════════════════════════ -->
+                <TextBlock Text="{Binding [SettingsSectionUpdate], Source={x:Static local:Lang.Instance}}"
+                           FontFamily="Consolas" FontSize="10" FontWeight="Bold"
+                           Foreground="{StaticResource Sub}" Margin="0,0,0,8"/>
+
+                <Border Background="{StaticResource Card}"
+                        BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="4" Padding="14,12" Margin="0,0,0,20">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock x:Name="UpdateStatusLabel"
+                                           FontFamily="Consolas" FontSize="11"
+                                           Foreground="{StaticResource Text}"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock x:Name="LastCheckedLabel"
+                                           FontFamily="Consolas" FontSize="10"
+                                           Foreground="{StaticResource Sub}"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" x:Name="CheckUpdateBtn"
+                                    Style="{StaticResource FlatBtn}"
+                                    FontSize="10" Padding="12,6" Margin="12,0,0,0"
+                                    VerticalAlignment="Top"
+                                    Click="CheckUpdate_Click"/>
+                        </Grid>
+                        <Button x:Name="DoUpdateBtn"
+                                Style="{StaticResource GreenBtn}"
+                                FontSize="11" Padding="14,6" Margin="0,10,0,0"
+                                HorizontalAlignment="Left"
+                                Visibility="Collapsed"
+                                Click="DoUpdate_Click"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Version -->
+                <TextBlock x:Name="VersionLabel"
+                           HorizontalAlignment="Right"
+                           FontFamily="Consolas" FontSize="10"
+                           Foreground="{StaticResource Sub}"/>
+
+            </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Border>
+</Window>
