@@ -5,6 +5,9 @@ by [Harold Masselink](https://github.com/masselink/MasselGUARD)
 
 ---
 
+<img width="1781" height="947" alt="image" src="https://github.com/user-attachments/assets/e9562c0b-5891-4572-adea-de7979afd451" />
+
+
 ## What it does
 
 MasselGUARD sits in the system tray and watches your WiFi. When you connect to a known network it activates the right WireGuard tunnel automatically. When you leave or connect to an unknown network a configurable default action fires — disconnect, activate a fallback tunnel, or do nothing.
