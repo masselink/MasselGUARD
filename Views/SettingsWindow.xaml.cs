@@ -9,6 +9,7 @@ namespace MasselGUARD.Views
         private readonly MainWindow _main;
         private ReleaseInfo? _pendingRelease;
         private bool _loading = true;
+        private string _activeTab = "General";
 
         public SettingsWindow(MainWindow main)
         {
@@ -47,12 +48,15 @@ namespace MasselGUARD.Views
 
             // Suppress portable-update prompt toggle
             SuppressUpdatePromptToggle.IsChecked = _main.GetConfig().SuppressPortableUpdatePrompt;
+            // Tray popup notification
+            TrayPopupToggle.IsChecked = _main.GetConfig().ShowTrayPopupOnSwitch;
 
             Lang.Instance.LanguageChanged += OnLanguageChanged;
             Closed += (_, _) => Lang.Instance.LanguageChanged -= OnLanguageChanged;
 
             _loading = false;
-            VersionLabel.Text = Lang.T("SettingsVersion") + " " + Lang.T("AppTitle");
+            VersionLabel.Text = Lang.T("AppTitle");
+            ShowTab("General");
         }
 
         // ── Language change ───────────────────────────────────────────────────
@@ -85,32 +89,31 @@ namespace MasselGUARD.Views
         private void Mode_Changed(object sender, RoutedEventArgs e)
         {
             if (_loading) return;
-            AppMode mode = AppMode.Mixed;
-            if (ModeStandalone.IsChecked == true) mode = AppMode.Standalone;
-            else if (ModeCompanion.IsChecked == true) mode = AppMode.Companion;
-            _main.SetMode(mode);
+            // Refresh display immediately so user sees the DLL/WG status
+            // for the selected mode — actual save happens on Save button.
             RefreshDllStatus();
             RefreshWireGuardSection();
+        }
+
+        // Read the selected mode from the radio buttons (not from saved config)
+        private AppMode SelectedMode()
+        {
+            if (ModeStandalone.IsChecked == true) return AppMode.Standalone;
+            if (ModeCompanion.IsChecked  == true) return AppMode.Companion;
+            return AppMode.Mixed;
         }
 
         // ── Manual (automation) mode ──────────────────────────────────────────
         private void ManualMode_Changed(object sender, RoutedEventArgs e)
         {
-            if (_loading) return;
-            var cfg = _main.GetConfig();
-            cfg.ManualMode = ManualModeToggle.IsChecked == true;
-            _main.SaveConfigPublic();
-            _main.ApplyManualMode();
+            // Deferred — applied on Save
         }
 
         // ── Log level ─────────────────────────────────────────────────────────
         private void LogLevel_Changed(object sender,
             System.Windows.Controls.SelectionChangedEventArgs e)
         {
-            if (_loading) return;
-            var cfg = _main.GetConfig();
-            cfg.LogLevelSetting = LogLevelPicker.SelectedIndex == 1 ? "debug" : "normal";
-            _main.SaveConfigPublic();
+            // Deferred — applied on Save
         }
 
         // ── WireGuard client section ──────────────────────────────────────────
@@ -123,33 +126,53 @@ namespace MasselGUARD.Views
         private void RefreshWireGuardSection()
         {
             bool wgInstalled = MainWindow.FindWireGuardExe() != null;
-            bool showSection = wgInstalled && _main.GetConfig().Mode != AppMode.Standalone;
+            bool showSection = wgInstalled && SelectedMode() != AppMode.Standalone;
             var vis = showSection ? Visibility.Visible : Visibility.Collapsed;
             WireGuardSectionLabel.Visibility = vis;
             WireGuardSectionCard.Visibility  = vis;
         }
 
-        // ── DLL status ────────────────────────────────────────────────────────
+        // ── Mode dependency status ────────────────────────────────────────────
+        // Always visible — shows DLL status for Standalone/Mixed,
+        // WireGuard installation status for Companion/Mixed.
         private void RefreshDllStatus()
         {
-            var mode = _main.GetConfig().Mode;
-            bool showDll = mode != AppMode.Companion;
-            DllStatusPanel.Visibility = showDll ? Visibility.Visible : Visibility.Collapsed;
+            var mode = SelectedMode();
+            DllStatusPanel.Visibility = Visibility.Visible;
 
-            if (!showDll) return;
+            var lines = new System.Text.StringBuilder();
+            bool allOk = true;
 
-            // ValidateDlls() catches both missing DLLs and the wrong wireguard.dll version
-            var dllError = TunnelDll.ValidateDlls();
-            if (dllError == null)
+            // DLL check (Standalone + Mixed)
+            if (mode != AppMode.Companion)
             {
-                DllStatusLabel.Text       = Lang.T("DllStatusPresent");
-                DllStatusLabel.Foreground = (System.Windows.Media.SolidColorBrush)FindResource("Green");
+                var dllError = TunnelDll.ValidateDlls();
+                if (dllError == null)
+                    lines.AppendLine("✓  " + Lang.T("DllStatusPresent"));
+                else
+                {
+                    lines.AppendLine("⚠  " + dllError);
+                    allOk = false;
+                }
             }
-            else
+
+            // WireGuard GUI check (Companion + Mixed)
+            if (mode != AppMode.Standalone)
             {
-                DllStatusLabel.Text       = dllError;
-                DllStatusLabel.Foreground = (System.Windows.Media.SolidColorBrush)FindResource("Red");
+                bool wgFound = MainWindow.FindWireGuardExe() != null;
+                if (wgFound)
+                    lines.AppendLine("✓  " + Lang.T("WizardWgBody"));
+                else
+                {
+                    lines.AppendLine("⚠  " + Lang.T("WizardWgMissing"));
+                    lines.AppendLine("    ↳ " + Lang.T("WgDownloadHint"));
+                    allOk = false;
+                }
             }
+
+            DllStatusLabel.Text       = lines.ToString().TrimEnd();
+            DllStatusLabel.Foreground = (System.Windows.Media.SolidColorBrush)FindResource(
+                allOk ? "Green" : "Red");
         }
 
         // ── Install state ─────────────────────────────────────────────────────
@@ -270,10 +293,210 @@ namespace MasselGUARD.Views
         // ── Suppress update prompt ────────────────────────────────────────────
         private void SuppressUpdatePrompt_Changed(object sender, RoutedEventArgs e)
         {
+            // Deferred — applied on Save
+        }
+
+        private void TrayPopup_Changed(object sender, RoutedEventArgs e)
+        {
+            // Deferred — applied on Save
+        }
+
+        // ── Save button ───────────────────────────────────────────────────────
+        private void SaveBtn_Click(object sender, RoutedEventArgs e)
+        {
             if (_loading) return;
             var cfg = _main.GetConfig();
+
+            // Mode
+            var newMode = SelectedMode();
+            if (cfg.Mode != newMode)
+            {
+                _main.SetMode(newMode);
+                _main.ApplyLocalTunnelModePublic();
+            }
+
+            // Manual (automation) mode
+            bool newManual = ManualModeToggle.IsChecked == true;
+            if (cfg.ManualMode != newManual)
+            {
+                cfg.ManualMode = newManual;
+                _main.ApplyManualMode();
+            }
+
+            // Log level
+            cfg.LogLevelSetting = LogLevelPicker.SelectedIndex == 1 ? "debug" : "normal";
+
+            // Suppress update prompt
             cfg.SuppressPortableUpdatePrompt = SuppressUpdatePromptToggle.IsChecked == true;
+
+            // Tray popup
+            cfg.ShowTrayPopupOnSwitch = TrayPopupToggle.IsChecked == true;
+
             _main.SaveConfigPublic();
+            Close();
+        }
+
+        // ── Tab switching ─────────────────────────────────────────────────────
+        private void TabBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.Button btn) return;
+            // Map button Name → tab name (Tag is used for active-highlight styling)
+            string tab = btn.Name switch
+            {
+                "TabBtnAdvanced" => "Advanced",
+                "TabBtnAbout"    => "About",
+                _                => "General",
+            };
+            ShowTab(tab);
+        }
+
+        private void ShowTab(string tab)
+        {
+            _activeTab = tab;
+            PageGeneral.Visibility  = tab == "General"  ? Visibility.Visible : Visibility.Collapsed;
+            PageAdvanced.Visibility = tab == "Advanced" ? Visibility.Visible : Visibility.Collapsed;
+            PageAbout.Visibility    = tab == "About"    ? Visibility.Visible : Visibility.Collapsed;
+
+            // Highlight the active sidebar button
+            TabBtnGeneral.Tag  = tab == "General"  ? "Active" : null;
+            TabBtnAdvanced.Tag = tab == "Advanced" ? "Active" : null;
+            TabBtnAbout.Tag    = tab == "About"    ? "Active" : null;
+
+            // Refresh state for the tab we just switched to
+            if (tab == "Advanced") { RefreshInstallState(); RefreshDllStatus(); RefreshWireGuardSection(); ScanOrphans(); }
+            if (tab == "About")    { RefreshUpdateState(); }
+        }
+
+        // ── Wizard ───────────────────────────────────────────────────────────
+        private void RunWizard_Click(object sender, RoutedEventArgs e)
+        {
+            Close();
+            var wiz = new WizardWindow(_main) { Owner = _main };
+            wiz.ShowDialog();
+        }
+
+        // ── GitHub link ──────────────────────────────────────────────────────
+        private void GithubLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                { FileName = "https://github.com/masselink/MasselGUARD", UseShellExecute = true }); }
+            catch { }
+        }
+
+        // ── Orphaned services ────────────────────────────────────────────────
+        private List<MainWindow.OrphanedService> _lastOrphans = new();
+
+        private void ScanOrphans_Click(object sender, RoutedEventArgs e) => ScanOrphans();
+
+        private void ScanOrphans()
+        {
+            OrphanStatusLabel.Text = Lang.T("OrphansScanning");
+            OrphanListPanel.Children.Clear();
+            OrphanListPanel.Visibility = Visibility.Collapsed;
+            RemoveAllOrphansBtn.Visibility = Visibility.Collapsed;
+
+            try
+            {
+                _lastOrphans = _main.GetOrphanedServices();
+            }
+            catch
+            {
+                OrphanStatusLabel.Text = Lang.T("OrphansNone");
+                return;
+            }
+
+            if (_lastOrphans.Count == 0)
+            {
+                OrphanStatusLabel.Text = Lang.T("OrphansNone");
+                OrphanStatusLabel.Foreground =
+                    (System.Windows.Media.SolidColorBrush)FindResource("Green");
+                return;
+            }
+
+            OrphanStatusLabel.Text = Lang.T("OrphansFound", _lastOrphans.Count);
+            OrphanStatusLabel.Foreground =
+                (System.Windows.Media.SolidColorBrush)FindResource("Red");
+
+            // Build one row per orphan
+            foreach (var orphan in _lastOrphans)
+                OrphanListPanel.Children.Add(BuildOrphanRow(orphan));
+
+            OrphanListPanel.Visibility    = Visibility.Visible;
+            RemoveAllOrphansBtn.Visibility = Visibility.Visible;
+        }
+
+        private System.Windows.FrameworkElement BuildOrphanRow(
+            MainWindow.OrphanedService orphan)
+        {
+            var grid = new System.Windows.Controls.Grid { Margin = new Thickness(0, 3, 0, 3) };
+            grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
+                { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
+                { Width = GridLength.Auto });
+
+            var info = new System.Windows.Controls.StackPanel();
+            var nameLabel = new System.Windows.Controls.TextBlock
+            {
+                Text       = orphan.TunnelName,
+                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize   = 11,
+                FontWeight = FontWeights.Bold,
+                Foreground = (System.Windows.Media.SolidColorBrush)FindResource("Text")
+            };
+            var stateLabel = new System.Windows.Controls.TextBlock
+            {
+                Text       = orphan.TunnelActive
+                    ? Lang.T("OrphansTunnelActive")
+                    : Lang.T("OrphansTunnelStale"),
+                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize   = 9,
+                Foreground = (System.Windows.Media.SolidColorBrush)FindResource(
+                    orphan.TunnelActive ? "Red" : "Sub")
+            };
+            info.Children.Add(nameLabel);
+            info.Children.Add(stateLabel);
+            System.Windows.Controls.Grid.SetColumn(info, 0);
+            grid.Children.Add(info);
+
+            var btn = new System.Windows.Controls.Button
+            {
+                Content = Lang.T("BtnRemoveOrphan"),
+                Style   = (Style)FindResource("DangerBtn"),
+                Padding = new Thickness(10, 4, 10, 4),
+                Margin  = new Thickness(8, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Tag = orphan
+            };
+            btn.Click += OrphanRemoveBtn_Click;
+            System.Windows.Controls.Grid.SetColumn(btn, 1);
+            grid.Children.Add(btn);
+
+            return grid;
+        }
+
+        private void OrphanRemoveBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as System.Windows.Controls.Button)?.Tag
+                is not MainWindow.OrphanedService orphan) return;
+            try
+            {
+                _main.RemoveOrphanedService(orphan);
+            }
+            catch (Exception ex)
+            {
+                OrphanStatusLabel.Text =
+                    Lang.T("OrphanRemoveFailed", orphan.TunnelName, ex.Message);
+            }
+            ScanOrphans();  // refresh list
+        }
+
+        private void RemoveAllOrphans_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (var orphan in _lastOrphans.ToList())
+            {
+                try { _main.RemoveOrphanedService(orphan); } catch { }
+            }
+            ScanOrphans();  // refresh list
         }
 
         // ── Window chrome ─────────────────────────────────────────────────────

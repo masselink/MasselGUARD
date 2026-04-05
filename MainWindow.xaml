@@ -167,7 +167,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="10"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*" MinHeight="60"/>
+                        <RowDefinition Height="3*" MinHeight="80"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
@@ -363,6 +363,30 @@
                                         </StackPanel>
                                     </RadioButton.Content>
                                 </RadioButton>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Open WiFi protection -->
+                        <TextBlock Text="{Binding [SectionOpenWifi], Source={x:Static local:Lang.Instance}}"
+                                   Style="{StaticResource SectionLabel}" Margin="0,14,0,6"/>
+                        <Border Background="{StaticResource Card}"
+                                BorderBrush="{StaticResource Border}" BorderThickness="1"
+                                CornerRadius="4" Padding="12,10">
+                            <StackPanel>
+                                <TextBlock Text="{Binding [OpenWifiLabel], Source={x:Static local:Lang.Instance}}"
+                                           FontSize="11" Foreground="{StaticResource Text}" FontWeight="Bold"
+                                           Margin="0,0,0,4"/>
+                                <TextBlock Text="{Binding [OpenWifiDesc], Source={x:Static local:Lang.Instance}}"
+                                           FontSize="9" Foreground="{StaticResource Sub}"
+                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding [OpenWifiTunnel], Source={x:Static local:Lang.Instance}}"
+                                               FontSize="11" Foreground="{StaticResource Sub}"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <ComboBox x:Name="OpenWifiTunnelBox"
+                                              MinWidth="160" FontSize="11"
+                                              SelectionChanged="OpenWifiTunnel_Changed"/>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </StackPanel>

@@ -1,7 +1,6 @@
-# MasselGUARD v2.1
+# MasselGUARD v2.2
 
-**Automated WireGuard tunnel management for Windows**  
-by [Harold Masselink](https://github.com/masselink/MasselGUARD)
+**Automated WireGuard tunnel management for Windows**
 
 ---
 

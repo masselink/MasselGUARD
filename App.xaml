@@ -507,6 +507,62 @@
         </Style>
 
 
+
+        <!-- Settings sidebar tab button -->
+        <Style x:Key="SideTabBtn" TargetType="Button">
+            <Setter Property="Background"   Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground"   Value="{StaticResource Sub}"/>
+            <Setter Property="FontFamily"   Value="Consolas"/>
+            <Setter Property="FontSize"     Value="11"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Padding"      Value="16,10"/>
+            <Setter Property="Cursor"       Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}"
+                                BorderBrush="{StaticResource Accent}" BorderThickness="0">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource Card}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="Active">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource Card}"/>
+                                <Setter TargetName="Bg" Property="BorderThickness" Value="3,0,0,0"/>
+                                <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Settings card container -->
+        <Style x:Key="SettingsCard" TargetType="Border">
+            <Setter Property="Background"       Value="{StaticResource Card}"/>
+            <Setter Property="BorderBrush"      Value="{StaticResource Border}"/>
+            <Setter Property="BorderThickness"  Value="1"/>
+            <Setter Property="CornerRadius"     Value="4"/>
+            <Setter Property="Padding"          Value="14,12"/>
+        </Style>
+
+        <!-- Settings section header label -->
+        <Style x:Key="SettingsSectionHeader" TargetType="TextBlock">
+            <Setter Property="FontFamily"   Value="Consolas"/>
+            <Setter Property="FontSize"     Value="9"/>
+            <Setter Property="FontWeight"   Value="Bold"/>
+            <Setter Property="Foreground"   Value="{StaticResource Sub}"/>
+            <Setter Property="Margin"       Value="0,0,0,6"/>
+            <Setter Property="Opacity"      Value="0.75"/>
+        </Style>
+
         <!-- ModeRadio: RadioButton with a highlighted card border when selected -->
         <Style x:Key="ModeRadio" TargetType="RadioButton">
             <Setter Property="FontFamily"  Value="Consolas"/>

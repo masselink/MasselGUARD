@@ -5,7 +5,7 @@ echo.
 echo  ====================================
 echo              MasselGUARD
 echo  ====================================
-echo       v2.1  by Harold Masselink
+echo       v2.2  by Harold Masselink
 echo  ====================================
 echo           (Using Claude.ai)
 echo  ====================================

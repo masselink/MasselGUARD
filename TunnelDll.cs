@@ -415,6 +415,24 @@ namespace MasselGUARD
             DeleteServiceEntry(serviceName);
         }
 
+        // Forcibly stop and delete a WireGuardTunnel$ service by its full SCM name.
+        // Used by the orphan cleanup panel in Settings → Advanced.
+        public static void ForceRemoveService(string serviceName)
+        {
+            try
+            {
+                using var sc = new System.ServiceProcess.ServiceController(serviceName);
+                if (sc.Status != System.ServiceProcess.ServiceControllerStatus.Stopped)
+                {
+                    sc.Stop();
+                    sc.WaitForStatus(System.ServiceProcess.ServiceControllerStatus.Stopped,
+                        TimeSpan.FromSeconds(10));
+                }
+            }
+            catch { /* already stopped or does not exist */ }
+            DeleteServiceEntry(serviceName);
+        }
+
         private static void DeleteServiceEntry(string serviceName)
         {
             IntPtr scm = NativeMethods.OpenSCManager(null, null,

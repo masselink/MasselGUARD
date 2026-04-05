@@ -151,6 +151,14 @@ namespace MasselGUARD
         // an installed version exists — update it?" is silently skipped.
         public bool               SuppressPortableUpdatePrompt { get; set; } = false;
 
+        // Tunnel to activate when the device connects to an open (passwordless)
+        // WiFi network. Empty string = feature disabled.
+        public string             OpenWifiTunnel               { get; set; } = "";
+
+        // When true a small WPF popup appears near the tray when a tunnel
+        // is connected or disconnected while the main window is hidden.
+        public bool               ShowTrayPopupOnSwitch        { get; set; } = true;
+
         // ── App mode (replaces the old EnableLocalTunnels boolean) ───────────
         public AppMode Mode { get; set; } = AppMode.Standalone;
 
@@ -218,6 +226,7 @@ namespace MasselGUARD
             "MasselGUARD", "config.json");
 
         private static AppConfig _cfg = new();
+        private static bool _firstRun = false;   // set by LoadConfig when no config file exists
         private readonly ObservableCollection<TunnelRule>  _rules   = new();
         private readonly ObservableCollection<TunnelEntry> _tunnels = new();
         private string? _lastWifi;
@@ -445,6 +454,17 @@ namespace MasselGUARD
                 Log("LogStartedFrom", LogLevel.Info, startedFrom);
                 Log("LogAppStarted", LogLevel.Info);
                 LoadConfig();
+                // Log any orphaned services found at startup
+                Dispatcher.BeginInvoke(
+                    System.Windows.Threading.DispatcherPriority.Background,
+                    () =>
+                    {
+                        var orphans = GetOrphanedServices();
+                        if (orphans.Count > 0)
+                            LogRaw($"⚠ {orphans.Count} orphaned WireGuardTunnel$ service(s) found. "
+                                 + $"Use Settings → Advanced to remove them.",
+                                LogLevel.Warn);
+                    });
                 ApplyManualMode();
                 ApplyLocalTunnelMode();
                 SetupTimer();
@@ -454,6 +474,17 @@ namespace MasselGUARD
                 // Background update check — once every 7 days
                 if ((DateTime.UtcNow - _cfg.LastUpdateCheck).TotalDays >= 7)
                     _ = UpdateChecker.CheckAsync(_cfg, SaveConfig, Dispatcher);
+
+                // First run: show setup wizard if no config file existed before LoadConfig()
+                if (_firstRun)
+                {
+                    Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded,
+                        () =>
+                        {
+                            var wiz = new Views.WizardWindow(this) { Owner = this };
+                            wiz.ShowDialog();
+                        });
+                }
 
                 // If running portable while installed elsewhere, prompt to update
                 // (unless the user chose "don't ask again").
@@ -669,6 +700,22 @@ namespace MasselGUARD
 
         private void ApplyRules(string? ssid)
         {
+            // Open-network protection: check before any SSID rule or default action.
+            // Only fires when actively connected (ssid != null) and network is open.
+            if (ssid != null
+                && !string.IsNullOrEmpty(_cfg.OpenWifiTunnel)
+                && IsOpenNetwork())
+            {
+                Log("LogOpenWifiActivate", LogLevel.Ok, ssid, _cfg.OpenWifiTunnel);
+                SwitchTo(_cfg.OpenWifiTunnel, Lang.T("TrayReasonOpenWifi"));
+                return;
+            }
+            else if (ssid != null && string.IsNullOrEmpty(_cfg.OpenWifiTunnel) && IsOpenNetwork())
+            {
+                Log("LogOpenWifiNoTunnel", LogLevel.Info, ssid);
+                // Fall through to normal rule processing
+            }
+
             TunnelRule? match = null;
             if (ssid != null)
                 match = _cfg.Rules.FirstOrDefault(r =>
@@ -679,12 +726,12 @@ namespace MasselGUARD
                 if (string.IsNullOrEmpty(match.Tunnel))
                 {
                     Log("LogRuleMatchedDisconnect", LogLevel.Ok, ssid ?? "");
-                    DisconnectAll();
+                    DisconnectAll(Lang.T("TrayReasonRule", ssid ?? ""));
                 }
                 else
                 {
                     Log("LogRuleMatchedActivate", LogLevel.Ok, ssid ?? "", match.Tunnel);
-                    SwitchTo(match.Tunnel);
+                    SwitchTo(match.Tunnel, Lang.T("TrayReasonRule", ssid ?? ""));
                 }
             }
             else
@@ -693,11 +740,11 @@ namespace MasselGUARD
                 {
                     case "disconnect":
                         Log("LogNoRuleDisconnect", LogLevel.Info, ssid ?? Lang.T("LogWifiDisconnected"));
-                        DisconnectAll();
+                        DisconnectAll(Lang.T("TrayReasonDefault"));
                         break;
                     case "activate" when !string.IsNullOrEmpty(_cfg.DefaultTunnel):
                         Log("LogNoRuleActivate", LogLevel.Info, ssid ?? Lang.T("LogWifiDisconnected"), _cfg.DefaultTunnel);
-                        SwitchTo(_cfg.DefaultTunnel);
+                        SwitchTo(_cfg.DefaultTunnel, Lang.T("TrayReasonDefault"));
                         break;
                     default:
                         Log("LogNoRuleNothing", LogLevel.Info, ssid ?? Lang.T("LogWifiDisconnected"));
@@ -706,13 +753,48 @@ namespace MasselGUARD
             }
         }
 
-        private void DisconnectAll()
+        private void DisconnectAll(string? reason = null)
         {
-            foreach (var name in GetActiveTunnelNames())
-                Log("LogStoppedTunnel", LogLevel.Warn, name, StopTunnel(name) ? Lang.T("LogStoppedTunnelOk") : Lang.T("LogStoppedTunnelFail"));
+            var names = GetActiveTunnelNames();
+            foreach (var name in names)
+                Log("LogStoppedTunnel", LogLevel.Warn, name,
+                    StopTunnel(name) ? Lang.T("LogStoppedTunnelOk") : Lang.T("LogStoppedTunnelFail"));
+            if (names.Count > 0)
+            {
+                if (reason != null)
+                    ShowTrayPopup(names.Count == 1
+                        ? Lang.T("TrayPopupDisconnectedReason", names[0], reason)
+                        : Lang.T("TrayPopupDisconAllReason", reason));
+                else
+                    ShowTrayPopup(names.Count == 1
+                        ? Lang.T("TrayPopupDisconnected", names[0])
+                        : Lang.T("TrayPopupDisconAll"));
+            }
         }
 
-        private void SwitchTo(string target)
+        // Show a small toast near the tray when the window is hidden.
+        // Uses a frameless WPF window that auto-dismisses after 3 seconds.
+        internal void ShowTrayPopup(string message)
+        {
+            if (!_cfg.ShowTrayPopupOnSwitch) return;
+            if (IsVisible && WindowState != WindowState.Minimized) return;
+
+            Dispatcher.BeginInvoke(() =>
+            {
+                try
+                {
+                    var popup = new Views.TrayToast(message);
+                    popup.Show();
+                    var timer = new System.Windows.Threading.DispatcherTimer
+                        { Interval = TimeSpan.FromSeconds(3) };
+                    timer.Tick += (_, _) => { timer.Stop(); popup.FadeAndClose(); };
+                    timer.Start();
+                }
+                catch { }
+            });
+        }
+
+        private void SwitchTo(string target, string? reason = null)
         {
             // Check availability before attempting connection
             var entry = _tunnels.FirstOrDefault(t =>
@@ -741,6 +823,14 @@ namespace MasselGUARD
             bool ok = StartTunnel(target);
             Log("LogStartedTunnel", ok ? LogLevel.Ok : LogLevel.Warn, target, ok ? Lang.T("LogTunnelOk") : Lang.T("LogTunnelFailed"));
             if (!ok && !string.IsNullOrEmpty(LastError)) LogRaw("  " + LastError, LogLevel.Warn);
+            if (reason != null)
+                ShowTrayPopup(ok
+                    ? Lang.T("TrayPopupConnectedReason",  target, reason)
+                    : Lang.T("TrayPopupConnecting", target));
+            else
+                ShowTrayPopup(ok
+                    ? Lang.T("TrayPopupConnected",  target)
+                    : Lang.T("TrayPopupConnecting", target));
         }
 
         // ── WireGuard helpers ────────────────────────────────────────────────
@@ -1028,6 +1118,63 @@ namespace MasselGUARD
             return null;
         }
 
+        // Returns true when the current WiFi connection has no security
+        // (dot11AuthAlgorithmOpen with no cipher — i.e. a genuinely open network).
+        // WLAN_CONNECTION_ATTRIBUTES layout (offsets):
+        //   isState              4   offset 0
+        //   wlanConnectionMode   4   offset 4
+        //   strProfileName     512   offset 8
+        //   WLAN_ASSOCIATION_ATTRIBUTES:
+        //     dot11Ssid:
+        //       uSSIDLength      4   offset 520
+        //       ucSSID[32]      32   offset 524
+        //     dot11BssType       4   offset 556
+        //     dot11MacAddress    6   offset 560 (+2 pad)
+        //     lRssi              4   offset 568
+        //     uLinkQuality       4   offset 572
+        //     bRxTxOnSameChannel 1   offset 576
+        //   WLAN_SECURITY_ATTRIBUTES:
+        //     bSecurityEnabled   4   offset 580
+        // bSecurityEnabled == 0 → open network
+        private static bool IsOpenNetwork()
+        {
+            try
+            {
+                uint res = WlanOpenHandle(2, IntPtr.Zero, out _, out IntPtr h);
+                if (res != 0 || h == IntPtr.Zero) return false;
+                try
+                {
+                    if (WlanEnumInterfaces(h, IntPtr.Zero, out IntPtr pList) != 0)
+                        return false;
+                    try
+                    {
+                        int count = Marshal.ReadInt32(pList, 0);
+                        for (int i = 0; i < count; i++)
+                        {
+                            IntPtr item = pList + 8 + i * 532;
+                            byte[] g = new byte[16];
+                            Marshal.Copy(item, g, 0, 16);
+                            Guid ifGuid = new Guid(g);
+                            uint r2 = WlanQueryInterface(h, ref ifGuid,
+                                WLAN_INTF_OPCODE_CURRENT_CONNECTION,
+                                IntPtr.Zero, out _, out IntPtr pConn, IntPtr.Zero);
+                            if (r2 != 0 || pConn == IntPtr.Zero) continue;
+                            try
+                            {
+                                int secEnabled = Marshal.ReadInt32(pConn, 580);
+                                if (secEnabled == 0) return true;
+                            }
+                            finally { WlanFreeMemory(pConn); }
+                        }
+                    }
+                    finally { WlanFreeMemory(pList); }
+                }
+                finally { WlanCloseHandle(h, IntPtr.Zero); }
+            }
+            catch { }
+            return false;
+        }
+
         // ── Config ────────────────────────────────────────────────────────────
 
         private void LoadConfig()
@@ -1039,6 +1186,10 @@ namespace MasselGUARD
                 {
                     var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                     _cfg = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(ConfigPath), opts) ?? new AppConfig();
+                }
+                else
+                {
+                    _firstRun = true;   // no config found — show wizard after load
                 }
             }
             catch (Exception ex)
@@ -1654,6 +1805,14 @@ namespace MasselGUARD
             TunnelCountLabel.Text = tunnels.Count.ToString();
             RuleCountLabel.Text   = _rules.Count.ToString();
 
+            // Populate OpenWifi tunnel selector (— none — + all tunnels)
+            OpenWifiTunnelBox.Items.Clear();
+            OpenWifiTunnelBox.Items.Add(Lang.T("OpenWifiNone"));
+            foreach (var t in tunnels) OpenWifiTunnelBox.Items.Add(t);
+            var openMatch = tunnels.FirstOrDefault(t =>
+                string.Equals(t, _cfg.OpenWifiTunnel, StringComparison.OrdinalIgnoreCase));
+            OpenWifiTunnelBox.SelectedItem = (object?)openMatch ?? Lang.T("OpenWifiNone");
+
             // Check availability of all tunnels
             CheckTunnelAvailability();
             UpdateCountBadges();
@@ -1736,6 +1895,16 @@ namespace MasselGUARD
         {
             if (_loading) return;
             _cfg.DefaultTunnel = DefaultTunnelBox.Text.Trim();
+            SaveConfig();
+        }
+
+        private void OpenWifiTunnel_Changed(object sender,
+            System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            if (_loading) return;
+            var sel = OpenWifiTunnelBox.SelectedItem as string ?? "";
+            _cfg.OpenWifiTunnel = string.Equals(sel, Lang.T("OpenWifiNone"),
+                StringComparison.Ordinal) ? "" : sel;
             SaveConfig();
         }
 
@@ -1917,9 +2086,34 @@ namespace MasselGUARD
             RulesPanel.Visibility = manual ? Visibility.Collapsed : Visibility.Visible;
             DefaultActionPanel.Visibility = Visibility.Visible;
 
-            // When manual mode hides the rules panel the spacer rows below the
-            // tunnel list are empty. Expand TunnelsListView to consume them.
-            System.Windows.Controls.Grid.SetRowSpan(TunnelsListView, manual ? 6 : 1);
+            var leftGrid = TunnelsListView.Parent as System.Windows.Controls.Grid;
+            if (leftGrid != null)
+            {
+                if (manual)
+                {
+                    // Collapse spacer + rules rows — tunnel list fills all remaining space.
+                    // Row 1 (tunnel list): take all available height (*)
+                    // Row 2 (toolbar):     Auto — stays anchored below list
+                    // Rows 3-6:            0 — rules section hidden
+                    leftGrid.RowDefinitions[1].Height = new System.Windows.GridLength(
+                        1, System.Windows.GridUnitType.Star);
+                    leftGrid.RowDefinitions[3].Height = new System.Windows.GridLength(0);
+                    for (int i = 4; i <= 6; i++)
+                        leftGrid.RowDefinitions[i].Height = new System.Windows.GridLength(0);
+                }
+                else
+                {
+                    // Restore original proportional heights
+                    leftGrid.RowDefinitions[1].Height = new System.Windows.GridLength(
+                        2, System.Windows.GridUnitType.Star);
+                    leftGrid.RowDefinitions[3].Height = new System.Windows.GridLength(10);
+                    for (int i = 4; i <= 6; i++)
+                        leftGrid.RowDefinitions[i].Height = System.Windows.GridLength.Auto;
+                    // Rules list (row 5) uses remaining star height
+                    leftGrid.RowDefinitions[5].Height = new System.Windows.GridLength(
+                        3, System.Windows.GridUnitType.Star);
+                }
+            }
 
             UpdateFooterLabel();
         }
@@ -3271,6 +3465,58 @@ Register-ScheduledTask -TaskName 'MasselGUARD' `
         /// Stops and deletes all WireGuardTunnel$ services so tunnel.dll is released
         /// before install/update tries to overwrite it.
         /// </summary>
+        // ── Orphaned service detection ─────────────────────────────────────
+
+        // An orphaned WireGuardTunnel$ service is one that exists in the SCM
+        // but is not tracked by MasselGUARD (e.g. left after a crash).
+        public record OrphanedService(
+            string ServiceName,    // full SCM name, e.g. "WireGuardTunnel$home"
+            string TunnelName,     // just the tunnel part, e.g. "home"
+            bool   TunnelActive);  // true = WireGuard adapter still present in OS
+
+        public List<OrphanedService> GetOrphanedServices()
+        {
+            var result = new List<OrphanedService>();
+            try
+            {
+                // Build set of service name suffixes we own
+                var known = new HashSet<string>(
+                    _cfg.Tunnels.Select(t => SafeName(t.Name)),
+                    StringComparer.OrdinalIgnoreCase);
+
+                // Active WireGuard adapters: wireguard-NT names them after the tunnel
+                var wgAdapters = System.Net.NetworkInformation
+                    .NetworkInterface.GetAllNetworkInterfaces()
+                    .Where(n => n.Description.Contains("WireGuard",
+                        StringComparison.OrdinalIgnoreCase))
+                    .Select(n => n.Name)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var svc in ServiceController.GetServices())
+                {
+                    const string prefix = "WireGuardTunnel$";
+                    if (!svc.ServiceName.StartsWith(prefix,
+                        StringComparison.OrdinalIgnoreCase)) continue;
+
+                    var tunnelName = svc.ServiceName.Substring(prefix.Length);
+
+                    // Skip services that MasselGUARD knows about
+                    if (known.Contains(tunnelName)) continue;
+
+                    bool active = wgAdapters.Contains(tunnelName);
+                    result.Add(new OrphanedService(svc.ServiceName, tunnelName, active));
+                }
+            }
+            catch { }
+            return result;
+        }
+
+        public void RemoveOrphanedService(OrphanedService orphan)
+        {
+            TunnelDll.ForceRemoveService(orphan.ServiceName);
+            LogRaw(Lang.T("OrphanRemoved", orphan.TunnelName), LogLevel.Ok);
+        }
+
         private void StopAllTunnelServices()
         {
             CleanupQuickConnect();
