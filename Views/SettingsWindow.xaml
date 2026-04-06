@@ -272,15 +272,21 @@
                                     <Border Background="#3D2A0A" BorderBrush="#D29922"
                                             BorderThickness="1" CornerRadius="3"
                                             Padding="10,7" Margin="0,0,0,10">
-                                        <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="⚠  " FontFamily="Consolas" FontSize="10"
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="⚠  "
+                                                       FontFamily="Consolas" FontSize="10"
                                                        Foreground="#D29922" VerticalAlignment="Top"
-                                                       Margin="0,0,4,0"/>
-                                            <TextBlock Text="{Binding [OrphansDescription], Source={x:Static local:Lang.Instance}}"
+                                                       Margin="0,0,2,0"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding [OrphansDescription], Source={x:Static local:Lang.Instance}}"
                                                        FontFamily="Consolas" FontSize="9"
                                                        Foreground="#D29922"
                                                        TextWrapping="Wrap"/>
-                                        </StackPanel>
+                                        </Grid>
                                     </Border>
 
                                     <!-- Status + scan button -->

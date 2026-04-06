@@ -1809,12 +1809,16 @@ namespace MasselGUARD
             RuleCountLabel.Text   = _rules.Count.ToString();
 
             // Populate OpenWifi tunnel selector (— none — + all tunnels)
+            // Guard with _loading so the SelectionChanged handler does not
+            // overwrite _cfg.OpenWifiTunnel while we repopulate the list.
+            _loading = true;
             OpenWifiTunnelBox.Items.Clear();
             OpenWifiTunnelBox.Items.Add(Lang.T("OpenWifiNone"));
             foreach (var t in tunnels) OpenWifiTunnelBox.Items.Add(t);
             var openMatch = tunnels.FirstOrDefault(t =>
                 string.Equals(t, _cfg.OpenWifiTunnel, StringComparison.OrdinalIgnoreCase));
             OpenWifiTunnelBox.SelectedItem = (object?)openMatch ?? Lang.T("OpenWifiNone");
+            _loading = false;
 
             // Check availability of all tunnels
             CheckTunnelAvailability();
