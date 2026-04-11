@@ -358,18 +358,21 @@ namespace MasselGUARD.Views
         private void ShowTab(string tab)
         {
             _activeTab = tab;
-            PageGeneral.Visibility  = tab == "General"  ? Visibility.Visible : Visibility.Collapsed;
-            PageAdvanced.Visibility = tab == "Advanced" ? Visibility.Visible : Visibility.Collapsed;
-            PageAbout.Visibility    = tab == "About"    ? Visibility.Visible : Visibility.Collapsed;
+            PageGeneral.Visibility    = tab == "General"    ? Visibility.Visible : Visibility.Collapsed;
+            PageAppearance.Visibility = tab == "Appearance" ? Visibility.Visible : Visibility.Collapsed;
+            PageAdvanced.Visibility   = tab == "Advanced"   ? Visibility.Visible : Visibility.Collapsed;
+            PageAbout.Visibility      = tab == "About"      ? Visibility.Visible : Visibility.Collapsed;
 
             // Highlight the active sidebar button
-            TabBtnGeneral.Tag  = tab == "General"  ? "Active" : null;
-            TabBtnAdvanced.Tag = tab == "Advanced" ? "Active" : null;
-            TabBtnAbout.Tag    = tab == "About"    ? "Active" : null;
+            TabBtnGeneral.Tag    = tab == "General"    ? "Active" : null;
+            TabBtnAppearance.Tag = tab == "Appearance" ? "Active" : null;
+            TabBtnAdvanced.Tag   = tab == "Advanced"   ? "Active" : null;
+            TabBtnAbout.Tag      = tab == "About"      ? "Active" : null;
 
             // Refresh state for the tab we just switched to
-            if (tab == "Advanced") { RefreshInstallState(); RefreshDllStatus(); RefreshWireGuardSection(); ScanOrphans(); }
-            if (tab == "About")    { RefreshUpdateState(); }
+            if (tab == "Advanced")   { RefreshInstallState(); RefreshDllStatus(); RefreshWireGuardSection(); ScanOrphans(); }
+            if (tab == "About")      { RefreshUpdateState(); }
+            if (tab == "Appearance") { PopulateThemePicker(); }
         }
 
         // ── Wizard ───────────────────────────────────────────────────────────

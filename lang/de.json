@@ -326,6 +326,7 @@
   "WizardDoneBody": "MasselGUARD ist bereit. Fügen Sie Tunnel und WLAN-Regeln aus dem Hauptfenster hinzu.",
   "WizardRunAgain": "Einrichtungsassistent erneut ausführen",
   "SettingsTabGeneral": "Allgemein",
+  "SettingsTabAppearance": "Darstellung",
   "SettingsTabAdvanced": "Erweitert",
   "SettingsTabAbout": "Über",
   "BtnSaveSettings": "Speichern",

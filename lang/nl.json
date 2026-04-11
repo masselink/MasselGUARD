@@ -326,6 +326,7 @@
   "WizardDoneBody": "MasselGUARD is klaar. Voeg tunnels en WiFi-regels toe vanuit het hoofdvenster.",
   "WizardRunAgain": "Installatiewizard opnieuw uitvoeren",
   "SettingsTabGeneral": "Algemeen",
+  "SettingsTabAppearance": "Weergave",
   "SettingsTabAdvanced": "Geavanceerd",
   "SettingsTabAbout": "Over",
   "BtnSaveSettings": "Opslaan",

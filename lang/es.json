@@ -326,6 +326,7 @@
   "WizardDoneBody": "MasselGUARD está listo. Añada túneles y reglas WiFi desde la ventana principal.",
   "WizardRunAgain": "Ejecutar asistente de configuración",
   "SettingsTabGeneral": "General",
+  "SettingsTabAppearance": "Apariencia",
   "SettingsTabAdvanced": "Avanzado",
   "SettingsTabAbout": "Acerca de",
   "BtnSaveSettings": "Guardar",

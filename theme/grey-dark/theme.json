@@ -1,0 +1,39 @@
+{
+  "name": "Grey Dark",
+  "type": "dark",
+  "creator": "MasselGUARD",
+  "description": "Flat dark grey theme with sharp corners. No distractions.",
+
+  "appName": "MasselGUARD",
+  "fontFamily": "Segoe UI",
+  "fontSize": 12,
+  "cornerRadius": 0,
+
+  "colorWindowBg":     "#1A1A1A",
+  "colorSurface":      "#242424",
+  "colorCard":         "#2E2E2E",
+  "colorBorder":       "#3C3C3C",
+  "colorAccent":       "#6CA0DC",
+  "colorSuccess":      "#4CAF6F",
+  "colorDanger":       "#D9604A",
+  "colorTextPrimary":  "#E0E0E0",
+  "colorTextMuted":    "#888888",
+  "colorHighlight":    "#2A4A7A",
+  "colorError":        "#D9604A",
+  "colorErrorBg":      "#3B1C18",
+  "colorWarning":      "#C09020",
+  "colorWarningBg":    "#3A2A08",
+  "colorListHover":    "#303030",
+  "colorListSelected": "#1E3355",
+
+  "backgroundImage":   "",
+  "backgroundStretch": "stretch",
+  "backgroundOpacity": 1.0,
+
+  "appIcon":    "",
+  "logo":       "",
+  "logoWidth":  28,
+  "logoHeight": 28,
+
+  "variables": {}
+}

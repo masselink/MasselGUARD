@@ -1,0 +1,39 @@
+{
+  "name": "Grey Light",
+  "type": "light",
+  "creator": "MasselGUARD",
+  "description": "Flat light grey theme with sharp corners. Clean and utilitarian.",
+
+  "appName": "MasselGUARD",
+  "fontFamily": "Segoe UI",
+  "fontSize": 12,
+  "cornerRadius": 0,
+
+  "colorWindowBg":     "#F0F0F0",
+  "colorSurface":      "#E4E4E4",
+  "colorCard":         "#D8D8D8",
+  "colorBorder":       "#BBBBBB",
+  "colorAccent":       "#2060B0",
+  "colorSuccess":      "#2E7D42",
+  "colorDanger":       "#B03030",
+  "colorTextPrimary":  "#1C1C1C",
+  "colorTextMuted":    "#606060",
+  "colorHighlight":    "#C8DEFF",
+  "colorError":        "#B03030",
+  "colorErrorBg":      "#FADDDD",
+  "colorWarning":      "#7A5500",
+  "colorWarningBg":    "#FFF0C0",
+  "colorListHover":    "#DCDCDC",
+  "colorListSelected": "#BFCFE8",
+
+  "backgroundImage":   "",
+  "backgroundStretch": "stretch",
+  "backgroundOpacity": 1.0,
+
+  "appIcon":    "",
+  "logo":       "",
+  "logoWidth":  28,
+  "logoHeight": 28,
+
+  "variables": {}
+}

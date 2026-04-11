@@ -58,7 +58,7 @@ namespace MasselGUARD
 
         public event EventHandler? ThemeChanged;
 
-        public string          CurrentThemeName { get; private set; } = "default";
+        public string          CurrentThemeName { get; private set; } = "default-dark";
         public ThemeDefinition Current          { get; private set; } = ThemeDefinition.Default;
 
         // ── Paths ─────────────────────────────────────────────────────────────

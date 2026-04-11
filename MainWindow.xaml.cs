@@ -154,10 +154,10 @@ namespace MasselGUARD
         public bool               ShowTrayPopupOnSwitch        { get; set; } = true;
 
         // Active theme folder name (maps to theme/<ActiveTheme>/theme.json)
-        public string             ActiveTheme                  { get; set; } = "default";
+        public string             ActiveTheme                  { get; set; } = "default-dark";
         // Separate dark/light theme selections for auto-switching
-        public string             ActiveDarkTheme              { get; set; } = "default";
-        public string             ActiveLightTheme             { get; set; } = "light";
+        public string             ActiveDarkTheme              { get; set; } = "default-dark";
+        public string             ActiveLightTheme             { get; set; } = "default-light";
         // When true, automatically switch between dark/light based on Windows system preference
         public bool               AutoTheme                    { get; set; } = false;
 
@@ -224,12 +224,12 @@ namespace MasselGUARD
         {
             try
             {
-                if (!File.Exists(ConfigPath)) return "default";
+                if (!File.Exists(ConfigPath)) return "default-dark";
                 var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 var cfg  = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(ConfigPath), opts);
-                return string.IsNullOrWhiteSpace(cfg?.ActiveTheme) ? "default" : cfg.ActiveTheme;
+                return string.IsNullOrWhiteSpace(cfg?.ActiveTheme) ? "default-dark" : cfg.ActiveTheme;
             }
-            catch { return "default"; }
+            catch { return "default-dark"; }
         }
 
         public static bool LoadAutoTheme()
@@ -3469,41 +3469,43 @@ Register-ScheduledTask -TaskName 'MasselGUARD' `
         // Cycles: Dark → Light → Auto, updates icon, applies immediately
         private void ThemeToggle_Click(object sender, RoutedEventArgs e)
         {
+            // Cycle: Dark → Light → Auto → Dark
+            // State is determined by _cfg flags, not by the loaded theme's type field.
             if (_cfg.AutoTheme)
             {
-                // Auto → Dark: disable auto, force dark theme
+                // Auto → Dark: disable auto, force the selected dark theme
                 _cfg.AutoTheme   = false;
-                var dark = _cfg.ActiveDarkTheme;
-                _cfg.ActiveTheme = dark;
-                ThemeManager.Instance.Load(dark);
+                _cfg.ActiveTheme = _cfg.ActiveDarkTheme;
+                ThemeManager.Instance.Load(_cfg.ActiveTheme);
             }
             else
             {
-                bool systemDark = ThemeManager.GetSystemIsDark();
-                bool currentIsDark = ThemeManager.Instance.Current.Type
-                    .Equals("dark", StringComparison.OrdinalIgnoreCase);
+                // Determine current explicit mode by comparing active theme to dark selection
+                bool onDark = _cfg.ActiveTheme == _cfg.ActiveDarkTheme ||
+                              ThemeManager.Instance.Current.Type
+                                  .Equals("dark", StringComparison.OrdinalIgnoreCase);
 
-                if (currentIsDark)
+                if (onDark)
                 {
                     // Dark → Light
-                    var light = _cfg.ActiveLightTheme;
-                    _cfg.ActiveTheme = light;
-                    ThemeManager.Instance.Load(light);
+                    _cfg.ActiveTheme = _cfg.ActiveLightTheme;
+                    ThemeManager.Instance.Load(_cfg.ActiveTheme);
                 }
                 else
                 {
                     // Light → Auto
-                    _cfg.AutoTheme = true;
-                    var target = systemDark ? _cfg.ActiveDarkTheme : _cfg.ActiveLightTheme;
-                    _cfg.ActiveTheme = target;
-                    ThemeManager.Instance.Load(target);
+                    _cfg.AutoTheme   = true;
+                    bool isDark      = ThemeManager.GetSystemIsDark();
+                    _cfg.ActiveTheme = isDark ? _cfg.ActiveDarkTheme : _cfg.ActiveLightTheme;
+                    ThemeManager.Instance.Load(_cfg.ActiveTheme);
                 }
             }
+
             AppConfig.SaveThemeConfig(_cfg.ActiveTheme, _cfg.ActiveDarkTheme,
                                       _cfg.ActiveLightTheme, _cfg.AutoTheme);
             UpdateThemeToggleIcon();
 
-            // Refresh settings window if open
+            // Keep settings window in sync if open
             if (_settingsWindow is { IsVisible: true } sw)
                 sw.RefreshThemeSection();
         }
@@ -3513,7 +3515,9 @@ Register-ScheduledTask -TaskName 'MasselGUARD' `
             if (ThemeToggleBtn == null) return;
             if (_cfg.AutoTheme)
                 ThemeToggleBtn.Content = "⚡";
-            else if (ThemeManager.Instance.Current.Type.Equals("light", StringComparison.OrdinalIgnoreCase))
+            else if (_cfg.ActiveTheme == _cfg.ActiveLightTheme ||
+                     ThemeManager.Instance.Current.Type
+                         .Equals("light", StringComparison.OrdinalIgnoreCase))
                 ThemeToggleBtn.Content = "☀";
             else
                 ThemeToggleBtn.Content = "🌙";

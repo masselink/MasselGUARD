@@ -51,12 +51,14 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <StackPanel Grid.Row="0" Margin="0,12,0,0">
-                            <Button x:Name="TabBtnGeneral"   Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="General"
-                                    Content="{Binding [SettingsTabGeneral],  Source={x:Static local:Lang.Instance}}"/>
-                            <Button x:Name="TabBtnAdvanced"  Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="Advanced"
-                                    Content="{Binding [SettingsTabAdvanced], Source={x:Static local:Lang.Instance}}"/>
-                            <Button x:Name="TabBtnAbout"     Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="About"
-                                    Content="{Binding [SettingsTabAbout],    Source={x:Static local:Lang.Instance}}"/>
+                            <Button x:Name="TabBtnGeneral"    Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="General"
+                                    Content="{Binding [SettingsTabGeneral],    Source={x:Static local:Lang.Instance}}"/>
+                            <Button x:Name="TabBtnAppearance" Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="Appearance"
+                                    Content="{Binding [SettingsTabAppearance], Source={x:Static local:Lang.Instance}}"/>
+                            <Button x:Name="TabBtnAdvanced"   Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="Advanced"
+                                    Content="{Binding [SettingsTabAdvanced],   Source={x:Static local:Lang.Instance}}"/>
+                            <Button x:Name="TabBtnAbout"      Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="About"
+                                    Content="{Binding [SettingsTabAbout],      Source={x:Static local:Lang.Instance}}"/>
                         </StackPanel>
                         <!-- Wizard button pinned at bottom of sidebar -->
                         <Border Grid.Row="1" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0">
@@ -94,121 +96,7 @@
                                 </Grid>
                             </Border>
 
-                            <!-- ── APPEARANCE ──────────────────────────────── -->
-                            <TextBlock Text="{Binding [SettingsSectionTheme], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SettingsSectionHeader}"/>
-
-                            <!-- Auto-switch toggle -->
-                            <Border x:Name="ThemePickerCard" Style="{StaticResource SettingsCard}" Margin="0,0,0,8">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{Binding [SettingsThemeAutoLabel], Source={x:Static local:Lang.Instance}}"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                                                   Foreground="{DynamicResource TextPrimary}"/>
-                                        <TextBlock Text="{Binding [SettingsThemeAutoDesc], Source={x:Static local:Lang.Instance}}"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                                   Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"
-                                                   TextWrapping="Wrap"/>
-                                    </StackPanel>
-                                    <ToggleButton Grid.Column="1" x:Name="AutoThemeToggle"
-                                                  Width="44" Height="22" Margin="12,0,0,0"
-                                                  VerticalAlignment="Center"
-                                                  Style="{StaticResource ToggleSwitch}"
-                                                  Checked="AutoTheme_Changed" Unchecked="AutoTheme_Changed"/>
-                                </Grid>
-                            </Border>
-
-                            <!-- Dark theme row -->
-                            <TextBlock Text="{Binding [SettingsThemeDarkLabel], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SettingsSectionHeader}" Margin="0,8,0,4"/>
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0"
-                                               Text="{Binding [SettingsThemeLabel], Source={x:Static local:Lang.Instance}}"
-                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                                               Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
-                                    <ComboBox Grid.Column="1" x:Name="DarkThemePicker"
-                                              MinWidth="180" Padding="8,4"
-                                              SelectionChanged="DarkThemePicker_SelectionChanged">
-                                        <ComboBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Margin="0,2">
-                                                    <TextBlock Text="{Binding DisplayName}"
-                                                               FontFamily="{DynamicResource Theme.FontFamily}"
-                                                               FontSize="11" Foreground="{DynamicResource TextPrimary}"/>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="{Binding [SettingsThemeFolderPrefix], Source={x:Static local:Lang.Instance}}"
-                                                                   FontFamily="{DynamicResource Theme.FontFamily}"
-                                                                   FontSize="9" Foreground="{DynamicResource TextMuted}"/>
-                                                        <TextBlock Text="{Binding FolderName}"
-                                                                   FontFamily="{DynamicResource Theme.FontFamily}"
-                                                                   FontSize="9" Foreground="{DynamicResource TextMuted}"/>
-                                                    </StackPanel>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ComboBox.ItemTemplate>
-                                    </ComboBox>
-                                </Grid>
-                            </Border>
-                            <!-- Dark theme info -->
-                            <Border x:Name="DarkThemeInfoPanel" Style="{StaticResource SettingsCard}" Margin="0,0,0,12"
-                                    Visibility="Collapsed">
-                                <TextBlock x:Name="DarkThemeInfoText"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
-                            </Border>
-
-                            <!-- Light theme row -->
-                            <TextBlock Text="{Binding [SettingsThemeLightLabel], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SettingsSectionHeader}" Margin="0,0,0,4"/>
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0"
-                                               Text="{Binding [SettingsThemeLabel], Source={x:Static local:Lang.Instance}}"
-                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                                               Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
-                                    <ComboBox Grid.Column="1" x:Name="LightThemePicker"
-                                              MinWidth="180" Padding="8,4"
-                                              SelectionChanged="LightThemePicker_SelectionChanged">
-                                        <ComboBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Margin="0,2">
-                                                    <TextBlock Text="{Binding DisplayName}"
-                                                               FontFamily="{DynamicResource Theme.FontFamily}"
-                                                               FontSize="11" Foreground="{DynamicResource TextPrimary}"/>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="{Binding [SettingsThemeFolderPrefix], Source={x:Static local:Lang.Instance}}"
-                                                                   FontFamily="{DynamicResource Theme.FontFamily}"
-                                                                   FontSize="9" Foreground="{DynamicResource TextMuted}"/>
-                                                        <TextBlock Text="{Binding FolderName}"
-                                                                   FontFamily="{DynamicResource Theme.FontFamily}"
-                                                                   FontSize="9" Foreground="{DynamicResource TextMuted}"/>
-                                                    </StackPanel>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ComboBox.ItemTemplate>
-                                    </ComboBox>
-                                </Grid>
-                            </Border>
-                            <!-- Light theme info -->
-                            <Border x:Name="LightThemeInfoPanel" Style="{StaticResource SettingsCard}" Margin="0,0,0,16"
-                                    Visibility="Collapsed">
-                                <TextBlock x:Name="LightThemeInfoText"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
-                            </Border>
+                            <!-- ── APPEARANCE moved to its own tab ── -->
 
                             <!-- App Mode -->
                             <TextBlock Text="{Binding [SettingsSectionAppMode], Source={x:Static local:Lang.Instance}}"
@@ -276,6 +164,83 @@
                                                   Checked="ManualMode_Changed" Unchecked="ManualMode_Changed"
                                                   Style="{StaticResource ToggleSwitch}"/>
                                 </Grid>
+                            </Border>
+
+                        </StackPanel>
+
+                        <!-- ══ APPEARANCE PAGE ══════════════════════════════ -->
+                        <StackPanel x:Name="PageAppearance" Visibility="Collapsed">
+
+                            <!-- Auto-switch toggle -->
+                            <TextBlock Text="{Binding [SettingsSectionTheme], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border x:Name="ThemePickerCard" Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding [SettingsThemeAutoLabel], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Text="{Binding [SettingsThemeAutoDesc], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                                   Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                    <ToggleButton Grid.Column="1" x:Name="AutoThemeToggle"
+                                                  Width="44" Height="22" Margin="12,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Style="{StaticResource ToggleSwitch}"
+                                                  Checked="AutoTheme_Changed" Unchecked="AutoTheme_Changed"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Dark theme -->
+                            <TextBlock Text="{Binding [SettingsThemeDarkLabel], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
+                                <ComboBox x:Name="DarkThemePicker" Padding="8,4"
+                                          SelectionChanged="DarkThemePicker_SelectionChanged">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                                       FontSize="11" Foreground="{DynamicResource TextPrimary}"
+                                                       Margin="0,2"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Border>
+                            <Border x:Name="DarkThemeInfoPanel" Style="{StaticResource SettingsCard}"
+                                    Margin="0,0,0,16" Visibility="Collapsed">
+                                <TextBlock x:Name="DarkThemeInfoText"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+                            </Border>
+
+                            <!-- Light theme -->
+                            <TextBlock Text="{Binding [SettingsThemeLightLabel], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
+                                <ComboBox x:Name="LightThemePicker" Padding="8,4"
+                                          SelectionChanged="LightThemePicker_SelectionChanged">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                                       FontSize="11" Foreground="{DynamicResource TextPrimary}"
+                                                       Margin="0,2"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Border>
+                            <Border x:Name="LightThemeInfoPanel" Style="{StaticResource SettingsCard}"
+                                    Margin="0,0,0,16" Visibility="Collapsed">
+                                <TextBlock x:Name="LightThemeInfoText"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
                             </Border>
 
                         </StackPanel>

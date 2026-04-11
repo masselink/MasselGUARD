@@ -1,0 +1,81 @@
+{
+  "name": "Default Dark",
+  "type": "dark",
+  "creator": "MasselGUARD",
+  "description": "Clean minimal dark theme. GitHub-inspired palette.",
+
+  "appName": "MasselGUARD",
+  "fontFamily": "Segoe UI",
+  "fontSize": 12,
+  "cornerRadius": 6,
+
+  "colorWindowBg":     "#0E1117",
+  "colorSurface":      "#161B22",
+  "colorCard":         "#1C2128",
+  "colorBorder":       "#21262D",
+  "colorAccent":       "#58A6FF",
+  "colorSuccess":      "#3FB950",
+  "colorDanger":       "#F78166",
+  "colorTextPrimary":  "#E6EDF3",
+  "colorTextMuted":    "#8B949E",
+  "colorHighlight":    "#1F6FEB",
+  "colorError":        "#F78166",
+  "colorErrorBg":      "#3D1A1A",
+  "colorWarning":      "#D29922",
+  "colorWarningBg":    "#3D2A0A",
+  "colorListHover":    "#141A22",
+  "colorListSelected": "#0D2748",
+
+  "backgroundImage":   "",
+  "backgroundStretch": "stretch",
+  "backgroundOpacity": 1.0,
+
+  "appIcon":    "",
+  "logo":       "",
+  "logoWidth":  28,
+  "logoHeight": 28,
+
+  "variables": {},
+
+  "_hints": {
+    "name":              "Display name shown in the theme picker.",
+    "type":              "'dark' or 'light' — used for auto system-theme switching.",
+    "creator":           "Your name or handle, shown in the info panel.",
+    "description":       "Short description shown below the picker. Max 3 lines / 150 chars.",
+
+    "appName":           "Text shown in the title bar and tray tooltip. Lets you white-label the app.",
+    "fontFamily":        "Any font installed on the system. E.g. 'Consolas', 'Inter', 'Segoe UI'.",
+    "fontSize":          "Base font size in points for body text. Recommended 11–14.",
+    "cornerRadius":      "Radius for window and card corners in pixels. 0 = sharp, 6 = rounded.",
+
+    "colorWindowBg":     "Main window and dialog background. Darkest layer.",
+    "colorSurface":      "Title bar, footer, sidebar, button bars — one step above window background.",
+    "colorCard":         "Content cards, list backgrounds, input fields — slightly lighter than surface.",
+    "colorBorder":       "All borders and dividers. Keep low contrast for a subtle look.",
+    "colorAccent":       "Links, headings, active/selected highlights. Your brand colour goes here.",
+    "colorSuccess":      "Connected tunnel status, Save/Add/Finish buttons.",
+    "colorDanger":       "Destructive action buttons, unavailable tunnel text, close button.",
+    "colorTextPrimary":  "Primary readable text — high contrast against colorWindowBg.",
+    "colorTextMuted":    "Labels, hints, section headers, secondary info — lower contrast.",
+    "colorHighlight":    "Button hover background and selected list row fill.",
+    "colorError":        "Error banner text and border colour.",
+    "colorErrorBg":      "Error banner background fill. Use a very dark tint of colorError.",
+    "colorWarning":      "Warning panel text and border (orphaned service warnings).",
+    "colorWarningBg":    "Warning panel background. Use a very dark tint of colorWarning.",
+    "colorListHover":    "List row background when the mouse hovers over it.",
+    "colorListSelected": "List row background when the row is selected/active.",
+
+    "backgroundImage":   "Filename of an image in this theme folder. E.g. 'bg.png'. Leave empty for none.",
+    "backgroundStretch": "'stretch' (fill window, default) | 'center' | 'tile' | 'topLeft'.",
+    "backgroundOpacity": "0.0 (invisible) to 1.0 (fully opaque). Use transparency in colors instead for better results.",
+
+    "appIcon":    "Custom tray and title-bar icon. Supports .ico .png .bmp .jpg. Leave empty to use built-in.",
+    "logo":       "Custom logo image shown in the title bar (replaces built-in shield). Leave empty for default.",
+    "logoWidth":  "Logo display width in pixels.",
+    "logoHeight": "Logo display height in pixels.",
+
+    "variables":  "Free-form key/value pairs surfaced as 'Var.<key>' dynamic resources for advanced themes.",
+
+    "_colourFormat": "All colour values accept: #RRGGBB (fully opaque), #AARRGGBB (with transparency), or named colours like 'Transparent'."
+  }
+}

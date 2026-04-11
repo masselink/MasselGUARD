@@ -326,6 +326,7 @@
   "WizardDoneBody": "MasselGUARD is ready. Add tunnels and WiFi rules from the main window.",
   "WizardRunAgain": "Run Setup Wizard",
   "SettingsTabGeneral": "General",
+  "SettingsTabAppearance": "Appearance",
   "SettingsTabAdvanced": "Advanced",
   "SettingsTabAbout": "About",
   "BtnSaveSettings": "Save",
