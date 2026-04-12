@@ -3833,7 +3833,6 @@ Register-ScheduledTask -TaskName 'MasselGUARD' `
 
         // Public wrappers used by SettingsWindow
         public void LogDebugPublic(string key, params object[] args) => LogDebug(key, args);
-        public void SaveConfigPublic()              => SaveConfig();
         public void RefreshTunnelDropdownsPublic()  => RefreshTunnelDropdowns();
         public void OpenWireGuardGui()  => OpenWireGuardGui_Click(this, new RoutedEventArgs());
         public void OpenWireGuardLog()  => ShowWireGuardLog_Click(this, new RoutedEventArgs());
