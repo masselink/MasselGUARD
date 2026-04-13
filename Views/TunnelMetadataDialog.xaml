@@ -1,0 +1,99 @@
+<Window x:Class="MasselGUARD.Views.TunnelMetadataDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:MasselGUARD"
+        Title="{Binding [TunnelMetadataTitle], Source={x:Static local:Lang.Instance}}"
+        Width="420" SizeToContent="Height"
+        WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner">
+
+    <Border Background="{DynamicResource WindowBg}"
+            BorderBrush="{DynamicResource Accent}"
+            BorderThickness="1"
+            CornerRadius="{DynamicResource Theme.CornerRadius}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="52"/>
+            </Grid.RowDefinitions>
+
+            <!-- Title bar -->
+            <Border Grid.Row="0" Background="{DynamicResource Surface}"
+                    CornerRadius="{DynamicResource Theme.CornerRadiusTop}"
+                    MouseLeftButtonDown="TitleBar_MouseDown">
+                <Grid>
+                    <TextBlock x:Name="DialogTitle"
+                               FontFamily="{DynamicResource Theme.FontFamily}"
+                               FontSize="12" FontWeight="Bold"
+                               Foreground="{DynamicResource Accent}"
+                               VerticalAlignment="Center" Margin="16,0"/>
+                    <Button Content="&#x2715;" Style="{StaticResource DangerBtn}"
+                            HorizontalAlignment="Right" Padding="10,4" Margin="0,0,8,0"
+                            BorderThickness="0" Background="Transparent"
+                            Click="CancelBtn_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Fields -->
+            <StackPanel Grid.Row="1" Margin="20,16,20,0">
+
+                <!-- Tunnel name (read-only) -->
+                <TextBlock Text="{Binding [TunnelDialogName], Source={x:Static local:Lang.Instance}}"
+                           Style="{StaticResource FormLabel}"/>
+                <TextBlock x:Name="TunnelNameLabel"
+                           FontFamily="{DynamicResource Theme.FontFamily}"
+                           FontSize="12" FontWeight="Bold"
+                           Foreground="{DynamicResource TextPrimary}"
+                           Margin="0,0,0,12"/>
+
+                <!-- Info notice for WireGuard tunnels -->
+                <Border Background="{DynamicResource CardBg}"
+                        BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                        CornerRadius="{DynamicResource Theme.CornerRadius}"
+                        Padding="10,8" Margin="0,0,0,14">
+                    <TextBlock Text="{Binding [TunnelMetadataInfo], Source={x:Static local:Lang.Instance}}"
+                               FontFamily="{DynamicResource Theme.FontFamily}"
+                               FontSize="9" Foreground="{DynamicResource TextMuted}"
+                               TextWrapping="Wrap"/>
+                </Border>
+
+                <!-- Group picker -->
+                <TextBlock Text="{Binding [TunnelDialogGroup], Source={x:Static local:Lang.Instance}}"
+                           Style="{StaticResource FormLabel}"/>
+                <ComboBox x:Name="GroupPicker"
+                          FontFamily="{DynamicResource Theme.FontFamily}"
+                          FontSize="11" Margin="0,0,0,12"/>
+
+                <!-- Notes -->
+                <TextBlock Text="{Binding [TunnelDialogNotes], Source={x:Static local:Lang.Instance}}"
+                           Style="{StaticResource FormLabel}"/>
+                <TextBox x:Name="NotesBox"
+                         FontFamily="{DynamicResource Theme.FontFamily}"
+                         FontSize="11"
+                         AcceptsReturn="True" TextWrapping="Wrap"
+                         Height="60" Margin="0,0,0,4"
+                         VerticalScrollBarVisibility="Auto"/>
+                <TextBlock Text="{Binding [TunnelDialogNotesHint], Source={x:Static local:Lang.Instance}}"
+                           FontFamily="{DynamicResource Theme.FontFamily}"
+                           FontSize="9" Foreground="{DynamicResource TextMuted}"
+                           Margin="0,0,0,14"/>
+            </StackPanel>
+
+            <!-- Button bar -->
+            <Border Grid.Row="2" Background="{DynamicResource Surface}"
+                    CornerRadius="{DynamicResource Theme.CornerRadiusBottom}">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                            VerticalAlignment="Center" Margin="0,0,16,0">
+                    <Button Content="{Binding [BtnCancel], Source={x:Static local:Lang.Instance}}"
+                            Style="{StaticResource FlatBtn}" Padding="20,6" Margin="0,0,8,0"
+                            Click="CancelBtn_Click"/>
+                    <Button Content="{Binding [BtnSaveTunnel], Source={x:Static local:Lang.Instance}}"
+                            Style="{StaticResource PrimaryBtn}" Padding="20,6"
+                            Click="SaveBtn_Click"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

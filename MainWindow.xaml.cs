@@ -79,6 +79,8 @@ namespace MasselGUARD
         public TunnelType Type   { get; set; } = TunnelType.Local;
         /// <summary>Group this tunnel belongs to. Empty string = ungrouped.</summary>
         public string     Group  { get; set; } = "";
+        /// <summary>User notes — shown as tooltip on the tunnel name.</summary>
+        public string     Notes  { get; set; } = "";
 
         public bool Active
         {
@@ -153,6 +155,8 @@ namespace MasselGUARD
         public string? Path   { get; set; } = null;
         /// <summary>Group this tunnel belongs to. Empty = Ungrouped.</summary>
         public string  Group  { get; set; } = "";
+        /// <summary>User notes — visible as a tooltip and in the metadata editor.</summary>
+        public string  Notes  { get; set; } = "";
 
         public bool   KillSwitch           { get; set; } = false;
         public int    RetryCount           { get; set; } = 0;
@@ -1737,13 +1741,19 @@ namespace MasselGUARD
         private void TunnelsListView_SelectionChanged(object sender,
             System.Windows.Controls.SelectionChangedEventArgs e)
         {
+            // Sync _selectedTunnel from actual ListView selection when the user clicks a row
+            if (TunnelsListView.SelectedItem is TunnelEntry listSel)
+                _selectedTunnel = listSel;
+
             var entry    = _selectedTunnel;
             bool sel     = entry != null;
             bool isLocal = entry?.Type == TunnelType.Local;
             bool isWg    = entry?.Type == TunnelType.WireGuard;
             bool avail   = entry?.IsAvailable ?? false;
 
-            EditTunnelBtn.IsEnabled = sel && isLocal;
+            // Edit enabled for both local and WireGuard tunnels — WG edit opens
+            // a metadata-only dialog (group, notes) since we don't own the conf file
+            EditTunnelBtn.IsEnabled = sel;
 
             // The action button morphs based on the selected tunnel type/state:
             //  • WireGuard-linked  → "Unlink"  (removes from list, keeps WG conf)
@@ -1786,14 +1796,44 @@ namespace MasselGUARD
         private void EditTunnel_Click(object sender, RoutedEventArgs e)
         {
             if (_selectedTunnel is not TunnelEntry entry) return;
+
+            var stored = _cfg.Tunnels.FirstOrDefault(t =>
+                string.Equals(t.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
+
+            if (entry.Type == TunnelType.WireGuard)
+            {
+                // WireGuard-linked tunnels: metadata only (group + notes)
+                // We don't own the .conf file so we cannot edit connection params.
+                var mdlg = new Views.TunnelMetadataDialog(
+                    entry.Name,
+                    stored?.Group ?? "",
+                    stored?.Notes ?? "",
+                    _cfg.TunnelGroups.Select(g => g.Name).ToList())
+                { Owner = this };
+
+                if (mdlg.ShowDialog() != true) return;
+
+                // Ensure a StoredTunnel record exists for this WG tunnel
+                if (stored == null)
+                {
+                    stored = new StoredTunnel
+                        { Name = entry.Name, Source = "wireguard", Path = entry.Name };
+                    _cfg.Tunnels.Add(stored);
+                }
+                stored.Group = mdlg.ResultGroup;
+                stored.Notes = mdlg.ResultNotes;
+                SaveConfig();
+                Log("TunnelSavedLog", LogLevel.Ok, entry.Name);
+                RefreshTunnelDropdowns();
+                return;
+            }
+
+            // Local tunnel — full editor
             var config       = LoadTunnelConfig(entry.Name);
-            var existingGroup = _cfg.Tunnels
-                .FirstOrDefault(t => string.Equals(t.Name, entry.Name, StringComparison.OrdinalIgnoreCase))
-                ?.Group ?? "";
+            var existingGroup = stored?.Group ?? "";
             var dlg = new Views.TunnelConfigDialog(entry.Name, config, existingGroup) { Owner = this };
             if (dlg.ShowDialog() != true) return;
 
-            // If name changed, delete old file
             if (!string.Equals(dlg.ResultName, entry.Name, StringComparison.OrdinalIgnoreCase))
                 DeleteTunnelConfig(entry.Name);
 
@@ -1951,7 +1991,8 @@ namespace MasselGUARD
                     Active             = active.Contains(t),
                     Type               = isLocal ? TunnelType.Local : TunnelType.WireGuard,
                     WireGuardInstalled = wgInstalled,
-                    Group              = stored?.Group ?? ""
+                    Group              = stored?.Group ?? "",
+                    Notes              = stored?.Notes ?? "",
                 });
             }
 
@@ -2008,246 +2049,120 @@ namespace MasselGUARD
         }
 
         // ── Grouped tunnel panel ──────────────────────────────────────────────
-        // Builds collapsible group sections inside TunnelGroupsPanel.
+        // Builds the tab strip and filters TunnelsListView per active tab.
         // Each section has a header row (▶/▼ + name + count) and a body
         // containing one tunnel row per TunnelEntry in that group.
+        // ── Tab-based grouped tunnel view ─────────────────────────────────────
+        // Tracks which group tab is currently shown. "" = Uncategorized.
+        private string _activeGroupTab = "__ALL__";
+
         private void RebuildTunnelGroups()
         {
-            _tunnelRowBorders.Clear();
-            _selectedTunnel = null;
-            TunnelGroupsPanel.Items.Clear();
-
-            // Build a dictionary: groupName → tunnels in that group
-            // Tunnels not in any configured group go to "Ungrouped"
-            var configuredNames = _cfg.TunnelGroups.Select(g => g.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // Build buckets: group name → entries
+            var configuredNames = _cfg.TunnelGroups
+                .Select(g => g.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             var buckets = new Dictionary<string, List<TunnelEntry>>(StringComparer.OrdinalIgnoreCase);
             foreach (var g in _cfg.TunnelGroups)
                 buckets[g.Name] = new List<TunnelEntry>();
-            buckets[""] = new List<TunnelEntry>(); // ungrouped
+            buckets["__UNCATEGORIZED__"] = new List<TunnelEntry>();
 
             foreach (var t in _tunnels)
             {
                 var key = !string.IsNullOrEmpty(t.Group) && configuredNames.Contains(t.Group)
-                    ? t.Group : "";
+                    ? t.Group : "__UNCATEGORIZED__";
                 buckets[key].Add(t);
             }
 
-            // Render each configured group (skip empty ones)
-            foreach (var group in _cfg.TunnelGroups)
+            // Build tab strip
+            TunnelTabButtons.Children.Clear();
+
+            // "All" tab always first
+            AddTabButton(Lang.T("TunnelTabAll"), "__ALL__", _tunnels.ToList(), buckets);
+
+            // One tab per configured group (only if has entries OR always show if groups configured)
+            foreach (var g in _cfg.TunnelGroups)
             {
-                if (!buckets.TryGetValue(group.Name, out var entries) || entries.Count == 0)
-                    continue;
-                TunnelGroupsPanel.Items.Add(BuildGroupSection(group, entries));
+                var entries = buckets.TryGetValue(g.Name, out var b) ? b : new List<TunnelEntry>();
+                AddTabButton(g.Name, g.Name, entries, buckets);
             }
 
-            // Render ungrouped tunnels (no header if it's the only bucket with content)
-            var ungrouped = buckets[""];
-            if (ungrouped.Count > 0)
-            {
-                bool hasNamedGroups = _cfg.TunnelGroups
-                    .Any(g => buckets.TryGetValue(g.Name, out var b) && b.Count > 0);
+            // Uncategorized tab — always present
+            var uncat = buckets["__UNCATEGORIZED__"];
+            AddTabButton(Lang.T("TunnelGroupUngrouped"), "__UNCATEGORIZED__", uncat, buckets);
 
-                if (hasNamedGroups)
-                {
-                    // Show a faded "Ungrouped" header
-                    var fakeGroup = new TunnelGroup(Lang.T("TunnelGroupUngrouped"))
-                        { IsExpanded = true, Color = "" };
-                    TunnelGroupsPanel.Items.Add(BuildGroupSection(fakeGroup, ungrouped));
-                }
-                else
-                {
-                    // All tunnels are ungrouped — just show rows without a header
-                    foreach (var entry in ungrouped)
-                        TunnelGroupsPanel.Items.Add(BuildTunnelRow(entry));
-                }
-            }
+            // Make sure active tab still exists; fall back to All
+            bool tabExists = _activeGroupTab == "__ALL__" || _activeGroupTab == "__UNCATEGORIZED__" ||
+                             _cfg.TunnelGroups.Any(g => string.Equals(g.Name, _activeGroupTab,
+                                 StringComparison.OrdinalIgnoreCase));
+            if (!tabExists) _activeGroupTab = "__ALL__";
+
+            ApplyActiveTab(buckets);
         }
 
-        private System.Windows.UIElement BuildGroupSection(TunnelGroup group, List<TunnelEntry> entries)
+        private void AddTabButton(string label, string key,
+            List<TunnelEntry> entries,
+            Dictionary<string, List<TunnelEntry>> buckets)
         {
-            // Accent colour: use group.Color if set, else theme Accent brush
-            var accentBrush = string.IsNullOrEmpty(group.Color)
-                ? (System.Windows.Media.Brush)FindResource("Accent")
-                : new System.Windows.Media.SolidColorBrush(
-                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter
-                        .ConvertFromString(group.Color));
+            bool isActive = string.Equals(_activeGroupTab, key, StringComparison.OrdinalIgnoreCase);
 
-            // Collapse body panel
-            var bodyPanel = new System.Windows.Controls.StackPanel();
-            bodyPanel.Visibility = group.IsExpanded ? Visibility.Visible : Visibility.Collapsed;
-            foreach (var entry in entries)
-                bodyPanel.Children.Add(BuildTunnelRow(entry));
-
-            // Header
-            var chevron = new System.Windows.Controls.TextBlock
-            {
-                Text       = group.IsExpanded ? "▾" : "▸",
-                FontSize   = 10,
-                Foreground = accentBrush,
-                Margin     = new Thickness(0, 0, 6, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-
-            var count = new System.Windows.Controls.Border
-            {
-                Background    = (System.Windows.Media.Brush)FindResource("BorderColor"),
-                CornerRadius  = (CornerRadius)FindResource("Theme.CornerRadius"),
-                Padding       = new Thickness(6, 1, 6, 1),
-                Margin        = new Thickness(6, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-                Child = new System.Windows.Controls.TextBlock
-                {
-                    Text       = entries.Count.ToString(),
-                    FontSize   = 9,
-                    Foreground = (System.Windows.Media.Brush)FindResource("TextMuted"),
-                }
-            };
-
-            var headerRow = new System.Windows.Controls.StackPanel
-            {
-                Orientation = System.Windows.Controls.Orientation.Horizontal,
-                Cursor      = System.Windows.Input.Cursors.Hand,
-                Margin      = new Thickness(0, 6, 0, 2),
-            };
-            headerRow.Children.Add(chevron);
-            headerRow.Children.Add(new System.Windows.Controls.TextBlock
-            {
-                Text       = group.Name,
-                FontSize   = 9,
-                FontWeight = FontWeights.Bold,
-                Foreground = (System.Windows.Media.Brush)FindResource("TextMuted"),
-                VerticalAlignment = VerticalAlignment.Center,
-            });
-            headerRow.Children.Add(count);
-
-            // Toggle collapse on click
-            headerRow.MouseLeftButtonUp += (_, _) =>
-            {
-                group.IsExpanded = !group.IsExpanded;
-                chevron.Text      = group.IsExpanded ? "▾" : "▸";
-                bodyPanel.Visibility = group.IsExpanded ? Visibility.Visible : Visibility.Collapsed;
-                SaveConfig(); // persist collapsed state
-            };
-
-            var section = new System.Windows.Controls.StackPanel();
-            section.Children.Add(headerRow);
-            section.Children.Add(bodyPanel);
-            return section;
-        }
-
-        private System.Windows.UIElement BuildTunnelRow(TunnelEntry entry)
-        {
-            // Name column
-            var nameBlock = new System.Windows.Controls.TextBlock
-            {
-                FontSize   = 11,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            nameBlock.SetBinding(System.Windows.Controls.TextBlock.TextProperty,
-                new System.Windows.Data.Binding("Name") { Source = entry });
-            nameBlock.SetBinding(System.Windows.Controls.TextBlock.ForegroundProperty,
-                new System.Windows.Data.Binding("NameColor") { Source = entry });
-            nameBlock.SetBinding(System.Windows.Controls.TextBlock.TextDecorationsProperty,
-                new System.Windows.Data.Binding("NameDecoration") { Source = entry });
-            var nameCol = new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) };
-
-            // Type column
-            var typeBlock = new System.Windows.Controls.TextBlock
-            {
-                FontSize   = 10,
-                Margin     = new Thickness(6, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            typeBlock.SetBinding(System.Windows.Controls.TextBlock.TextProperty,
-                new System.Windows.Data.Binding("TypeLabel") { Source = entry });
-            typeBlock.SetBinding(System.Windows.Controls.TextBlock.ForegroundProperty,
-                new System.Windows.Data.Binding("TypeColor") { Source = entry });
-
-            // Status column
-            var statusBlock = new System.Windows.Controls.TextBlock
-            {
-                FontSize   = 11,
-                Margin     = new Thickness(6, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            statusBlock.SetBinding(System.Windows.Controls.TextBlock.TextProperty,
-                new System.Windows.Data.Binding("StatusText") { Source = entry });
-            statusBlock.SetBinding(System.Windows.Controls.TextBlock.ForegroundProperty,
-                new System.Windows.Data.Binding("StatusColor") { Source = entry });
-
-            // Action button
             var btn = new System.Windows.Controls.Button
             {
-                Padding = new Thickness(10, 3, 10, 3),
-                FontSize = 10,
-                Style   = (Style)FindResource("FlatBtn"),
-                Margin  = new Thickness(6, 0, 0, 0),
+                Content         = $"{label} ({entries.Count})",
+                FontSize        = 10,
+                Padding         = new Thickness(10, 5, 10, 5),
+                BorderThickness = new Thickness(0, 0, 0, isActive ? 2 : 0),
+                BorderBrush     = isActive
+                    ? (System.Windows.Media.Brush)FindResource("Accent")
+                    : System.Windows.Media.Brushes.Transparent,
+                Background      = System.Windows.Media.Brushes.Transparent,
+                Foreground      = isActive
+                    ? (System.Windows.Media.Brush)FindResource("Accent")
+                    : (System.Windows.Media.Brush)FindResource("TextMuted"),
+                FontWeight      = isActive ? FontWeights.Bold : FontWeights.Normal,
+                Cursor          = System.Windows.Input.Cursors.Hand,
             };
-            btn.SetBinding(System.Windows.Controls.Button.ContentProperty,
-                new System.Windows.Data.Binding("ButtonLabel") { Source = entry });
-            btn.SetBinding(System.Windows.Controls.Button.IsEnabledProperty,
-                new System.Windows.Data.Binding("ButtonEnabled") { Source = entry });
-            btn.SetBinding(System.Windows.Controls.Button.ToolTipProperty,
-                new System.Windows.Data.Binding("ButtonTooltip") { Source = entry });
-            btn.DataContext = entry;
-            btn.Click += TunnelToggle_Click;
 
-            // Row grid
-            var grid = new System.Windows.Controls.Grid { Margin = new Thickness(0, 1, 0, 1) };
-            grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(160) });
-            grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(70) });
-            grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = GridLength.Auto });
+            // Use a minimal no-hover-chrome style for tab buttons
+            btn.Style = (Style)FindResource("FlatBtn");
+            btn.BorderThickness = new Thickness(0, 0, 0, isActive ? 2 : 0);
+            btn.BorderBrush = isActive
+                ? (System.Windows.Media.Brush)FindResource("Accent")
+                : System.Windows.Media.Brushes.Transparent;
 
-            System.Windows.Controls.Grid.SetColumn(nameBlock,   0);
-            System.Windows.Controls.Grid.SetColumn(typeBlock,   1);
-            System.Windows.Controls.Grid.SetColumn(statusBlock, 2);
-            System.Windows.Controls.Grid.SetColumn(btn,         3);
-            grid.Children.Add(nameBlock);
-            grid.Children.Add(typeBlock);
-            grid.Children.Add(statusBlock);
-            grid.Children.Add(btn);
-
-            // Highlight + selection on click
-            var rowBorder = new System.Windows.Controls.Border
+            string capturedKey = key;
+            btn.Click += (_, _) =>
             {
-                Padding     = new Thickness(4, 2, 4, 2),
-                Child       = grid,
-                Cursor      = System.Windows.Input.Cursors.Hand,
-                Background  = System.Windows.Media.Brushes.Transparent,
-            };
-            rowBorder.MouseLeftButtonDown += (_, _) => SelectTunnelEntry(entry, rowBorder);
-            rowBorder.MouseEnter += (_, _) =>
-            {
-                if (_selectedTunnel != entry)
-                    rowBorder.Background = (System.Windows.Media.Brush)FindResource("ListHover");
-            };
-            rowBorder.MouseLeave += (_, _) =>
-            {
-                if (_selectedTunnel != entry)
-                    rowBorder.Background = System.Windows.Media.Brushes.Transparent;
+                _activeGroupTab = capturedKey;
+                _selectedTunnel = null;
+                RebuildTunnelGroups();
             };
 
-            // Track border for selection highlight
-            _tunnelRowBorders[entry] = rowBorder;
-            return rowBorder;
+            TunnelTabButtons.Children.Add(btn);
         }
 
-        // Selection tracking for the grouped panel
+        private void ApplyActiveTab(Dictionary<string, List<TunnelEntry>> buckets)
+        {
+            List<TunnelEntry> visible;
+            if (_activeGroupTab == "__ALL__")
+                visible = _tunnels.ToList();
+            else if (buckets.TryGetValue(_activeGroupTab, out var b))
+                visible = b;
+            else
+                visible = new List<TunnelEntry>();
+
+            // Swap the ListView source in-place
+            TunnelsListView.ItemsSource = new System.Collections.ObjectModel.ObservableCollection<TunnelEntry>(visible);
+            TunnelsListView_SelectionChanged(this, null!);
+        }
+
+        // Selection tracking for the grouped panel (kept for Edit/Delete toolbar sync)
         private readonly Dictionary<TunnelEntry, System.Windows.Controls.Border> _tunnelRowBorders = new();
 
         private void SelectTunnelEntry(TunnelEntry entry, System.Windows.Controls.Border? rowBorder = null)
         {
-            // Clear previous selection highlight
-            if (_selectedTunnel != null && _tunnelRowBorders.TryGetValue(_selectedTunnel, out var prev))
-                prev.Background = System.Windows.Media.Brushes.Transparent;
-
             _selectedTunnel = entry;
-            if (rowBorder != null)
-                rowBorder.Background = (System.Windows.Media.Brush)FindResource("ListSelected");
-
-            // Refresh toolbar buttons
             TunnelsListView_SelectionChanged(this, null!);
         }
 

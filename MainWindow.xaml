@@ -207,6 +207,7 @@
                     <Grid Grid.Column="0" x:Name="LeftTunnelGrid">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="2*" MinHeight="80"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="10"/>
@@ -216,7 +217,7 @@
                         </Grid.RowDefinitions>
 
                         <!-- Tunnels header + count badge -->
-                        <Grid Grid.Row="0" Margin="0,0,0,6">
+                        <Grid Grid.Row="0" Margin="0,0,0,4">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
@@ -235,16 +236,70 @@
                             </Border>
                         </Grid>
 
-                        <ScrollViewer Grid.Row="1"
-                                      VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled">
-                            <ItemsControl x:Name="TunnelGroupsPanel">
-                                <!-- Groups are built in code-behind by RebuildTunnelGroups() -->
-                            </ItemsControl>
-                        </ScrollViewer>
+                        <!-- Group tab strip — rebuilt by RebuildTunnelGroups() -->
+                        <Border Grid.Row="1"
+                                Background="{DynamicResource Surface}"
+                                BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1"
+                                Margin="0,0,0,0">
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Disabled">
+                                <StackPanel x:Name="TunnelTabButtons"
+                                            Orientation="Horizontal"/>
+                            </ScrollViewer>
+                        </Border>
+
+                        <!-- The active-tab ListView — ItemsSource swapped by RebuildTunnelGroups -->
+                        <ListView Grid.Row="2" x:Name="TunnelsListView"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                  SelectionChanged="TunnelsListView_SelectionChanged">
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Header="{Binding [TunnelColName], Source={x:Static local:Lang.Instance}}" Width="150">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}"
+                                                           Foreground="{Binding NameColor}"
+                                                           TextDecorations="{Binding NameDecoration}"
+                                                           FontSize="11"
+                                                           ToolTip="{Binding Notes}"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="{Binding [TunnelColType], Source={x:Static local:Lang.Instance}}" Width="65">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding TypeLabel}"
+                                                           Foreground="{Binding TypeColor}"
+                                                           FontSize="10"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="{Binding [TunnelColStatus], Source={x:Static local:Lang.Instance}}" Width="90">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding StatusText}"
+                                                           Foreground="{Binding StatusColor}" FontSize="11"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn Header="{Binding [TunnelColAction], Source={x:Static local:Lang.Instance}}" Width="90">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Button Content="{Binding ButtonLabel}"
+                                                        IsEnabled="{Binding ButtonEnabled}"
+                                                        ToolTip="{Binding ButtonTooltip}"
+                                                        Click="TunnelToggle_Click"
+                                                        Padding="8,2" FontSize="10"
+                                                        Style="{StaticResource FlatBtn}"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
 
                         <!-- Tunnel management buttons -->
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,6,0,0">
                             <Button Content="{Binding [BtnAddTunnel], Source={x:Static local:Lang.Instance}}"
                                     x:Name="AddTunnelBtn"
                                     Style="{StaticResource SuccessBtn}" FontSize="10" Padding="10,3"
@@ -264,7 +319,7 @@
                         </StackPanel>
 
                         <!-- Rules panel — hidden in manual mode -->
-                        <Grid Grid.Row="4" Grid.RowSpan="3" x:Name="RulesPanel">
+                        <Grid Grid.Row="5" Grid.RowSpan="3" x:Name="RulesPanel">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
