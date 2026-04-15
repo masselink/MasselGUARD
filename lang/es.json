@@ -257,8 +257,6 @@
   "TunnelDialogNotes": "Notas",
   "TunnelDialogNotesHint": "Opcional. Se muestra como tooltip en el nombre del túnel.",
   "TunnelDialogGroup": "Grupo",
-<<<<<<< Updated upstream
-=======
   "TunnelDialogTabScripts": "Scripts",
   "TunnelScriptsHeader": "Scripts",
   "TunnelScriptsInfo": "Ejecute un archivo .bat o .ps1 (o incruste un script) antes o después de conectar/desconectar un túnel.",
@@ -268,7 +266,6 @@
   "TunnelScriptPostDisconnect": "Después de desconectar",
   "TunnelScriptBrowseTitle": "Seleccionar archivo de script",
   "BtnEmbed": "Incrustar",
->>>>>>> Stashed changes
   "SettingsSectionGroups": "GRUPOS DE TÚNELES",
   "SettingsGroupsDesc": "Organiza los túneles en secciones desplegables. Usa ↑↓ para reordenar.",
   "BtnAddGroup": "＋ Añadir",

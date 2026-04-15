@@ -257,8 +257,6 @@
   "TunnelDialogNotes": "Notes",
   "TunnelDialogNotesHint": "Optional. Shown as a tooltip on the tunnel name.",
   "TunnelDialogGroup": "Group",
-<<<<<<< Updated upstream
-=======
   "TunnelDialogTabScripts": "Scripts",
   "TunnelScriptsHeader": "Scripts",
   "TunnelScriptsInfo": "Run a .bat or .ps1 file (or embed a script inline) before or after a tunnel connects or disconnects. Scripts run as the current user. Exit code 0 = success.",
@@ -268,7 +266,6 @@
   "TunnelScriptPostDisconnect": "After disconnect",
   "TunnelScriptBrowseTitle": "Select script file",
   "BtnEmbed": "Embed",
->>>>>>> Stashed changes
   "SettingsSectionGroups": "TUNNEL GROUPS",
   "SettingsGroupsDesc": "Organise tunnels into collapsible sections. Drag ↑↓ to reorder. Tunnels not assigned to a group appear under Ungrouped.",
   "BtnAddGroup": "＋ Add",

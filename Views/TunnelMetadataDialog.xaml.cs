@@ -1,8 +1,5 @@
 using System.Collections.Generic;
-<<<<<<< Updated upstream
-=======
 using System.IO;
->>>>>>> Stashed changes
 using System.Windows;
 using System.Windows.Input;
 
@@ -10,17 +7,6 @@ namespace MasselGUARD.Views
 {
     public partial class TunnelMetadataDialog : Window
     {
-<<<<<<< Updated upstream
-        public string ResultGroup { get; private set; } = "";
-        public string ResultNotes { get; private set; } = "";
-
-        public TunnelMetadataDialog(string tunnelName, string currentGroup,
-                                    string currentNotes, List<string> groups)
-        {
-            InitializeComponent();
-
-            DialogTitle.Text    = Lang.T("TunnelMetadataTitle");
-=======
         public string ResultGroup              { get; private set; } = "";
         public string ResultNotes              { get; private set; } = "";
         public string ResultPreConnectScript   { get; private set; } = "";
@@ -36,16 +22,10 @@ namespace MasselGUARD.Views
             InitializeComponent();
 
             DialogTitle.Text     = Lang.T("TunnelMetadataTitle");
->>>>>>> Stashed changes
             TunnelNameLabel.Text = tunnelName;
             NotesBox.Text        = currentNotes;
 
             // Populate group picker
-<<<<<<< Updated upstream
-            GroupPicker.Items.Add("");          // (none / ungrouped)
-            foreach (var g in groups) GroupPicker.Items.Add(g);
-            GroupPicker.SelectedItem = string.IsNullOrEmpty(currentGroup) ? "" : currentGroup;
-=======
             GroupPicker.Items.Add("");
             foreach (var g in groups) GroupPicker.Items.Add(g);
             GroupPicker.SelectedItem = string.IsNullOrEmpty(currentGroup) ? "" : currentGroup;
@@ -55,29 +35,21 @@ namespace MasselGUARD.Views
             PostConnectBox.Text   = postConnect;
             PreDisconnectBox.Text = preDisconnect;
             PostDisconnectBox.Text = postDisconnect;
->>>>>>> Stashed changes
         }
 
         private void SaveBtn_Click(object sender, RoutedEventArgs e)
         {
-<<<<<<< Updated upstream
-            ResultGroup  = GroupPicker.SelectedItem as string ?? "";
-            ResultNotes  = NotesBox.Text.Trim();
-=======
             ResultGroup               = GroupPicker.SelectedItem as string ?? "";
             ResultNotes               = NotesBox.Text.Trim();
             ResultPreConnectScript    = PreConnectBox.Text.Trim();
             ResultPostConnectScript   = PostConnectBox.Text.Trim();
             ResultPreDisconnectScript  = PreDisconnectBox.Text.Trim();
             ResultPostDisconnectScript = PostDisconnectBox.Text.Trim();
->>>>>>> Stashed changes
             DialogResult = true;
         }
 
         private void CancelBtn_Click(object sender, RoutedEventArgs e) => Close();
 
-<<<<<<< Updated upstream
-=======
         private void BrowseScript(System.Windows.Controls.TextBox pathBox)
         {
             var dlg = new Microsoft.Win32.OpenFileDialog
@@ -96,7 +68,6 @@ namespace MasselGUARD.Views
         private void BrowsePreDisconnect_Click(object sender, RoutedEventArgs e)  => BrowseScript(PreDisconnectBox);
         private void BrowsePostDisconnect_Click(object sender, RoutedEventArgs e) => BrowseScript(PostDisconnectBox);
 
->>>>>>> Stashed changes
         private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (e.LeftButton == MouseButtonState.Pressed) DragMove();

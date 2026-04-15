@@ -10,11 +10,6 @@ namespace MasselGUARD.Views
 {
     public partial class TunnelConfigDialog : Window
     {
-<<<<<<< Updated upstream
-        public string? ResultName   { get; private set; }
-        public string? ResultConfig { get; private set; }
-        public string  ResultGroup  { get; private set; } = "";
-=======
         public string? ResultName              { get; private set; }
         public string? ResultConfig            { get; private set; }
         public string  ResultGroup             { get; private set; } = "";
@@ -22,18 +17,13 @@ namespace MasselGUARD.Views
         public string  ResultPostConnectScript { get; private set; } = "";
         public string  ResultPreDisconnectScript  { get; private set; } = "";
         public string  ResultPostDisconnectScript { get; private set; } = "";
->>>>>>> Stashed changes
 
         private readonly string? _originalName;
 
         public TunnelConfigDialog(string? existingName = null, string? existingConfig = null,
-<<<<<<< Updated upstream
-                                  string? existingGroup = null)
-=======
                                   string? existingGroup = null,
                                   string? preConnect = null, string? postConnect = null,
                                   string? preDisconnect = null, string? postDisconnect = null)
->>>>>>> Stashed changes
         {
             InitializeComponent();
             _originalName = existingName;
@@ -57,24 +47,17 @@ namespace MasselGUARD.Views
 
             // Populate group picker from AppConfig
             GroupPicker.Items.Clear();
-<<<<<<< Updated upstream
-            GroupPicker.Items.Add("");  // (none)
-=======
             GroupPicker.Items.Add("");
->>>>>>> Stashed changes
             var groups = MainWindow.GetConfigStatic()?.TunnelGroups;
             if (groups != null)
                 foreach (var g in groups) GroupPicker.Items.Add(g.Name);
             GroupPicker.SelectedItem = existingGroup ?? "";
-<<<<<<< Updated upstream
-=======
 
             // Load script fields
             LoadScript(PreConnectBox,     PreConnectEmbedBox,     PreConnectEmbed,     preConnect);
             LoadScript(PostConnectBox,    PostConnectEmbedBox,    PostConnectEmbed,    postConnect);
             LoadScript(PreDisconnectBox,  PreDisconnectEmbedBox,  PreDisconnectEmbed,  preDisconnect);
             LoadScript(PostDisconnectBox, PostDisconnectEmbedBox, PostDisconnectEmbed, postDisconnect);
->>>>>>> Stashed changes
         }
 
         // ── Load config into form fields ─────────────────────────────────────
@@ -200,13 +183,10 @@ namespace MasselGUARD.Views
             ResultName   = name;
             ResultConfig = TabRaw.IsSelected ? RawBox.Text : BuildConfigFromFields();
             ResultGroup  = GroupPicker.SelectedItem as string ?? "";
-<<<<<<< Updated upstream
-=======
             ResultPreConnectScript     = CaptureScript(PreConnectBox,     PreConnectEmbedBox,     PreConnectEmbed);
             ResultPostConnectScript    = CaptureScript(PostConnectBox,    PostConnectEmbedBox,    PostConnectEmbed);
             ResultPreDisconnectScript  = CaptureScript(PreDisconnectBox,  PreDisconnectEmbedBox,  PreDisconnectEmbed);
             ResultPostDisconnectScript = CaptureScript(PostDisconnectBox, PostDisconnectEmbedBox, PostDisconnectEmbed);
->>>>>>> Stashed changes
             DialogResult = true;
         }
 

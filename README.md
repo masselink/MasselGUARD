@@ -5,11 +5,7 @@
 MasselGUARD sits in the system tray and watches your WiFi. When you connect to a known network it activates the right WireGuard tunnel automatically. When you leave, or land on an unknown network, a configurable default action fires — disconnect all tunnels, switch to a fallback, or do nothing. It also works as a pure manual client when automation is not wanted.
 
 > **Detailed documentation** → [`docs/MasselGUARD.md`](docs/MasselGUARD.md)  
-<<<<<<< Updated upstream
-> **Version history** → [`docs/changelog.md`](docs/changelog.md)
-=======
 > **Version history** → [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md)
->>>>>>> Stashed changes
 
 ---
 

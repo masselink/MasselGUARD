@@ -1316,14 +1316,11 @@ namespace MasselGUARD
                 if (!string.IsNullOrEmpty(err)) LastError = err;
                 try { var f = SvcConfPath(tunnel); if (File.Exists(f)) File.Delete(f); } catch { }
                 LogRaw($"  [DBG] Disconnected in {sw.ElapsedMilliseconds} ms", LogLevel.Debug);
-<<<<<<< Updated upstream
-=======
 
                 // ── Post-disconnect script ────────────────────────────────────
                 if (!string.IsNullOrEmpty(stored?.PostDisconnectScript))
                     RunTunnelScript(stored.PostDisconnectScript, "post-disconnect", tunnel);
 
->>>>>>> Stashed changes
                 return true;
             }
 
@@ -1338,14 +1335,11 @@ namespace MasselGUARD
                 svc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(15));
                 sw.Stop();
                 LogRaw($"  [DBG] Service stopped in {sw.ElapsedMilliseconds} ms", LogLevel.Debug);
-<<<<<<< Updated upstream
-=======
 
                 // ── Post-disconnect script ────────────────────────────────────
                 if (!string.IsNullOrEmpty(stored?.PostDisconnectScript))
                     RunTunnelScript(stored.PostDisconnectScript, "post-disconnect", tunnel);
 
->>>>>>> Stashed changes
                 return true;
             }
             catch (Exception ex)
@@ -1868,13 +1862,9 @@ namespace MasselGUARD
         // ── Tunnel CRUD ───────────────────────────────────────────────────────
 
         private void SaveTunnelConfig(string name, string config,
-<<<<<<< Updated upstream
-            string source = "local", string? filePath = null, string group = "")
-=======
             string source = "local", string? filePath = null, string group = "",
             string preConnect = "", string postConnect = "",
             string preDisconnect = "", string postDisconnect = "")
->>>>>>> Stashed changes
         {
             if (source == "local")
             {
@@ -1901,26 +1891,19 @@ namespace MasselGUARD
                 existing.Source  = source;
                 existing.Path    = filePath;
                 existing.Group   = group;
-<<<<<<< Updated upstream
-=======
                 existing.PreConnectScript     = preConnect;
                 existing.PostConnectScript    = postConnect;
                 existing.PreDisconnectScript  = preDisconnect;
                 existing.PostDisconnectScript = postDisconnect;
->>>>>>> Stashed changes
             }
             else
             {
                 _cfg.Tunnels.Add(new StoredTunnel
-<<<<<<< Updated upstream
-                    { Name = name, Config = config, Source = source, Path = filePath, Group = group });
-=======
                 {
                     Name = name, Config = config, Source = source, Path = filePath, Group = group,
                     PreConnectScript = preConnect, PostConnectScript = postConnect,
                     PreDisconnectScript = preDisconnect, PostDisconnectScript = postDisconnect,
                 });
->>>>>>> Stashed changes
             }
             SaveConfig($"Tunnel saved: {name}");
         }
@@ -2010,13 +1993,9 @@ namespace MasselGUARD
         {
             var dlg = new Views.TunnelConfigDialog { Owner = this };
             if (dlg.ShowDialog() != true) return;
-<<<<<<< Updated upstream
-            SaveTunnelConfig(dlg.ResultName!, dlg.ResultConfig!, group: dlg.ResultGroup);
-=======
             SaveTunnelConfig(dlg.ResultName!, dlg.ResultConfig!, group: dlg.ResultGroup,
                 preConnect: dlg.ResultPreConnectScript, postConnect: dlg.ResultPostConnectScript,
                 preDisconnect: dlg.ResultPreDisconnectScript, postDisconnect: dlg.ResultPostDisconnectScript);
->>>>>>> Stashed changes
             Log("TunnelSavedLog", LogLevel.Ok, dlg.ResultName!);
             RefreshTunnelDropdowns();
         }
@@ -2036,40 +2015,27 @@ namespace MasselGUARD
                     entry.Name,
                     stored?.Group ?? "",
                     stored?.Notes ?? "",
-<<<<<<< Updated upstream
-                    _cfg.TunnelGroups.Select(g => g.Name).ToList())
-=======
                     _cfg.TunnelGroups.Select(g => g.Name).ToList(),
                     stored?.PreConnectScript    ?? "",
                     stored?.PostConnectScript   ?? "",
                     stored?.PreDisconnectScript ?? "",
                     stored?.PostDisconnectScript ?? "")
->>>>>>> Stashed changes
                 { Owner = this };
 
                 if (mdlg.ShowDialog() != true) return;
 
-<<<<<<< Updated upstream
-                // Ensure a StoredTunnel record exists for this WG tunnel
-=======
->>>>>>> Stashed changes
                 if (stored == null)
                 {
                     stored = new StoredTunnel
                         { Name = entry.Name, Source = "wireguard", Path = entry.Name };
                     _cfg.Tunnels.Add(stored);
                 }
-<<<<<<< Updated upstream
-                stored.Group = mdlg.ResultGroup;
-                stored.Notes = mdlg.ResultNotes;
-=======
                 stored.Group                = mdlg.ResultGroup;
                 stored.Notes                = mdlg.ResultNotes;
                 stored.PreConnectScript     = mdlg.ResultPreConnectScript;
                 stored.PostConnectScript    = mdlg.ResultPostConnectScript;
                 stored.PreDisconnectScript  = mdlg.ResultPreDisconnectScript;
                 stored.PostDisconnectScript = mdlg.ResultPostDisconnectScript;
->>>>>>> Stashed changes
                 SaveConfig($"Tunnel metadata updated: {entry.Name}");
                 Log("TunnelSavedLog", LogLevel.Ok, entry.Name);
                 RefreshTunnelDropdowns();
@@ -2077,11 +2043,6 @@ namespace MasselGUARD
             }
 
             // Local tunnel — full editor
-<<<<<<< Updated upstream
-            var config       = LoadTunnelConfig(entry.Name);
-            var existingGroup = stored?.Group ?? "";
-            var dlg = new Views.TunnelConfigDialog(entry.Name, config, existingGroup) { Owner = this };
-=======
             var config        = LoadTunnelConfig(entry.Name);
             var existingGroup = stored?.Group ?? "";
             var dlg = new Views.TunnelConfigDialog(
@@ -2091,19 +2052,14 @@ namespace MasselGUARD
                 stored?.PreDisconnectScript ?? "",
                 stored?.PostDisconnectScript ?? "")
             { Owner = this };
->>>>>>> Stashed changes
             if (dlg.ShowDialog() != true) return;
 
             if (!string.Equals(dlg.ResultName, entry.Name, StringComparison.OrdinalIgnoreCase))
                 DeleteTunnelConfig(entry.Name);
 
-<<<<<<< Updated upstream
-            SaveTunnelConfig(dlg.ResultName!, dlg.ResultConfig!, group: dlg.ResultGroup);
-=======
             SaveTunnelConfig(dlg.ResultName!, dlg.ResultConfig!, group: dlg.ResultGroup,
                 preConnect: dlg.ResultPreConnectScript, postConnect: dlg.ResultPostConnectScript,
                 preDisconnect: dlg.ResultPreDisconnectScript, postDisconnect: dlg.ResultPostDisconnectScript);
->>>>>>> Stashed changes
             Log("TunnelSavedLog", LogLevel.Ok, dlg.ResultName!);
             RefreshTunnelDropdowns();
         }

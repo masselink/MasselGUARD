@@ -257,8 +257,6 @@
   "TunnelDialogNotes": "Notizen",
   "TunnelDialogNotesHint": "Optional. Wird als Tooltip am Tunnelnamen angezeigt.",
   "TunnelDialogGroup": "Gruppe",
-<<<<<<< Updated upstream
-=======
   "TunnelDialogTabScripts": "Skripte",
   "TunnelScriptsHeader": "Skripte",
   "TunnelScriptsInfo": "Führen Sie eine .bat- oder .ps1-Datei aus (oder betten Sie ein Skript ein) vor oder nach dem Verbinden/Trennen eines Tunnels.",
@@ -268,7 +266,6 @@
   "TunnelScriptPostDisconnect": "Nach Trennung",
   "TunnelScriptBrowseTitle": "Skriptdatei auswählen",
   "BtnEmbed": "Einbetten",
->>>>>>> Stashed changes
   "SettingsSectionGroups": "TUNNELGRUPPEN",
   "SettingsGroupsDesc": "Tunnel in ausklappbare Abschnitte einteilen. Mit ↑↓ sortieren.",
   "BtnAddGroup": "＋ Hinzufügen",

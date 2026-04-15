@@ -79,8 +79,6 @@
                            FontFamily="{DynamicResource Theme.FontFamily}"
                            FontSize="9" Foreground="{DynamicResource TextMuted}"
                            Margin="0,0,0,14"/>
-<<<<<<< Updated upstream
-=======
 
                 <!-- Scripts section -->
                 <TextBlock Text="{Binding [TunnelScriptsHeader], Source={x:Static local:Lang.Instance}}"
@@ -156,7 +154,6 @@
                             Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,4"
                             Margin="4,0,0,0" Click="BrowsePostDisconnect_Click"/>
                 </Grid>
->>>>>>> Stashed changes
             </StackPanel>
 
             <!-- Button bar -->
