@@ -461,33 +461,30 @@
 
                         </Grid>
 
-                        <!-- Pinned bottom buttons — same margin and height as left panel -->
-                        <Border Grid.Row="3" Margin="0,6,0,0" MinHeight="28">
-                            <Grid>
-                                <!-- Rules buttons -->
-                                <StackPanel x:Name="RulesButtonBar"
-                                            Orientation="Horizontal" Visibility="Collapsed">
-                                    <Button Content="{Binding [BtnAddRule], Source={x:Static local:Lang.Instance}}"
-                                            Style="{StaticResource SuccessBtn}" FontSize="10" Padding="10,3"
-                                            Click="AddRule_Click"/>
-                                    <Button Content="{Binding [BtnEditRule], Source={x:Static local:Lang.Instance}}"
-                                            Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
-                                            Margin="6,0,0,0" Click="EditRule_Click"
-                                            x:Name="EditBtn" IsEnabled="False"/>
-                                    <Button Content="{Binding [BtnDeleteRule], Source={x:Static local:Lang.Instance}}"
-                                            Style="{StaticResource DangerBtn}" FontSize="10" Padding="10,3"
-                                            Margin="6,0,0,0" Click="DeleteRule_Click"
-                                            x:Name="DeleteBtn" IsEnabled="False"/>
-                                </StackPanel>
-                                <!-- Log export button -->
-                                <StackPanel x:Name="LogButtonBar"
-                                            Orientation="Horizontal" Visibility="Visible">
-                                    <Button Content="{Binding [BtnExportLog], Source={x:Static local:Lang.Instance}}"
-                                            Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
-                                            Click="ExportLog_Click"/>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
+                        <Grid Grid.Row="3" Margin="0,6,0,0" MinHeight="28">
+                            <!-- Rules buttons -->
+                            <StackPanel x:Name="RulesButtonBar"
+                                        Orientation="Horizontal" Visibility="Collapsed">
+                                <Button Content="{Binding [BtnAddRule], Source={x:Static local:Lang.Instance}}"
+                                        Style="{StaticResource SuccessBtn}" FontSize="10" Padding="10,3"
+                                        Click="AddRule_Click"/>
+                                <Button Content="{Binding [BtnEditRule], Source={x:Static local:Lang.Instance}}"
+                                        Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                        Margin="6,0,0,0" Click="EditRule_Click"
+                                        x:Name="EditBtn" IsEnabled="False"/>
+                                <Button Content="{Binding [BtnDeleteRule], Source={x:Static local:Lang.Instance}}"
+                                        Style="{StaticResource DangerBtn}" FontSize="10" Padding="10,3"
+                                        Margin="6,0,0,0" Click="DeleteRule_Click"
+                                        x:Name="DeleteBtn" IsEnabled="False"/>
+                            </StackPanel>
+                            <!-- Log export button -->
+                            <StackPanel x:Name="LogButtonBar"
+                                        Orientation="Horizontal" Visibility="Visible">
+                                <Button Content="{Binding [BtnExportLog], Source={x:Static local:Lang.Instance}}"
+                                        Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                        Click="ExportLog_Click"/>
+                            </StackPanel>
+                        </Grid>
 
                     </Grid>
                 </Grid>

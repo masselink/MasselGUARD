@@ -1,6 +1,30 @@
-# MasselGUARD — Changelog
+# MasselGUARD — Release Notes
 
 All notable changes are documented here. The most recent release is at the top.
+
+---
+
+## v2.3.1
+
+### Features
+
+**Colour-blind themes**
+Two new built-in themes using the IBM colour-blind safe palette (distinguishable for deuteranopia, protanopia and tritanopia): `colorblind-dark` and `colorblind-light`. Accent colour: #648FFF (blue), success/warning: #FFB000 (gold), danger/error: #DC267F (magenta).
+
+**Language picker redesign**
+The language picker now shows a styled `[XX]` code badge (accent colour, Consolas font) next to the language name — replacing flag emoji which render as plain text pairs (e.g. "GB") in WPF on Windows.
+
+### Bug fixes
+
+- **Right panel empty-state background** — when Default Action or Open Network tabs were active, the button row area below the content had a different background shade than the left panel. Fixed by replacing the `Border`/`Grid` wrapper with a direct `Grid` matching the left panel's structure.
+- **Right panel top gap** — 8 px `Margin` on the content grid caused a visible gap between the tab strip and content on the right side. Removed.
+- **Shield not showing after logo-theme switch** — switching away from a theme with a `logo` to one without left `HasBuiltinIcon = Collapsed` permanently. Fixed: `ApplyLogo` now always sets `HasBuiltinIcon = Visible` in the no-logo path.
+- **`AppIcon` scope** — `appIcon` previously also showed an extra image in the title bar. Clarified: `appIcon` affects only the tray icon and `Window.Icon` (taskbar). The title bar shows `logo` or the built-in shield only.
+- **Tunnel name colours not updating on theme switch** — `NameColor` and `TypeColor` did not raise `PropertyChanged` on theme change. `RefreshLabels()` now fires these and `StatusColor`, and is called on all tunnel entries from `UpdateThemeToggleIcon()`.
+- **`LogLevelInfo` / `LogLevelVerbose` missing translations** — keys were referenced in Settings but never added to any lang file. Added to all 5 languages.
+- **Double code badge in language picker** — `_language` in JSON already contains the ISO code; `LangItem.Display` was prepending it again. Now uses `Name` directly.
+- **`CharacterSpacing` MC3072** — WinUI-only property removed from WPF XAML.
+- **Bottom button row colour mismatch** — `Border` + `Grid` wrapper was removed; replaced with a plain `Grid` matching the left side.
 
 ---
 

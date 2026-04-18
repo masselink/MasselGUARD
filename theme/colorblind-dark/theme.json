@@ -1,0 +1,39 @@
+{
+  "name": "Colour-Blind Dark",
+  "type": "dark",
+  "creator": "MasselGUARD",
+  "description": "Dark theme using the IBM colour-blind safe palette. Distinguishable for deuteranopia, protanopia and tritanopia.",
+
+  "appName": "MasselGUARD",
+  "fontFamily": "Segoe UI",
+  "fontSize": 12,
+  "cornerRadius": 6,
+
+  "colorWindowBg":     "#0A0E1A",
+  "colorSurface":      "#13192B",
+  "colorCard":         "#1C233A",
+  "colorBorder":       "#2A3550",
+  "colorAccent":       "#648FFF",
+  "colorSuccess":      "#FFB000",
+  "colorDanger":       "#DC267F",
+  "colorTextPrimary":  "#E8EAF0",
+  "colorTextMuted":    "#8892AA",
+  "colorHighlight":    "#1E3060",
+  "colorError":        "#DC267F",
+  "colorErrorBg":      "#2E0D1E",
+  "colorWarning":      "#FFB000",
+  "colorWarningBg":    "#2B2000",
+  "colorListHover":    "#161D32",
+  "colorListSelected": "#1A2E5A",
+
+  "backgroundImage":   "",
+  "backgroundStretch": "stretch",
+  "backgroundOpacity": 1.0,
+
+  "appIcon":    "",
+  "logo":       "",
+  "logoWidth":  28,
+  "logoHeight": 28,
+
+  "variables": {}
+}

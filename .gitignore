@@ -8,7 +8,3 @@ deps/
 bin/
 obj/
 *.user
-
-# DLLs placed next to the project for local dev
-tunnel.dll
-wireguard.dll

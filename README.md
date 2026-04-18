@@ -60,7 +60,7 @@ Both modes active simultaneously — manage standalone local tunnels and automat
 ### Themes
 | | |
 |---|---|
-| **Built-in themes** | Default Dark, Default Light, Grey Dark (sharp corners), Grey Light (sharp corners). |
+| **Built-in themes** | Default Dark, Default Light, Grey Dark (sharp corners), Grey Light (sharp corners), Colour-Blind Dark, Colour-Blind Light. |
 | **Custom themes** | Drop a `theme.json` folder next to the exe. Full colour palette, corner radius, font, window opacity, title bar chrome, status bar visibility, custom logo, tray menu colours. |
 | **Auto-switching** | Follows Windows dark/light system preference automatically. |
 | **Hot-swap** | Themes apply instantly without restart. |

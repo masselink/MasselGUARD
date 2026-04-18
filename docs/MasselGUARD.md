@@ -378,6 +378,8 @@ Themes live in `theme/<folder>/theme.json`. MasselGUARD ships with four:
 | `default-light` | light | 6 px |
 | `grey-dark` | dark | 0 px (sharp) |
 | `grey-light` | light | 0 px (sharp) |
+| `colorblind-dark` | dark | 6 px |
+| `colorblind-light` | light | 6 px |
 
 ### theme.json keys
 
