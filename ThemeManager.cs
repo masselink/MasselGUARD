@@ -162,6 +162,10 @@ namespace MasselGUARD
             SetBrush(res, "ListHover",     d.ColorListHover);
             SetBrush(res, "ListSelected",  d.ColorListSelected);
 
+            // Log timestamp colour — falls back to colorBorder if not set in theme
+            var tsHex = !string.IsNullOrWhiteSpace(d.ColorLogTimestamp) ? d.ColorLogTimestamp : d.ColorBorder;
+            res["Theme.LogTimestampColor"] = ParseColor(tsHex, Colors.Gray);
+
             // Typography
             res["Theme.FontFamily"]         = new FontFamily(d.FontFamily);
             res["Theme.FontSize"]           = d.FontSize;
@@ -478,7 +482,9 @@ namespace MasselGUARD
         public string ColorWarning      { get; set; } = "#D29922";
         public string ColorWarningBg    { get; set; } = "#3D2A0A";
         public string ColorListHover    { get; set; } = "#141A22";
-        public string ColorListSelected { get; set; } = "#0D2748";
+        public string ColorListSelected    { get; set; } = "#0D2748";
+        /// <summary>Timestamp colour in the activity log. Defaults to colorBorder if not set.</summary>
+        public string ColorLogTimestamp    { get; set; } = "";
 
         // ── Background image ──────────────────────────────────────────────────
         public string BackgroundImage   { get; set; } = "";

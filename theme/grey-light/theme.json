@@ -44,5 +44,6 @@
   "colorTrayHover": "",
   "colorTrayText": "",
   "colorTrayBorder": "",
-  "colorTrayImageMargin": ""
+  "colorTrayImageMargin": "",
+  "colorLogTimestamp": "#888888"
 }

@@ -69,11 +69,11 @@
             <!-- Buttons -->
             <Border Grid.Row="2" Background="{DynamicResource WindowBg}" CornerRadius="{DynamicResource Theme.CornerRadiusBottom}">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
-                            Margin="0,0,16,0" VerticalAlignment="Center">
+                            Margin="0,8,16,8" VerticalAlignment="Center">
                     <Button Content="{Binding [BtnCancel], Source={x:Static local:Lang.Instance}}"
                             Style="{StaticResource FlatBtn}"
                             Margin="0,0,8,0" Click="Cancel_Click"/>
-                    <Button Content="{Binding [BtnSaveRule], Source={x:Static local:Lang.Instance}}"
+                    <Button Content="{Binding [BtnOk], Source={x:Static local:Lang.Instance}}"
                             Style="{StaticResource PrimaryBtn}"
                             Click="Save_Click"/>
                 </StackPanel>

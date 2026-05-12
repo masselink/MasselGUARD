@@ -1,14 +1,14 @@
 using System;
 using System.Windows;
 using System.Windows.Media;
-
+using System.Threading.Tasks;
 namespace MasselGUARD.Views
 {
     public partial class WizardWindow : Window
     {
         private readonly MainWindow _main;
         private int   _step      = 0;
-        private const int TotalSteps = 5;   // steps 0-4
+        private const int TotalSteps = 6;   // steps 0–5
 
         // Deferred values — only applied on Finish
         private string _pendingLang = "";
@@ -18,12 +18,11 @@ namespace MasselGUARD.Views
             InitializeComponent();
             _main = main;
 
-            // Populate language picker
+            // Populate language picker with DataTemplate (code badge + name)
             foreach (var (code, name) in Lang.AvailableLanguages())
                 WizLangPicker.Items.Add(new LangItem(code, name));
-            WizLangPicker.DisplayMemberPath = "Name";
             foreach (LangItem item in WizLangPicker.Items)
-                if (item.Code == Lang.Instance.CurrentCode)
+                if (string.Equals(item.Code, Lang.Instance.CurrentCode, StringComparison.OrdinalIgnoreCase))
                 { WizLangPicker.SelectedItem = item; break; }
 
             // Pre-select current values (display only — not applied until Finish)
@@ -48,8 +47,9 @@ namespace MasselGUARD.Views
             Step2.Visibility = step == 2 ? Visibility.Visible : Visibility.Collapsed;
             Step3.Visibility = step == 3 ? Visibility.Visible : Visibility.Collapsed;
             Step4.Visibility = step == 4 ? Visibility.Visible : Visibility.Collapsed;
+            Step5.Visibility = step == 5 ? Visibility.Visible : Visibility.Collapsed;
 
-            var dots   = new[] { Dot0, Dot1, Dot2, Dot3, Dot4 };
+            var dots   = new[] { Dot0, Dot1, Dot2, Dot3, Dot4, Dot5 };
             var accent = (SolidColorBrush)FindResource("Accent");
             var dim    = (SolidColorBrush)FindResource("BorderColor");
             for (int i = 0; i < dots.Length; i++)
@@ -63,6 +63,49 @@ namespace MasselGUARD.Views
                 ? Visibility.Collapsed : Visibility.Visible;
 
             if (step == 2) RefreshModeStatus();
+            if (step == 5) RefreshWizardAbout();
+        }
+
+        // ── About panel (shown on Done step) ─────────────────────────────────
+        private void RefreshWizardAbout()
+        {
+            var cfg     = _main.GetConfig();
+            var current = UpdateChecker.CurrentVersionString;
+            WizVersionLabel.Text      = Lang.T("AppTitle") + "  v" + current;
+            WizCheckUpdateBtn.Content = Lang.T("BtnCheckUpdate");
+
+            if (!string.IsNullOrEmpty(cfg.LatestKnownVersion))
+            {
+                var latest = cfg.LatestKnownVersion;
+                WizUpdateStatusLabel.Text = string.Compare(current, latest, StringComparison.OrdinalIgnoreCase) >= 0
+                    ? Lang.T("SettingsUpdateCurrent", current)
+                    : Lang.T("SettingsUpdateAvailable", latest);
+            }
+            else
+            {
+                WizUpdateStatusLabel.Text = Lang.T("SettingsUpdateNever");
+            }
+
+            WizLastCheckedLabel.Text = cfg.LastUpdateCheck == default
+                ? ""
+                : Lang.T("SettingsUpdateLastChecked",
+                    cfg.LastUpdateCheck.ToLocalTime().ToString("g"));
+        }
+
+        private async void WizCheckUpdate_Click(object sender, RoutedEventArgs e)
+        {
+            WizCheckUpdateBtn.IsEnabled = false;
+            WizCheckUpdateBtn.Content   = Lang.T("SettingsUpdateChecking");
+            await UpdateChecker.CheckAsync(_main.GetConfig(), () => _main.SaveConfigPublic(), Dispatcher);
+            WizCheckUpdateBtn.IsEnabled = true;
+            RefreshWizardAbout();
+        }
+
+        private void WizGithubLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                "https://github.com/masselink/MasselGUARD") { UseShellExecute = true }); }
+            catch { }
         }
 
         // ── Mode status — shows DLL + WG readiness for selected mode ──────────

@@ -22,7 +22,7 @@ namespace MasselGUARD
     {
         private const string TagsApiUrl     = "https://api.github.com/repos/masselink/MasselGUARD/tags";
         private const string ReleasesApiUrl = "https://api.github.com/repos/masselink/MasselGUARD/releases";
-        private const string CurrentVersion = "2.3.1";  // keep in sync with AppTitle
+        private const string CurrentVersion = "2.5.0";  // keep in sync with AppTitle
 
         // ── Public: silent background check (called on startup) ──────────────
         public static async Task CheckAsync(AppConfig cfg, Action saveConfig,

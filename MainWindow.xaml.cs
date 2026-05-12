@@ -186,6 +186,7 @@ namespace MasselGUARD
     public class AppConfig
     {
         public List<TunnelRule>   Rules              { get; set; } = new();
+        /// <summary>LAN/Ethernet-specific rules. Each rule matches on AdapterFilter (adapter name or DNS suffix).</summary>
         public List<StoredTunnel> Tunnels            { get; set; } = new();
         /// <summary>User-defined tunnel groups. Order is preserved in the UI.</summary>
         public List<TunnelGroup>  TunnelGroups       { get; set; } = new()
@@ -358,12 +359,21 @@ namespace MasselGUARD
             return new SolidColorBrush(fallback);
         }
 
-        public static SolidColorBrush Accent      => Get("Accent",      Color.FromRgb(88,  166, 255));
-        public static SolidColorBrush Success     => Get("Success",     Color.FromRgb(63,  185,  80));
-        public static SolidColorBrush Danger      => Get("Danger",      Color.FromRgb(247, 129, 102));
-        public static SolidColorBrush TextPrimary => Get("TextPrimary", Color.FromRgb(230, 237, 243));
-        public static SolidColorBrush TextMuted   => Get("TextMuted",   Color.FromRgb(139, 148, 158));
-        public static SolidColorBrush Border      => Get("BorderColor", Color.FromRgb(48,   54,  61));
+        private static SolidColorBrush GetFromColor(string key, Color fallback)
+        {
+            var res = Application.Current?.Resources;
+            if (res?[key] is Color c) return new SolidColorBrush(c);
+            if (res?[key] is SolidColorBrush b) return b;
+            return new SolidColorBrush(fallback);
+        }
+
+        public static SolidColorBrush Accent        => Get("Accent",      Color.FromRgb(88,  166, 255));
+        public static SolidColorBrush Success       => Get("Success",     Color.FromRgb(63,  185,  80));
+        public static SolidColorBrush Danger        => Get("Danger",      Color.FromRgb(247, 129, 102));
+        public static SolidColorBrush TextPrimary   => Get("TextPrimary", Color.FromRgb(230, 237, 243));
+        public static SolidColorBrush TextMuted     => Get("TextMuted",   Color.FromRgb(139, 148, 158));
+        public static SolidColorBrush Border        => Get("BorderColor", Color.FromRgb(48,   54,  61));
+        public static SolidColorBrush LogTimestamp  => GetFromColor("Theme.LogTimestampColor", Color.FromRgb(48, 54, 61));
     }
 
     public partial class MainWindow : Window
@@ -375,14 +385,13 @@ namespace MasselGUARD
         private static AppConfig _cfg = new();
         private static bool _firstRun = false;   // set by LoadConfig when no config file exists
         private bool _startupComplete = false;   // suppress verbose discovery log after startup
-        private readonly ObservableCollection<TunnelRule>  _rules   = new();
+        private readonly ObservableCollection<TunnelRule>  _rules    = new();
         private readonly ObservableCollection<TunnelEntry> _tunnels = new();
         private string? _lastWifi;
         private TunnelEntry? _selectedTunnel;      // tracks selection across grouped panel
         private readonly DispatcherTimer _timer = new();
         private Ringlogger?              _ringlogger;
         private string                   _ringloggerTunnel = "";
-        private bool _loading = false;
 
         // WireGuard executable — derived from configured install directory
         private static string WgExe => _cfg.WgExePath;
@@ -575,7 +584,7 @@ namespace MasselGUARD
         public MainWindow()
         {
             InitializeComponent();
-            RulesListView.ItemsSource  = _rules;
+            // RulesListView now lives in SettingsWindow
 
             System.Windows.Application.Current.DispatcherUnhandledException += (s, e) =>
             {
@@ -597,7 +606,6 @@ namespace MasselGUARD
 
                 UpdateAdminLabel();
                 UpdateFooterLabel();
-                ShowRightTab("Log");    // initialise right panel — Log is default
                 var startedFrom = Environment.ProcessPath ?? AppContext.BaseDirectory;
 
                 // Startup summary — always logged at Info so it appears at default level
@@ -735,7 +743,7 @@ namespace MasselGUARD
             // extract the handle, create the BitmapSource, then destroy the handle manually.
             try
             {
-                var drawingIcon = TrayIconHelper.CreateIcon(false);
+                var drawingIcon = TrayIconHelper.CreateIcon(0);
                 var hIcon = drawingIcon.Handle;
                 Icon = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
                     hIcon,
@@ -848,7 +856,7 @@ namespace MasselGUARD
                 ? (SolidColorBrush)FindResource("Success")
                 : (SolidColorBrush)FindResource("TextMuted");
 
-            ((App)System.Windows.Application.Current).UpdateTrayStatus(TunnelLabel.Text, active.Count > 0);
+            ((App)System.Windows.Application.Current).UpdateTrayStatus(TunnelLabel.Text, active.Count);
             RefreshTunnelEntryStatuses();
             RefreshQuickConnectButton();
             RefreshWireGuardLogBtn();
@@ -1539,7 +1547,6 @@ namespace MasselGUARD
 
         private void LoadConfig()
         {
-            _loading = true;
             try
             {
                 if (File.Exists(ConfigPath))
@@ -1549,7 +1556,7 @@ namespace MasselGUARD
                 }
                 else
                 {
-                    _firstRun = true;   // no config found — show wizard after load
+                    _firstRun = true;
                 }
             }
             catch (Exception ex)
@@ -1562,19 +1569,7 @@ namespace MasselGUARD
                 _rules.Clear();
                 foreach (var r in _cfg.Rules) _rules.Add(r);
 
-                ActionNone.IsChecked     = false;
-                ActionDiscon.IsChecked   = false;
-                ActionActivate.IsChecked = false;
-                switch (_cfg.DefaultAction)
-                {
-                    case "disconnect": ActionDiscon.IsChecked   = true; break;
-                    case "activate":   ActionActivate.IsChecked = true; break;
-                    default:           ActionNone.IsChecked     = true; break;
-                }
-
                 RefreshTunnelDropdowns();
-                DefaultTunnelBox.Text = _cfg.DefaultTunnel;
-                _loading = false;
             }
         }
 
@@ -1586,8 +1581,19 @@ namespace MasselGUARD
                 Directory.CreateDirectory(Path.GetDirectoryName(ConfigPath)!);
                 File.WriteAllText(ConfigPath,
                     JsonSerializer.Serialize(_cfg, new JsonSerializerOptions { WriteIndented = true }));
+
+                // Normal: always show "Settings saved" when called without description
+                // Extended: always show the specific change detail
                 if (!string.IsNullOrEmpty(changeDescription))
+                {
+                    // Always show change detail at Ok level (visible in Normal + Extended)
                     LogRaw($"Saved: {changeDescription}", LogLevel.Ok);
+                }
+                else
+                {
+                    // Silent save (e.g. on tunnel connect) — only log in Extended
+                    LogRaw("Settings saved.", LogLevel.Debug);
+                }
             }
             catch (Exception ex)
             {
@@ -1598,52 +1604,6 @@ namespace MasselGUARD
 
         // ── UI events ──────────────────────────────────────────────────────────
 
-        private void AddRule_Click(object sender, RoutedEventArgs e)
-        {
-            var dlg = new Views.RuleDialog(GetCurrentSsid(), tunnels: GetAvailableTunnels()) { Owner = this };
-            if (dlg.ShowDialog() == true)
-            {
-                _rules.Add(new TunnelRule { Ssid = dlg.ResultSsid, Tunnel = dlg.ResultTunnel });
-                var target = string.IsNullOrEmpty(dlg.ResultTunnel) ? Lang.T("TunnelBtnDisconnect") : dlg.ResultTunnel;
-                SaveConfig($"Rule added: {dlg.ResultSsid} → {target}");
-                UpdateCountBadges();
-            }
-        }
-
-        private void EditRule_Click(object sender, RoutedEventArgs e)
-        {
-            if (RulesListView.SelectedItem is not TunnelRule rule) return;
-            var dlg = new Views.RuleDialog(null, rule.Ssid, rule.Tunnel, GetAvailableTunnels()) { Owner = this };
-            if (dlg.ShowDialog() == true)
-            {
-                rule.Ssid   = dlg.ResultSsid;
-                rule.Tunnel = dlg.ResultTunnel;
-                var target = string.IsNullOrEmpty(dlg.ResultTunnel) ? Lang.T("TunnelBtnDisconnect") : dlg.ResultTunnel;
-                SaveConfig($"Rule updated: {dlg.ResultSsid} → {target}");
-            }
-        }
-
-        private void DeleteRule_Click(object sender, RoutedEventArgs e)
-        {
-            if (RulesListView.SelectedItem is not TunnelRule rule) return;
-            if (System.Windows.MessageBox.Show(
-                    Lang.T("RuleDialogSsidRequired") + "\n" + rule.Ssid + "?",
-                    Lang.T("BtnDeleteRule"),
-                    MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
-            {
-                _rules.Remove(rule);
-                SaveConfig($"Rule deleted: {rule.Ssid}");
-                UpdateCountBadges();
-            }
-        }
-
-        private void RulesListView_SelectionChanged(object sender,
-            System.Windows.Controls.SelectionChangedEventArgs e)
-        {
-            bool sel          = RulesListView.SelectedItem != null;
-            EditBtn.IsEnabled   = sel;
-            DeleteBtn.IsEnabled = sel;
-        }
 
         // ── Tunnel management ──────────────────────────────────────────────────
 
@@ -2178,15 +2138,6 @@ namespace MasselGUARD
             RefreshTunnelDropdowns();
         }
 
-        private void DefaultAction_Changed(object sender, RoutedEventArgs e)
-        {
-            if (_loading) return;
-            if      (ActionNone.IsChecked     == true) _cfg.DefaultAction = "none";
-            else if (ActionDiscon.IsChecked   == true) _cfg.DefaultAction = "disconnect";
-            else                                       _cfg.DefaultAction = "activate";
-            SaveConfig($"Default action: {_cfg.DefaultAction}");
-        }
-
         private void RefreshTunnelDropdowns()
         {
             var tunnels = GetAvailableTunnels();
@@ -2201,12 +2152,6 @@ namespace MasselGUARD
 
             // Preserve the currently selected tunnel name so we can restore it after rebuild
             var selectedName = _selectedTunnel?.Name;
-
-            // Update DefaultTunnelBox ComboBox
-            var prev = DefaultTunnelBox.Text;
-            DefaultTunnelBox.Items.Clear();
-            foreach (var t in tunnels) DefaultTunnelBox.Items.Add(t);
-            DefaultTunnelBox.Text = prev;
 
             // Rebuild tunnel entry list
             var active      = GetActiveTunnelNames();
@@ -2232,16 +2177,6 @@ namespace MasselGUARD
             ((App)System.Windows.Application.Current).RebuildTrayTunnelMenu(tunnels, active);
 
             TunnelCountLabel.Text = tunnels.Count.ToString();
-
-            // Populate OpenWifi tunnel selector
-            _loading = true;
-            OpenWifiTunnelBox.Items.Clear();
-            OpenWifiTunnelBox.Items.Add(Lang.T("OpenWifiNone"));
-            foreach (var t in tunnels) OpenWifiTunnelBox.Items.Add(t);
-            var openMatch = tunnels.FirstOrDefault(t =>
-                string.Equals(t, _cfg.OpenWifiTunnel, StringComparison.OrdinalIgnoreCase));
-            OpenWifiTunnelBox.SelectedItem = (object?)openMatch ?? Lang.T("OpenWifiNone");
-            _loading = false;
 
             // Check availability
             CheckTunnelAvailability();
@@ -2451,34 +2386,6 @@ namespace MasselGUARD
             });
         }
 
-        private void DefaultTunnelBox_SelectionChanged(object sender,
-            System.Windows.Controls.SelectionChangedEventArgs e)
-        {
-            if (_loading) return;
-            if (DefaultTunnelBox.SelectedItem is string s)
-            {
-                _cfg.DefaultTunnel = s;
-                SaveConfig($"Default tunnel: {s}");
-            }
-        }
-
-        private void DefaultTunnelBox_LostFocus(object sender, RoutedEventArgs e)
-        {
-            if (_loading) return;
-            _cfg.DefaultTunnel = DefaultTunnelBox.Text.Trim();
-            SaveConfig($"Default tunnel: {_cfg.DefaultTunnel}");
-        }
-
-        private void OpenWifiTunnel_Changed(object sender,
-            System.Windows.Controls.SelectionChangedEventArgs e)
-        {
-            if (_loading) return;
-            var sel = OpenWifiTunnelBox.SelectedItem as string ?? "";
-            _cfg.OpenWifiTunnel = string.Equals(sel, Lang.T("OpenWifiNone"),
-                StringComparison.Ordinal) ? "" : sel;
-            SaveConfig(string.IsNullOrEmpty(_cfg.OpenWifiTunnel) ? "Open network protection: disabled" : $"Open network protection: {_cfg.OpenWifiTunnel}");
-        }
-
         public void ManualStart(string tunnel)
         {
             Log("LogManualConnect", LogLevel.Info, tunnel);
@@ -2661,19 +2568,6 @@ namespace MasselGUARD
         /// <summary>Shows/hides the rules and default-action panels based on ManualMode.</summary>
         internal void ApplyManualMode()
         {
-            bool manual = _cfg.ManualMode;
-
-            // In manual mode hide the Rules and Default Action right-panel tabs;
-            // show them again when automation is re-enabled.
-            if (RTabBtnRules != null)
-                RTabBtnRules.Visibility   = manual ? Visibility.Collapsed : Visibility.Visible;
-            if (RTabBtnDefault != null)
-                RTabBtnDefault.Visibility = manual ? Visibility.Collapsed : Visibility.Visible;
-
-            // If the currently-active tab is now hidden, fall back to Log
-            if (manual && (_activeRightTab == "Rules" || _activeRightTab == "Default"))
-                ShowRightTab("Log");
-
             UpdateFooterLabel();
         }
 
@@ -2865,6 +2759,20 @@ namespace MasselGUARD
             try { if (qcPath != null && File.Exists(qcPath)) File.Delete(qcPath); } catch { }
         }
 
+        /// <summary>Copies all subdirectories from source to dest, overwriting existing files.</summary>
+        private static void CopyDirectoryRecursive(string source, string dest)
+        {
+            foreach (var dir in Directory.GetDirectories(source))
+            {
+                var dirName = Path.GetFileName(dir);
+                var destDir = Path.Combine(dest, dirName);
+                Directory.CreateDirectory(destDir);
+                foreach (var file in Directory.GetFiles(dir))
+                    File.Copy(file, Path.Combine(destDir, Path.GetFileName(file)), overwrite: true);
+                CopyDirectoryRecursive(dir, destDir);
+            }
+        }
+
         private void RunInstall()
         {
             // Check if already running from an installed location
@@ -2894,24 +2802,19 @@ namespace MasselGUARD
                 // 1. Create install folder and copy all files
                 Directory.CreateDirectory(installDir);
                 var sourceDir = Path.GetDirectoryName(currentExe)!;
+
+                // Copy all files in exe dir
                 foreach (var file in Directory.GetFiles(sourceDir))
                     File.Copy(file, Path.Combine(installDir, Path.GetFileName(file)), overwrite: true);
 
-                // Copy lang subfolder
-                var sourceLang = Path.Combine(sourceDir, "lang");
-                if (Directory.Exists(sourceLang))
-                {
-                    var destLang = Path.Combine(installDir, "lang");
-                    Directory.CreateDirectory(destLang);
-                    foreach (var file in Directory.GetFiles(sourceLang))
-                        File.Copy(file, Path.Combine(destLang, Path.GetFileName(file)), overwrite: true);
-                }
+                // Copy all subdirectories recursively (lang, theme, etc.)
+                CopyDirectoryRecursive(sourceDir, installDir);
 
                 var installedExe = Path.Combine(installDir, "MasselGUARD.exe");
 
                 // Save icon as .ico file in install dir for the Start Menu shortcut
                 var icoPath = Path.Combine(installDir, "MasselGUARD.ico");
-                using (var icon = TrayIconHelper.CreateIcon(false))
+                using (var icon = TrayIconHelper.CreateIcon(0))
                 using (var fs = File.Create(icoPath))
                     icon.Save(fs);
 
@@ -3829,7 +3732,7 @@ Register-ScheduledTask -TaskName 'MasselGUARD' `
         private static SolidColorBrush LInfo  => ThemeRes.Accent;
         private static SolidColorBrush LOk    => ThemeRes.Success;
         private static SolidColorBrush LWarn  => ThemeRes.Danger;
-        private static SolidColorBrush LTime  => ThemeRes.Border;
+        private static SolidColorBrush LTime  => ThemeRes.LogTimestamp;
         private static SolidColorBrush LDebug => ThemeRes.TextMuted;
 
         // A log entry is either a translatable key+args pair, or a raw (external) string.
@@ -3862,17 +3765,12 @@ Register-ScheduledTask -TaskName 'MasselGUARD' `
             RenderLogEntry(entry, prepend: true);
         }
 
-        // Determines whether a given level should appear under the current LogLevelSetting:
-        //   normal   — Ok + Warn only
-        //   info     — Ok + Warn + Info
-        //   verbose  — Ok + Warn + Info + (all non-debug)
-        //   debug    — everything including Debug
+        // normal   — Ok + Warn only
+        // extended — everything including Debug
         private bool ShouldLog(LogLevel level) => _cfg.LogLevelSetting switch
         {
-            "debug"   => true,
-            "verbose" => level != LogLevel.Debug,
-            "info"    => level == LogLevel.Ok || level == LogLevel.Warn || level == LogLevel.Info,
-            _         => level == LogLevel.Ok || level == LogLevel.Warn,   // "normal"
+            "extended" => true,
+            _          => level == LogLevel.Ok || level == LogLevel.Warn,   // "normal"
         };
 
         private void LogDebug(string key, params object[] args) =>
@@ -3887,8 +3785,15 @@ Register-ScheduledTask -TaskName 'MasselGUARD' `
                     : (entry.Raw ?? "");
 
                 var para = new Paragraph { Margin = new Thickness(0) };
-                para.Inlines.Add(new Run(entry.Time.ToString("HH:mm:ss") + "  ") { Foreground = LTime });
-                para.Inlines.Add(new Run(text) { Foreground = entry.Level switch
+                para.Inlines.Add(new Run(entry.Time.ToString("HH:mm:ss") + " ") { Foreground = LTime });
+
+                // Lines that start with spaces are continuation/detail lines — render a dim
+                // indent marker instead of dumping raw leading whitespace into the RichTextBox.
+                var trimmed = text.TrimStart();
+                if (trimmed != text && trimmed.Length > 0)
+                    para.Inlines.Add(new Run("  ↳ ") { Foreground = LTime });
+
+                para.Inlines.Add(new Run(trimmed) { Foreground = entry.Level switch
                     { LogLevel.Ok => LOk, LogLevel.Warn => LWarn, LogLevel.Debug => LDebug, _ => LInfo } });
 
                 if (prepend)
@@ -3925,50 +3830,6 @@ Register-ScheduledTask -TaskName 'MasselGUARD' `
 
         private Views.SettingsWindow? _settingsWindow;
 
-        // ── Right-panel tab switching ─────────────────────────────────────────
-        private string _activeRightTab = "Log";
-
-        private void RightTab_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is System.Windows.Controls.Button btn && btn.Tag is string tab)
-                ShowRightTab(tab);
-        }
-
-        private void ShowRightTab(string tab)
-        {
-            _activeRightTab = tab;
-
-            // Pages
-            if (RPageLog      != null) RPageLog.Visibility      = tab == "Log"      ? Visibility.Visible : Visibility.Collapsed;
-            if (RulesListView != null) RulesListView.Visibility  = tab == "Rules"    ? Visibility.Visible : Visibility.Collapsed;
-            if (RPageDefault  != null) RPageDefault.Visibility  = tab == "Default"  ? Visibility.Visible : Visibility.Collapsed;
-            if (RPageOpenWifi != null) RPageOpenWifi.Visibility  = tab == "OpenWifi" ? Visibility.Visible : Visibility.Collapsed;
-
-            // Bottom button bars
-            if (RulesButtonBar != null)
-                RulesButtonBar.Visibility = tab == "Rules" ? Visibility.Visible : Visibility.Collapsed;
-            if (LogButtonBar != null)
-                LogButtonBar.Visibility = tab == "Log" ? Visibility.Visible : Visibility.Collapsed;
-
-            // Tab button highlight
-            void Style(System.Windows.Controls.Button? b, bool active)
-            {
-                if (b == null) return;
-                b.BorderThickness = new Thickness(0, 0, 0, active ? 2 : 0);
-                b.BorderBrush     = active
-                    ? (System.Windows.Media.Brush)FindResource("Accent")
-                    : System.Windows.Media.Brushes.Transparent;
-                b.Foreground = active
-                    ? (System.Windows.Media.Brush)FindResource("Accent")
-                    : (System.Windows.Media.Brush)FindResource("TextMuted");
-                b.FontWeight = active ? FontWeights.Bold : FontWeights.Normal;
-            }
-
-            Style(RTabBtnLog,      tab == "Log");
-            Style(RTabBtnRules,    tab == "Rules");
-            Style(RTabBtnDefault,  tab == "Default");
-            Style(RTabBtnOpenWifi, tab == "OpenWifi");
-        }
 
         private void ExportLog_Click(object sender, RoutedEventArgs e)
         {
@@ -4090,6 +3951,34 @@ Register-ScheduledTask -TaskName 'MasselGUARD' `
         public AppConfig GetConfig()             => _cfg;
         public static AppConfig? GetConfigStatic() => _cfg;
         public void   SaveConfigPublic()         => SaveConfig();
+        public void   SaveConfigPublic(string desc) => SaveConfig(desc);
+        public System.Collections.ObjectModel.ObservableCollection<TunnelRule> GetRules()    => _rules;
+        public List<string> GetTunnelNames()     => _tunnels.Select(t => t.Name).ToList();
+
+        public void AddRulePublic()
+        {
+            var dlg = new Views.RuleDialog(GetCurrentSsid(), tunnels: GetAvailableTunnels()) { Owner = this };
+            if (dlg.ShowDialog() != true) return;
+            var rule = new TunnelRule { Ssid = dlg.ResultSsid, Tunnel = dlg.ResultTunnel };
+            _rules.Add(rule);
+            _cfg.Rules = _rules.ToList();
+            // saved by caller
+        }
+
+        public void EditRulePublic(TunnelRule rule)
+        {
+            var dlg = new Views.RuleDialog(GetCurrentSsid(), rule.Ssid, rule.Tunnel, GetAvailableTunnels()) { Owner = this };
+            if (dlg.ShowDialog() != true) return;
+            rule.Ssid   = dlg.ResultSsid;
+            rule.Tunnel = dlg.ResultTunnel;
+            _cfg.Rules = _rules.ToList();
+        }
+
+        public void DeleteRulePublic(TunnelRule rule)
+        {
+            _rules.Remove(rule);
+            _cfg.Rules = _rules.ToList();
+        }
         public void   SetMode(AppMode mode)
         {
             _cfg.Mode = mode;
@@ -4179,10 +4068,6 @@ Register-ScheduledTask -TaskName 'MasselGUARD' `
             }
         }
 
-        /// <summary>
-        /// Stops and deletes all WireGuardTunnel$ services so tunnel.dll is released
-        /// before install/update tries to overwrite it.
-        /// </summary>
         // ── Orphaned service detection ─────────────────────────────────────
 
         // An orphaned WireGuardTunnel$ service is one that exists in the SCM

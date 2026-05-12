@@ -54,7 +54,7 @@ namespace MasselGUARD
             sysPollTimer.Tick += (_, _) => PollSystemTheme();
             sysPollTimer.Start();
 
-            // ── 2. Single-instance check (mutex) ────────────────────────────
+            // ── 2. Single-instance check ────────────────────────────────────
             bool isNewInstance = false;
             try
             {
@@ -65,15 +65,38 @@ namespace MasselGUARD
             }
             catch (UnauthorizedAccessException)
             {
-                // Mutex exists but belongs to a different session/user — treat as already running
                 isNewInstance = false;
             }
 
             if (!isNewInstance)
             {
-                ShowAlreadyRunning();
-                Shutdown();
-                return;
+                // Verify a real process is running before treating as duplicate.
+                // After install/move the mutex can be orphaned (old process exited
+                // without releasing it). Retry up to 2 s if no real instance found.
+                if (!RealInstanceExists())
+                {
+                    for (int i = 0; i < 4 && !isNewInstance; i++)
+                    {
+                        System.Threading.Thread.Sleep(500);
+                        try
+                        {
+                            _instanceMutex?.Dispose();
+                            _instanceMutex = new Mutex(
+                                initiallyOwned: true,
+                                name: "Global\\MasselGUARD_SingleInstance",
+                                out isNewInstance);
+                        }
+                        catch { }
+                    }
+                }
+
+                if (!isNewInstance && RealInstanceExists())
+                {
+                    ShowAlreadyRunning();
+                    Shutdown();
+                    return;
+                }
+                // Orphaned mutex acquired after retry — continue normally
             }
 
 
@@ -100,7 +123,7 @@ namespace MasselGUARD
             {
                 Text    = ThemeManager.Instance.Current.AppName,
                 Visible = true,
-                Icon    = GetTrayIcon(active: false)
+                Icon    = GetTrayIcon(0)
             };
 
             _trayMenu = new WinForms.ContextMenuStrip();
@@ -144,27 +167,27 @@ namespace MasselGUARD
             _mainWindow.Activate();
         }
 
-        public void UpdateTrayStatus(string tunnelName, bool active)
+        public void UpdateTrayStatus(string tunnelName, int activeCount)
         {
             if (_trayIcon == null) return;
             var appName = ThemeManager.Instance.Current.AppName;
-            _trayIcon.Text = active ? Lang.T("TrayActive", tunnelName) : appName;
-            _trayIcon.Icon = GetTrayIcon(active);
+            _trayIcon.Text = activeCount > 0 ? Lang.T("TrayActive", tunnelName) : appName;
+            _trayIcon.Icon = GetTrayIcon(activeCount);
         }
 
-        private static System.Drawing.Icon GetTrayIcon(bool active)
+        private static System.Drawing.Icon GetTrayIcon(int activeCount)
         {
-            // Custom theme icon takes precedence; fall back to built-in shield
+            // Custom theme icon takes precedence; fall back to built-in shield with badge
             if (Application.Current.Resources["Theme.TrayIcon"] is System.Drawing.Icon custom)
                 return custom;
-            return TrayIconHelper.CreateIcon(active);
+            return TrayIconHelper.CreateIcon(activeCount);
         }
 
         private void OnThemeChanged(object? sender, EventArgs e)
         {
             if (_trayIcon == null) return;
             _trayIcon.Text = ThemeManager.Instance.Current.AppName;
-            _trayIcon.Icon = GetTrayIcon(active: false);
+            _trayIcon.Icon = GetTrayIcon(0);
             ApplyTrayMenuTheme();
         }
 
@@ -246,6 +269,10 @@ namespace MasselGUARD
                 };
                 _tunnelMenuHeader.DropDownItems.Add(item);
             }
+
+            // Keep icon badge in sync with the active count
+            if (_trayIcon != null)
+                _trayIcon.Icon = GetTrayIcon(active.Count);
         }
 
 
@@ -274,19 +301,83 @@ namespace MasselGUARD
             base.OnExit(e);
         }
 
+        // ── P/Invoke helpers for bringing another window to front ─────────────
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        private const int SW_RESTORE = 9;
+
+        /// <summary>Finds the running MasselGUARD process (not this one) and brings it to front.</summary>
+        private static bool BringExistingToFront()
+        {
+            var current = Process.GetCurrentProcess();
+            foreach (var p in Process.GetProcessesByName(current.ProcessName))
+            {
+                if (p.Id == current.Id) continue;
+                try
+                {
+                    var hwnd = p.MainWindowHandle;
+                    if (hwnd == IntPtr.Zero) continue;
+                    ShowWindow(hwnd, SW_RESTORE);
+                    SetForegroundWindow(hwnd);
+                    return true;
+                }
+                catch { }
+            }
+            return false;
+        }
+
+        private static bool RealInstanceExists()
+        {
+            var current = System.Diagnostics.Process.GetCurrentProcess();
+            foreach (var p in System.Diagnostics.Process.GetProcessesByName(current.ProcessName))
+                if (p.Id != current.Id) return true;
+            return false;
+        }
+
         private void ShowAlreadyRunning()
         {
             // colours — defined inline since App resources aren't loaded yet
-            var bg     = System.Windows.Media.Color.FromRgb(13,  17,  23);
-            var panel  = System.Windows.Media.Color.FromRgb(22,  27,  34);
-            var border = System.Windows.Media.Color.FromRgb(48,  54,  61);
-            var accent = System.Windows.Media.Color.FromRgb(88, 166, 255);
-            var textC  = System.Windows.Media.Color.FromRgb(230, 237, 243);
-            var subC   = System.Windows.Media.Color.FromRgb(139, 148, 158);
-            var warn   = System.Windows.Media.Color.FromRgb(247, 129, 102);
-
+            var bg      = System.Windows.Media.Color.FromRgb(13,  17,  23);
+            var panel   = System.Windows.Media.Color.FromRgb(22,  27,  34);
+            var border  = System.Windows.Media.Color.FromRgb(48,  54,  61);
+            var accent  = System.Windows.Media.Color.FromRgb(88, 166, 255);
+            var textC   = System.Windows.Media.Color.FromRgb(230, 237, 243);
+            var subC    = System.Windows.Media.Color.FromRgb(139, 148, 158);
+            var warn    = System.Windows.Media.Color.FromRgb(247, 129, 102);
             System.Windows.Media.Brush Br(System.Windows.Media.Color c) =>
                 new System.Windows.Media.SolidColorBrush(c);
+
+            // Use Border+TextBlock — WPF Button ignores Foreground via default chrome
+            System.Windows.Controls.Border MakeBtn(string label,
+                System.Windows.Media.Color fg, System.Windows.Media.Color bgCol,
+                System.Windows.Media.Color hoverCol)
+            {
+                var tb = new System.Windows.Controls.TextBlock
+                {
+                    Text                = label,
+                    FontFamily          = new System.Windows.Media.FontFamily("Consolas"),
+                    FontSize            = 11,
+                    FontWeight          = FontWeights.Bold,
+                    Foreground          = Br(fg),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment   = VerticalAlignment.Center,
+                };
+                var b = new System.Windows.Controls.Border
+                {
+                    Background      = Br(bgCol),
+                    BorderBrush     = Br(fg),   // border matches text colour for clear contrast
+                    BorderThickness = new Thickness(1),
+                    CornerRadius    = new CornerRadius(4),
+                    Padding         = new Thickness(20, 7, 20, 7),
+                    Cursor          = System.Windows.Input.Cursors.Hand,
+                    Child           = tb,
+                };
+                b.MouseEnter += (_, _) => b.Background = Br(hoverCol);
+                b.MouseLeave += (_, _) => b.Background = Br(bgCol);
+                return b;
+            }
 
             var stack = new System.Windows.Controls.StackPanel
                 { Margin = new Thickness(28, 20, 28, 24) };
@@ -309,29 +400,11 @@ namespace MasselGUARD
                 Margin       = new Thickness(0, 0, 0, 20)
             });
 
-            var closeBtn = new System.Windows.Controls.Button
-            {
-                Content           = Lang.T("BtnOk"),
-                FontFamily        = new System.Windows.Media.FontFamily("Consolas"),
-                FontSize          = 11,
-                Foreground        = Br(textC),
-                Background        = Br(panel),
-                BorderBrush       = Br(border),
-                BorderThickness   = new Thickness(1),
-                Padding           = new Thickness(28, 6, 28, 6),
-                HorizontalAlignment = HorizontalAlignment.Right,
-                Cursor            = System.Windows.Input.Cursors.Hand
-            };
-            stack.Children.Add(closeBtn);
-
-            var outerBorder = new System.Windows.Controls.Border
-            {
-                Background      = Br(bg),
-                BorderBrush     = Br(border),
-                BorderThickness = new Thickness(1),
-                CornerRadius    = new CornerRadius(6),
-                Child           = stack
-            };
+            var bgExit  = System.Windows.Media.Color.FromRgb(36, 41, 51);
+            var hovExit = System.Windows.Media.Color.FromRgb(55, 62, 76);
+            var exitBtn = MakeBtn(Lang.T("AlreadyRunningBtnExit"), textC, bgExit, hovExit);
+            exitBtn.HorizontalAlignment = HorizontalAlignment.Right;
+            stack.Children.Add(exitBtn);
 
             // Title bar
             var titleBar = new System.Windows.Controls.Border
@@ -349,37 +422,27 @@ namespace MasselGUARD
                 }
             };
 
-            var root = new System.Windows.Controls.Grid();
-            root.RowDefinitions.Add(new System.Windows.Controls.RowDefinition
-                { Height = System.Windows.GridLength.Auto });
-            root.RowDefinitions.Add(new System.Windows.Controls.RowDefinition
-                { Height = System.Windows.GridLength.Auto });
+            var wrapGrid = new System.Windows.Controls.Grid();
+            wrapGrid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+            wrapGrid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
             System.Windows.Controls.Grid.SetRow(titleBar, 0);
-            System.Windows.Controls.Grid.SetRow(outerBorder, 1);
+            System.Windows.Controls.Grid.SetRow(stack, 1);
+            wrapGrid.Children.Add(titleBar);
+            wrapGrid.Children.Add(stack);
 
-            // Wrap title bar inside the outer border's corner radius
             var wrapper = new System.Windows.Controls.Border
             {
                 Background      = Br(bg),
                 BorderBrush     = Br(border),
                 BorderThickness = new Thickness(1),
-                CornerRadius    = new CornerRadius(6)
+                CornerRadius    = new CornerRadius(6),
+                Child           = wrapGrid
             };
-            var wrapGrid = new System.Windows.Controls.Grid();
-            wrapGrid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition
-                { Height = System.Windows.GridLength.Auto });
-            wrapGrid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition
-                { Height = System.Windows.GridLength.Auto });
-            System.Windows.Controls.Grid.SetRow(titleBar, 0);
-            System.Windows.Controls.Grid.SetRow(stack, 1);
-            wrapGrid.Children.Add(titleBar);
-            wrapGrid.Children.Add(stack);
-            wrapper.Child = wrapGrid;
 
             var win = new Window
             {
                 Title                 = "MasselGUARD — Already running",
-                Width                 = 440,
+                Width                 = 460,
                 SizeToContent         = SizeToContent.Height,
                 WindowStyle           = WindowStyle.None,
                 AllowsTransparency    = true,
@@ -393,7 +456,8 @@ namespace MasselGUARD
             {
                 if (mev.LeftButton == System.Windows.Input.MouseButtonState.Pressed) win.DragMove();
             };
-            closeBtn.Click += (_, _) => win.Close();
+
+            exitBtn.MouseLeftButtonUp += (_, _) => win.Close();
 
             win.ShowDialog();
         }
@@ -412,10 +476,10 @@ namespace MasselGUARD
         private static readonly System.Drawing.Color ColRim     = C(48,  54,  61);        // rim / border
 
         // ── Public entry point ───────────────────────────────────────────────
-        public static System.Drawing.Icon CreateIcon(bool active = false)
+        public static System.Drawing.Icon CreateIcon(int activeCount = 0)
         {
             const int S = 256;
-            using var src = RenderIcon(S, active);
+            using var src = RenderIcon(S, activeCount);
 
             // Write a proper multi-size .ico: 256, 48, 32, 16 frames
             // Windows picks the best size for taskbar, tray, alt-tab, etc.
@@ -475,9 +539,8 @@ namespace MasselGUARD
                 w.Write(frame);
         }
 
-        // ── Renderer — shield + chevron, matches title bar icon exactly ───
-        // Viewbox is 24x24. Render into S×S.
-        private static System.Drawing.Bitmap RenderIcon(int S, bool active)
+        // ── Renderer — shield + chevron + optional badge ──────────────────
+        private static System.Drawing.Bitmap RenderIcon(int S, int activeCount)
         {
             var bmp = new System.Drawing.Bitmap(S, S, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
             using var g = System.Drawing.Graphics.FromImage(bmp);
@@ -504,8 +567,8 @@ namespace MasselGUARD
                 g.DrawPath(rim, shield);
             shield.Dispose();
 
-            // ── Chevron: points 7,9  12,15  17,9 — round caps and join
-            var wc = active ? ColGreen : ColAccent;
+            // ── Chevron: colour = green when any active, blue when idle
+            var wc = activeCount > 0 ? ColGreen : ColAccent;
             using var pen = new System.Drawing.Pen(wc, X(2.2f))
             {
                 StartCap  = System.Drawing.Drawing2D.LineCap.Round,
@@ -519,6 +582,39 @@ namespace MasselGUARD
                 new(X(17), Y(9))
             };
             g.DrawLines(pen, chevron);
+
+            // ── Badge counter (bottom-right) — shown when activeCount >= 1
+            if (activeCount > 0)
+            {
+                string label = activeCount > 9 ? "9+" : activeCount.ToString();
+
+                // Badge circle: sits in the bottom-right quadrant
+                float bR   = X(5.6f);                        // radius
+                float bCx  = X(24) - bR - X(0.4f);           // centre X (near right edge)
+                float bCy  = Y(24) - bR - Y(0.4f);           // centre Y (near bottom edge)
+
+                // Dark outline ring so badge reads on any background
+                using (var outline = new System.Drawing.SolidBrush(C(0, 0, 0, 200)))
+                    g.FillEllipse(outline, bCx - bR - X(0.8f), bCy - bR - X(0.8f),
+                                           (bR + X(0.8f)) * 2, (bR + X(0.8f)) * 2);
+
+                // Green fill
+                using (var fill = new System.Drawing.SolidBrush(ColGreen))
+                    g.FillEllipse(fill, bCx - bR, bCy - bR, bR * 2, bR * 2);
+
+                // Number
+                float fontSize = label.Length == 1 ? X(5.8f) : X(4.6f);
+                using var font = new System.Drawing.Font("Segoe UI", fontSize,
+                    System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Pixel);
+                using var whiteBrush = new System.Drawing.SolidBrush(System.Drawing.Color.White);
+                var sf = new System.Drawing.StringFormat
+                {
+                    Alignment     = System.Drawing.StringAlignment.Center,
+                    LineAlignment = System.Drawing.StringAlignment.Center
+                };
+                g.DrawString(label, font, whiteBrush,
+                    new System.Drawing.RectangleF(bCx - bR, bCy - bR, bR * 2, bR * 2), sf);
+            }
 
             return bmp;
         }

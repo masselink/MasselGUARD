@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:MasselGUARD"
         Title="{Binding [SettingsTitle], Source={x:Static local:Lang.Instance}}"
-        Width="520" Height="520"
+        Width="700" Height="560"
         WindowStyle="None" AllowsTransparency="True"
         Background="Transparent" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner">
@@ -38,7 +38,7 @@
             <!-- Tab body -->
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="130"/>
+                    <ColumnDefinition Width="155"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
@@ -51,14 +51,18 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <StackPanel Grid.Row="0" Margin="0,12,0,0">
-                            <Button x:Name="TabBtnGeneral"    Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="General"
-                                    Content="{Binding [SettingsTabGeneral],    Source={x:Static local:Lang.Instance}}"/>
-                            <Button x:Name="TabBtnAppearance" Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="Appearance"
-                                    Content="{Binding [SettingsTabAppearance], Source={x:Static local:Lang.Instance}}"/>
-                            <Button x:Name="TabBtnAdvanced"   Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="Advanced"
-                                    Content="{Binding [SettingsTabAdvanced],   Source={x:Static local:Lang.Instance}}"/>
-                            <Button x:Name="TabBtnAbout"      Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="About"
-                                    Content="{Binding [SettingsTabAbout],      Source={x:Static local:Lang.Instance}}"/>
+                            <Button x:Name="TabBtnGeneral"       Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="General"
+                                    Content="{Binding [SettingsTabGeneral],       Source={x:Static local:Lang.Instance}}"/>
+                            <Button x:Name="TabBtnAppearance"    Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="Appearance"
+                                    Content="{Binding [SettingsTabAppearance],    Source={x:Static local:Lang.Instance}}"/>
+                            <Button x:Name="TabBtnDefaultAction" Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="DefaultAction"
+                                    Content="{Binding [SettingsTabDefaultAction], Source={x:Static local:Lang.Instance}}"/>
+                            <Button x:Name="TabBtnRules"         Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="Rules"
+                                    Content="{Binding [SettingsTabRules],         Source={x:Static local:Lang.Instance}}"/>
+                            <Button x:Name="TabBtnAdvanced"      Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="Advanced"
+                                    Content="{Binding [SettingsTabAdvanced],      Source={x:Static local:Lang.Instance}}"/>
+                            <Button x:Name="TabBtnAbout"         Style="{StaticResource SideTabBtn}" Click="TabBtn_Click" Tag="About"
+                                    Content="{Binding [SettingsTabAbout],         Source={x:Static local:Lang.Instance}}"/>
                         </StackPanel>
                         <!-- Wizard button pinned at bottom of sidebar -->
                         <Border Grid.Row="1" BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,1,0,0">
@@ -162,30 +166,6 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- Automation mode -->
-                            <TextBlock Text="{Binding [SettingsSectionMode], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SettingsSectionHeader}"/>
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{Binding [SettingsModeLabel], Source={x:Static local:Lang.Instance}}"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextPrimary}"/>
-                                        <TextBlock Text="{Binding [SettingsModeDescription], Source={x:Static local:Lang.Instance}}"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9" Foreground="{DynamicResource TextMuted}"
-                                                   TextWrapping="Wrap" Margin="0,4,0,0"/>
-                                    </StackPanel>
-                                    <ToggleButton Grid.Column="1" x:Name="ManualModeToggle"
-                                                  Width="44" Height="22" Margin="12,0,0,0"
-                                                  VerticalAlignment="Center"
-                                                  Checked="ManualMode_Changed" Unchecked="ManualMode_Changed"
-                                                  Style="{StaticResource ToggleSwitch}"/>
-                                </Grid>
-                            </Border>
-
                             <!-- Tunnel groups -->
                             <TextBlock Text="{Binding [SettingsSectionGroups], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource SettingsSectionHeader}"/>
@@ -218,6 +198,148 @@
                                 </StackPanel>
                             </Border>
 
+
+                        </StackPanel>
+
+                        <!-- ══ WIFI RULES PAGE ══════════════════════════ -->
+                        <StackPanel x:Name="PageRules" Visibility="Collapsed">
+
+                            <!-- Manual mode toggle -->
+                            <TextBlock Text="{Binding [SettingsSectionMode], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding [SettingsDisableWifiRulesLabel], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Text="{Binding [SettingsDisableWifiRulesDesc], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9" Foreground="{DynamicResource TextMuted}"
+                                                   TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                    <ToggleButton Grid.Column="1" x:Name="ManualModeToggle"
+                                                  Width="44" Height="22" Margin="12,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Checked="ManualMode_Changed" Unchecked="ManualMode_Changed"
+                                                  Style="{StaticResource ToggleSwitch}"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Rules content — disabled when manual mode is on -->
+                            <StackPanel x:Name="AutomationPanel">
+
+                                <!-- Info block -->
+                                <TextBlock Text="{Binding [SettingsSectionRules], Source={x:Static local:Lang.Instance}}"
+                                           Style="{StaticResource SettingsSectionHeader}"/>
+                                <Border Background="{DynamicResource Surface}"
+                                        BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                                        CornerRadius="{DynamicResource Theme.CornerRadius}"
+                                        Padding="10,8" Margin="0,0,0,6">
+                                    <TextBlock Text="{Binding [SettingsRulesInfo], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+                                </Border>
+                                <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
+                                    <StackPanel>
+                                        <ListView x:Name="RulesListView" MinHeight="60" MaxHeight="220"
+                                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                  SelectionChanged="RulesListView_SelectionChanged"
+                                                  BorderThickness="0">
+                                            <ListView.View>
+                                                <GridView>
+                                                    <GridViewColumn Header="{Binding [RuleColSsid], Source={x:Static local:Lang.Instance}}"
+                                                                    Width="180" DisplayMemberBinding="{Binding Ssid}"/>
+                                                    <GridViewColumn Header="{Binding [RuleColTunnel], Source={x:Static local:Lang.Instance}}"
+                                                                    Width="180" DisplayMemberBinding="{Binding TunnelDisplay}"/>
+                                                </GridView>
+                                            </ListView.View>
+                                        </ListView>
+                                    </StackPanel>
+                                </Border>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <Button Content="{Binding [BtnAddRule], Source={x:Static local:Lang.Instance}}"
+                                            Style="{StaticResource SuccessBtn}" FontSize="10" Padding="10,3"
+                                            Click="AddRule_Click"/>
+                                    <Button Content="{Binding [BtnEditRule], Source={x:Static local:Lang.Instance}}"
+                                            Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                            Margin="6,0,0,0" Click="EditRule_Click"
+                                            x:Name="EditBtn" IsEnabled="False"/>
+                                    <Button Content="{Binding [BtnDeleteRule], Source={x:Static local:Lang.Instance}}"
+                                            Style="{StaticResource DangerBtn}" FontSize="10" Padding="10,3"
+                                            Margin="6,0,0,0" Click="DeleteRule_Click"
+                                            x:Name="DeleteBtn" IsEnabled="False"/>
+                                    <Button Content="{Binding [BtnSave], Source={x:Static local:Lang.Instance}}"
+                                            Style="{StaticResource PrimaryBtn}" FontSize="10" Padding="10,3"
+                                            Margin="18,0,0,0" Click="SaveRules_Click"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                        </StackPanel>
+
+                        <!-- ══ DEFAULT ACTION PAGE ══════════════════════════ -->
+                        <StackPanel x:Name="PageDefaultAction" Visibility="Collapsed">
+
+                            <!-- WiFi Default Action -->
+                            <TextBlock Text="{Binding [SettingsSectionDefaultAction], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Background="{DynamicResource Surface}"
+                                    BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                                    CornerRadius="{DynamicResource Theme.CornerRadius}"
+                                    Padding="10,8" Margin="0,0,0,6">
+                                <TextBlock Text="{Binding [SettingsDefaultActionInfo], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,20">
+                                <StackPanel>
+                                    <RadioButton x:Name="ActionNone"
+                                                 Content="{Binding [DefaultActionNone], Source={x:Static local:Lang.Instance}}"
+                                                 Checked="DefaultAction_Changed" Tag="none" Margin="0,0,0,6"/>
+                                    <RadioButton x:Name="ActionDiscon"
+                                                 Content="{Binding [DefaultActionDisconnect], Source={x:Static local:Lang.Instance}}"
+                                                 Checked="DefaultAction_Changed" Tag="disconnect" Margin="0,0,0,6"/>
+                                    <RadioButton x:Name="ActionActivate"
+                                                 Checked="DefaultAction_Changed" Tag="activate">
+                                        <RadioButton.Content>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [DefaultActionActivate], Source={x:Static local:Lang.Instance}}"
+                                                           VerticalAlignment="Center"/>
+                                                <ComboBox x:Name="DefaultTunnelBox" Margin="8,0,0,0"
+                                                          MinWidth="140" FontSize="11" IsEditable="True"
+                                                          SelectionChanged="DefaultTunnelBox_SelectionChanged"
+                                                          LostFocus="DefaultTunnelBox_LostFocus"/>
+                                            </StackPanel>
+                                        </RadioButton.Content>
+                                    </RadioButton>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- ── OPEN NETWORK PROTECTION ──────────────────────── -->
+                            <TextBlock Text="{Binding [SettingsSectionOpenWifi], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Background="{DynamicResource Surface}"
+                                    BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                                    CornerRadius="{DynamicResource Theme.CornerRadius}"
+                                    Padding="10,8" Margin="0,0,0,6">
+                                <TextBlock Text="{Binding [SettingsOpenWifiInfo], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding [OpenWifiTunnel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <ComboBox x:Name="OpenWifiTunnelBox"
+                                              MinWidth="160" FontSize="11"
+                                              SelectionChanged="OpenWifiTunnel_Changed"/>
+                                </StackPanel>
+                            </Border>
+
                         </StackPanel>
 
                         <!-- ══ APPEARANCE PAGE ══════════════════════════════ -->
@@ -246,6 +368,30 @@
                                                   VerticalAlignment="Center"
                                                   Style="{StaticResource ToggleSwitch}"
                                                   Checked="AutoTheme_Changed" Unchecked="AutoTheme_Changed"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Background notifications -->
+                            <TextBlock Text="{Binding [SettingsTrayPopupLabel], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding [SettingsTrayPopupLabel], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Text="{Binding [SettingsTrayPopup], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                    <ToggleButton Grid.Column="1" x:Name="TrayPopupToggle"
+                                                  Width="44" Height="22" Margin="12,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Style="{StaticResource ToggleSwitch}"
+                                                  Checked="TrayPopup_Changed" Unchecked="TrayPopup_Changed"/>
                                 </Grid>
                             </Border>
 
@@ -320,6 +466,26 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- Import / Export -->
+                            <TextBlock Text="{Binding [SettingsImportExportSection], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Background="{DynamicResource Surface}"
+                                    BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                                    CornerRadius="{DynamicResource Theme.CornerRadius}"
+                                    Padding="10,8" Margin="0,0,0,6">
+                                <TextBlock Text="{Binding [SettingsImportExportInfo], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+                            </Border>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                                <Button Content="{Binding [BtnExportSettings], Source={x:Static local:Lang.Instance}}"
+                                        Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                        Click="ExportSettings_Click"/>
+                                <Button Content="{Binding [BtnImportSettings], Source={x:Static local:Lang.Instance}}"
+                                        Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                        Margin="8,0,0,0" Click="ImportSettings_Click"/>
+                            </StackPanel>
+
                             <!-- Log level -->
                             <TextBlock Text="{Binding [SettingsSectionLog], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource SettingsSectionHeader}"/>
@@ -336,28 +502,6 @@
                                     <ComboBox Grid.Column="1" x:Name="LogLevelPicker"
                                               MinWidth="110" FontSize="11" Padding="8,4"
                                               SelectionChanged="LogLevel_Changed"/>
-                                </Grid>
-                            </Border>
-
-                            <!-- Tray popup notification -->
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{Binding [SettingsTrayPopupLabel], Source={x:Static local:Lang.Instance}}"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextPrimary}"/>
-                                        <TextBlock Text="{Binding [SettingsTrayPopup], Source={x:Static local:Lang.Instance}}"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9" Foreground="{DynamicResource TextMuted}"
-                                                   TextWrapping="Wrap" Margin="0,4,0,0"/>
-                                    </StackPanel>
-                                    <ToggleButton Grid.Column="1" x:Name="TrayPopupToggle"
-                                                  Width="44" Height="22" Margin="12,0,0,0"
-                                                  VerticalAlignment="Center"
-                                                  Style="{StaticResource ToggleSwitch}"
-                                                  Checked="TrayPopup_Changed" Unchecked="TrayPopup_Changed"/>
                                 </Grid>
                             </Border>
 

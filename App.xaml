@@ -659,6 +659,7 @@
         <CornerRadius x:Key="Theme.CornerRadiusBottom">0,0,6,6</CornerRadius>
         <!-- App name -->
         <sys:String  x:Key="Theme.AppName">MasselGUARD</sys:String>
+        <Color       x:Key="Theme.LogTimestampColor">#303640</Color>
         <!-- Background image -->
         <SolidColorBrush x:Key="Theme.BackgroundBrush" Color="Transparent"/>
         <Visibility  x:Key="Theme.HasBackground">Collapsed</Visibility>

@@ -170,23 +170,14 @@ namespace MasselGUARD
                 try { Directory.SetCurrentDirectory(exeDir); } catch { }
                 NativeMethods.SetDllDirectory(exeDir);
 
-                WriteDebug($"HandleServiceArgs: conf={conf}");
-                WriteDebug($"ExeDir        = {exeDir}");
-                WriteDebug($"CWD           = {Directory.GetCurrentDirectory()}");
-                WriteDebug($"tunnel.dll    = {File.Exists(Path.Combine(exeDir, "tunnel.dll"))}");
-                WriteDebug($"wireguard.dll = {File.Exists(Path.Combine(exeDir, "wireguard.dll"))}");
-                WriteDebug($"conf exists   = {File.Exists(conf)}");
 
                 try
                 {
-                    WriteDebug("Calling WireGuardTunnelService…");
                     bool ok = NativeMethods.WireGuardTunnelService(conf);
-                    WriteDebug($"WireGuardTunnelService returned {ok}");
                     return ok ? 0 : 1;
                 }
                 catch (Exception ex)
                 {
-                    WriteDebug($"WireGuardTunnelService threw: {ex}");
                     try { System.Diagnostics.EventLog.WriteEntry("MasselGUARD",
                         $"WireGuardTunnelService failed: {ex}",
                         System.Diagnostics.EventLogEntryType.Error); }
@@ -240,9 +231,7 @@ namespace MasselGUARD
             error = "";
             lock (_lock) { _connected.Remove(tunnelName); }
             string serviceName = ServicePrefix + tunnelName.Replace(' ', '_');
-            WriteDebug($"Disconnect: stopping {serviceName}");
             EnsureStopped(serviceName, _ => { });
-            WriteDebug($"Disconnect: {serviceName} done");
             return true;
         }
 
@@ -448,14 +437,7 @@ namespace MasselGUARD
             }
             finally { NativeMethods.CloseServiceHandle(scm); }
         }
-
-        internal static void WriteDebug(string message)
-        {
-            try { File.AppendAllText(Path.Combine(ExeDir, "service-debug.log"),
-                $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}  {message}{Environment.NewLine}"); }
-            catch { }
-        }
-    }
+}
 
     // ═══════════════════════════════════════════════════════════════════════════
     //  Ringlogger — reads tunnel.dll memory-mapped ring-log

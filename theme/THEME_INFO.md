@@ -82,6 +82,7 @@ All colour values accept `#RRGGBB` (opaque), `#AARRGGBB` (with transparency), or
 | `colorWarningBg` | Warning panel background. Use a very dark tint of `colorWarning` |
 | `colorListHover` | List row background on mouse hover |
 | `colorListSelected` | List row background when selected / active |
+| `colorLogTimestamp` | Timestamp text colour in the activity log. Defaults to `colorBorder` if omitted |
 
 ### Window chrome
 

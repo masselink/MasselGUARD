@@ -39,7 +39,7 @@
                 <Ellipse x:Name="Dot2" Width="10" Height="10" Margin="4,0" Fill="{DynamicResource BorderColor}"/>
                 <Ellipse x:Name="Dot3" Width="10" Height="10" Margin="4,0" Fill="{DynamicResource BorderColor}"/>
                 <Ellipse x:Name="Dot4" Width="10" Height="10" Margin="4,0" Fill="{DynamicResource BorderColor}"/>
-
+                <Ellipse x:Name="Dot5" Width="10" Height="10" Margin="4,0" Fill="{DynamicResource BorderColor}"/>
             </StackPanel>
 
             <!-- Step pages -->
@@ -63,8 +63,28 @@
                     <TextBlock Text="{Binding [WizardLangBody], Source={x:Static local:Lang.Instance}}"
                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextMuted}"
                                Margin="0,0,0,16"/>
-                    <ComboBox x:Name="WizLangPicker" FontSize="13" Padding="10,6"
-                              SelectionChanged="WizLang_Changed"/>
+                    <ComboBox x:Name="WizLangPicker" FontSize="11" Padding="6,4"
+                              SelectionChanged="WizLang_Changed">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Background="{DynamicResource Accent}"
+                                            CornerRadius="2" Padding="4,1" Margin="0,0,7,0"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Code}"
+                                                   FontFamily="Consolas" FontSize="9"
+                                                   FontWeight="Bold"
+                                                   Foreground="{DynamicResource WindowBg}"/>
+                                    </Border>
+                                    <TextBlock Text="{Binding Name}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextPrimary}"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
                 </StackPanel>
 
                 <!-- Step 2: Mode -->
@@ -116,7 +136,7 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Step 3: Manual mode -->
+                <!-- Step 3: Automation / manual mode -->
                 <StackPanel x:Name="Step3" Visibility="Collapsed">
                     <TextBlock Text="{Binding [WizardManualTitle], Source={x:Static local:Lang.Instance}}"
                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="16" FontWeight="Bold"
@@ -125,7 +145,7 @@
                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextMuted}"
                                TextWrapping="Wrap" Margin="0,0,0,20" LineHeight="18"/>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="{Binding [SettingsModeLabel], Source={x:Static local:Lang.Instance}}"
+                        <TextBlock Text="{Binding [SettingsDisableWifiRulesLabel], Source={x:Static local:Lang.Instance}}"
                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextPrimary}"
                                    VerticalAlignment="Center" Margin="0,0,12,0"/>
                         <ToggleButton x:Name="WizManualToggle"
@@ -134,14 +154,85 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- Step 4: Done -->
+                <!-- Step 4: WiFi & LAN rules intro -->
                 <StackPanel x:Name="Step4" Visibility="Collapsed">
+                    <TextBlock Text="{Binding [WizardRulesTitle], Source={x:Static local:Lang.Instance}}"
+                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="16" FontWeight="Bold"
+                               Foreground="{DynamicResource Accent}" Margin="0,0,0,14"/>
+                    <TextBlock Text="{Binding [WizardRulesBody], Source={x:Static local:Lang.Instance}}"
+                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextMuted}"
+                               TextWrapping="Wrap" LineHeight="18" Margin="0,0,0,14"/>
+                    <Border Background="{DynamicResource Surface}"
+                            BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                            CornerRadius="3" Padding="12,10">
+                        <StackPanel>
+                            <TextBlock FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                       Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,6">
+                                <Run FontWeight="Bold" Text="WiFi Rules  "/>
+                                <Run Foreground="{DynamicResource TextMuted}" Text="{Binding [WizardRulesWifiHint], Source={x:Static local:Lang.Instance}}"/>
+                            </TextBlock>
+                            <TextBlock FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                       Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,6">
+                                <Run FontWeight="Bold" Text="LAN Rules  "/>
+                                <Run Foreground="{DynamicResource TextMuted}" Text="{Binding [WizardRulesLanHint], Source={x:Static local:Lang.Instance}}"/>
+                            </TextBlock>
+                            <TextBlock FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                       Foreground="{DynamicResource TextPrimary}">
+                                <Run FontWeight="Bold" Text="Default Action  "/>
+                                <Run Foreground="{DynamicResource TextMuted}" Text="{Binding [WizardRulesDefaultHint], Source={x:Static local:Lang.Instance}}"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Step 5: Done + About -->
+                <StackPanel x:Name="Step5" Visibility="Collapsed">
                     <TextBlock Text="{Binding [WizardDoneTitle], Source={x:Static local:Lang.Instance}}"
                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="16" FontWeight="Bold"
-                               Foreground="{DynamicResource Success}" Margin="0,0,0,14"/>
+                               Foreground="{DynamicResource Success}" Margin="0,0,0,10"/>
                     <TextBlock Text="{Binding [WizardDoneBody], Source={x:Static local:Lang.Instance}}"
                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextPrimary}"
-                               TextWrapping="Wrap" LineHeight="18"/>
+                               TextWrapping="Wrap" LineHeight="18" Margin="0,0,0,16"/>
+
+                    <!-- Version + update card -->
+                    <Border Background="{DynamicResource Surface}"
+                            BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                            CornerRadius="{DynamicResource Theme.CornerRadius}" Padding="12,10">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock x:Name="WizVersionLabel"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                               Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock x:Name="WizUpdateStatusLabel"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,4,0,0"/>
+                                    <TextBlock x:Name="WizLastCheckedLabel"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                                <Button Grid.Column="1" x:Name="WizCheckUpdateBtn"
+                                        Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,5"
+                                        Margin="10,0,0,0" VerticalAlignment="Top"
+                                        Click="WizCheckUpdate_Click"/>
+                            </Grid>
+                            <Separator Margin="0,8" Background="{DynamicResource BorderColor}" Height="1" BorderThickness="0"/>
+                            <TextBlock Text="by Harold Masselink"
+                                       FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                       Foreground="{DynamicResource TextMuted}"/>
+                            <TextBlock Text="github.com/masselink/MasselGUARD"
+                                       FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                       Foreground="{DynamicResource Accent}"
+                                       Cursor="Hand" TextDecorations="Underline"
+                                       MouseLeftButtonUp="WizGithubLink_Click"
+                                       Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Grid>
 
