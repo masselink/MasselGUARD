@@ -1,28 +1,28 @@
 # MasselGUARD — How it works
 
-This document explains the internal operation of MasselGUARD in detail. For a feature overview and quick-start, see the [README](../README.md).
+Technical reference for v2.5.0. For end-user instructions see [`MANUAL.md`](MANUAL.md).
 
 ---
 
-## Table of contents
+## Contents
 
 1. [Operating modes](#1-operating-modes)
 2. [Startup sequence](#2-startup-sequence)
 3. [WiFi monitoring](#3-wifi-monitoring)
-4. [LAN / Ethernet monitoring](#4-lan--ethernet-monitoring)
-5. [Rule evaluation](#5-rule-evaluation)
-6. [Connecting a tunnel — Standalone](#6-connecting-a-tunnel--standalone)
-7. [Connecting a tunnel — Companion](#7-connecting-a-tunnel--companion)
-8. [Disconnecting a tunnel](#8-disconnecting-a-tunnel)
-9. [Pre/post scripts](#9-prepost-scripts)
-10. [Tunnel groups and categories](#10-tunnel-groups-and-categories)
-11. [Quick Connect](#11-quick-connect)
-12. [Open network protection](#12-open-network-protection)
-13. [Configuration and storage](#13-configuration-and-storage)
-14. [Security model](#14-security-model)
-15. [Theme system](#15-theme-system)
-16. [Logging](#16-logging)
-17. [Settings panel](#17-settings-panel)
+4. [Rule evaluation](#4-rule-evaluation)
+5. [Connecting a tunnel — Standalone](#5-connecting-a-tunnel--standalone)
+6. [Connecting a tunnel — Companion](#6-connecting-a-tunnel--companion)
+7. [Disconnecting a tunnel](#7-disconnecting-a-tunnel)
+8. [Pre/post scripts](#8-prepost-scripts)
+9. [Tunnel groups and categories](#9-tunnel-groups-and-categories)
+10. [Quick Connect](#10-quick-connect)
+11. [Open network protection](#11-open-network-protection)
+12. [Configuration and storage](#12-configuration-and-storage)
+13. [Security model](#13-security-model)
+14. [Theme system](#14-theme-system)
+15. [Logging](#15-logging)
+16. [Settings panel](#16-settings-panel)
+17. [Import / Export settings](#17-import--export-settings)
 18. [Build and deployment](#18-build-and-deployment)
 19. [Troubleshooting](#19-troubleshooting)
 
@@ -32,17 +32,11 @@ This document explains the internal operation of MasselGUARD in detail. For a fe
 
 MasselGUARD runs in one of three modes, selected in the setup wizard or Settings → General.
 
-### Standalone
+**Standalone** — MasselGUARD owns the tunnel lifecycle entirely. No WireGuard application is required. Tunnel configs are created, encrypted, and stored inside the app. Connectivity is provided by `tunnel.dll` + `wireguard.dll` (wireguard-NT) placed next to the executable.
 
-MasselGUARD owns the tunnel lifecycle entirely. No WireGuard application is required. Tunnel configs are created, encrypted, and stored inside the app. Connectivity is provided by `tunnel.dll` + `wireguard.dll` (wireguard-NT) placed next to the executable.
+**Companion** — MasselGUARD automates the official WireGuard for Windows application. It does not store or modify tunnel configs — it only starts and stops the `WireGuardTunnel$<n>` Windows services that WireGuard creates. You link existing WireGuard profiles from the Import dialog.
 
-### Companion
-
-MasselGUARD automates the official WireGuard for Windows application. It does not store or modify any tunnel configs — it only starts and stops the `WireGuardTunnel$<n>` Windows services that WireGuard creates. You link existing WireGuard profiles from the Import dialog.
-
-### Mixed
-
-Both modes active simultaneously. Local (Standalone) tunnels and linked WireGuard profiles coexist in the same tunnel list and can all be automated.
+**Mixed** — Both modes active simultaneously. Local (Standalone) tunnels and linked WireGuard profiles coexist in the same tunnel list and can all be automated.
 
 ---
 
@@ -50,43 +44,52 @@ Both modes active simultaneously. Local (Standalone) tunnels and linked WireGuar
 
 ```
 Program.Main()
-  └─ Mutex check (single instance — second launch shows informational dialog)
-  └─ UAC elevation check (exits with prompt if not Administrator)
+  └─ Mutex check (single instance guard — see §2a)
+  └─ UAC elevation check
   └─ Application.Run(MainWindow)
         │
         ▼
 MainWindow.Loaded
-  ├─ Log(AppStarted)
-  ├─ LoadConfig()              read %APPDATA%\MasselGUARD\config.json
-  ├─ ApplyManualMode()         hide Rules/Default tabs in Settings if manual
-  ├─ ApplyLocalTunnelMode()    show/hide Add/Edit based on mode
+  ├─ LoadConfig()              %APPDATA%\MasselGUARD\config.json
+  ├─ ApplyManualMode()
+  ├─ ApplyLocalTunnelMode()
   ├─ SetupTimer()              1-second status poll
-  ├─ _startupComplete = true   suppress discovery log on future refreshes
+  ├─ _startupComplete = true
   ├─ RegisterWifiEvents()      WlanRegisterNotification
-  ├─ RegisterLanEvents()       NetworkChange subscription
   ├─ UpdateThemeToggleIcon()
-  ├─ SyncAutoTheme()           apply dark/light based on system if AutoTheme=true
+  ├─ SyncAutoTheme()
   └─ (optional) ShowWizard()   if no config.json existed
 ```
+
+### 2a — Single-instance guard
+
+A named mutex (`Global\MasselGUARD_SingleInstance`) prevents multiple instances. If the mutex is already held:
+
+1. Check whether a real MasselGUARD process (by process name, excluding self) is running
+2. If no real process found (orphaned mutex — e.g. after install to new location), retry up to 4 × 500 ms
+3. Only show the "already running" dialog if mutex is held AND a real process exists
+4. If the mutex is acquired after retry, continue normally
+
+This prevents the false-positive "already running" message when relaunching after installation.
 
 ---
 
 ## 3. WiFi monitoring
 
-MasselGUARD uses the native `wlanapi.dll` rather than WMI or process spawning, so it reacts in real time without polling.
+MasselGUARD uses `wlanapi.dll` directly rather than WMI or process spawning.
 
 ```
 WlanRegisterNotification()
   └─ callback fires on ACM codes:
        9  = connected
        10 = disconnected
-       21 = network roaming
+       21 = roaming
 
 OnWifiChanged()
   ├─ GetCurrentSsid()    WlanQueryInterface(WLAN_INTF_OPCODE_CURRENT_CONNECTION)
   ├─ Update status bar
   ├─ Log WiFi: <SSID> (secured / open)
-  └─ ApplyRules(ssid)    (skipped in manual mode)
+  └─ ApplyRules(ssid)    (skipped in disable WiFi rules)
 ```
 
 `GetCurrentSsid()` reads `WLAN_CONNECTION_ATTRIBUTES` directly from memory:
@@ -97,32 +100,13 @@ OnWifiChanged()
 | 524 | `ucSSID[32]` | SSID bytes (UTF-8) |
 | 580 | `bSecurityEnabled` | 0 = open network |
 
-A 1-second `DispatcherTimer` also calls `UpdateStatusDisplay()` to keep the active tunnel label and tray icon in sync between WiFi events.
+A 1-second `DispatcherTimer` also calls `UpdateStatusDisplay()` to keep the active tunnel label and tray icon in sync.
 
 ---
 
-## 4. LAN / Ethernet monitoring
+## 4. Rule evaluation
 
-MasselGUARD subscribes to .NET's `NetworkChange.NetworkAvailabilityChanged` and `NetworkChange.NetworkAddressChanged` events. On each change it calls `GetConnectedLanAdapters()` which enumerates all `OperationalStatus.Up` adapters of type `Ethernet`, excluding WireGuard, loopback, and virtual adapters.
-
-Each detected adapter provides:
-
-| Property | Source | Example |
-|---|---|---|
-| `Name` | Windows adapter name | `"Ethernet"`, `"LAN 2"` |
-| `Description` | Hardware description | `"Intel(R) Ethernet Connection I219-V"` |
-| `DnsSuffix` | `GetIPProperties().DnsSuffix` | `"corp.example.com"` |
-| `GatewayIp` | First non-link-local gateway | `"192.168.1.1"` |
-
-The adapter list is diffed against the previous state. Newly connected adapters trigger `ApplyLanRules(adapter)`. Disconnected adapters are logged. Manual mode suppresses LAN rules the same as WiFi rules.
-
----
-
-## 5. Rule evaluation
-
-### WiFi rules
-
-`ApplyRules(ssid)` runs every time the WiFi network changes. Priority order:
+`ApplyRules(ssid)` runs every time the WiFi network changes:
 
 ```
 1. Open network protection
@@ -131,59 +115,40 @@ The adapter list is diffed against the previous state. Newly connected adapters 
    └─ Yes → SwitchTo(OpenWifiTunnel)  STOP
 
 2. SSID rules
-   └─ Does any rule match the SSID exactly?
+   └─ Does any rule match the SSID exactly (case-insensitive)?
    └─ Yes, tunnel set   → SwitchTo(rule.Tunnel)   STOP
    └─ Yes, tunnel empty → DisconnectAll()          STOP
 
-3. Default WiFi action
+3. Default action
    └─ "none"       → do nothing
    └─ "disconnect" → DisconnectAll()
    └─ "activate"   → SwitchTo(DefaultTunnel)
 ```
 
-### LAN rules
-
-`ApplyLanRules(adapter)` runs when a new Ethernet adapter is detected:
-
-```
-1. Specific LAN rules
-   └─ For each rule: does AdapterFilter match adapter Name, Description, or DnsSuffix?
-      (partial, case-insensitive)
-   └─ Yes, tunnel set   → SwitchTo(rule.Tunnel)   STOP
-   └─ Yes, tunnel empty → DisconnectAll()          STOP
-
-2. Default LAN action
-   └─ "none"       → do nothing
-   └─ "disconnect" → DisconnectAll()
-   └─ "activate"   → SwitchTo(LanTunnel)
-```
-
-`SwitchTo(target)` first stops any active tunnel that is not `target`, then starts `target`. If `target` is already running it logs `LogAlreadyActive` and returns immediately.
+`SwitchTo(target)` stops any active tunnel that is not `target`, then starts `target`. If `target` is already running it logs `AlreadyActive` and returns.
 
 ---
 
-## 6. Connecting a tunnel — Standalone
+## 5. Connecting a tunnel — Standalone
 
 ```
 StartTunnel(name)
-  ├─ RunTunnelScript(PreConnectScript)    run pre-connect script if configured
-  ├─ ValidateDlls()                       check tunnel.dll and wireguard.dll exist
-  ├─ DpapiDecrypt(confPath)               → plaintext WireGuard config
+  ├─ RunTunnelScript(PreConnectScript)
+  ├─ ValidateDlls()
+  ├─ DpapiDecrypt(confPath) → plaintext WireGuard config
   ├─ WriteSecure(SvcConfPath)
-  │   ├─ File.Create()                    empty file, inherits parent ACL
-  │   ├─ SetAccessControl(fileSec)        lock to SYSTEM + Admins + user
-  │   └─ StreamWriter.Write(plaintext)    write config bytes
+  │   ├─ File.Create()                    empty — inherits parent ACL
+  │   ├─ SetAccessControl(fileSec)        SYSTEM + Admins + user only
+  │   └─ StreamWriter.Write(plaintext)
   ├─ TunnelDll.Connect(name, svcConf)
-  │   └─ Creates WireGuardTunnel$<n> SCM service → wireguard-NT kernel driver
-  ├─ Delete SvcConfPath immediately
-  └─ RunTunnelScript(PostConnectScript)   run post-connect script if configured
+  │   └─ Creates WireGuardTunnel$<n> SCM service → wireguard-NT
+  ├─ Delete SvcConfPath immediately (~200 ms lifetime)
+  └─ RunTunnelScript(PostConnectScript)
 ```
-
-The plaintext temp file lives for under 200 ms. The kernel driver keeps the tunnel active after the service process exits.
 
 ---
 
-## 7. Connecting a tunnel — Companion
+## 6. Connecting a tunnel — Companion
 
 ```
 StartTunnel(name) — Companion path
@@ -196,7 +161,7 @@ StartTunnel(name) — Companion path
 
 ---
 
-## 8. Disconnecting a tunnel
+## 7. Disconnecting a tunnel
 
 ```
 StopTunnel(name)
@@ -209,37 +174,32 @@ StopTunnel(name)
 
 ---
 
-## 9. Pre/post scripts
+## 8. Pre/post scripts
 
-Each tunnel can run a `.bat` or `.ps1` script at four hook points.
+Each tunnel can run a `.bat` or `.ps1` at four hook points.
 
 | Hook | When |
 |---|---|
 | `PreConnectScript` | Before the tunnel service starts |
 | `PostConnectScript` | After the tunnel is confirmed running |
 | `PreDisconnectScript` | Before the tunnel service is stopped |
-| `PostDisconnectScript` | After the tunnel is stopped |
+| `PostDisconnectScript` | After the tunnel has stopped |
 
 Script values take two forms:
+- **Path** — `C:\scripts\vpn-up.ps1` — file called at runtime
+- **Embedded** — `@embed:<content>` — written to temp file, executed, deleted
 
-- **Path** — `C:\scripts\vpn-up.ps1` — file is called at runtime
-- **Embedded** — `@embed:<content>` — content is written to a temp file and executed, then deleted
-
-`.ps1` files run via `powershell.exe -ExecutionPolicy Bypass -File <path>`. `.bat` files run via `cmd.exe /c <path>`. Stdout, stderr, and exit code are logged. A non-zero exit is logged as a warning but does not abort the connect/disconnect operation.
-
----
-
-## 10. Tunnel groups and categories
-
-Each tunnel can be assigned to a named group. Groups are managed in Settings → General → Tunnel Groups. The tunnel list shows a tab strip: All · group tabs · Uncategorized.
-
-Tabs are built by `RebuildTunnelGroups()`. Selection is preserved by name across rebuilds so that Edit and Delete work on the first click after any save.
+`.ps1` → `powershell.exe -ExecutionPolicy Bypass -File`. `.bat` → `cmd.exe /c`. Exit code and output logged. Non-zero exit is a warning but does not abort the operation.
 
 ---
 
-## 11. Quick Connect
+## 9. Tunnel groups and categories
 
-Quick Connect opens any `.conf` or `.conf.dpapi` from disk and connects immediately, without permanently importing.
+Each tunnel can be assigned to a named group. Groups are managed in Settings → General. The tunnel list shows: All · group tabs · Uncategorized. `RebuildTunnelGroups()` builds the tab strip; selection is preserved by name across rebuilds.
+
+---
+
+## 10. Quick Connect
 
 ```
 QuickConnect_Click()
@@ -247,79 +207,71 @@ QuickConnect_Click()
   ├─ ReadAllBytes + DpapiDecrypt if needed
   ├─ Store in _quickConnectConfig (in-memory only)
   ├─ StartTunnel via local path
-  └─ Show "⚡ <filename>" at top of tunnel list
+  └─ Show "⚡ filename" at top of tunnel list
 ```
 
-The config is never written to `%APPDATA%\MasselGUARD\tunnels\`.
+Config is never written to `%APPDATA%\MasselGUARD\tunnels\`.
 
 ---
 
-## 12. Open network protection
+## 11. Open network protection
 
 Detects open (passwordless) WiFi by reading `WLAN_SECURITY_ATTRIBUTES.bSecurityEnabled` at offset 580. A value of `0` means no security. Activates the configured protection tunnel **before** any SSID rule or default action. Configure in Settings → WiFi Rules → Open Network Protection.
 
 ---
 
-## 13. Configuration and storage
+## 12. Configuration and storage
 
-### config.json
-
-Stored at `%APPDATA%\MasselGUARD\config.json`.
+### config.json — `%APPDATA%\MasselGUARD\config.json`
 
 ```json
 {
-  "Rules":    [ { "Ssid": "HomeWifi", "Tunnel": "home" } ],
-  "LanRules": [ { "AdapterFilter": "corp.example.com", "Tunnel": "office", "NetworkType": "ethernet" } ],
-  "TunnelGroups": [ { "Name": "Work", "IsExpanded": true } ],
-  "DefaultAction":  "activate",
-  "DefaultTunnel":  "home",
-  "LanAction":      "activate",
-  "LanTunnel":      "office",
+  "Rules":         [ { "Ssid": "HomeWifi", "Tunnel": "home" } ],
+  "TunnelGroups":  [ { "Name": "Work", "IsExpanded": true } ],
+  "DefaultAction": "activate",
+  "DefaultTunnel": "home",
   "OpenWifiTunnel": "home",
-  "Mode":           "Standalone",
-  "ManualMode":     false,
-  "Language":       "en",
-  "ActiveTheme":    "default-dark",
-  "AutoTheme":      false,
-  "LogLevelSetting": "normal"
+  "Mode":          "Standalone",
+  "ManualMode":    false,
+  "Language":      "en",
+  "ActiveTheme":   "default-dark",
+  "AutoTheme":     false,
+  "LogLevelSetting": "normal",
+  "ShowTrayPopupOnSwitch": true
 }
 ```
-
-`LanRules[].AdapterFilter` is matched case-insensitively against the adapter name, hardware description, and DNS suffix of each connected Ethernet adapter.
 
 ### Tunnel configs
 
 | Path | Format |
 |---|---|
 | `<ExeDir>\tunnels\<n>.conf.dpapi` | DPAPI-encrypted WireGuard config |
-| `<ExeDir>\tunnels\temp\<n>.conf` | Plaintext copy for service process (deleted within ~200 ms) |
+| `<ExeDir>\tunnels\temp\<n>.conf` | Plaintext copy for service process (~200 ms lifetime) |
 
 ---
 
-## 14. Security model
+## 13. Security model
 
 ### DPAPI encryption
 
-Tunnel configs are stored as `.conf.dpapi` files encrypted with Windows DPAPI (`DataProtectionScope.CurrentUser`). Decryption key is derived from the user's Windows login credentials — MasselGUARD never stores or handles keys.
+`.conf.dpapi` files encrypted with `DataProtectionScope.CurrentUser`. Decryption key derived from Windows login credentials — MasselGUARD never stores or handles keys.
 
 ### Atomic temp file
 
 ```csharp
 File.Create(path).Dispose();                    // 1. create empty — inherits parent ACL
-new FileInfo(path).SetAccessControl(fileSec);   // 2. apply restrictive ACL before first byte
-using var sw = new StreamWriter(new FileStream( // 3. write plaintext under correct ACL
-    path, FileMode.Open, FileAccess.Write, ...));
+new FileInfo(path).SetAccessControl(fileSec);   // 2. restrictive ACL before first byte
+using var sw = new StreamWriter(                // 3. write under correct ACL
+    new FileStream(path, FileMode.Open, ...));
 ```
 
-ACL: `SYSTEM + Administrators + owning user` only. File deleted within ~200 ms.
+ACL: `SYSTEM + Administrators + owning user` only. Deleted within ~200 ms.
 
 ---
 
-## 15. Theme system
+## 14. Theme system
 
 Themes live in `theme/<folder>/theme.json`. See `theme/THEME_INFO.md` for the full key reference.
-
-### Built-in themes
 
 | Folder | Type | Style |
 |---|---|---|
@@ -327,74 +279,57 @@ Themes live in `theme/<folder>/theme.json`. See `theme/THEME_INFO.md` for the fu
 | `default-light` | light | Rounded (6 px) |
 | `grey-dark` | dark | Sharp (0 px) |
 | `grey-light` | light | Sharp (0 px) |
-| `highcontrast-dark` | dark | Near-sharp (2 px), pure black bg, WCAG AAA |
-| `highcontrast-light` | light | Near-sharp (2 px), pure white bg, WCAG AAA |
+| `highcontrast-dark` | dark | Near-sharp (2 px), WCAG AAA |
+| `highcontrast-light` | light | Near-sharp (2 px), WCAG AAA |
 
-### Hot-swap
-
-`ThemeManager.Instance.Load(folder)` applies all theme values directly into `Application.Current.Resources`. Every `{DynamicResource ...}` binding updates immediately.
-
-### Auto-switching
-
-When `AutoTheme = true`, a 5-second polling timer reads `HKCU\...\Themes\Personalize\AppsUseLightTheme` and loads `ActiveDarkTheme` or `ActiveLightTheme` accordingly.
-
-### Themeable log timestamp
-
-`colorLogTimestamp` in `theme.json` sets the timestamp colour in the activity log. Defaults to `colorBorder` if not set. Allows the timestamp to be visually separated from the log message text.
+`ThemeManager.Instance.Load(folder)` applies all values into `Application.Current.Resources`. Every `{DynamicResource}` binding updates immediately. Auto-switching polls `HKCU\...\Themes\Personalize\AppsUseLightTheme` every 5 seconds.
 
 ---
 
-## 16. Logging
+## 15. Logging
 
-### Log levels
-
-| Level | Setting | What appears |
+| Level | Shown in Normal | Shown in Extended |
 |---|---|---|
-| Normal | `"normal"` | OK + Warn only |
-| Extended | `"extended"` | Everything including `[DBG]` entries |
+| `Ok` (green) | ✓ | ✓ |
+| `Warn` (orange) | ✓ | ✓ |
+| `Info` (accent) | — | ✓ |
+| `Debug` (muted) | — | ✓ |
 
-Change in Settings → Advanced → Log level.
+**Normal** — OK and Warn only. `SaveConfig(desc)` logs at Ok level — always visible.
 
-### Info-level events (Extended only)
+**Extended** — Everything including Info (network changes, mode changes, language changes) and Debug (`[DBG]` connect timing, tunnel config fields).
 
-- WiFi network change (SSID + security status)
-- LAN adapter connected or disconnected (name + DNS suffix)
-- Auto-switch trigger reason
-- App mode change, manual mode toggle
-- Language change, theme change, log level change
-
-### Debug entries (prefixed `[DBG]`, Extended only)
-
-- Startup: OS, .NET runtime, platform, domain\user
-- Before connect: address, DNS, endpoint, AllowedIPs, public key prefix, MTU
-- Service conf path
-- WireGuard service name and exe path
-- Connect/disconnect timing (ms)
-- Detected LAN adapters: name, DNS suffix, gateway
-
-### Continuation lines
-
-Lines starting with spaces (detail/sub-entries) are rendered with a `↳` prefix in the timestamp colour, visually grouping them with their parent line.
-
-### Export
-
-Click **Export Log** in the Activity Log area to save to UTF-8 `.txt`.
+Continuation lines (detail sub-entries) render with a `↳` prefix in the timestamp colour. Export: **Export Log** button → UTF-8 `.txt`.
 
 ---
 
-## 17. Settings panel
-
-The Settings window has 7 sidebar tabs. All settings except app/tunnel mode changes apply immediately (no Save button required for most tabs).
+## 16. Settings panel
 
 | Tab | Key settings |
 |---|---|
-| **General** | Language, app mode (Standalone/Companion/Mixed), manual mode, tunnel groups |
-| **Appearance** | Dark/light theme pickers, auto system theme, background tunnel notifications |
-| **WiFi Rules** | Manual mode toggle, SSID→tunnel rules list, open network protection tunnel |
-| **Default Action** | WiFi fallback (none/disconnect/activate + tunnel), LAN/Ethernet fallback |
-| **LAN Rules** | Specific LAN network rules — match by adapter name or DNS suffix |
-| **Advanced** | Install/uninstall, DLL status, WireGuard client, orphaned service cleanup, log level |
+| **General** | Language, app mode, disable WiFi rules, tunnel groups |
+| **Appearance** | Dark/light theme, auto system theme, background notifications |
+| **Default Action** | WiFi fallback (none / disconnect / activate + tunnel), open network protection |
+| **WiFi Rules** | Disable WiFi rules toggle, SSID→tunnel rules (deferred save) |
+| **Advanced** | Install/uninstall, DLL status, WireGuard client, orphaned service cleanup, import/export, log level |
 | **About** | Version, update check |
+
+**Deferred save in WiFi Rules** — Add/Edit/Delete only update memory. A **Save** button writes to disk and logs the change.
+
+---
+
+## 17. Import / Export settings
+
+**Export** (Settings → Advanced → Export settings):
+- Shows a warning that tunnel configs are excluded and future-version compatibility is not guaranteed
+- Writes a `*.masselguard` JSON file containing: Rules, TunnelGroups, DefaultAction, DefaultTunnel, OpenWifiTunnel, ManualMode, Mode, Language, themes, log level, popup toggle
+- Field `AppVersion` stores the exporting app version
+
+**Import** (Settings → Advanced → Import settings):
+- Reads `*.masselguard` or `*.json`
+- Compares `AppVersion` to running version — shows a Yes/No warning for any mismatch (both older→newer and newer→older)
+- Uses `JsonDocument` for field-by-field parsing — unknown/future fields are silently ignored
+- Rules and TunnelGroups replace existing lists entirely; all other fields merge
 
 ---
 
@@ -403,19 +338,16 @@ The Settings window has 7 sidebar tabs. All settings except app/tunnel mode chan
 ### BUILD.bat
 
 ```bat
-BUILD.bat
+set DOTNET_CLI_TELEMETRY_OPTOUT=1
+set DOTNET_NOLOGO=1
+dotnet publish → dist\
+copy theme\ → dist\theme\
+copy wireguard-deps\*.dll → dist\
 ```
-
-1. Verify .NET 10 SDK
-2. `dotnet publish` → `dist\`
-3. Copy `theme\` → `dist\theme\`
-4. Copy `wireguard-deps\tunnel.dll` + `wireguard-deps\wireguard.dll` → `dist\`
-
-If DLLs are missing in `wireguard-deps\`, a warning points to `tunnelbuild\tunnelbuild.bat`.
 
 ### tunnelbuild\tunnelbuild.bat
 
-Builds `tunnel.dll` from source (requires Go 1.21+ and gcc/MinGW). Downloads `wireguard.dll` from download.wireguard.com/wireguard-nt/. Outputs to `tunnelbuild\wireguard-deps\`. After running, copy the DLLs to the root `wireguard-deps\` folder before running `BUILD.bat`.
+Builds `tunnel.dll` from source (requires Go 1.21+ and gcc/MinGW). Downloads `wireguard.dll` from download.wireguard.com/wireguard-nt/. Output to `tunnelbuild\wireguard-deps\`.
 
 ### Runtime requirements
 
@@ -423,7 +355,7 @@ Builds `tunnel.dll` from source (requires Go 1.21+ and gcc/MinGW). Downloads `wi
 |---|---|
 | OS | Windows 10 / 11 x64 |
 | Runtime | .NET 10 Desktop Runtime |
-| Elevation | Administrator (UAC prompt on launch) |
+| Elevation | Administrator |
 | Standalone / Mixed | `tunnel.dll` + `wireguard.dll` next to exe |
 | Companion / Mixed | WireGuard for Windows installed |
 
@@ -433,10 +365,10 @@ Builds `tunnel.dll` from source (requires Go 1.21+ and gcc/MinGW). Downloads `wi
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Tunnel connects but Event Viewer shows error | wireguard-NT service exits immediately after driver loads — SCM logs false positive | Ignore; check tunnel list status |
-| Config file not found on connect | Migration needed from older version | Delete and re-add the tunnel |
-| LAN rule not firing | Adapter name or DNS suffix doesn't match | Open Settings → LAN Rules; check the filter against the adapter name shown in Windows Network Connections, or enable Extended logging to see the detected DNS suffix |
-| Edit button stays disabled | Row must be selected first (click the row, not the button in the row) | Click the tunnel name in the list |
-| Pre/post script not running | Script path doesn't exist or has spaces without quotes | Use Browse button; check Extended log for `[Script]` entries |
-| Theme not appearing in picker | `theme.json` missing `type` field or malformed JSON | Ensure `type` is `"dark"` or `"light"` |
-| Settings page content clipped | Resize the settings window taller | Drag the bottom edge |
+| "Already running" after reinstall | Orphaned mutex from previous install path | Wait 2–3 s and relaunch; the retry logic acquires the mutex after the OS releases it |
+| Tunnel connects but immediately shows disconnected | wireguard-NT service exits after loading kernel driver — SCM logs false positive | Ignore; check tunnel list status |
+| WiFi rule not firing | SSID case mismatch, or disable WiFi rules on | Enable Extended logging; compare detected SSID to rule |
+| Edit button stays disabled | Row must be selected first | Click the tunnel name in the list |
+| Pre/post script not running | Path missing or spaces without quotes | Use Browse; check Extended log for `[Script]` entries |
+| Theme not in picker | `theme.json` missing `type` field | Ensure `type` is `"dark"` or `"light"` |
+| Import warning on same-version file | AppVersion includes `-beta` suffix in old export | Proceed — fields are compatible |

@@ -214,9 +214,9 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{Binding [SettingsModeLabel], Source={x:Static local:Lang.Instance}}"
+                                        <TextBlock Text="{Binding [SettingsDisableWifiRulesLabel], Source={x:Static local:Lang.Instance}}"
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextPrimary}"/>
-                                        <TextBlock Text="{Binding [SettingsModeDescription], Source={x:Static local:Lang.Instance}}"
+                                        <TextBlock Text="{Binding [SettingsDisableWifiRulesDesc], Source={x:Static local:Lang.Instance}}"
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9" Foreground="{DynamicResource TextMuted}"
                                                    TextWrapping="Wrap" Margin="0,4,0,0"/>
                                     </StackPanel>
@@ -277,29 +277,6 @@
                                 </StackPanel>
                             </StackPanel>
 
-                            <!-- ── OPEN NETWORK PROTECTION ──────────────────────── -->
-                            <TextBlock Text="{Binding [SettingsSectionOpenWifi], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SettingsSectionHeader}"/>
-                            <Border Background="{DynamicResource Surface}"
-                                    BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
-                                    CornerRadius="{DynamicResource Theme.CornerRadius}"
-                                    Padding="10,8" Margin="0,0,0,6">
-                                <TextBlock Text="{Binding [SettingsOpenWifiInfo], Source={x:Static local:Lang.Instance}}"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
-                            </Border>
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding [OpenWifiTunnel], Source={x:Static local:Lang.Instance}}"
-                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                                               Foreground="{DynamicResource TextMuted}"
-                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <ComboBox x:Name="OpenWifiTunnelBox"
-                                              MinWidth="160" FontSize="11"
-                                              SelectionChanged="OpenWifiTunnel_Changed"/>
-                                </StackPanel>
-                            </Border>
-
                         </StackPanel>
 
                         <!-- ══ DEFAULT ACTION PAGE ══════════════════════════ -->
@@ -337,6 +314,29 @@
                                             </StackPanel>
                                         </RadioButton.Content>
                                     </RadioButton>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- ── OPEN NETWORK PROTECTION ──────────────────────── -->
+                            <TextBlock Text="{Binding [SettingsSectionOpenWifi], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Background="{DynamicResource Surface}"
+                                    BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                                    CornerRadius="{DynamicResource Theme.CornerRadius}"
+                                    Padding="10,8" Margin="0,0,0,6">
+                                <TextBlock Text="{Binding [SettingsOpenWifiInfo], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding [OpenWifiTunnel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <ComboBox x:Name="OpenWifiTunnelBox"
+                                              MinWidth="160" FontSize="11"
+                                              SelectionChanged="OpenWifiTunnel_Changed"/>
                                 </StackPanel>
                             </Border>
 
