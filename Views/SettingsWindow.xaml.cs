@@ -1429,11 +1429,12 @@ namespace MasselGUARD.Views
             if (CheckUpdateBtn != null)
                 CheckUpdateBtn.Content = Lang.T("BtnCheckUpdate");
 
-            // Download button
+            // Download button — only appear after the user has pressed Check now this session.
             if (DoUpdateBtn != null)
             {
-                DoUpdateBtn.Visibility = updateAvail ? Visibility.Visible : Visibility.Collapsed;
-                if (updateAvail)
+                bool showDownload = updateAvail && _updateCheckedThisSession;
+                DoUpdateBtn.Visibility = showDownload ? Visibility.Visible : Visibility.Collapsed;
+                if (showDownload)
                     DoUpdateBtn.Content = Lang.T("BtnDownloadUpdate", cfg.LatestKnownVersion!);
             }
 
@@ -1471,6 +1472,7 @@ namespace MasselGUARD.Views
                 CheckUpdateBtn.IsEnabled = true;
                 CheckUpdateBtn.Content   = Lang.T("BtnCheckUpdate");
             }
+            _updateCheckedThisSession = true;
             RefreshUpdateState();
             if (latest != null && UpdateChecker.IsNewerVersion(latest.TagName))
             {
@@ -1563,8 +1565,9 @@ namespace MasselGUARD.Views
             catch { }
         }
 
-        private bool _fontPickerPopulated = false;
-        private bool _savedSuccessfully   = false;
+        private bool _fontPickerPopulated      = false;
+        private bool _savedSuccessfully        = false;
+        private bool _updateCheckedThisSession = false;  // Download button only visible after manual check
 
         // ── Font live-preview timer ───────────────────────────────────────────
         private System.Windows.Threading.DispatcherTimer? _fontPreviewTimer;

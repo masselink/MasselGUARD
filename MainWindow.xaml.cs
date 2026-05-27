@@ -2729,6 +2729,7 @@ namespace MasselGUARD
             {
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
                     installed) { UseShellExecute = true });
+                App.IsShuttingDown = true;   // suppress teardown exceptions
                 Application.Current.Shutdown();
             }
             catch (Exception ex) { LogSvc.Warn($"Update failed: {ex.Message}"); }
