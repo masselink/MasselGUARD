@@ -1442,6 +1442,11 @@ namespace MasselGUARD.Views
 
         private async void CheckUpdate_Click(object sender, RoutedEventArgs e)
         {
+            // Shift+click: force-install whatever is on GitHub, bypassing version check.
+            // Developer shortcut for testing the update pipeline.
+            bool forceUpdate = (System.Windows.Input.Keyboard.Modifiers
+                                & System.Windows.Input.ModifierKeys.Shift) != 0;
+
             if (CheckUpdateBtn != null)
             {
                 CheckUpdateBtn.IsEnabled = false;
@@ -1457,6 +1462,17 @@ namespace MasselGUARD.Views
             _latestRelease            = latest;
             _updateCheckedThisSession = true;
             RefreshUpdateState();
+
+            if (forceUpdate && latest != null)
+            {
+                // Force mode: start update unconditionally (even if local build is newer).
+                if (_main.ShowThemedYesNo(
+                    $"Force-install {latest.TagName}?\n\nThis will overwrite your current build. Use this only to test the update pipeline.",
+                    "MasselGUARD — Force Update"))
+                    await StartUpdateAsync(latest);
+                return;
+            }
+
             if (latest != null && UpdateChecker.IsNewerVersion(latest.TagName))
             {
                 var current = UpdateChecker.CurrentVersionString;
