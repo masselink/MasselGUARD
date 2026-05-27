@@ -12,6 +12,14 @@ namespace MasselGUARD
 {
     public partial class App : System.Windows.Application
     {
+        /// <summary>
+        /// Set to true immediately before Application.Shutdown() so the unhandled-exception
+        /// handler can suppress all teardown noise (InvalidCastException, ResourceReference-
+        /// KeyNotFoundException, etc.) that WPF fires while closing windows and unloading
+        /// ResourceDictionaries. These are harmless artifacts, never real bugs.
+        /// </summary>
+        internal static bool IsShuttingDown;
+
         private WinForms.NotifyIcon?       _trayIcon;
         private WinForms.ContextMenuStrip? _trayMenu;
         private WinForms.ToolStripMenuItem? _tunnelMenuHeader;
@@ -67,6 +75,18 @@ namespace MasselGUARD
             // Global exception handler — show error instead of silent crash
             DispatcherUnhandledException += (_, ex) =>
             {
+                // During shutdown, suppress all dispatcher exceptions.
+                // WPF's teardown fires FindResource / DynamicResource lookups against
+                // already-unloaded ResourceDictionaries, producing InvalidCastException
+                // (MS.Internal.NamedObject cast to Style/Brush) and
+                // ResourceReferenceKeyNotFoundException. Both are harmless teardown noise.
+                if (IsShuttingDown ||
+                    ex.Exception is System.Windows.ResourceReferenceKeyNotFoundException)
+                {
+                    ex.Handled = true;
+                    return;
+                }
+
                 System.Windows.MessageBox.Show(
                     $"Unhandled error:\n\n{ex.Exception.GetType().Name}: {ex.Exception.Message}\n\n{ex.Exception.StackTrace?.Split('\n').FirstOrDefault()}",
                     "MasselGUARD — Unexpected Error",
@@ -406,6 +426,7 @@ namespace MasselGUARD
 
         public void ShutdownApp()
         {
+            IsShuttingDown     = true;
             _trayIcon!.Visible = false;
             Shutdown();
         }

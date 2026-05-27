@@ -1371,55 +1371,52 @@ namespace MasselGUARD.Views
                         cfg.LastUpdateCheck.ToLocalTime().ToString("g"));
 
             // Status badge: colour + text
-            bool hasLatest  = !string.IsNullOrEmpty(cfg.LatestKnownVersion);
-            bool upToDate   = hasLatest && string.Compare(current, cfg.LatestKnownVersion,
-                                  StringComparison.OrdinalIgnoreCase) >= 0;
-            bool updateAvail = hasLatest && !upToDate;
+            // Use proper version comparison (handles build numbers correctly).
+            bool hasLatest   = !string.IsNullOrEmpty(cfg.LatestKnownVersion);
+            bool updateAvail = hasLatest && UpdateChecker.IsNewerVersion(cfg.LatestKnownVersion);
+            bool isAhead     = hasLatest && UpdateChecker.IsAheadOfLatest(cfg.LatestKnownVersion);
 
             if (UpdateStatusBadge != null && UpdateStatusLabel != null)
             {
+                // All states use the theme Accent colour — icons distinguish them.
+                var accentBg = (System.Windows.Media.Brush)Application.Current.Resources["Accent"];
+                var onAccent = (System.Windows.Media.Brush)Application.Current.Resources["WindowBg"];
+
+                UpdateStatusBadge.BorderBrush     = System.Windows.Media.Brushes.Transparent;
+                UpdateStatusBadge.BorderThickness  = new Thickness(0);
+                UpdateStatusBadge.Background       = accentBg;
+                UpdateStatusLabel.Foreground       = onAccent;
+
                 if (!hasLatest)
                 {
-                    UpdateStatusBadge.Background = (System.Windows.Media.Brush)
+                    // Never checked — muted pill until user hits Check Now
+                    UpdateStatusBadge.Background      = (System.Windows.Media.Brush)
                         Application.Current.Resources["Surface"];
-                    UpdateStatusBadge.BorderBrush = (System.Windows.Media.Brush)
+                    UpdateStatusBadge.BorderBrush     = (System.Windows.Media.Brush)
                         Application.Current.Resources["BorderColor"];
                     UpdateStatusBadge.BorderThickness = new Thickness(1);
-                    UpdateStatusLabel.Foreground = (System.Windows.Media.Brush)
+                    UpdateStatusLabel.Foreground      = (System.Windows.Media.Brush)
                         Application.Current.Resources["TextMuted"];
-                    UpdateStatusLabel.Text = Lang.T("SettingsUpdateUnknown");
+                    UpdateStatusLabel.Text = "— " + Lang.T("SettingsUpdateUnknown");
                 }
-                else if (upToDate)
-                {
-                    UpdateStatusBadge.Background = (System.Windows.Media.Brush)
-                        Application.Current.Resources["Success"];
-                    UpdateStatusBadge.BorderBrush = System.Windows.Media.Brushes.Transparent;
-                    UpdateStatusBadge.BorderThickness = new Thickness(0);
-                    UpdateStatusLabel.Foreground = (System.Windows.Media.Brush)
-                        Application.Current.Resources["WindowBg"];
-                    UpdateStatusLabel.Text = Lang.T("SettingsUpdateCurrent", current);
-                }
+                else if (updateAvail)
+                    UpdateStatusLabel.Text = "↑  " + Lang.T("SettingsUpdateAvailable", cfg.LatestKnownVersion!);
+                else if (isAhead)
+                    UpdateStatusLabel.Text = "🚀  " + Lang.T("SettingsUpdateAhead", cfg.LatestKnownVersion!);
                 else
-                {
-                    UpdateStatusBadge.Background = (System.Windows.Media.Brush)
-                        Application.Current.Resources["Accent"];
-                    UpdateStatusBadge.BorderBrush = System.Windows.Media.Brushes.Transparent;
-                    UpdateStatusBadge.BorderThickness = new Thickness(0);
-                    UpdateStatusLabel.Foreground = (System.Windows.Media.Brush)
-                        Application.Current.Resources["WindowBg"];
-                    UpdateStatusLabel.Text = Lang.T("SettingsUpdateAvailable", cfg.LatestKnownVersion!);
-                }
+                    UpdateStatusLabel.Text = "✓  " + Lang.T("SettingsUpdateCurrent", current);
             }
 
             // Check Now button label
             if (CheckUpdateBtn != null)
                 CheckUpdateBtn.Content = Lang.T("BtnCheckUpdate");
 
-            // Download button
+            // Download button — only appear after the user has pressed Check now this session.
             if (DoUpdateBtn != null)
             {
-                DoUpdateBtn.Visibility = updateAvail ? Visibility.Visible : Visibility.Collapsed;
-                if (updateAvail)
+                bool showDownload = updateAvail && _updateCheckedThisSession;
+                DoUpdateBtn.Visibility = showDownload ? Visibility.Visible : Visibility.Collapsed;
+                if (showDownload)
                     DoUpdateBtn.Content = Lang.T("BtnDownloadUpdate", cfg.LatestKnownVersion!);
             }
 
@@ -1457,6 +1454,8 @@ namespace MasselGUARD.Views
                 CheckUpdateBtn.IsEnabled = true;
                 CheckUpdateBtn.Content   = Lang.T("BtnCheckUpdate");
             }
+            _latestRelease            = latest;
+            _updateCheckedThisSession = true;
             RefreshUpdateState();
             if (latest != null && UpdateChecker.IsNewerVersion(latest.TagName))
             {
@@ -1464,7 +1463,58 @@ namespace MasselGUARD.Views
                 if (_main.ShowThemedYesNo(
                     Lang.T("UpdateAvailableMsg", latest.TagName, current),
                     Lang.T("UpdateAvailableTitle")))
-                    _main.RunUpdate();
+                    await StartUpdateAsync(latest);
+            }
+            else if (latest != null && UpdateChecker.IsAheadOfLatest(latest.TagName))
+            {
+                _main.ShowThemedInfo(
+                    Lang.T("SettingsUpdateAheadMsg", latest.TagName),
+                    Lang.T("SettingsUpdateAheadTitle"));
+            }
+        }
+
+        // Downloads, extracts, and applies the update, then shuts down this instance.
+        // Shows inline progress and re-enables buttons on failure.
+        private async System.Threading.Tasks.Task StartUpdateAsync(ReleaseInfo release)
+        {
+            if (release.ZipUrl == null)
+            {
+                _main.ShowThemedInfo(
+                    Lang.T("UpdateNoZipAsset", release.TagName),
+                    "MasselGUARD");
+                return;
+            }
+
+            if (CheckUpdateBtn != null)  CheckUpdateBtn.IsEnabled = false;
+            if (DoUpdateBtn    != null)  DoUpdateBtn.IsEnabled    = false;
+            if (UpdateProgressLabel != null)
+            {
+                UpdateProgressLabel.Text       = "";
+                UpdateProgressLabel.Visibility = Visibility.Visible;
+            }
+
+            var progress = new Progress<string>(msg =>
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    if (UpdateProgressLabel != null) UpdateProgressLabel.Text = msg;
+                });
+            });
+
+            try
+            {
+                await UpdateChecker.UpdateAsync(
+                    release, progress, _main.ConfigSvc.Config, _main.ConfigSvc.Save);
+                // UpdateAsync calls ShutdownApp() on success — execution never reaches here.
+            }
+            catch (Exception ex)
+            {
+                if (UpdateProgressLabel != null) UpdateProgressLabel.Visibility = Visibility.Collapsed;
+                if (CheckUpdateBtn != null)  CheckUpdateBtn.IsEnabled = true;
+                if (DoUpdateBtn    != null)  DoUpdateBtn.IsEnabled    = true;
+                _main.ShowThemedInfo(
+                    $"{Lang.T("UpdateFailed")}\n\n{ex.Message}",
+                    "MasselGUARD — " + Lang.T("UpdateAvailableTitle"));
             }
         }
 
@@ -1531,8 +1581,11 @@ namespace MasselGUARD.Views
         private void ScanOrphans_Click(object sender, System.Windows.RoutedEventArgs e)
             => ScanOrphans();
 
-        private void DoUpdate_Click(object sender, System.Windows.RoutedEventArgs e)
-            => _main.RunUpdate();
+        private async void DoUpdate_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (_latestRelease != null)
+                await StartUpdateAsync(_latestRelease);
+        }
 
         private void GithubLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
@@ -1541,8 +1594,10 @@ namespace MasselGUARD.Views
             catch { }
         }
 
-        private bool _fontPickerPopulated = false;
-        private bool _savedSuccessfully   = false;
+        private bool         _fontPickerPopulated      = false;
+        private bool         _savedSuccessfully        = false;
+        private bool         _updateCheckedThisSession = false;  // Download button only visible after manual check
+        private ReleaseInfo? _latestRelease;                     // Cached from last CheckNow — needed by DoUpdate button
 
         // ── Font live-preview timer ───────────────────────────────────────────
         private System.Windows.Threading.DispatcherTimer? _fontPreviewTimer;

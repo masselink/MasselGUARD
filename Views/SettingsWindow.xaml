@@ -1046,6 +1046,13 @@
                                                 Click="DoUpdate_Click"/>
                                     </StackPanel>
 
+                                    <!-- Download / extract / apply progress -->
+                                    <TextBlock x:Name="UpdateProgressLabel"
+                                               FontFamily="{DynamicResource Theme.FontFamily}"
+                                               FontSize="10" Foreground="{DynamicResource Accent}"
+                                               Margin="0,8,0,0" Visibility="Collapsed"
+                                               TextWrapping="Wrap"/>
+
                                 </StackPanel>
                             </Border>
 

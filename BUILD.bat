@@ -4,7 +4,7 @@ setlocal enabledelayedexpansion
 
 rem ── Build number: YYMMDDHHMM ────────────────────────────────────────────────
 for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyMMddHHmm"') do set BUILD_NUM=%%a
-set VERSION=3.0.0
+set VERSION=3.0.1
 set FULL_VERSION=%VERSION%.%BUILD_NUM%
 
 rem ── Inject build number into UpdateChecker.cs ───────────────────────────────

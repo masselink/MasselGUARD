@@ -2214,6 +2214,67 @@ namespace MasselGUARD
             return result;
         }
 
+        /// <summary>Single-button (OK) themed info dialog — same style as ShowThemedYesNo.</summary>
+        public void ShowThemedInfo(string message, string title)
+        {
+            var win = new Window
+            {
+                WindowStyle           = WindowStyle.None,
+                AllowsTransparency    = true,
+                Background            = System.Windows.Media.Brushes.Transparent,
+                Width                 = 400,
+                SizeToContent         = SizeToContent.Height,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner                 = this,
+                ResizeMode            = ResizeMode.NoResize,
+            };
+
+            var border = new System.Windows.Controls.Border
+            {
+                Background      = (System.Windows.Media.Brush)Application.Current.Resources["WindowBg"],
+                BorderBrush     = (System.Windows.Media.Brush)Application.Current.Resources["BorderColor"],
+                BorderThickness = new Thickness(1),
+                CornerRadius    = new System.Windows.CornerRadius(6),
+                Padding         = new Thickness(20),
+            };
+
+            var panel = new System.Windows.Controls.StackPanel();
+
+            panel.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text       = title,
+                FontSize   = 12, FontWeight = FontWeights.Bold,
+                Foreground = (System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
+                Margin     = new Thickness(0, 0, 0, 10),
+            });
+            panel.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text         = message,
+                FontSize     = 11,
+                Foreground   = (System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
+                TextWrapping = TextWrapping.Wrap,
+                Margin       = new Thickness(0, 0, 0, 16),
+            });
+
+            var btns = new System.Windows.Controls.StackPanel
+            {
+                Orientation         = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+            };
+            var btnOk = new System.Windows.Controls.Button
+            {
+                Content = Lang.T("BtnOk"),
+                Style   = (Style)Application.Current.Resources["FlatBtn"],
+                Padding = new Thickness(14, 6, 14, 6),
+            };
+            btnOk.Click += (_, _) => win.Close();
+            btns.Children.Add(btnOk);
+            panel.Children.Add(btns);
+            border.Child = panel;
+            win.Content  = border;
+            win.ShowDialog();
+        }
+
         private void ShowPortableInstallPrompt()
         {
             // Custom dialog with "Don't ask again" checkbox
@@ -2321,17 +2382,25 @@ namespace MasselGUARD
             {
                 var latest = await UpdateChecker.CheckNowAsync(ConfigSvc.Config, ConfigSvc.Save);
                 if (latest == null) return;
-
                 if (!UpdateChecker.IsNewerVersion(latest.TagName)) return;
 
+                // Ask on the UI thread, then start the download on a background thread.
+                var shouldUpdate = false;
                 await Dispatcher.InvokeAsync(() =>
                 {
                     var current = UpdateChecker.CurrentVersionString;
-                    if (ShowThemedYesNo(
+                    shouldUpdate = ShowThemedYesNo(
                         Lang.T("UpdateAvailableMsg", latest.TagName, current),
-                        Lang.T("UpdateAvailableTitle")))
-                        RunUpdate();
+                        Lang.T("UpdateAvailableTitle"));
                 });
+
+                if (shouldUpdate)
+                {
+                    var progress = new System.Progress<string>(
+                        msg => LogSvc.Info($"[Update] {msg}"));
+                    await UpdateChecker.UpdateAsync(
+                        latest, progress, ConfigSvc.Config, ConfigSvc.Save);
+                }
             }
             catch { /* silent — network may not be available */ }
         }
@@ -2721,18 +2790,10 @@ namespace MasselGUARD
                 StringComparison.OrdinalIgnoreCase);
         }
 
-        public void RunUpdate()
-        {
-            var installed = GetInstalledPath();
-            if (installed == null) return;
-            try
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
-                    installed) { UseShellExecute = true });
-                Application.Current.Shutdown();
-            }
-            catch (Exception ex) { LogSvc.Warn($"Update failed: {ex.Message}"); }
-        }
+        // RunUpdate() is superseded by UpdateChecker.UpdateAsync().
+        // Kept as a no-op to avoid compilation errors if any dead code still references it.
+        [System.Obsolete("Use UpdateChecker.UpdateAsync() instead.")]
+        public void RunUpdate() => LogSvc.Warn("RunUpdate() called — use UpdateChecker.UpdateAsync().");
 
         public (MessageBoxResult result, bool suppress) ShowUpdatePrompt(string msg, string title)
         {
