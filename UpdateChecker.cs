@@ -23,7 +23,7 @@ namespace MasselGUARD
     {
         private const string TagsApiUrl     = "https://api.github.com/repos/masselink/MasselGUARD/tags";
         private const string ReleasesApiUrl = "https://api.github.com/repos/masselink/MasselGUARD/releases";
-        private const string CurrentVersion = "3.0.1.2605272100";  // updated by build.bat — keep in sync with AppTitle
+        private const string CurrentVersion = "3.0.1.2605272109";  // updated by build.bat — keep in sync with AppTitle
 
         // ── Public: silent background check (called on startup) ──────────────
         public static async Task CheckAsync(AppConfig cfg, Action saveConfig,
@@ -139,7 +139,20 @@ namespace MasselGUARD
 
         private static Version ParseVersion(string s)
         {
-            if (Version.TryParse(s, out var v)) return v;
+            // Compare only Major.Minor.Patch — the 4th component is a build timestamp
+            // (yyMMddHHmm) that exceeds int.MaxValue from ~2022 onward, causing
+            // Version.TryParse to silently fail and fall back to (0,0), which makes
+            // any GitHub tag appear newer than the locally running build.
+            var parts = s.Split('.');
+            if (parts.Length >= 3
+                && int.TryParse(parts[0], out var major)
+                && int.TryParse(parts[1], out var minor)
+                && int.TryParse(parts[2], out var patch))
+                return new Version(major, minor, patch);
+            if (parts.Length >= 2
+                && int.TryParse(parts[0], out major)
+                && int.TryParse(parts[1], out minor))
+                return new Version(major, minor);
             return new Version(0, 0);
         }
 

@@ -2214,6 +2214,67 @@ namespace MasselGUARD
             return result;
         }
 
+        /// <summary>Single-button (OK) themed info dialog — same style as ShowThemedYesNo.</summary>
+        public void ShowThemedInfo(string message, string title)
+        {
+            var win = new Window
+            {
+                WindowStyle           = WindowStyle.None,
+                AllowsTransparency    = true,
+                Background            = System.Windows.Media.Brushes.Transparent,
+                Width                 = 400,
+                SizeToContent         = SizeToContent.Height,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner                 = this,
+                ResizeMode            = ResizeMode.NoResize,
+            };
+
+            var border = new System.Windows.Controls.Border
+            {
+                Background      = (System.Windows.Media.Brush)Application.Current.Resources["WindowBg"],
+                BorderBrush     = (System.Windows.Media.Brush)Application.Current.Resources["BorderColor"],
+                BorderThickness = new Thickness(1),
+                CornerRadius    = new System.Windows.CornerRadius(6),
+                Padding         = new Thickness(20),
+            };
+
+            var panel = new System.Windows.Controls.StackPanel();
+
+            panel.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text       = title,
+                FontSize   = 12, FontWeight = FontWeights.Bold,
+                Foreground = (System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
+                Margin     = new Thickness(0, 0, 0, 10),
+            });
+            panel.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text         = message,
+                FontSize     = 11,
+                Foreground   = (System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
+                TextWrapping = TextWrapping.Wrap,
+                Margin       = new Thickness(0, 0, 0, 16),
+            });
+
+            var btns = new System.Windows.Controls.StackPanel
+            {
+                Orientation         = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+            };
+            var btnOk = new System.Windows.Controls.Button
+            {
+                Content = Lang.T("BtnOk"),
+                Style   = (Style)Application.Current.Resources["FlatBtn"],
+                Padding = new Thickness(14, 6, 14, 6),
+            };
+            btnOk.Click += (_, _) => win.Close();
+            btns.Children.Add(btnOk);
+            panel.Children.Add(btns);
+            border.Child = panel;
+            win.Content  = border;
+            win.ShowDialog();
+        }
+
         private void ShowPortableInstallPrompt()
         {
             // Custom dialog with "Don't ask again" checkbox

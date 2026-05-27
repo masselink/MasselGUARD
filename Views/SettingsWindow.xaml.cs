@@ -1485,11 +1485,9 @@ namespace MasselGUARD.Views
             }
             else if (latest != null && UpdateChecker.IsAheadOfLatest(latest.TagName))
             {
-                MessageBox.Show(
+                _main.ShowThemedInfo(
                     Lang.T("SettingsUpdateAheadMsg", latest.TagName),
-                    Lang.T("SettingsUpdateAheadTitle"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                    Lang.T("SettingsUpdateAheadTitle"));
             }
         }
 
@@ -1499,11 +1497,9 @@ namespace MasselGUARD.Views
         {
             if (release.ZipUrl == null)
             {
-                MessageBox.Show(
+                _main.ShowThemedInfo(
                     Lang.T("UpdateNoZipAsset", release.TagName),
-                    "MasselGUARD",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                    "MasselGUARD");
                 return;
             }
 
@@ -1534,11 +1530,9 @@ namespace MasselGUARD.Views
                 if (UpdateProgressLabel != null) UpdateProgressLabel.Visibility = Visibility.Collapsed;
                 if (CheckUpdateBtn != null)  CheckUpdateBtn.IsEnabled = true;
                 if (DoUpdateBtn    != null)  DoUpdateBtn.IsEnabled    = true;
-                MessageBox.Show(
+                _main.ShowThemedInfo(
                     $"{Lang.T("UpdateFailed")}\n\n{ex.Message}",
-                    "MasselGUARD",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
+                    "MasselGUARD — " + Lang.T("UpdateAvailableTitle"));
             }
         }
 
