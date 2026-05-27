@@ -1,6 +1,6 @@
 # MasselGUARD — User Manual
 
-**Version 2.9.0**
+**Version 3.0.0**
 
 ---
 
@@ -26,8 +26,9 @@
 18. [The activity log](#18-the-activity-log)
 19. [System tray](#19-system-tray)
 20. [Themes](#20-themes)
-21. [Multiple languages](#21-multiple-languages)
-22. [Frequently asked questions](#22-frequently-asked-questions)
+21. [Font override](#21-font-override)
+22. [Multiple languages](#22-multiple-languages)
+23. [Frequently asked questions](#23-frequently-asked-questions)
 
 ---
 
@@ -114,6 +115,11 @@ Columns: **Name** (widest) | **SSID** | **Action** | **Hits** | **Tunnel**
 
 Column header: **Time** | **Event**. Entry count badge. Export Log button.
 
+The log panel can be shown or hidden:
+- **`☰` button** — appears on the right side of the tunnel header only when the log is collapsed; click to show
+- **`»` button** — appears on the right side of the activity log header; click to collapse
+- Toggle state persists across sessions (see Settings → General → Interface)
+
 ### Footer bar
 
 Left: run mode (green when Managed) | Centre: ⚡ default tunnel + 🔓 open protection | Right: Administrator status
@@ -193,10 +199,21 @@ Adding, editing, or deleting a rule immediately refreshes both the WiFi Rules pa
 
 ## 9. Settings — General
 
-- Language picker
-- App mode: Standalone / Companion / Mixed
+### Language
 
-All changes deferred until Save. Cancel discards everything.
+Language picker — changes take effect immediately. Five languages: English, Dutch, German, French, Spanish.
+
+### App mode
+
+- **Standalone** — MasselGUARD manages tunnels directly (`tunnel.dll`)
+- **Companion** — Automates the WireGuard for Windows app
+- **Mixed** — Both simultaneously
+
+### Interface
+
+- **Show activity log** — shows or hides the activity log panel on the right side of the main window. Changes take immediate effect. Saved state persists across restarts.
+
+All changes deferred until Save. Cancel discards everything, including the log visibility change.
 
 ---
 
@@ -213,8 +230,45 @@ Changes deferred until Save.
 
 ## 11. Settings — Appearance
 
-- Dark theme / Light theme pickers — live preview; cancel reverts
-- Auto theme — follows Windows dark/light preference
+### System theme mode
+
+A pill strip sets whether dark or light mode is used:
+
+| Pill | Behaviour |
+|---|---|
+| **Auto** | Follows the Windows dark/light preference automatically |
+| **Light** | Always use the light theme |
+| **Dark** | Always use the dark theme |
+
+### Custom appearance
+
+The **Use custom theme** toggle switches between two colour sources:
+
+| State | Source |
+|---|---|
+| **Off** (default) | Windows 11 system accent colours |
+| **On** | Custom theme files from the `theme/` folder |
+
+When enabled, two theme pickers appear — one for dark mode, one for light mode — so each mode can have its own theme file. Selections are independent.
+
+### Theme preview
+
+Theme selections are **not applied immediately**. Click **▶ Preview** to apply the selected theme to the interface for 10 seconds, then it reverts automatically. Click again (shown as `↩ Xs`) to revert early. Changing any theme setting while a preview is active cancels the preview.
+
+### Font override
+
+Enable **Override font** to replace the theme's typeface with any installed system font.
+
+- **Font family** — editable ComboBox; each font name renders in its own typeface. Leave blank to use the Windows system UI font.
+- **Preview label** — sample text shown in the current preview state
+- **Font size slider** — 8–18 pt
+
+### Font preview
+
+The **▶ Preview** button next to the size slider applies the draft font to the whole interface for 10 seconds. The preview label updates when Preview is clicked — not on every picker change. Changing the font family or size while a preview is running cancels it and reverts to the committed font.
+
+### Notifications
+
 - **Background notifications** toggle — show WPF toast when a tunnel auto-switches
 - **Notification duration** — 3 / 5 / 10 / 15 / 30 seconds
 
@@ -251,7 +305,7 @@ Changes deferred until Save.
 3. **Hide WiFi rules on main window** toggle
 4. **Show Rules column** in tunnel list toggle
 
-Rules changes save via the main Save button. The separate "Save rules" button has been removed.
+Rules changes save via the main Save button.
 
 ---
 
@@ -262,10 +316,9 @@ Rules changes save via the main Save button. The separate "Save rules" button ha
 2. Log level (Normal / Extended)
 3. Installation — run mode, Install/Uninstall button
 4. Start with Windows — Scheduled Task at `RunLevel=Highest`
-5. WireGuard client — open the WireGuard for Windows app
-6. Orphaned services — scan and clean up
-7. DLL status
-8. Update checker — frequency, check now
+5. **Confirm disconnect on exit** — when off, active tunnels are disconnected silently on exit (default: on)
+6. WireGuard client — open the WireGuard for Windows app
+7. Orphaned services — scan and clean up
 
 ### Extended log on Save
 
@@ -306,6 +359,8 @@ Extended mode adds: `[DBG]` entries, disconnect duration, settings change detail
 
 Entry count badge in header. Export Log saves to `.txt`.
 
+The panel can be collapsed via the `»` button in its header, or reopened via the `☰` button that appears in the tunnel list header when the log is hidden.
+
 ---
 
 ## 19. System tray
@@ -325,19 +380,44 @@ Right-click → menu. Double-click → show main window. × in main window → m
 
 ## 20. Themes
 
-Six built-in: Default Dark/Light, Grey Dark/Light, High Contrast Dark/Light. Theme switcher in title bar. Custom themes in `theme\` folder. Settings → Appearance shows live preview — Cancel reverts.
+### Built-in themes
 
-Custom themes can set `AppName` to change the name shown in toast notifications.
+Six built-in: Default Dark/Light, Grey Dark/Light, High Contrast Dark/Light.
+
+### Custom theme files
+
+Drop a `theme/<folder>/theme.json` file into the `theme/` folder. Set `"type": "dark"` or `"type": "light"` so it appears in the correct picker.
+
+Custom themes can override `AppName` to change the name shown in toast notifications.
+
+### Live preview
+
+Use the **▶ Preview** button in Settings → Appearance to see a theme for 10 seconds before committing. Cancel Settings to revert to the last saved theme.
+
+See `theme/THEME_INFO.md` for the full key reference.
 
 ---
 
-## 21. Multiple languages
+## 21. Font override
+
+Enable **Override font** in Settings → Appearance → Font to replace the theme typeface with any installed system font.
+
+- The font family dropdown lists all installed fonts; each entry renders in its own typeface
+- The size slider sets the base font size (8–18 pt); 0 uses the theme default (~11 pt)
+- Click **▶ Preview** to see the font applied to the whole interface for 10 seconds
+- Changes are not committed until Settings is saved
+
+To return to the theme's own font: toggle **Override font** off.
+
+---
+
+## 22. Multiple languages
 
 English, Dutch, German, French, Spanish. Change in Settings → General. Add a language: copy `lang\en.json`, translate, add `_code` and `_language` keys.
 
 ---
 
-## 22. Frequently asked questions
+## 23. Frequently asked questions
 
 **Rules fire twice when switching networks.**
 Fixed — debounce re-fire guard and `ApplyWifiState` duplicate guard prevent double execution.
@@ -368,3 +448,15 @@ Yes — enable Start with Windows in Settings → Advanced after installing. Sub
 
 **What does the Hits column show?**
 How many times each WiFi rule has triggered since it was created. Persisted across restarts.
+
+**Can I hide the activity log?**
+Yes — click `»` in the log header, or use Settings → General → Interface → Show activity log. The `☰` button reappears in the tunnel header to bring it back.
+
+**Theme changes apply immediately and I can't cancel — how do I preview safely?**
+Use the **▶ Preview** button in Settings → Appearance. It applies the theme for 10 seconds then automatically reverts. Cancel Settings to undo all uncommitted changes.
+
+**Can I use a different font than the theme's?**
+Yes — enable Override font in Settings → Appearance → Font, pick a family and size, and click **▶ Preview** to try it for 10 seconds before saving.
+
+**The font or theme I chose makes the UI unreadable — how do I recover?**
+Hold **Shift** while launching MasselGUARD. Before any window opens, the app detects the key and resets both the font override (back to system UI font) and the custom theme (back to Windows system colours, auto mode). A confirmation dialog lists exactly what was cleared. Normal startup continues afterwards with the reset settings.

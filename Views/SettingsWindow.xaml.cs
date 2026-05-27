@@ -18,7 +18,9 @@ namespace MasselGUARD.Views
         private bool   _loading   = true;
         private bool   _themeSwitching = false;
 
-        private string _originalTheme = "";   // to revert if cancelled
+        // _originalTheme removed — CancelThemePreview/CancelFontPreview/OnClosing
+        // now call _main.ApplyThemeFromConfig() which reads the committed config and
+        // correctly handles both system colours and custom theme files.
         private Models.AppConfig _draft = new(); // staged copy — only written to config on Save
 
         public SettingsWindow(MainWindow main)
@@ -42,8 +44,6 @@ namespace MasselGUARD.Views
                 _loading = false;
                 // Create a deep copy of the LIVE config — all edits go here until Save is pressed
                 _draft = _main.ConfigSvc.Config.DeepClone();
-                // Remember current theme so we can revert if cancelled
-                _originalTheme = ThemeManager.Instance.CurrentThemeName ?? "";
                 ShowTab("General");
                 RefreshUpdateState();
             };
@@ -86,7 +86,7 @@ namespace MasselGUARD.Views
             TabBtnAdvanced.Tag      = tab == "Advanced"      ? "Active" : null;
             TabBtnAbout.Tag         = tab == "About"         ? "Active" : null;
 
-            if (tab == "Advanced")   { RefreshInstallState(); RefreshDllStatus(); RefreshWireGuardSection(); ScanOrphans(); PopulateLogLevelPicker(); SyncStartWithWindows(); }
+            if (tab == "Advanced")   { RefreshInstallState(); RefreshDllStatus(); RefreshWireGuardSection(); ScanOrphans(); PopulateLogLevelPicker(); SyncStartWithWindows(); SyncConfirmOnClose(); }
             if (tab == "About")      RefreshUpdateState();
             if (tab == "Appearance") PopulateThemePicker();
             if (tab == "General")    { RefreshGroupList(); RefreshModeStatusBox(); }
@@ -176,6 +176,7 @@ namespace MasselGUARD.Views
             if (ModeStandalone != null) ModeStandalone.IsChecked = mode == AppMode.Standalone;
             if (ModeCompanion  != null) ModeCompanion.IsChecked  = mode == AppMode.Companion;
             if (ModeMixed      != null) ModeMixed.IsChecked      = mode == AppMode.Mixed;
+            if (ShowActivityLogToggle != null) ShowActivityLogToggle.IsChecked = _draft.ShowActivityLog;
             _loading = false;
 
             // ── Groups tab controls ───────────────────────────────────────────
@@ -390,6 +391,13 @@ namespace MasselGUARD.Views
                 ShowRulesColumnToggle?.IsChecked == true;
         }
 
+        private void ShowActivityLog_Changed(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.ShowActivityLog = ShowActivityLogToggle?.IsChecked == true;
+            _main.SetLogPanelVisible(_draft.ShowActivityLog);
+        }
+
         private void HideWifiRules_Changed(object sender, System.Windows.RoutedEventArgs e)
         {
             if (_loading) return;
@@ -445,7 +453,13 @@ namespace MasselGUARD.Views
         private void PopulateThemePicker()
         {
             _themeSwitching = true;
-            var allThemes = ThemeManager.AvailableThemes();
+
+            // Exclude virtual/built-in entries from the custom pickers:
+            //   __system__   — hardcoded Windows palette (used when UseCustomTheme=false)
+            //   windows-dark / windows-light — same palette shipped as theme files; not user-selectable
+            var allThemes = ThemeManager.AvailableThemes()
+                .Where(f => f != "__system__" && f != "windows-dark" && f != "windows-light")
+                .ToList();
 
             string GetType(string folder) {
                 try {
@@ -466,6 +480,8 @@ namespace MasselGUARD.Views
             DarkThemePicker.SelectedItem = DarkThemePicker.Items
                 .OfType<ThemePickerItem>()
                 .FirstOrDefault(i => i.FolderName == _draft.ActiveDarkTheme);
+            if (DarkThemePicker.SelectedItem == null && DarkThemePicker.Items.Count > 0)
+                DarkThemePicker.SelectedIndex = 0;
 
             LightThemePicker.Items.Clear();
             foreach (var f in light)
@@ -473,8 +489,29 @@ namespace MasselGUARD.Views
             LightThemePicker.SelectedItem = LightThemePicker.Items
                 .OfType<ThemePickerItem>()
                 .FirstOrDefault(i => i.FolderName == _draft.ActiveLightTheme);
+            if (LightThemePicker.SelectedItem == null && LightThemePicker.Items.Count > 0)
+                LightThemePicker.SelectedIndex = 0;
 
-            AutoThemeToggle.IsChecked = _draft.AutoTheme;
+            // System mode pills
+            _loading = true;
+            var sysMode = _draft.SystemThemeMode ?? "auto";
+            if (SysModeLight != null) SysModeLight.IsChecked = sysMode == "light";
+            if (SysModeDark  != null) SysModeDark.IsChecked  = sysMode == "dark";
+            if (SysModeAuto  != null) SysModeAuto.IsChecked  = sysMode != "light" && sysMode != "dark";
+            _loading = false;
+
+            // Custom theme toggle + pickers panel visibility
+            if (CustomThemeToggle != null)
+            {
+                _loading = true;
+                CustomThemeToggle.IsChecked = _draft.UseCustomTheme;
+                _loading = false;
+            }
+            if (CustomThemePickersPanel != null)
+                CustomThemePickersPanel.Visibility =
+                    _draft.UseCustomTheme ? Visibility.Visible : Visibility.Collapsed;
+
+            // Tray popup toggle
             if (TrayPopupToggle != null)
             {
                 _loading = true;
@@ -497,6 +534,10 @@ namespace MasselGUARD.Views
                     ?? NotifDurationPicker.Items[1];
                 _loading = false;
             }
+
+            // Font override sync (PopulateFontPicker manages its own _loading guard)
+            PopulateFontPicker();
+
             _themeSwitching = false;
         }
 
@@ -504,20 +545,152 @@ namespace MasselGUARD.Views
         {
             if (_loading || _themeSwitching) return;
             if (DarkThemePicker.SelectedItem is ThemePickerItem item)
-                _vm.ActiveDarkTheme = item.FolderName;
+            {
+                _draft.ActiveDarkTheme = item.FolderName;
+                _vm.ActiveDarkTheme    = item.FolderName;
+                // Changing selection cancels any running preview so the user sees
+                // the previous (committed) look before clicking Preview again.
+                if (_themePreviewActive) CancelThemePreview();
+            }
         }
 
         private void LightThemePicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_loading || _themeSwitching) return;
             if (LightThemePicker.SelectedItem is ThemePickerItem item)
-                _vm.ActiveLightTheme = item.FolderName;
+            {
+                _draft.ActiveLightTheme = item.FolderName;
+                _vm.ActiveLightTheme    = item.FolderName;
+                if (_themePreviewActive) CancelThemePreview();
+            }
         }
 
-        private void AutoTheme_Changed(object sender, RoutedEventArgs e)
+        /// <summary>Returns true when the current draft SystemThemeMode resolves to dark.</summary>
+        private bool IsDraftDark() => (_draft.SystemThemeMode ?? "auto") switch
+        {
+            "light" => false,
+            "dark"  => true,
+            _       => ThemeManager.GetSystemIsDark()
+        };
+
+        private void SystemMode_Changed(object sender, RoutedEventArgs e)
         {
             if (_loading || _themeSwitching) return;
-            _vm.AutoTheme = AutoThemeToggle.IsChecked == true;
+            if (sender is not RadioButton rb || rb.Tag is not string tag) return;
+            _draft.SystemThemeMode = tag;
+            // No live apply — user clicks a preview button to see the result.
+            if (_themePreviewActive) CancelThemePreview();
+        }
+
+        private void CustomTheme_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading || _themeSwitching) return;
+            bool on = CustomThemeToggle?.IsChecked == true;
+            _draft.UseCustomTheme = on;
+            if (CustomThemePickersPanel != null)
+                CustomThemePickersPanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            // No live apply — user clicks a preview button to see the result.
+            if (_themePreviewActive) CancelThemePreview();
+        }
+
+        // ── Theme live-preview ────────────────────────────────────────────────
+        private Button? _themePreviewSourceBtn = null;   // which button is counting down
+
+        private void DarkThemePreview_Click(object sender, RoutedEventArgs e)
+            => StartThemePreview(forceLight: false, DarkThemePreviewBtn);
+
+        private void LightThemePreview_Click(object sender, RoutedEventArgs e)
+            => StartThemePreview(forceLight: true, LightThemePreviewBtn);
+
+        private void StartThemePreview(bool forceLight, Button sourceBtn)
+        {
+            // Clicking the already-active button cancels it.
+            if (_themePreviewActive && _themePreviewSourceBtn == sourceBtn)
+            { CancelThemePreview(); return; }
+
+            // Clicking the other button while one is running: cancel first, then start.
+            if (_themePreviewActive) CancelThemePreview();
+
+            ApplySpecificTheme(forceLight);
+
+            _themePreviewActive      = true;
+            _themePreviewSecondsLeft = 10;
+            _themePreviewSourceBtn   = sourceBtn;
+            UpdateThemePreviewBtn();
+
+            _themePreviewTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1)
+            };
+            _themePreviewTimer.Tick += (_, _) =>
+            {
+                _themePreviewSecondsLeft--;
+                if (_themePreviewSecondsLeft <= 0)
+                    CancelThemePreview();
+                else
+                    UpdateThemePreviewBtn();
+            };
+            _themePreviewTimer.Start();
+        }
+
+        /// <summary>
+        /// Loads the draft dark or light theme file directly — regardless of the current system mode.
+        /// Lets the user preview the light theme even while Windows is in dark mode and vice versa.
+        /// </summary>
+        private void ApplySpecificTheme(bool forceLight)
+        {
+            if (!_draft.UseCustomTheme)
+            {
+                ThemeManager.Instance.LoadSystem(!forceLight);  // false = dark, true = light
+            }
+            else
+            {
+                var target = forceLight ? _draft.ActiveLightTheme : _draft.ActiveDarkTheme;
+                if (!string.IsNullOrEmpty(target))
+                    try { ThemeManager.Instance.Load(target); } catch { }
+                else
+                    ThemeManager.Instance.LoadSystem(!forceLight);
+            }
+            // Apply draft font so the full preview is representative.
+            ThemeManager.ApplyFontOverride(
+                _draft.FontOverrideEnabled,
+                _draft.FontOverrideFamily,
+                _draft.FontOverrideSize);
+        }
+
+        private void CancelThemePreview()
+        {
+            _themePreviewTimer?.Stop();
+            _themePreviewTimer     = null;
+            _themePreviewActive    = false;
+            _themePreviewSourceBtn = null;
+
+            // Revert to the last saved theme + font (handles system colours and custom
+            // theme files correctly, regardless of what was active before Settings opened).
+            _main.ApplyThemeFromConfig();
+
+            UpdateThemePreviewBtn();
+        }
+
+        private void UpdateThemePreviewBtn()
+        {
+            // Reset both buttons to idle state first.
+            void ResetBtn(Button? btn)
+            {
+                if (btn == null) return;
+                btn.Content    = "▶  Preview";
+                btn.Foreground = (System.Windows.Media.Brush)FindResource("TextMuted");
+            }
+            ResetBtn(DarkThemePreviewBtn);
+            ResetBtn(LightThemePreviewBtn);
+
+            // Light up whichever button is currently counting down.
+            if (_themePreviewActive && _themePreviewSourceBtn != null)
+            {
+                _themePreviewSourceBtn.Content    = $"↩  {_themePreviewSecondsLeft}s";
+                _themePreviewSourceBtn.Foreground =
+                    (System.Windows.Media.Brush)FindResource("Accent");
+            }
         }
 
         private void NotifDuration_Changed(object sender,
@@ -532,6 +705,233 @@ namespace MasselGUARD.Views
         {
             if (_loading) return;
             _vm.ShowTrayPopup = TrayPopupToggle.IsChecked == true;
+        }
+
+        // ── Font override ─────────────────────────────────────────────────────
+        // ── Font picker data item ─────────────────────────────────────────────
+        private sealed class FontPickerItem
+        {
+            public string DisplayName { get; }
+            public string FontName    { get; }
+            public System.Windows.Media.FontFamily FontFamily { get; }
+
+            public FontPickerItem(string displayName, string fontName)
+            {
+                DisplayName = displayName;
+                FontName    = fontName;
+                FontFamily  = string.IsNullOrEmpty(fontName)
+                    ? new System.Windows.Media.FontFamily(
+                          System.Windows.SystemFonts.MessageFontFamily?.Source ?? "Segoe UI")
+                    : new System.Windows.Media.FontFamily(fontName);
+            }
+
+            // Used by IsEditable ComboBox to show the right text in the edit box
+            public override string ToString() => DisplayName;
+        }
+
+        private void PopulateFontPicker()
+        {
+            if (FontFamilyPicker == null) return;
+            _loading = true;
+
+            // Sync toggle
+            if (FontOverrideToggle != null)
+                FontOverrideToggle.IsChecked = _draft.FontOverrideEnabled;
+
+            // Show / hide the expanded picker panel
+            if (FontPickerPanel != null)
+                FontPickerPanel.Visibility =
+                    _draft.FontOverrideEnabled ? Visibility.Visible : Visibility.Collapsed;
+
+            // Populate the font list only once — it's an expensive enumeration
+            if (!_fontPickerPopulated)
+            {
+                var items = new System.Collections.Generic.List<FontPickerItem>();
+                items.Add(new FontPickerItem("(System UI font)", ""));
+
+                var families = System.Windows.Media.Fonts.SystemFontFamilies
+                    .Select(f => f.Source)
+                    .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                foreach (var name in families)
+                    items.Add(new FontPickerItem(name, name));
+
+                FontFamilyPicker.ItemsSource = items;
+                _fontPickerPopulated = true;
+            }
+
+            // Pre-select the current font family
+            var current = _draft.FontOverrideFamily ?? "";
+            var match   = FontFamilyPicker.ItemsSource
+                .OfType<FontPickerItem>()
+                .FirstOrDefault(fi => string.Equals(
+                    fi.FontName, current, StringComparison.OrdinalIgnoreCase));
+
+            if (match != null)
+                FontFamilyPicker.SelectedItem = match;
+            else
+                FontFamilyPicker.Text = current;   // typed name not in list
+
+            // Sync size slider (0 = no override → show theme default as initial value)
+            double sliderVal = _draft.FontOverrideSize > 0 ? _draft.FontOverrideSize : 12.0;
+            if (FontSizeSlider != null)
+                FontSizeSlider.Value = Math.Clamp(sliderVal, 8.0, 18.0);
+            if (FontSizeValueLabel != null)
+                FontSizeValueLabel.Text = $"{(int)sliderVal} pt";
+
+            _loading = false;
+
+            ApplyFontPreview();
+        }
+
+        private void ApplyFontPreview()
+        {
+            if (FontPreviewLabel == null) return;
+
+            // Font family
+            string family = _draft.FontOverrideEnabled
+                ? (_draft.FontOverrideFamily ?? "")
+                : "";
+
+            if (string.IsNullOrWhiteSpace(family))
+                family = System.Windows.SystemFonts.MessageFontFamily?.Source
+                         ?? "Segoe UI";
+
+            try   { FontPreviewLabel.FontFamily = new System.Windows.Media.FontFamily(family); }
+            catch { FontPreviewLabel.FontFamily = new System.Windows.Media.FontFamily("Segoe UI"); }
+
+            // Font size
+            double size = _draft.FontOverrideEnabled && _draft.FontOverrideSize > 0
+                ? _draft.FontOverrideSize
+                : 12.0;
+            FontPreviewLabel.FontSize = size;
+        }
+
+        private void FontOverride_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            bool on = FontOverrideToggle?.IsChecked == true;
+            _draft.FontOverrideEnabled = on;
+            if (FontPickerPanel != null)
+                FontPickerPanel.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+            // Toggling the override cancels any active font preview.
+            if (_fontPreviewActive) CancelFontPreview();
+            if (on) PopulateFontPicker();
+            else    ApplyFontPreview();   // reset label when override is turned off
+        }
+
+        private void FontFamilyPicker_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_loading) return;
+            if (FontFamilyPicker?.SelectedItem is FontPickerItem fi)
+            {
+                _draft.FontOverrideFamily = fi.FontName;
+                // Changing the selection cancels any active preview so the interface
+                // reverts to committed; the user then clicks Preview to see the new font.
+                if (_fontPreviewActive) CancelFontPreview();
+            }
+        }
+
+        private void FontFamilyPicker_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            // Handles manually typed font names in the editable ComboBox.
+            var text = FontFamilyPicker?.Text.Trim() ?? "";
+            if (text != (_draft.FontOverrideFamily ?? ""))
+            {
+                _draft.FontOverrideFamily = text;
+                if (_fontPreviewActive) CancelFontPreview();
+            }
+        }
+
+        private void FontSizeSlider_Changed(object sender, System.Windows.RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_loading) return;
+            double size = Math.Round(e.NewValue);
+            _draft.FontOverrideSize = size;
+            if (FontSizeValueLabel != null)
+                FontSizeValueLabel.Text = $"{(int)size} pt";
+            if (_fontPreviewActive) CancelFontPreview();
+        }
+
+        // ── Font live-preview ─────────────────────────────────────────────────
+        private void FontPreview_Click(object sender, RoutedEventArgs e)
+        {
+            // Already previewing → clicking the button reverts immediately
+            if (_fontPreviewActive) { CancelFontPreview(); return; }
+
+            // Update the in-settings sample label with the draft font first.
+            ApplyFontPreview();
+
+            // Apply draft font to the whole interface right now
+            var family = string.IsNullOrEmpty(_draft.FontOverrideFamily)
+                ? (System.Windows.SystemFonts.MessageFontFamily?.Source ?? "Segoe UI")
+                : _draft.FontOverrideFamily;
+            var size = _draft.FontOverrideSize > 0 ? _draft.FontOverrideSize : 12.0;
+            ThemeManager.ApplyFontOverride(true, family, size);
+
+            _fontPreviewActive      = true;
+            _fontPreviewSecondsLeft = 10;
+            UpdateFontPreviewBtn();
+
+            _fontPreviewTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1)
+            };
+            _fontPreviewTimer.Tick += (_, _) =>
+            {
+                _fontPreviewSecondsLeft--;
+                if (_fontPreviewSecondsLeft <= 0)
+                    CancelFontPreview();
+                else
+                    UpdateFontPreviewBtn();
+            };
+            _fontPreviewTimer.Start();
+        }
+
+        private void CancelFontPreview()
+        {
+            _fontPreviewTimer?.Stop();
+            _fontPreviewTimer  = null;
+            _fontPreviewActive = false;
+
+            // Restore the committed theme and font override in one call.
+            // ApplyThemeFromConfig reloads the theme file (resetting any preview font
+            // baked into theme resources) and then re-applies the committed font override.
+            _main.ApplyThemeFromConfig();
+
+            // Reset the in-settings preview label to committed values.
+            var cfg = _main.ConfigSvc.Config;
+            if (FontPreviewLabel != null)
+            {
+                var family = cfg.FontOverrideEnabled ? (cfg.FontOverrideFamily ?? "") : "";
+                if (string.IsNullOrWhiteSpace(family))
+                    family = System.Windows.SystemFonts.MessageFontFamily?.Source ?? "Segoe UI";
+                try   { FontPreviewLabel.FontFamily = new System.Windows.Media.FontFamily(family); }
+                catch { FontPreviewLabel.FontFamily = new System.Windows.Media.FontFamily("Segoe UI"); }
+                FontPreviewLabel.FontSize =
+                    cfg.FontOverrideEnabled && cfg.FontOverrideSize > 0 ? cfg.FontOverrideSize : 12.0;
+            }
+
+            UpdateFontPreviewBtn();
+        }
+
+        private void UpdateFontPreviewBtn()
+        {
+            if (FontPreviewBtn == null) return;
+            if (_fontPreviewActive)
+            {
+                FontPreviewBtn.Content    = $"↩  {_fontPreviewSecondsLeft}s";
+                FontPreviewBtn.Foreground =
+                    (System.Windows.Media.Brush)FindResource("Accent");
+            }
+            else
+            {
+                FontPreviewBtn.Content    = "▶  Preview";
+                FontPreviewBtn.Foreground =
+                    (System.Windows.Media.Brush)FindResource("TextMuted");
+            }
         }
 
         // ── Default Action tab ────────────────────────────────────────────────
@@ -725,7 +1125,7 @@ namespace MasselGUARD.Views
                     statusText  = Lang.T("InstallStatusManaged");
                     statusPath  = installed;
                     btnLabel    = Lang.T("BtnUninstall");
-                    statusColor = (System.Windows.Media.Brush)FindResource("Success");
+                    statusColor = (System.Windows.Media.Brush)FindResource("Accent");
                     break;
                 case MainWindow.AppRunModeKind.ManagedPortable:
                     statusText  = Lang.T("InstallStatusPortable", installed ?? "");
@@ -784,28 +1184,83 @@ namespace MasselGUARD.Views
         private void ScanOrphans()
         {
             var orphans = _main.GetOrphanedServices();
-            if (FindName("OrphansList") is System.Windows.Controls.ListBox lb)
+
+            // Update status label (OrphanStatusLabel is defined in XAML)
+            if (OrphanStatusLabel != null)
+                OrphanStatusLabel.Text = orphans.Count == 0
+                    ? Lang.T("SettingsNoOrphans")
+                    : $"{orphans.Count} orphaned service{(orphans.Count == 1 ? "" : "s")} found";
+
+            // Rebuild inline list (OrphanListPanel is a StackPanel in XAML)
+            OrphanListPanel.Children.Clear();
+            OrphanListPanel.Visibility = orphans.Count > 0
+                ? Visibility.Visible : Visibility.Collapsed;
+
+            foreach (var o in orphans)
             {
-                lb.Items.Clear();
-                foreach (var o in orphans) lb.Items.Add(o);
+                var card = new System.Windows.Controls.Border
+                {
+                    Background      = (System.Windows.Media.Brush)Application.Current.Resources["Surface"],
+                    BorderBrush     = (System.Windows.Media.Brush)Application.Current.Resources["BorderColor"],
+                    BorderThickness = new Thickness(1),
+                    CornerRadius    = new CornerRadius(3),
+                    Padding         = new Thickness(10, 6, 10, 6),
+                    Margin          = new Thickness(0, 0, 0, 4),
+                };
+                var row = new System.Windows.Controls.Grid();
+                row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
+                    { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
+                    { Width = GridLength.Auto });
+
+                // Show tunnel name + service name + running/stopped badge
+                string statusBadge = o.TunnelActive ? "● Running" : "○ Stopped";
+                var statusColor = o.TunnelActive
+                    ? (System.Windows.Media.Brush)Application.Current.Resources["Danger"]
+                    : (System.Windows.Media.Brush)Application.Current.Resources["TextMuted"];
+
+                var namePanel = new System.Windows.Controls.StackPanel
+                    { Orientation = System.Windows.Controls.Orientation.Vertical,
+                      VerticalAlignment = VerticalAlignment.Center };
+                namePanel.Children.Add(new System.Windows.Controls.TextBlock
+                {
+                    Text       = o.TunnelName,
+                    FontSize   = 10,
+                    Foreground = (System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
+                });
+                namePanel.Children.Add(new System.Windows.Controls.TextBlock
+                {
+                    Text       = $"{o.ServiceName}  ·  {statusBadge}",
+                    FontSize   = 9,
+                    Foreground = statusColor,
+                });
+                System.Windows.Controls.Grid.SetColumn(namePanel, 0);
+
+                var capturedOrphan = o;
+                var removeBtn = new System.Windows.Controls.Button
+                {
+                    Content = "Remove",
+                    Style   = (Style)Application.Current.Resources["DangerBtn"],
+                    FontSize = 9,
+                    Padding  = new Thickness(8, 3, 8, 3),
+                };
+                removeBtn.Click += (_, _) => { _main.RemoveOrphan(capturedOrphan); ScanOrphans(); };
+                System.Windows.Controls.Grid.SetColumn(removeBtn, 1);
+
+                row.Children.Add(namePanel);
+                row.Children.Add(removeBtn);
+                card.Child = row;
+                OrphanListPanel.Children.Add(card);
             }
-            SetLabel("OrphanCountLabel", orphans.Count == 0
-                ? Lang.T("SettingsNoOrphans") : $"{orphans.Count} found");
+
+            if (RemoveAllOrphansBtn != null)
+                RemoveAllOrphansBtn.Visibility = orphans.Count > 0
+                    ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void SetLabel(string name, string text)
         {
             if (FindName(name) is System.Windows.Controls.TextBlock tb) tb.Text = text;
-        }
-
-        private void RemoveOrphan_Click(object sender, RoutedEventArgs e)
-        {
-            if (FindName("OrphansList") is System.Windows.Controls.ListBox lb &&
-                lb.SelectedItem is MainWindow.OrphanedService o)
-            {
-                _main.RemoveOrphan(o);
-                ScanOrphans();
-            }
         }
 
         private void RemoveAllOrphans_Click(object sender, RoutedEventArgs e)
@@ -1053,6 +1508,20 @@ namespace MasselGUARD.Views
             _main.SetStartWithWindows(StartWithWindowsToggle?.IsChecked == true);
         }
 
+        private void SyncConfirmOnClose()
+        {
+            if (ConfirmOnCloseToggle == null) return;
+            _loading = true;
+            ConfirmOnCloseToggle.IsChecked = _draft.ConfirmOnClose;
+            _loading = false;
+        }
+
+        private void ConfirmOnClose_Changed(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.ConfirmOnClose = ConfirmOnCloseToggle?.IsChecked == true;
+        }
+
         private void InstallBtn_Click(object sender, System.Windows.RoutedEventArgs e)
         {
             _main.RunInstallPublic();
@@ -1072,7 +1541,18 @@ namespace MasselGUARD.Views
             catch { }
         }
 
-        private bool _savedSuccessfully = false;
+        private bool _fontPickerPopulated = false;
+        private bool _savedSuccessfully   = false;
+
+        // ── Font live-preview timer ───────────────────────────────────────────
+        private System.Windows.Threading.DispatcherTimer? _fontPreviewTimer;
+        private int  _fontPreviewSecondsLeft;
+        private bool _fontPreviewActive;
+
+        // ── Theme live-preview timer ──────────────────────────────────────────
+        private System.Windows.Threading.DispatcherTimer? _themePreviewTimer;
+        private int  _themePreviewSecondsLeft;
+        private bool _themePreviewActive;
 
         private void SaveBtn_Click(object sender, System.Windows.RoutedEventArgs e)
         {
@@ -1081,7 +1561,7 @@ namespace MasselGUARD.Views
             // Snapshot BEFORE committing so diff is accurate
             var before = _main.ConfigSvc.Config.DeepClone();
 
-            // Commit draft fields that bypass _vm (groups, hidden tabs, toggles)
+            // Commit draft fields that bypass _vm (groups, hidden tabs, toggles, theme)
             _main.ConfigSvc.Config.TunnelGroups        = _draft.TunnelGroups;
             _main.ConfigSvc.Config.HiddenTabs          = _draft.HiddenTabs;
             _main.ConfigSvc.Config.DefaultGroup        = _draft.DefaultGroup;
@@ -1089,7 +1569,14 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.HideEmptyGroups     = _draft.HideEmptyGroups;
             _main.ConfigSvc.Config.ShowWifiRulesOnMainWindow = _draft.ShowWifiRulesOnMainWindow;
             _main.ConfigSvc.Config.ShowTunnelRulesColumn = _draft.ShowTunnelRulesColumn;
+            _main.ConfigSvc.Config.ShowActivityLog        = _draft.ShowActivityLog;
             _main.ConfigSvc.Config.NotificationDurationSeconds = _draft.NotificationDurationSeconds;
+            _main.ConfigSvc.Config.UseCustomTheme      = _draft.UseCustomTheme;
+            _main.ConfigSvc.Config.SystemThemeMode     = _draft.SystemThemeMode;
+            _main.ConfigSvc.Config.ConfirmOnClose      = _draft.ConfirmOnClose;
+            _main.ConfigSvc.Config.FontOverrideEnabled = _draft.FontOverrideEnabled;
+            _main.ConfigSvc.Config.FontOverrideFamily  = _draft.FontOverrideFamily;
+            _main.ConfigSvc.Config.FontOverrideSize    = _draft.FontOverrideSize;
 
             // Sync _vm.TunnelGroups from _draft so DoSave doesn't overwrite with stale data
             _vm.TunnelGroups.Clear();
@@ -1108,6 +1595,8 @@ namespace MasselGUARD.Views
             _main.RebuildTunnelGroupsPublic();
             _main._vm.NotifyRulesColumnChanged();
             _main.RefreshWifiRulesPanel();
+            // Apply the correct theme based on the new settings (overrides DoSave preview)
+            _main.ApplyThemeFromConfig();
             Close();
         }
 
@@ -1132,6 +1621,8 @@ namespace MasselGUARD.Views
             Check("Theme (dark)",          before.ActiveDarkTheme,       after.ActiveDarkTheme);
             Check("Theme (light)",         before.ActiveLightTheme,      after.ActiveLightTheme);
             Check("Auto theme",            before.AutoTheme,             after.AutoTheme);
+            Check("Custom theme",          before.UseCustomTheme,        after.UseCustomTheme);
+            Check("System theme mode",     before.SystemThemeMode,       after.SystemThemeMode);
             Check("Log level",             before.LogLevelSetting,       after.LogLevelSetting);
             Check("Tray popups",           before.ShowTrayPopupOnSwitch, after.ShowTrayPopupOnSwitch);
             Check("Notif duration (s)",    before.NotificationDurationSeconds, after.NotificationDurationSeconds);
@@ -1140,6 +1631,9 @@ namespace MasselGUARD.Views
             Check("Hide empty groups",     before.HideEmptyGroups,       after.HideEmptyGroups);
             Check("Hide count badge",      before.AlwaysHideTunnelCount, after.AlwaysHideTunnelCount);
             Check("Default group",         before.DefaultGroup,          after.DefaultGroup);
+            Check("Font override",         before.FontOverrideEnabled,   after.FontOverrideEnabled);
+            Check("Font family",           before.FontOverrideFamily,    after.FontOverrideFamily);
+            Check("Font size",             before.FontOverrideSize,      after.FontOverrideSize);
 
             // Rules list: compare by count and content
             var rulesAdded   = after.Rules.Where(r => !before.Rules.Any(b => b.Ssid == r.Ssid)).ToList();
@@ -1159,10 +1653,21 @@ namespace MasselGUARD.Views
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
         {
             base.OnClosing(e);
-            // If closed without saving, revert any live theme preview
-            if (!_savedSuccessfully && !string.IsNullOrEmpty(_originalTheme))
+            // Always stop any running preview timers — regardless of save/cancel.
+            _fontPreviewTimer?.Stop();
+            _fontPreviewTimer   = null;
+            _fontPreviewActive  = false;
+            _themePreviewTimer?.Stop();
+            _themePreviewTimer     = null;
+            _themePreviewActive    = false;
+            _themePreviewSourceBtn = null;
+            // If closed without saving, revert any live previews.
+            if (!_savedSuccessfully)
             {
-                try { ThemeManager.Instance.Load(_originalTheme); } catch { }
+                // Revert theme + font to last saved state.
+                _main.ApplyThemeFromConfig();
+                // Revert log visibility to what was committed before Settings opened.
+                _main.SetLogPanelVisible(_main.ConfigSvc.Config.ShowActivityLog);
             }
         }
 

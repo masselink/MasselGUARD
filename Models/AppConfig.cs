@@ -42,6 +42,7 @@ namespace MasselGUARD.Models
         public bool    HideEmptyGroups              { get; set; } = false;
         public bool    ShowWifiRulesOnMainWindow    { get; set; } = true;
         public bool    ShowTunnelRulesColumn        { get; set; } = true;
+        public bool    ShowActivityLog              { get; set; } = true;
         public bool    StartWithWindows             { get; set; } = false;
 
         // ── App settings ─────────────────────────────────────────────────────
@@ -55,11 +56,25 @@ namespace MasselGUARD.Models
         /// <summary>Version string of the last run that completed the wizard. Used to detect upgrades.</summary>
         public string? LastRunVersion { get; set; } = null;
 
+        // ── Font override ────────────────────────────────────────────────────
+        /// <summary>When true the user-chosen font replaces the theme's own font.</summary>
+        public bool   FontOverrideEnabled { get; set; } = false;
+        /// <summary>Font family name. Empty string = use the Windows UI system font.</summary>
+        public string FontOverrideFamily  { get; set; } = "";
+        /// <summary>Base font size in points. 0 = use theme default (11 pt).</summary>
+        public double FontOverrideSize    { get; set; } = 0.0;
+
         // ── Theme ────────────────────────────────────────────────────────────
         public string ActiveTheme      { get; set; } = "default-dark";
         public string ActiveDarkTheme  { get; set; } = "default-dark";
         public string ActiveLightTheme { get; set; } = "default-light";
         public bool   AutoTheme        { get; set; } = false;
+        /// <summary>When false (default) Windows 11 system colors are used; when true the theme-file pickers apply.</summary>
+        public bool   UseCustomTheme   { get; set; } = false;
+        /// <summary>"auto" (follow Windows) | "light" | "dark"</summary>
+        public string SystemThemeMode  { get; set; } = "auto";
+        /// <summary>When true (default) clicking ✕ shows a confirm dialog before closing.</summary>
+        public bool   ConfirmOnClose   { get; set; } = true;
 
         // ── WireGuard install ────────────────────────────────────────────────
         public string  WireGuardInstallDirectory { get; set; } = @"C:\Program Files\WireGuard";

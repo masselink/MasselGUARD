@@ -11,16 +11,17 @@
         ShowInTaskbar="True"
         ResizeMode="CanResizeWithGrip"
         Opacity="{DynamicResource Theme.WindowOpacity}"
-        Closing="Window_Closing">
+        Closing="Window_Closing"
+        StateChanged="Window_StateChanged">
 
     <Window.Resources>
     </Window.Resources>
 
-    <Border BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
-            CornerRadius="{DynamicResource Theme.CornerRadius}">
+    <Border x:Name="OuterBorder" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+            CornerRadius="0">
         <Grid>
             <!-- Optional background image layer -->
-            <Border CornerRadius="{DynamicResource Theme.CornerRadius}"
+            <Border CornerRadius="0"
                     Visibility="{DynamicResource Theme.HasBackground}">
                 <Border.Background>
                     <DynamicResourceExtension ResourceKey="Theme.BackgroundBrush"/>
@@ -30,8 +31,8 @@
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="{DynamicResource Theme.TitleBarHeight}"/>
-                    <RowDefinition Height="{DynamicResource Theme.StatusBarHeight}"/>
-                    <RowDefinition Height="1"/>
+                    <RowDefinition Height="0"/>
+                    <RowDefinition Height="0"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="28"/>
@@ -39,7 +40,7 @@
 
                 <!-- ── Title bar ──────────────────────────────────────────── -->
                 <Border Grid.Row="0" Background="{DynamicResource Surface}"
-                        CornerRadius="{DynamicResource Theme.CornerRadiusTop}"
+                        CornerRadius="0"
                         MouseLeftButtonDown="TitleBar_MouseDown">
                     <Grid>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0">
@@ -65,7 +66,7 @@
                                             <Path.Data>M12,1 L22,5 L22,13 C22,18.5 17.5,22.5 12,24 C6.5,22.5 2,18.5 2,13 L2,5 Z</Path.Data>
                                         </Path>
                                         <Polyline Points="7,9 12,15 17,9"
-                                                  Stroke="{DynamicResource Accent}" StrokeThickness="2.2"
+                                                  Stroke="{DynamicResource ShieldChevronBrush}" StrokeThickness="2.2"
                                                   StrokeLineJoin="Round"
                                                   StrokeStartLineCap="Round"
                                                   StrokeEndLineCap="Round"
@@ -84,29 +85,41 @@
 
                         </StackPanel>
 
-                        <!-- Window controls: theme toggle + settings cog + close -->
+                        <!-- Window controls: settings | minimize / maximize / close -->
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
-                                    VerticalAlignment="Center" Margin="0,0,8,0">
-                            <Button x:Name="ThemeToggleBtn"
-                                    Content="🌙" FontSize="13" Padding="8,4" Margin="0,0,2,0"
-                                    Style="{StaticResource FlatBtn}"
-                                    Click="ThemeToggle_Click"
-                                    ToolTip="Switch theme mode (Dark / Light / Auto)"/>
-                            <Button Content="⚙" Style="{StaticResource FlatBtn}"
-                                    FontSize="14" Padding="8,4" Margin="0,0,4,0"
+                                    VerticalAlignment="Stretch">
+                            <!-- Settings -->
+                            <Button Content="⚙" FontSize="13" Padding="12,0"
+                                    Style="{StaticResource ChromeBtn}"
+                                    VerticalAlignment="Stretch"
                                     Click="SettingsBtn_Click"
-                                    ToolTip="{Binding [TooltipSettings], Source={x:Static local:Lang.Instance}}"/>
-                            <Button Content="✕" Style="{StaticResource DangerBtn}"
-                                    Padding="10,4" BorderThickness="0" Background="Transparent"
+                                    ToolTip="Settings"/>
+                            <!-- Separator -->
+                            <Rectangle Width="1" Height="16" VerticalAlignment="Center"
+                                       Margin="4,0" Fill="{DynamicResource BorderColor}"/>
+                            <!-- Chrome — all at the same visual size -->
+                            <Button Content="─" FontSize="14" Padding="12,0"
+                                    Style="{StaticResource ChromeBtn}"
+                                    VerticalAlignment="Stretch"
+                                    Click="MinimizeBtn_Click"
+                                    ToolTip="Minimize"/>
+                            <Button x:Name="MaximizeBtn"
+                                    Content="□" FontSize="13" Padding="12,0"
+                                    Style="{StaticResource ChromeBtn}"
+                                    VerticalAlignment="Stretch"
+                                    Click="MaximizeBtn_Click"
+                                    ToolTip="Maximize"/>
+                            <Button Content="✕" FontSize="11" Padding="12,0"
+                                    Style="{StaticResource ChromeCloseBtn}"
+                                    VerticalAlignment="Stretch"
                                     Click="CloseBtn_Click"
-                                    ToolTip="{Binding [TooltipClose], Source={x:Static local:Lang.Instance}}"/>
+                                    ToolTip="Close to tray"/>
                         </StackPanel>
                     </Grid>
                 </Border>
 
-                <!-- ── Status bar ─────────────────────────────────────────── -->
-                <Border Grid.Row="1" Background="{DynamicResource Surface}"
-                        Visibility="{DynamicResource Theme.ShowStatusBar}">
+                <!-- ── Status bar — removed; row height = 0; elements kept for code compat ── -->
+                <Border Grid.Row="1" Visibility="Collapsed">
                     <Grid Margin="16,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -132,21 +145,9 @@
                                    ToolTip="Click to see WiFi rules for this network"
                                    ToolTipService.InitialShowDelay="800"/>
 
-                        <Rectangle Grid.Column="2" Width="1" Height="14" Margin="16,0"
-                                   Fill="{DynamicResource BorderColor}" VerticalAlignment="Center"/>
-
-                        <TextBlock Grid.Column="3"
-                                   Text="{Binding [StatusActiveTunnel], Source={x:Static local:Lang.Instance}}"
-                                   Foreground="{DynamicResource TextMuted}" FontSize="11" VerticalAlignment="Center"
-                                   Visibility="{DynamicResource Theme.ShowStatusTunnel}"
-                                   ToolTip="Active tunnel connection"
-                                   ToolTipService.InitialShowDelay="800"/>
+                        <!-- Active tunnel label removed; TunnelLabel kept hidden for code compat -->
                         <TextBlock Grid.Column="4" x:Name="TunnelLabel"
-                                   Text="{Binding [StatusNone], Source={x:Static local:Lang.Instance}}"
-                                   FontSize="11" FontWeight="Bold" Margin="6,0,0,0"
-                                   Foreground="{DynamicResource Success}" VerticalAlignment="Center"
-                                   Visibility="{DynamicResource Theme.ShowStatusTunnel}"
-                                   ToolTipService.InitialShowDelay="800"/>
+                                   Visibility="Collapsed"/>
 
 
                         <StackPanel Grid.Column="6" Orientation="Horizontal"
@@ -185,54 +186,71 @@
                 </Border>
 
                 <!-- ── Main content ─────────────────────────────────────────── -->
-                <Grid Grid.Row="4" Margin="14,12,14,8"
+                <Grid Grid.Row="4" x:Name="MainContentGrid" Margin="14,12,14,8"
                       Grid.IsSharedSizeScope="True">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="10"/>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="1.5*"/>
+                        <ColumnDefinition Width="10"/>         <!-- gap — collapses when log hidden -->
+                        <ColumnDefinition Width="*"/>          <!-- log panel — collapses when log hidden -->
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" SharedSizeGroup="HeaderRow"/>
-                        <RowDefinition Height="*" MinHeight="80"/>
+                        <RowDefinition Height="3*" MinHeight="80"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition x:Name="WifiRulesHeaderRow" Height="Auto"/>
-                        <RowDefinition x:Name="WifiRulesPanelRow"  Height="*" MinHeight="0"/>
+                        <RowDefinition x:Name="WifiRulesPanelRow"  Height="2*"/>
                         <RowDefinition x:Name="WifiRulesBtnsRow"   Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <!-- LEFT: Tunnels only -->
 
-                        <!-- Header row: TUNNELS label + category tabs inline left-aligned -->
-                        <StackPanel Grid.Column="0" Grid.Row="0"
-                                    Orientation="Horizontal"
-                                    Margin="0,0,0,6"
-                                    VerticalAlignment="Center">
-                            <TextBlock Text="{Binding [SectionTunnels], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SectionLabel}" Margin="0,0,6,0"
-                                       VerticalAlignment="Center"/>
-                            <!-- Tunnel count / hidden-override badge — sits right after the label -->
-                            <Border x:Name="HiddenCountBadge"
-                                    Background="{DynamicResource BorderColor}"
-                                    CornerRadius="8" Padding="6,1" Margin="0,0,10,0"
-                                    VerticalAlignment="Center">
-                                <Button x:Name="HiddenCountBtn"
-                                        Style="{StaticResource FlatBtn}"
-                                        FontSize="9"
-                                        Padding="0"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Click="HiddenCountBtn_Click"/>
-                            </Border>
-                            <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                                          VerticalScrollBarVisibility="Disabled"
-                                          Background="Transparent"
-                                          VerticalAlignment="Center">
-                                <StackPanel x:Name="TunnelTabButtons"
-                                            Orientation="Horizontal"
-                                            Background="Transparent"/>
-                            </ScrollViewer>
-                        </StackPanel>
+                        <!-- Header row: TUNNELS label + category tabs (left) | ☰ log-open button (right) -->
+                        <Grid Grid.Column="0" Grid.Row="0" Margin="0,0,0,6" VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0"
+                                        Orientation="Horizontal"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="{Binding [SectionTunnels], Source={x:Static local:Lang.Instance}}"
+                                           Style="{StaticResource SectionLabel}" Margin="0,0,6,0"
+                                           VerticalAlignment="Center"/>
+                                <!-- Tunnel count / hidden-override badge — sits right after the label -->
+                                <Border x:Name="HiddenCountBadge"
+                                        Background="{DynamicResource BorderColor}"
+                                        CornerRadius="8" Padding="6,1" Margin="0,0,10,0"
+                                        VerticalAlignment="Center">
+                                    <Button x:Name="HiddenCountBtn"
+                                            Style="{StaticResource FlatBtn}"
+                                            FontSize="9"
+                                            Padding="0"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Click="HiddenCountBtn_Click"/>
+                                </Border>
+                                <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                              VerticalScrollBarVisibility="Disabled"
+                                              Background="Transparent"
+                                              VerticalAlignment="Center">
+                                    <StackPanel x:Name="TunnelTabButtons"
+                                                Orientation="Horizontal"
+                                                Background="Transparent"/>
+                                </ScrollViewer>
+                            </StackPanel>
+
+                            <!-- ☰ — shown only when the log panel is collapsed -->
+                            <Button x:Name="LogOpenBtn"
+                                    Grid.Column="1"
+                                    Content="☰" FontSize="11" Padding="6,2"
+                                    Style="{StaticResource FlatBtn}"
+                                    Foreground="{DynamicResource TextMuted}"
+                                    Visibility="Collapsed"
+                                    VerticalAlignment="Center"
+                                    Click="LogToggle_Click"
+                                    ToolTip="Show activity log"/>
+                        </Grid>
 
                         <!-- Tunnel box -->
                         <Border Grid.Column="0" Grid.Row="1"
@@ -259,14 +277,33 @@
                                             <ColumnDefinition Width="Auto" MinWidth="0"/>
                                             <ColumnDefinition Width="1.4*"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="{Binding [TunnelColName],   Source={x:Static local:Lang.Instance}}" FontSize="10" Foreground="{DynamicResource TextMuted}"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding [TunnelColType],   Source={x:Static local:Lang.Instance}}" FontSize="10" Foreground="{DynamicResource TextMuted}"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding [TunnelColStatus], Source={x:Static local:Lang.Instance}}" FontSize="10" Foreground="{DynamicResource TextMuted}"/>
-                                        <TextBlock Grid.Column="3" x:Name="RulesColHeader"
-                                                   Text="{Binding [TunnelColRules], Source={x:Static local:Lang.Instance}}"
-                                                   FontSize="10" Foreground="{DynamicResource TextMuted}"
-                                                   Padding="8,0"
-                                                   Visibility="{Binding DataContext.RulesColumnVisibility, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                        <Button Grid.Column="0" Style="{StaticResource SortHeaderBtn}" Click="TunSort_Name">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [TunnelColName], Source={x:Static local:Lang.Instance}}" FontSize="10"/>
+                                                <TextBlock x:Name="TunArrowName" Text="" FontSize="9" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="1" Style="{StaticResource SortHeaderBtn}" Click="TunSort_Type">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [TunnelColType], Source={x:Static local:Lang.Instance}}" FontSize="10"/>
+                                                <TextBlock x:Name="TunArrowType" Text="" FontSize="9" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="2" Style="{StaticResource SortHeaderBtn}" Click="TunSort_Status">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [TunnelColStatus], Source={x:Static local:Lang.Instance}}" FontSize="10"/>
+                                                <TextBlock x:Name="TunArrowStatus" Text="" FontSize="9" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="3" x:Name="RulesColHeader"
+                                                Style="{StaticResource SortHeaderBtn}" Click="TunSort_Rules"
+                                                Padding="8,0"
+                                                Visibility="{Binding DataContext.RulesColumnVisibility, RelativeSource={RelativeSource AncestorType=Window}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [TunnelColRules], Source={x:Static local:Lang.Instance}}" FontSize="10"/>
+                                                <TextBlock x:Name="TunArrowRules" Text="" FontSize="9" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
                                         <TextBlock Grid.Column="4" Text="{Binding [TunnelColAction], Source={x:Static local:Lang.Instance}}" FontSize="10" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center"/>
                                     </Grid>
                                 </Border>
@@ -287,7 +324,7 @@
                                             <Setter Property="BorderThickness" Value="0"/>
                                             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                                             <Setter Property="Padding" Value="0"/>
-                                            <Setter Property="Margin" Value="0"/>
+                                            <Setter Property="Margin" Value="0,0,0,1"/>
                                             <EventSetter Event="PreviewMouseLeftButtonDown"
                                                          Handler="TunnelItem_MouseDown"/>
                                             <Style.Triggers>
@@ -313,7 +350,7 @@
                                                            RadiusX="2" RadiusY="2"
                                                            Margin="2,3,2,3"/>
                                                 <!-- Row content -->
-                                                <Grid Grid.Column="1" Margin="6,5,8,5">
+                                                <Grid Grid.Column="1" Margin="6,3,8,3">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="3*"/>
                                                         <ColumnDefinition Width="1.2*"/>
@@ -325,20 +362,20 @@
                                                                 Orientation="Horizontal"
                                                                 VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding Name}"
-                                                                   Foreground="{DynamicResource TextPrimary}"
+                                                                   Foreground="{Binding NameColor}"
                                                                    TextDecorations="{Binding NameDecoration}"
-                                                                   FontSize="11"
+                                                                   FontSize="{DynamicResource Theme.FontSize}"
                                                                    ToolTip="{Binding Notes}"
                                                                    VerticalAlignment="Center"/>
                                                         <TextBlock Text=" ⚡"
                                                                    Foreground="{DynamicResource Accent}"
-                                                                   FontSize="9"
+                                                                   FontSize="{DynamicResource Theme.FontSize.Tiny}"
                                                                    VerticalAlignment="Center"
                                                                    ToolTip="Default action tunnel"
                                                                    Visibility="{Binding DefaultBadgeVis}"/>
                                                         <TextBlock Text=" 🔓"
-                                                                   Foreground="{DynamicResource Success}"
-                                                                   FontSize="9"
+                                                                   Foreground="{DynamicResource Accent}"
+                                                                   FontSize="{DynamicResource Theme.FontSize.Tiny}"
                                                                    VerticalAlignment="Center"
                                                                    ToolTip="Open network protection tunnel"
                                                                    Visibility="{Binding OpenBadgeVis}"/>
@@ -346,18 +383,18 @@
                                                     <TextBlock Grid.Column="1"
                                                                Text="{Binding TypeLabel}"
                                                                Foreground="{Binding TypeColor}"
-                                                               FontSize="10"
+                                                               FontSize="{DynamicResource Theme.FontSize.Small}"
                                                                VerticalAlignment="Center"/>
                                                     <TextBlock Grid.Column="2"
                                                                Text="{Binding StatusText}"
                                                                Foreground="{Binding StatusColor}"
-                                                               FontSize="11"
+                                                               FontSize="{DynamicResource Theme.FontSize}"
                                                                VerticalAlignment="Center"/>
                                                     <TextBlock Grid.Column="3"
                                                                Text="{Binding RuleCount}"
                                                                Foreground="{Binding RuleCountColor}"
                                                                TextDecorations="{Binding RuleCountDecoration}"
-                                                               FontSize="10"
+                                                               FontSize="{DynamicResource Theme.FontSize.Small}"
                                                                HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"
                                                                Cursor="Hand"
@@ -370,7 +407,8 @@
                                                             IsEnabled="{Binding ButtonEnabled}"
                                                             ToolTip="{Binding ButtonTooltip}"
                                                             Click="TunnelToggle_Click"
-                                                            Padding="6,2" FontSize="10"
+                                                            Padding="6,2"
+                                                            FontSize="{DynamicResource Theme.FontSize.Small}"
                                                             HorizontalAlignment="Center"
                                                             Style="{StaticResource FlatBtn}"/>
                                                 </Grid>
@@ -415,11 +453,14 @@
                             <TextBlock Text="{Binding [SectionWifiRules], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource SectionLabel}" Margin="0,0,6,0"
                                        VerticalAlignment="Center"/>
-                            <Border Background="{DynamicResource BorderColor}"
-                                    CornerRadius="8" Padding="6,1"
+                            <Border CornerRadius="8" Padding="6,1"
                                     VerticalAlignment="Center" HorizontalAlignment="Left">
+                                <Border.Background>
+                                    <SolidColorBrush Color="{DynamicResource C.Accent}" Opacity="0.18"/>
+                                </Border.Background>
                                 <TextBlock x:Name="WifiRuleCountLabel"
-                                           FontSize="9" Foreground="{DynamicResource TextMuted}" Text="0"/>
+                                           FontSize="9" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Accent}" Text="0"/>
                             </Border>
                         </StackPanel>
 
@@ -448,11 +489,36 @@
                                             <ColumnDefinition Width="40"/>
                                             <ColumnDefinition Width="2*"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="{Binding [RuleColName],   Source={x:Static local:Lang.Instance}}" FontSize="10" Foreground="{DynamicResource TextMuted}"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding [RuleColSsid],   Source={x:Static local:Lang.Instance}}" FontSize="10" Foreground="{DynamicResource TextMuted}"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding [RuleColAction], Source={x:Static local:Lang.Instance}}" FontSize="10" Foreground="{DynamicResource TextMuted}"/>
-                                        <TextBlock Grid.Column="3" Text="{Binding [RuleColCount],  Source={x:Static local:Lang.Instance}}" FontSize="10" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center"/>
-                                        <TextBlock Grid.Column="4" Text="{Binding [RuleColTunnel], Source={x:Static local:Lang.Instance}}" FontSize="10" Foreground="{DynamicResource TextMuted}"/>
+                                        <Button Grid.Column="0" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Name">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [RuleColName], Source={x:Static local:Lang.Instance}}" FontSize="10"/>
+                                                <TextBlock x:Name="RuleArrowName" Text="" FontSize="9" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="1" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Ssid">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [RuleColSsid], Source={x:Static local:Lang.Instance}}" FontSize="10"/>
+                                                <TextBlock x:Name="RuleArrowSsid" Text="" FontSize="9" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="2" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Action">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [RuleColAction], Source={x:Static local:Lang.Instance}}" FontSize="10"/>
+                                                <TextBlock x:Name="RuleArrowAction" Text="" FontSize="9" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="3" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Count" HorizontalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [RuleColCount], Source={x:Static local:Lang.Instance}}" FontSize="10"/>
+                                                <TextBlock x:Name="RuleArrowCount" Text="" FontSize="9" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="4" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Tunnel">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [RuleColTunnel], Source={x:Static local:Lang.Instance}}" FontSize="10"/>
+                                                <TextBlock x:Name="RuleArrowTunnel" Text="" FontSize="9" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
                                     </Grid>
                                 </Border>
 
@@ -460,7 +526,6 @@
                                 <ListView Grid.Row="1" x:Name="WifiRulesListView"
                                           Background="Transparent" BorderThickness="0"
                                           ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                          MaxHeight="160"
                                           IsHitTestVisible="True"
                                           AllowDrop="True"
                                           PreviewMouseLeftButtonDown="WifiRule_PreviewMouseDown"
@@ -473,7 +538,7 @@
                                             <Setter Property="BorderThickness"          Value="0"/>
                                             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                                             <Setter Property="Padding"                  Value="0"/>
-                                            <Setter Property="Margin"                   Value="0"/>
+                                            <Setter Property="Margin"                   Value="0,0,0,1"/>
                                             <Style.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter Property="Background" Value="{DynamicResource ListHover}"/>
@@ -489,7 +554,7 @@
                                             <Border Background="{Binding RowBg}"
                                                     BorderBrush="{Binding BorderBrush}"
                                                     BorderThickness="{Binding BorderThick}">
-                                                <Grid Margin="8,4">
+                                                <Grid Margin="8,3">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="3*"/>
                                                         <ColumnDefinition Width="2*"/>
@@ -500,27 +565,32 @@
                                                     <TextBlock Grid.Column="0"
                                                                Text="{Binding RuleName}"
                                                                Foreground="{DynamicResource TextPrimary}"
-                                                               FontSize="11" VerticalAlignment="Center"
+                                                               FontSize="{DynamicResource Theme.FontSize}"
+                                                               VerticalAlignment="Center"
                                                                TextTrimming="CharacterEllipsis"/>
                                                     <TextBlock Grid.Column="1"
                                                                Text="{Binding Ssid}"
                                                                Foreground="{DynamicResource TextMuted}"
-                                                               FontSize="10" VerticalAlignment="Center"
+                                                               FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                               VerticalAlignment="Center"
                                                                TextTrimming="CharacterEllipsis"/>
                                                     <TextBlock Grid.Column="2"
                                                                Text="{Binding ActionLabel}"
-                                                               Foreground="{DynamicResource Accent}"
-                                                               FontSize="10" VerticalAlignment="Center"/>
+                                                               Foreground="{Binding ActionColor}"
+                                                               FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                               VerticalAlignment="Center"/>
                                                     <TextBlock Grid.Column="3"
                                                                Text="{Binding ExecutionCountText}"
                                                                Foreground="{Binding ExecutionCountColor}"
-                                                               FontSize="10" HorizontalAlignment="Center"
+                                                               FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                               HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"/>
                                                     <TextBlock Grid.Column="4"
                                                                Text="{Binding TunnelName}"
                                                                Foreground="{Binding TunnelFg}"
                                                                FontWeight="{Binding TunnelFontWeight}"
-                                                               FontSize="10" VerticalAlignment="Center"
+                                                               FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                               VerticalAlignment="Center"
                                                                TextTrimming="CharacterEllipsis"/>
                                                 </Grid>
                                             </Border>
@@ -551,9 +621,9 @@
                         </StackPanel>
 
                     <!-- RIGHT: Activity Log — self-contained, spans all left rows -->
-                        <Grid Grid.Column="2" Grid.Row="0" Grid.RowSpan="6">
+                        <Grid Grid.Column="2" Grid.Row="0" Grid.RowSpan="6" x:Name="LogPanelGrid">
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto" SharedSizeGroup="HeaderRow"/>
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
@@ -562,23 +632,36 @@
                             <Grid Grid.Row="0" Margin="0,0,0,6" MinHeight="24">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0"
                                            Text="{Binding [ActivityLogHeader], Source={x:Static local:Lang.Instance}}"
                                            Style="{StaticResource SectionLabel}" Margin="0"
                                            VerticalAlignment="Center"/>
                                 <Border Grid.Column="1"
-                                        Background="{DynamicResource BorderColor}"
                                         CornerRadius="8" Padding="6,1" Margin="6,0,0,0"
-                                        VerticalAlignment="Center" HorizontalAlignment="Left">
+                                        VerticalAlignment="Center">
+                                    <Border.Background>
+                                        <SolidColorBrush Color="{DynamicResource C.Accent}" Opacity="0.18"/>
+                                    </Border.Background>
                                     <TextBlock x:Name="LogCountLabel"
-                                               FontSize="9" Foreground="{DynamicResource TextMuted}" Text="0"/>
+                                               FontSize="9" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Accent}" Text="0"/>
                                 </Border>
+                                <!-- Collapse button — collapses with the log panel -->
+                                <Button Grid.Column="3"
+                                        Content="»" FontSize="22" Padding="4,0"
+                                        Style="{StaticResource FlatBtn}"
+                                        Foreground="{DynamicResource TextMuted}"
+                                        VerticalAlignment="Center"
+                                        Click="LogToggle_Click"
+                                        ToolTip="Hide activity log"/>
                             </Grid>
 
                             <!-- Log content -->
-                            <Border Grid.Row="1"
+                            <Border Grid.Row="1" x:Name="LogContent"
                                     Background="{DynamicResource CardBg}"
                                     BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
                                     CornerRadius="{DynamicResource Theme.CornerRadius}">
@@ -612,7 +695,8 @@
                                     <RichTextBox Grid.Row="1" x:Name="LogBox"
                                                  Background="Transparent"
                                                  Foreground="{DynamicResource TextMuted}"
-                                                 FontSize="10"
+                                                 FontFamily="{DynamicResource Theme.FontFamily}"
+                                                 FontSize="{DynamicResource Theme.FontSize.Tiny}"
                                                  BorderThickness="0" IsReadOnly="True"
                                                  Padding="8,6"
                                                  VerticalScrollBarVisibility="Auto"
@@ -622,8 +706,12 @@
                                 </Grid>
                             </Border>
 
-                            <!-- Export button -->
-                            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
+                            <!-- Clear / Export buttons -->
+                            <StackPanel x:Name="LogExportRow" Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
+                                <Button Content="{Binding [BtnClearLog], Source={x:Static local:Lang.Instance}}"
+                                        Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                        Margin="0,0,6,0"
+                                        Click="ClearLog_Click"/>
                                 <Button Content="{Binding [BtnExportLog], Source={x:Static local:Lang.Instance}}"
                                         Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
                                         Click="ExportLog_Click"/>
@@ -634,23 +722,27 @@
 
                 <!-- ── Footer ─────────────────────────────────────────────── -->
                 <Border Grid.Row="5" Background="{DynamicResource Surface}"
-                        CornerRadius="{DynamicResource Theme.CornerRadiusBottom}">
+                        CornerRadius="0">
                     <Grid Margin="14,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="FooterLabel" Grid.Column="0"
+                        <TextBlock x:Name="FooterLabel"
+                                   HorizontalAlignment="Left"
                                    Foreground="{DynamicResource TextMuted}" FontSize="10"
                                    VerticalAlignment="Center"/>
-                        <!-- Centre: default action + open protection — truly centred -->
-                        <StackPanel Grid.Column="1"
-                                    Orientation="Horizontal"
+                        <!-- Centre: wifi · default action · open protection — truly centred -->
+                        <StackPanel Orientation="Horizontal"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center">
+                            <TextBlock x:Name="WifiFooterLabel"
+                                       Foreground="{DynamicResource TextMuted}"
+                                       FontSize="10" VerticalAlignment="Center"
+                                       Visibility="Collapsed"
+                                       ToolTip="Current WiFi network"
+                                       ToolTipService.InitialShowDelay="800"/>
+                            <Rectangle x:Name="WifiFooterSep" Width="1" Height="12" Margin="10,0"
+                                       Fill="{DynamicResource BorderColor}" VerticalAlignment="Center"
+                                       Visibility="Collapsed"/>
                             <TextBlock x:Name="DefaultTunnelLabel"
-                                       Foreground="{DynamicResource Accent}"
+                                       Foreground="{DynamicResource TextMuted}"
                                        FontSize="10" VerticalAlignment="Center"
                                        Visibility="Collapsed"
                                        ToolTip="Default action tunnel — activates when no WiFi rule matches"
@@ -659,13 +751,13 @@
                                        Fill="{DynamicResource BorderColor}" VerticalAlignment="Center"
                                        x:Name="StatusCentreSep" Visibility="Collapsed"/>
                             <TextBlock x:Name="OpenProtectionLabel"
-                                       Foreground="{DynamicResource Success}"
+                                       Foreground="{DynamicResource TextMuted}"
                                        FontSize="10" VerticalAlignment="Center"
                                        Visibility="Collapsed"
                                        ToolTip="Open network protection — activates automatically on passwordless WiFi"
                                        ToolTipService.InitialShowDelay="800"/>
                         </StackPanel>
-                        <TextBlock x:Name="AdminLabel" Grid.Column="2"
+                        <TextBlock x:Name="AdminLabel"
                                    HorizontalAlignment="Right" FontSize="10"
                                    VerticalAlignment="Center"/>
                     </Grid>

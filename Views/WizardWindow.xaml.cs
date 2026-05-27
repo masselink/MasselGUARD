@@ -13,6 +13,8 @@ namespace MasselGUARD.Views
         private readonly MainWindow      _main;
         private readonly bool            _isUpgrade;
 
+        private bool _settingControls; // true while programmatically updating controls — suppresses event handlers
+
         private const int TotalSteps = 5; // steps 0-4
 
         public WizardWindow(MainWindow main, bool isUpgrade = false)
@@ -76,30 +78,33 @@ namespace MasselGUARD.Views
             // ── Step 1: Language & theme ─────────────────────────────────────
             if (_vm.Step == 1)
             {
+                _settingControls = true;
                 WizLangPicker.SelectedItem = _vm.SelectedLanguage;
-                bool isDark = _main.ConfigSvc.Config.AutoTheme
-                    ? (bool?)null == null  // placeholder
-                    : _main.ConfigSvc.Config.ActiveDarkTheme != null;
                 bool autoTheme = _main.ConfigSvc.Config.AutoTheme;
                 if (WizThemeAuto != null)  WizThemeAuto.IsChecked  = autoTheme;
                 if (WizThemeDark != null)  WizThemeDark.IsChecked  = !autoTheme && IsCurrentThemeDark();
                 if (WizThemeLight != null) WizThemeLight.IsChecked = !autoTheme && !IsCurrentThemeDark();
+                _settingControls = false;
             }
 
             // ── Step 2: Mode ─────────────────────────────────────────────────
             if (_vm.Step == 2)
             {
+                _settingControls = true;
                 WizModeStandalone.IsChecked = _vm.Mode == AppMode.Standalone;
                 WizModeCompanion.IsChecked  = _vm.Mode == AppMode.Companion;
                 WizModeMixed.IsChecked      = _vm.Mode == AppMode.Mixed;
+                _settingControls = false;
             }
 
             // ── Step 3: Automation ───────────────────────────────────────────
             if (_vm.Step == 3)
             {
+                _settingControls = true;
                 WizManualToggle.IsChecked = _vm.DisableWifiRules;
                 if (WizShowRulesToggle != null)
                     WizShowRulesToggle.IsChecked = _main.ConfigSvc.Config.ShowWifiRulesOnMainWindow;
+                _settingControls = false;
                 if (WizShowRulesCard != null)
                     WizShowRulesCard.Visibility = _vm.DisableWifiRules
                         ? Visibility.Collapsed : Visibility.Visible;
@@ -149,6 +154,7 @@ namespace MasselGUARD.Views
         // ── Mode ──────────────────────────────────────────────────────────────
         private void WizMode_Changed(object sender, RoutedEventArgs e)
         {
+            if (_settingControls) return;
             if (WizModeStandalone?.IsChecked == true)     _vm.Mode = AppMode.Standalone;
             else if (WizModeCompanion?.IsChecked == true) _vm.Mode = AppMode.Companion;
             else                                          _vm.Mode = AppMode.Mixed;
@@ -158,6 +164,7 @@ namespace MasselGUARD.Views
         private void WizLang_Changed(object sender,
             System.Windows.Controls.SelectionChangedEventArgs e)
         {
+            if (_settingControls) return;
             if (WizLangPicker.SelectedItem is LangItem item)
                 _vm.SelectedLanguage = item;
         }
@@ -165,6 +172,7 @@ namespace MasselGUARD.Views
         // ── Theme ─────────────────────────────────────────────────────────────
         private void WizTheme_Changed(object sender, RoutedEventArgs e)
         {
+            if (_settingControls) return;
             var cfg = _main.ConfigSvc.Config;
             if (WizThemeAuto?.IsChecked == true)
             {

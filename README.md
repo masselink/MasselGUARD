@@ -6,6 +6,7 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 
 > **User manual** → [`docs/MANUAL.md`](docs/MANUAL.md)
 > **Technical reference** → [`docs/MasselGUARD.md`](docs/MasselGUARD.md)
+> **Change history v2.9→v3.0** → [`docs/CHANGES_v290_to_v300.md`](docs/CHANGES_v290_to_v300.md)
 > **Change history v2.5→v2.9** → [`docs/CHANGES_v250_to_v290.md`](docs/CHANGES_v250_to_v290.md)
 > **Change history v2.3→v2.5** → [`docs/CHANGES_v231_to_v250.md`](docs/CHANGES_v231_to_v250.md)
 
@@ -42,19 +43,30 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 - Pre/post scripts at four hook points per tunnel
 
 ### Interface
-- **Defaults button** — toolbar button opens a centred popup to set/clear default action and open network protection
-- Two-panel layout: tunnel list + optional WiFi Rules panel (left) | Activity Log (right)
-- Activity Log: **Time** | **Event** column header
+- Two-panel layout: tunnel list (+ optional WiFi Rules panel) left | Activity Log right
+- **Activity log toggle** — `☰` button in tunnel header opens log; `»` button in log header collapses it; persisted across sessions
+- Activity Log: **Time** | **Event** column header; entry count badge; Export Log
 - Footer bar: mode (green when installed) | ⚡ default + 🔓 open protection | Administrator
 - System tray: two-state shield icon (green filled / grey outline), themed menu with GDI+ icons
 - **Custom WPF toast notifications** — fully themed, slides in from bottom-right, shows rule name and category; no system balloon
+- **Confirm on close** — optional confirmation dialog before disconnecting active tunnels on exit
+
+### Appearance
+- **Custom appearance system** — toggle between Windows 11 system colours and custom theme files
+- **System mode** — Auto (follows Windows) / Light / Dark pill selector
+- **Separate dark/light theme pickers** — independent theme files for each mode
+- **Theme preview button** — apply the selected theme for 10 seconds before committing; auto-reverts
+- **Font override** — pick any installed font; per-typeface rendering in the dropdown; size slider 8–18 pt
+- **Font preview button** — apply the draft font to the whole interface for 10 seconds; auto-reverts
+- Six built-in themes: Default Dark/Light, Grey Dark/Light, High Contrast Dark/Light
 
 ### Settings
-- **Fully deferred save** — all changes staged until Save; Cancel reverts everything including theme preview
+- **Fully deferred save** — all changes staged until Save; Cancel reverts everything including previews
 - **Tunnel Groups** dedicated tab in Settings
 - Extended log shows only **changed** fields on Save
 - Start with Windows toggle (Scheduled Task, no UAC on subsequent launches)
 - Notification duration picker (3 / 5 / 10 / 15 / 30 s)
+- **Update check frequency** — On start / Daily / Weekly / Manual
 - Five languages: English, Dutch, German, French, Spanish
 
 ---
@@ -86,12 +98,12 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 BUILD.bat
 ```
 
-Generates build number (`2.9.0.YYMMDDHHMM`), injects into `UpdateChecker.cs`, compiles, copies output to `dist\`.
+Generates build number (`3.0.0.YYMMDDHHMM`), injects into `UpdateChecker.cs`, compiles, copies output to `dist\`.
 
 Banner:
 ```
   ----------------------------------------
-    MasselGUARD  v2.9.0.2505181430
+    MasselGUARD  v3.0.0.2605271152
     Harold Masselink  |  Claude.ai
   ----------------------------------------
 ```

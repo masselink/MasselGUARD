@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using Microsoft.Win32;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using MasselGUARD;
@@ -88,7 +89,21 @@ namespace MasselGUARD.Services
             {
                 _log.Debug($"[DBG] Connecting local tunnel: {stored.Name}");
                 bool ok2 = TunnelDll.Connect(stored.Name, tempPath, msg => _log.Debug(msg), out string err);
-                if (ok2) { _log.Ok($"Connected: {stored.Name}"); return true; }
+                if (ok2)
+                {
+                    _log.Ok($"Connected: {stored.Name}");
+                    // Stamp service so orphan scan can identify it as MasselGUARD-managed
+                    try
+                    {
+                        using var regKey = Microsoft.Win32.Registry.LocalMachine
+                            .OpenSubKey($@"SYSTEM\CurrentControlSet\Services\WireGuardTunnel${stored.Name}",
+                                        writable: true);
+                        regKey?.SetValue("Description", $"MasselGUARD Tunnel: {stored.Name}");
+                        regKey?.SetValue("DisplayName", $"WireGuard Tunnel: MasselGUARD - {stored.Name}");
+                    }
+                    catch { /* non-critical */ }
+                    return true;
+                }
                 _log.Warn($"TunnelDll: {err}"); return false;
             }
             catch (Exception ex)

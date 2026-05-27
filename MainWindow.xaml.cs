@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -28,6 +28,67 @@ namespace MasselGUARD
 
         // ── ViewModel ─────────────────────────────────────────────────────────
         internal readonly MainViewModel _vm;
+
+        // ── Activity-log collapse state ───────────────────────────────────────
+        private bool _logPanelVisible = true;
+
+        // ── Column sort state ─────────────────────────────────────────────────
+        private string _tunnelSortCol = "";   // "" = natural / insertion order
+        private bool   _tunnelSortAsc = true;
+        private string _ruleSortCol   = "";
+        private bool   _ruleSortAsc   = true;
+
+        private void LogToggle_Click(object sender, RoutedEventArgs e)
+        {
+            SetLogPanelVisible(!_logPanelVisible);
+            // Persist so the preference survives restarts
+            ConfigSvc.Config.ShowActivityLog = _logPanelVisible;
+            ConfigSvc.Save();
+        }
+
+        /// <summary>Show or hide the activity log panel. Called by the title-bar toggle and by Settings.</summary>
+        public void SetLogPanelVisible(bool visible)
+        {
+            if (_logPanelVisible == visible) return;
+            _logPanelVisible = visible;
+
+            LogPanelGrid.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            MainContentGrid.ColumnDefinitions[1].Width =
+                visible ? new GridLength(10) : new GridLength(0);
+            MainContentGrid.ColumnDefinitions[2].Width =
+                visible ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+
+            // ☰ in the tunnel header — only visible when the log is collapsed
+            LogOpenBtn.Visibility = visible ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        // ── Window state (maximize / restore) ────────────────────────────────
+        private bool _reallyClosing = false;
+
+        private void MinimizeBtn_Click(object sender, RoutedEventArgs e)
+            => WindowState = WindowState.Minimized;
+
+        private void MaximizeBtn_Click(object sender, RoutedEventArgs e)
+        {
+            WindowState = WindowState == WindowState.Maximized
+                ? WindowState.Normal
+                : WindowState.Maximized;
+        }
+
+        private void Window_StateChanged(object sender, EventArgs e)
+        {
+            bool maximized = WindowState == WindowState.Maximized;
+            if (MaximizeBtn != null)
+                MaximizeBtn.Content = maximized ? "❐" : "□";   // Restore / Maximize glyph
+            if (OuterBorder != null)
+            {
+                OuterBorder.BorderThickness = maximized ? new Thickness(0) : new Thickness(1);
+                if (maximized)
+                    OuterBorder.CornerRadius = new CornerRadius(0);
+                else
+                    OuterBorder.SetResourceReference(Border.CornerRadiusProperty, "Theme.CornerRadius");
+            }
+        }
 
         // ── WPF Taskbar visibility ─────────────────────────────────────────────
         private const int GWL_EXSTYLE      = -20;
@@ -65,8 +126,42 @@ namespace MasselGUARD
             InitializeComponent();
             DataContext = _vm;
 
+            // Override the lang-bound title with the real assembly version so Task Manager
+            // and the taskbar always show the current version without updating lang files.
+            Title = $"MasselGUARD  v{UpdateChecker.CurrentVersionString}";
+
             // ── Startup ───────────────────────────────────────────────────────
             Loaded += OnLoaded;
+        }
+
+        // ── Windows message hook — live theme / accent updates ────────────────
+        private const int WM_SETTINGCHANGE = 0x001A;
+
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)
+                      ?.AddHook(WndProc);
+        }
+
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (msg == WM_SETTINGCHANGE && lParam != IntPtr.Zero)
+            {
+                string? change = Marshal.PtrToStringAuto(lParam);
+                // "ImmersiveColorSet" fires on accent-colour change and dark/light mode switch
+                if (change is "ImmersiveColorSet" && !ConfigSvc.Config.UseCustomTheme)
+                {
+                    Dispatcher.BeginInvoke(() =>
+                    {
+                        ApplyThemeFromConfig();
+                        // Re-colour footer labels — Accent may have changed
+                        UpdateAdminLabel();
+                        UpdateFooterLabel();
+                    });
+                }
+            }
+            return IntPtr.Zero;
         }
 
         // ── Loaded ────────────────────────────────────────────────────────────
@@ -87,6 +182,10 @@ namespace MasselGUARD
             LogSvc.EntryAdded += AppendLogEntry;
             RebuildLog();
 
+            // Restore saved log-panel visibility (default true)
+            if (!ConfigSvc.Config.ShowActivityLog)
+                SetLogPanelVisible(false);
+
             // Update footer
             UpdateAdminLabel();
             UpdateFooterLabel();
@@ -104,29 +203,27 @@ namespace MasselGUARD
             // also rebuild group tabs for contrast recalculation
             ThemeManager.Instance.ThemeChanged += (_, _) => Dispatcher.BeginInvoke(() =>
             {
+                // Re-apply font override — Load() resets Theme.FontFamily from the theme
+                // definition, so the override must be re-stamped after every theme change.
+                ThemeManager.ApplyFontOverride(
+                    ConfigSvc.Config.FontOverrideEnabled,
+                    ConfigSvc.Config.FontOverrideFamily,
+                    ConfigSvc.Config.FontOverrideSize);
+
                 _vm.RebuildTunnelList();
                 RebuildTunnelGroups();
                 RefreshWifiRulesPanel();
                 UpdateStatusBarCentre();
                 UpdateFooterLabel();
+                UpdateAdminLabel();
+                UpdateShieldChevron();
                 NotifyAllBadges();
                 ApplyGroupFilter();
+                RebuildLog();   // re-resolve brush colours after accent/theme change
             });
 
-            // Theme: sync auto-theme on startup
-            if (ConfigSvc.Config.AutoTheme)
-            {
-                bool isDark = ThemeManager.GetSystemIsDark();
-                var target  = isDark ? ConfigSvc.Config.ActiveDarkTheme
-                                     : ConfigSvc.Config.ActiveLightTheme;
-                if (!string.IsNullOrEmpty(target) &&
-                    target != ThemeManager.Instance.CurrentThemeName)
-                {
-                    ThemeManager.Instance.Load(target);
-                    ConfigSvc.Config.ActiveTheme = target;
-                }
-            }
-            UpdateThemeToggleIcon();
+            // Theme: apply on startup based on UseCustomTheme + SystemThemeMode
+            ApplyThemeFromConfig();
 
             // Build initial tunnel list
             _vm.RebuildTunnelList();
@@ -233,11 +330,14 @@ namespace MasselGUARD
         // ── Activity log rendering ────────────────────────────────────────────
         private void AppendLogEntry(LogEntry entry)
         {
-            Dispatcher.BeginInvoke(() =>
+            // When called from RebuildLog() we're already on the UI thread — run synchronously
+            // so that rapid successive RebuildLog() calls (language + theme change on save)
+            // don't queue up stacked BeginInvoke batches that produce duplicate entries.
+            void AddToDoc()
             {
                 var para = new Paragraph { Margin = new Thickness(0), Padding = new Thickness(0) };
 
-                // Timestamp uses Theme.LogTimestampColor (a Color, wrap in SolidColorBrush)
+                // Timestamp
                 Brush tsBrush;
                 try
                 {
@@ -251,9 +351,10 @@ namespace MasselGUARD
                     Foreground = tsBrush
                 };
 
+                // Ok events (Connected, Disconnected, …) shown in Accent (Windows theme colour)
                 Brush msgBrush = entry.Level switch
                 {
-                    LogLevel.Ok    => SafeBrush("Success"),
+                    LogLevel.Ok    => SafeBrush("Accent"),
                     LogLevel.Warn  => SafeBrush("Danger"),
                     LogLevel.Info  => SafeBrush("Accent"),
                     _              => SafeBrush("TextMuted"),
@@ -270,7 +371,12 @@ namespace MasselGUARD
                     LogDocument.Blocks.Add(para);
                 LogBox.ScrollToHome();
                 LogCountLabel.Text = LogSvc.Entries.Count.ToString();
-            });
+            }
+
+            if (Dispatcher.CheckAccess())
+                AddToDoc();
+            else
+                Dispatcher.BeginInvoke(AddToDoc);
         }
 
         private Brush SafeBrush(string key)
@@ -552,15 +658,49 @@ namespace MasselGUARD
             var all    = _vm.TunnelList;
             var groups = ConfigSvc.Config.TunnelGroups;
 
+            IEnumerable<TunnelEntryViewModel> filtered;
             if (_activeGroup == "Uncategorized")
-                TunnelsListView.ItemsSource = all
-                    .Where(t => string.IsNullOrEmpty(t.Group) ||
-                                !groups.Any(g => g.Name == t.Group))
-                    .ToList();
+                filtered = all.Where(t => string.IsNullOrEmpty(t.Group) ||
+                                          !groups.Any(g => g.Name == t.Group));
             else
-                TunnelsListView.ItemsSource = all
-                    .Where(t => t.Group == _activeGroup)
-                    .ToList();
+                filtered = all.Where(t => t.Group == _activeGroup);
+
+            TunnelsListView.ItemsSource = SortTunnels(filtered).ToList();
+        }
+
+        private IEnumerable<TunnelEntryViewModel> SortTunnels(IEnumerable<TunnelEntryViewModel> src)
+            => _tunnelSortCol switch
+            {
+                "Name"   => _tunnelSortAsc ? src.OrderBy(t => t.Name)      : src.OrderByDescending(t => t.Name),
+                "Type"   => _tunnelSortAsc ? src.OrderBy(t => t.TypeLabel) : src.OrderByDescending(t => t.TypeLabel),
+                "Status" => _tunnelSortAsc
+                    ? src.OrderByDescending(t => t.IsActive).ThenByDescending(t => t.IsAvailable).ThenBy(t => t.Name)
+                    : src.OrderBy(t => t.IsActive).ThenBy(t => t.IsAvailable).ThenBy(t => t.Name),
+                "Rules"  => _tunnelSortAsc ? src.OrderBy(t => t.RuleCount) : src.OrderByDescending(t => t.RuleCount),
+                _        => src,
+            };
+
+        // ── Tunnel sort click handlers ────────────────────────────────────────
+        private void TunSort_Name  (object s, RoutedEventArgs e) => TunnelSort("Name");
+        private void TunSort_Type  (object s, RoutedEventArgs e) => TunnelSort("Type");
+        private void TunSort_Status(object s, RoutedEventArgs e) => TunnelSort("Status");
+        private void TunSort_Rules (object s, RoutedEventArgs e) => TunnelSort("Rules");
+
+        private void TunnelSort(string col)
+        {
+            if (_tunnelSortCol == col) _tunnelSortAsc = !_tunnelSortAsc;
+            else { _tunnelSortCol = col; _tunnelSortAsc = true; }
+            ApplyGroupFilter();
+            UpdateTunnelSortArrows();
+        }
+
+        private void UpdateTunnelSortArrows()
+        {
+            string asc = "▲", desc = "▼";
+            TunArrowName.Text   = _tunnelSortCol == "Name"   ? (_tunnelSortAsc ? asc : desc) : "";
+            TunArrowType.Text   = _tunnelSortCol == "Type"   ? (_tunnelSortAsc ? asc : desc) : "";
+            TunArrowStatus.Text = _tunnelSortCol == "Status" ? (_tunnelSortAsc ? asc : desc) : "";
+            TunArrowRules.Text  = _tunnelSortCol == "Rules"  ? (_tunnelSortAsc ? asc : desc) : "";
         }
 
         private void TunnelTabDragOver(object sender, DragEventArgs e)
@@ -870,7 +1010,6 @@ namespace MasselGUARD
             _vm.RebuildTunnelList();
             RebuildTunnelGroups();
             UpdateFooterLabel();
-            UpdateThemeToggleIcon();
         }
 
         // ── Button click handlers (thin — delegate to VM or OnXxx) ────────────
@@ -879,6 +1018,14 @@ namespace MasselGUARD
         private void DeleteTunnel_Click(object s, RoutedEventArgs e)  => _vm.DeleteTunnelCommand.Execute(null);
         private void SettingsBtn_Click(object s, RoutedEventArgs e)   => _vm.OpenSettingsCommand.Execute(null);
         private void ExportLog_Click(object s, RoutedEventArgs e)     => _vm.ExportLogCommand.Execute(null);
+
+        private void ClearLog_Click(object s, RoutedEventArgs e)
+        {
+            LogSvc.Clear();
+            LogDocument.Blocks.Clear();
+            LogCountLabel.Text = "0";
+            LogSvc.Ok(Lang.T("LogCleared"));   // first entry after the clear
+        }
 
         private void ImportTunnel_Click(object s, RoutedEventArgs e)
         {
@@ -984,9 +1131,8 @@ namespace MasselGUARD
 
         private void UpdateWifiLabel(string? ssid)
         {
-            WifiLabel.Text = string.IsNullOrEmpty(ssid)
-                ? Lang.T("StatusNoWifi")
-                : ssid;
+            WifiLabel.Text = string.IsNullOrEmpty(ssid) ? Lang.T("StatusNoWifi") : ssid;
+            UpdateStatusBarCentre(); // keeps footer WiFi label in sync
         }
 
         private void UpdateTunnelLabel()
@@ -1001,6 +1147,15 @@ namespace MasselGUARD
             TunnelLabel.ToolTip = active != null
                 ? $"{active.Name}\n{active.StatusText}\nType: {active.TypeLabel}"
                 : "No active tunnel";
+
+            UpdateShieldChevron();
+        }
+
+        private void UpdateShieldChevron()
+        {
+            bool anyActive = _vm.TunnelList.Any(t => t.IsActive);
+            Application.Current.Resources["ShieldChevronBrush"] =
+                anyActive ? FindResource("Accent") : FindResource("TextMuted");
         }
 
         private void UpdateFooterLabel()
@@ -1011,11 +1166,8 @@ namespace MasselGUARD
                 AppRunModeKind.ManagedPortable => "Managed (Portable)",
                 _                              => Lang.T("InstallStatusNotInstalled"),
             };
-            FooterLabel.Text = $"{Lang.T("FooterMode")}: {modeText}";
-            // Green for managed (like Admin label), muted for others
-            FooterLabel.Foreground = AppRunMode == AppRunModeKind.Managed
-                ? (Brush)FindResource("Success")
-                : (Brush)FindResource("TextMuted");
+            FooterLabel.Text       = $"{Lang.T("FooterMode")}: {modeText}";
+            FooterLabel.Foreground = (Brush)FindResource("TextMuted");  // always grey
         }
 
         private void UpdateAdminLabel()
@@ -1024,43 +1176,43 @@ namespace MasselGUARD
                 System.Security.Principal.WindowsIdentity.GetCurrent())
                 .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
 
-            AdminLabel.Text       = isAdmin ? Lang.T("AdminYes") : Lang.T("AdminNo");
+            AdminLabel.Text = isAdmin ? Lang.T("AdminYes") : Lang.T("AdminNo");
+            // Admin → Windows accent colour (theme colour); not admin → muted grey
             AdminLabel.Foreground = isAdmin
-                ? (Brush)FindResource("Success")
-                : (Brush)FindResource("Danger");
+                ? (Brush)FindResource("Accent")
+                : (Brush)FindResource("TextMuted");
         }
 
-        // ── Theme toggle ──────────────────────────────────────────────────────
-        private void ThemeToggle_Click(object sender, RoutedEventArgs e)
+        // ── Theme application ─────────────────────────────────────────────────
+        /// <summary>
+        /// Applies the active theme based on UseCustomTheme + SystemThemeMode from config.
+        /// Called on startup and after settings are saved.
+        /// </summary>
+        internal void ApplyThemeFromConfig()
         {
-            var cfg  = ConfigSvc.Config;
-            string next;
-            if (cfg.AutoTheme)
+            var cfg = ConfigSvc.Config;
+            bool isDark = cfg.SystemThemeMode switch
             {
-                cfg.AutoTheme = false;
-                next          = cfg.ActiveDarkTheme;
-            }
-            else if (cfg.ActiveTheme == cfg.ActiveDarkTheme)
+                "light" => false,
+                "dark"  => true,
+                _       => ThemeManager.GetSystemIsDark()   // "auto"
+            };
+
+            if (!cfg.UseCustomTheme)
             {
-                next = cfg.ActiveLightTheme;
+                ThemeManager.Instance.LoadSystem(isDark);
             }
             else
             {
-                cfg.AutoTheme = true;
-                next          = ThemeManager.GetSystemIsDark()
-                    ? cfg.ActiveDarkTheme : cfg.ActiveLightTheme;
+                var target = isDark ? cfg.ActiveDarkTheme : cfg.ActiveLightTheme;
+                if (!string.IsNullOrEmpty(target))
+                    ThemeManager.Instance.Load(target);
+                else
+                    ThemeManager.Instance.LoadSystem(isDark);
             }
-            ThemeManager.Instance.Load(next);
-            cfg.ActiveTheme = next;
-            ConfigSvc.Save();
-            UpdateThemeToggleIcon();
-        }
 
-        internal void UpdateThemeToggleIcon()
-        {
-            var cfg = ConfigSvc.Config;
-            ThemeToggleBtn.Content = cfg.AutoTheme ? "⚡" :
-                cfg.ActiveTheme == cfg.ActiveDarkTheme ? "🌙" : "☀";
+            // Font override: applied after theme so it wins over the theme's own font.
+            ThemeManager.ApplyFontOverride(cfg.FontOverrideEnabled, cfg.FontOverrideFamily, cfg.FontOverrideSize);
         }
 
         internal void ApplyManualMode()
@@ -1078,6 +1230,7 @@ namespace MasselGUARD
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            if (_reallyClosing) return;   // allow Application.Current.Shutdown()
             e.Cancel = true;
             Hide();
         }
@@ -1148,20 +1301,20 @@ namespace MasselGUARD
 
         public List<OrphanedService> GetOrphanedServices()
         {
-            var result  = new List<OrphanedService>();
+            var result = new List<OrphanedService>();
+
+            // Tunnels this session intentionally has active — never flag those
+            var activeInApp = new System.Collections.Generic.HashSet<string>(
+                _vm.TunnelList.Where(t => t.IsActive).Select(t => t.Name),
+                StringComparer.OrdinalIgnoreCase);
+
+            // Tunnel names configured in this install (used as a fallback identifier)
             var tracked = new System.Collections.Generic.HashSet<string>(
                 ConfigSvc.Config.Tunnels.Select(t => t.Name),
                 StringComparer.OrdinalIgnoreCase);
 
             try
             {
-                var wgAdapters = System.Net.NetworkInformation
-                    .NetworkInterface.GetAllNetworkInterfaces()
-                    .Where(n => n.Description.Contains("WireGuard",
-                        StringComparison.OrdinalIgnoreCase))
-                    .Select(n => n.Name)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
                 foreach (var svc in System.ServiceProcess.ServiceController.GetServices())
                 {
                     const string prefix = "WireGuardTunnel$";
@@ -1169,10 +1322,25 @@ namespace MasselGUARD
                         StringComparison.OrdinalIgnoreCase)) continue;
 
                     var name = svc.ServiceName[prefix.Length..];
-                    if (tracked.Contains(name)) continue;
 
-                    bool active = wgAdapters.Contains(name);
-                    result.Add(new OrphanedService(svc.ServiceName, name, active));
+                    // Never flag a tunnel this session is managing
+                    if (activeInApp.Contains(name)) continue;
+
+                    // Primary: DisplayName contains "MasselGUARD"
+                    // (e.g. "WireGuard Tunnel: MasselGUARD - TunnelName")
+                    // Secondary: Description registry value contains "MasselGUARD"
+                    // Tertiary: tunnel name matches one in our config
+                    bool isManagedByUs =
+                        svc.DisplayName.Contains("MasselGUARD",
+                            StringComparison.OrdinalIgnoreCase)
+                        || GetServiceDescription(svc.ServiceName).Contains("MasselGUARD",
+                            StringComparison.OrdinalIgnoreCase)
+                        || tracked.Contains(name);
+
+                    if (!isManagedByUs) continue;
+
+                    bool isRunning = svc.Status == System.ServiceProcess.ServiceControllerStatus.Running;
+                    result.Add(new OrphanedService(svc.ServiceName, name, isRunning));
                 }
             }
             catch { }
@@ -1180,14 +1348,25 @@ namespace MasselGUARD
             return result;
         }
 
+        /// <summary>Reads the service Description value from the registry.</summary>
+        private static string GetServiceDescription(string serviceName)
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine
+                    .OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{serviceName}");
+                return key?.GetValue("Description") as string ?? "";
+            }
+            catch { return ""; }
+        }
+
         public void RemoveOrphan(OrphanedService orphan)
         {
             try
             {
-                using var sc = new System.ServiceProcess.ServiceController(orphan.ServiceName);
-                if (sc.Status == System.ServiceProcess.ServiceControllerStatus.Running)
-                    sc.Stop();
-                TunnelDll.Disconnect(orphan.TunnelName, out _);
+                // ForceRemoveService stops (if running) and deletes the SCM entry —
+                // works for both running and already-stopped orphan services.
+                TunnelDll.ForceRemoveService(orphan.ServiceName);
                 LogSvc.Ok($"Orphan removed: {orphan.TunnelName}");
             }
             catch (Exception ex)
@@ -1769,8 +1948,17 @@ namespace MasselGUARD
             bool showDef  = !string.IsNullOrEmpty(def)  && ConfigSvc.Config.DefaultAction == "activate";
             bool showOpen = !string.IsNullOrEmpty(open);
 
-            DefaultTunnelLabel.Text       = showDef  ? $"⚡ {def}"  : "";
-            OpenProtectionLabel.Text      = showOpen ? $"🔓 {open}" : "";
+            // WiFi footer indicator — hidden when no network is connected
+            string? ssid  = WifiSvc.CurrentSsid;
+            bool showWifi = !string.IsNullOrEmpty(ssid);
+            WifiFooterLabel.Text       = showWifi ? $"📶 {ssid}" : "";
+            WifiFooterLabel.Visibility = showWifi ? Visibility.Visible : Visibility.Collapsed;
+            // Separator between WiFi and the other items — only when something follows
+            WifiFooterSep.Visibility   = showWifi && (showDef || showOpen)
+                ? Visibility.Visible : Visibility.Collapsed;
+
+            DefaultTunnelLabel.Text        = showDef  ? $"⚡ {def}"  : "";
+            OpenProtectionLabel.Text       = showOpen ? $"🔓 {open}" : "";
             DefaultTunnelLabel.Visibility  = showDef  ? Visibility.Visible : Visibility.Collapsed;
             OpenProtectionLabel.Visibility = showOpen ? Visibility.Visible : Visibility.Collapsed;
             StatusCentreSep.Visibility     = showDef && showOpen
@@ -1814,13 +2002,13 @@ namespace MasselGUARD
             if (WifiRulesHeader      != null) WifiRulesHeader.Visibility      = showPanel ? Visibility.Visible : Visibility.Collapsed;
             if (WifiRuleButtonsPanel != null) WifiRuleButtonsPanel.Visibility = showPanel ? Visibility.Visible : Visibility.Collapsed;
 
-            // Collapse/restore the grid rows so the tunnel box fills available space
-            var zero = new GridLength(0);
-            var star = new GridLength(1, GridUnitType.Star);
-            var auto = GridLength.Auto;
-            if (WifiRulesHeaderRow != null) WifiRulesHeaderRow.Height = showPanel ? auto : zero;
-            if (WifiRulesPanelRow  != null) WifiRulesPanelRow.Height  = showPanel ? star : zero;
-            if (WifiRulesBtnsRow   != null) WifiRulesBtnsRow.Height   = showPanel ? auto : zero;
+            // Collapse/restore the grid rows — tunnels:WiFi = 3*:2* = 60%:40%
+            var zero      = new GridLength(0);
+            var wifiStar  = new GridLength(2, GridUnitType.Star);   // 40 %
+            var auto      = GridLength.Auto;
+            if (WifiRulesHeaderRow != null) WifiRulesHeaderRow.Height = showPanel ? auto     : zero;
+            if (WifiRulesPanelRow  != null) WifiRulesPanelRow.Height  = showPanel ? wifiStar : zero;
+            if (WifiRulesBtnsRow   != null) WifiRulesBtnsRow.Height   = showPanel ? auto     : zero;
 
             if (!showPanel) { _activeRuleFilter = null; return; }
 
@@ -1828,9 +2016,44 @@ namespace MasselGUARD
             if (WifiRuleCountLabel != null)
                 WifiRuleCountLabel.Text = rules.Count.ToString();
 
-            WifiRulesListView.ItemsSource = rules
-                .Select(r => new WifiRuleRow(r, _activeRuleFilter, this))
-                .ToList();
+            var rows = rules.Select(r => new WifiRuleRow(r, _activeRuleFilter, this));
+            WifiRulesListView.ItemsSource = SortRules(rows).ToList();
+        }
+
+        private IEnumerable<WifiRuleRow> SortRules(IEnumerable<WifiRuleRow> src)
+            => _ruleSortCol switch
+            {
+                "Name"   => _ruleSortAsc ? src.OrderBy(r => r.RuleName)      : src.OrderByDescending(r => r.RuleName),
+                "Ssid"   => _ruleSortAsc ? src.OrderBy(r => r.Ssid)          : src.OrderByDescending(r => r.Ssid),
+                "Action" => _ruleSortAsc ? src.OrderBy(r => r.ActionLabel)   : src.OrderByDescending(r => r.ActionLabel),
+                "Count"  => _ruleSortAsc ? src.OrderBy(r => r.ExecutionCount): src.OrderByDescending(r => r.ExecutionCount),
+                "Tunnel" => _ruleSortAsc ? src.OrderBy(r => r.TunnelName)    : src.OrderByDescending(r => r.TunnelName),
+                _        => src,
+            };
+
+        // ── WiFi rule sort click handlers ─────────────────────────────────────
+        private void RuleSort_Name  (object s, RoutedEventArgs e) => RuleSort("Name");
+        private void RuleSort_Ssid  (object s, RoutedEventArgs e) => RuleSort("Ssid");
+        private void RuleSort_Action(object s, RoutedEventArgs e) => RuleSort("Action");
+        private void RuleSort_Count (object s, RoutedEventArgs e) => RuleSort("Count");
+        private void RuleSort_Tunnel(object s, RoutedEventArgs e) => RuleSort("Tunnel");
+
+        private void RuleSort(string col)
+        {
+            if (_ruleSortCol == col) _ruleSortAsc = !_ruleSortAsc;
+            else { _ruleSortCol = col; _ruleSortAsc = true; }
+            RefreshWifiRulesPanel();
+            UpdateRuleSortArrows();
+        }
+
+        private void UpdateRuleSortArrows()
+        {
+            string asc = "▲", desc = "▼";
+            RuleArrowName.Text   = _ruleSortCol == "Name"   ? (_ruleSortAsc ? asc : desc) : "";
+            RuleArrowSsid.Text   = _ruleSortCol == "Ssid"   ? (_ruleSortAsc ? asc : desc) : "";
+            RuleArrowAction.Text = _ruleSortCol == "Action" ? (_ruleSortAsc ? asc : desc) : "";
+            RuleArrowCount.Text  = _ruleSortCol == "Count"  ? (_ruleSortAsc ? asc : desc) : "";
+            RuleArrowTunnel.Text = _ruleSortCol == "Tunnel" ? (_ruleSortAsc ? asc : desc) : "";
         }
 
         private sealed class WifiRuleRow
@@ -1843,8 +2066,16 @@ namespace MasselGUARD
             public int    ExecutionCount { get; }
             public string ExecutionCountText => ExecutionCount > 0 ? ExecutionCount.ToString() : "0";
 
+            // Accent only when this row is highlighted (tunnel filter active); grey otherwise
+            public System.Windows.Media.Brush ActionColor =>
+                IsHighlighted
+                    ? (System.Windows.Media.Brush)(System.Windows.Application.Current
+                        .Resources["Accent"] ?? System.Windows.Media.Brushes.CornflowerBlue)
+                    : (System.Windows.Media.Brush)(System.Windows.Application.Current
+                        .Resources["TextMuted"] ?? System.Windows.Media.Brushes.Gray);
+
             public System.Windows.Media.Brush ExecutionCountColor =>
-                ExecutionCount > 0
+                ExecutionCount > 0 && IsHighlighted
                     ? (System.Windows.Media.Brush)(System.Windows.Application.Current
                         .Resources["Accent"] ?? System.Windows.Media.Brushes.CornflowerBlue)
                     : (System.Windows.Media.Brush)(System.Windows.Application.Current

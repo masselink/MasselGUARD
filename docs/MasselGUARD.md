@@ -1,6 +1,6 @@
 # MasselGUARD — How it works
 
-Technical reference for v2.9.0 (build YYMMDDHHMM). For end-user instructions see [`MANUAL.md`](MANUAL.md).
+Technical reference for v3.0.0 (build YYMMDDHHMM). For end-user instructions see [`MANUAL.md`](MANUAL.md).
 
 ---
 
@@ -20,11 +20,12 @@ Technical reference for v2.9.0 (build YYMMDDHHMM). For end-user instructions see
 12. [Configuration and storage](#12-configuration-and-storage)
 13. [Security model](#13-security-model)
 14. [Theme system](#14-theme-system)
-15. [Logging](#15-logging)
-16. [Settings panel](#16-settings-panel)
-17. [Import / Export settings](#17-import--export-settings)
-18. [Build and deployment](#18-build-and-deployment)
-19. [Troubleshooting](#19-troubleshooting)
+15. [Font override system](#15-font-override-system)
+16. [Logging](#16-logging)
+17. [Settings panel](#17-settings-panel)
+18. [Import / Export settings](#18-import--export-settings)
+19. [Build and deployment](#19-build-and-deployment)
+20. [Troubleshooting](#20-troubleshooting)
 
 ---
 
@@ -291,11 +292,86 @@ Themes live in `theme/<folder>/theme.json`. See `theme/THEME_INFO.md` for the fu
 | `highcontrast-dark` | dark | Near-sharp (2 px), WCAG AAA |
 | `highcontrast-light` | light | Near-sharp (2 px), WCAG AAA |
 
-`ThemeManager.Instance.Load(folder)` applies all values into `Application.Current.Resources`. Every `{DynamicResource}` binding updates immediately. Auto-switching polls `HKCU\...\Themes\Personalize\AppsUseLightTheme` every 5 seconds.
+`ThemeManager.Instance.Load(folder)` applies all values into `Application.Current.Resources`. Every `{DynamicResource}` binding updates immediately.
+
+### Custom appearance system
+
+`AppConfig.UseCustomTheme` (bool, default `false`) separates colour sources:
+
+- **Off** → `ThemeManager.Instance.LoadSystem(isDark)` — Windows 11 system accent palette
+- **On** → `ThemeManager.Instance.Load(ActiveDarkTheme or ActiveLightTheme)` — custom file
+
+`AppConfig.SystemThemeMode` (`"auto"` / `"light"` / `"dark"`) determines dark/light preference:
+- `"auto"` — polls `HKCU\...\Themes\Personalize\AppsUseLightTheme` every 5 seconds
+- `"light"` / `"dark"` — fixed regardless of Windows setting
+
+`AppConfig.ActiveDarkTheme` and `AppConfig.ActiveLightTheme` are stored independently so switching modes doesn't reset either picker.
+
+### Theme preview (Settings)
+
+`DarkThemePicker_SelectionChanged`, `LightThemePicker_SelectionChanged`, `SystemMode_Changed`, and `CustomTheme_Changed` **do not apply** the theme live. They only update `_draft`. The `ThemePreviewBtn` applies the full draft state:
+
+```csharp
+private void ApplyDraftTheme()
+{
+    bool isDark = IsDraftDark();
+    if (!_draft.UseCustomTheme)
+        ThemeManager.Instance.LoadSystem(isDark);
+    else
+    {
+        var target = isDark ? _draft.ActiveDarkTheme : _draft.ActiveLightTheme;
+        ThemeManager.Instance.Load(target);
+    }
+    ThemeManager.ApplyFontOverride(_draft.FontOverrideEnabled, _draft.FontOverrideFamily, _draft.FontOverrideSize);
+}
+```
+
+A `DispatcherTimer` counts 10 seconds, then `CancelThemePreview()` loads `_originalTheme` and restores committed font.
 
 ---
 
-## 15. Logging
+## 15. Font override system
+
+`ThemeManager.ApplyFontOverride(bool enabled, string family, double size)` injects font resources into `Application.Current.Resources`:
+
+```csharp
+resources["Theme.FontFamily"] = new FontFamily(family);   // replaces theme font
+resources["Theme.FontSize"]   = size;
+```
+
+All `{DynamicResource Theme.FontFamily}` and `{DynamicResource Theme.FontSize}` bindings update immediately.
+
+### FontPickerItem class
+
+The font family ComboBox uses a `FontPickerItem` data class rather than raw strings to solve WPF's property-inheritance failure through `IsEditable="True"` ComboBoxes:
+
+```csharp
+private sealed class FontPickerItem
+{
+    public string DisplayName { get; }
+    public string FontName    { get; }
+    public System.Windows.Media.FontFamily FontFamily { get; }
+    public override string ToString() => DisplayName;  // drives IsEditable text box
+}
+```
+
+The `DataTemplate` binds `FontFamily="{Binding FontFamily}"` directly on the `TextBlock` — this bypasses the broken WPF property inheritance chain and renders each item in its own typeface reliably.
+
+`TextSearch.TextPath="DisplayName"` enables keyboard type-to-jump in the dropdown.
+
+### Font preview timer
+
+`FontPreviewBtn` applies the draft font to the whole interface for 10 seconds:
+
+1. `ApplyFontPreview()` — updates the in-settings preview label from `_draft`
+2. `ThemeManager.ApplyFontOverride(true, family, size)` — whole-interface apply
+3. `DispatcherTimer` counts 10 s → `CancelFontPreview()` restores committed font + resets label
+
+Changing the font picker or size slider while preview is active calls `CancelFontPreview()` immediately. The preview label does **not** update on picker changes — only on Preview click.
+
+---
+
+## 16. Logging
 
 | Level | Shown in Normal | Shown in Extended |
 |---|---|---|
@@ -312,22 +388,23 @@ Continuation lines (detail sub-entries) render with a `↳` prefix in the timest
 
 ---
 
-## 16. Settings panel
+## 17. Settings panel
 
 | Tab | Key settings |
 |---|---|
-| **General** | Language, app mode, disable WiFi rules, tunnel groups |
-| **Appearance** | Dark/light theme, auto system theme, background notifications |
+| **General** | Language, app mode, show activity log |
+| **Tunnel Groups** | Group add/edit/reorder, colours, visibility, hide count, hide empty |
+| **Appearance** | System mode, custom theme toggle, dark/light theme pickers, theme preview, font override, font preview, notifications |
 | **Default Action** | WiFi fallback (none / disconnect / activate + tunnel), open network protection |
-| **WiFi Rules** | Disable WiFi rules toggle, SSID→tunnel rules (deferred save) |
-| **Advanced** | Install/uninstall, DLL status, WireGuard client, orphaned service cleanup, import/export, log level |
-| **About** | Version, update check |
+| **WiFi Rules** | Disable WiFi rules toggle, SSID→tunnel rules |
+| **Advanced** | Import/export, log level, install/uninstall, start with Windows, confirm on close, WireGuard client, orphaned services |
+| **About** | Version, update check frequency, check now |
 
-**Deferred save in WiFi Rules** — Add/Edit/Delete only update memory. A **Save** button writes to disk and logs the change.
+**Deferred save** — all tabs (including WiFi Rules) commit on the main Save button. Cancel reverts theme, font, and activity log visibility to committed state.
 
 ---
 
-## 17. Import / Export settings
+## 18. Import / Export settings
 
 **Export** (Settings → Advanced → Export settings):
 - Shows a warning that tunnel configs are excluded and future-version compatibility is not guaranteed
@@ -342,7 +419,7 @@ Continuation lines (detail sub-entries) render with a `↳` prefix in the timest
 
 ---
 
-## 18. Build and deployment
+## 19. Build and deployment
 
 ### BUILD.bat
 
@@ -370,7 +447,7 @@ Builds `tunnel.dll` from source (requires Go 1.21+ and gcc/MinGW). Downloads `wi
 
 ---
 
-## 19. Troubleshooting
+## 20. Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
@@ -384,7 +461,7 @@ Builds `tunnel.dll` from source (requires Go 1.21+ and gcc/MinGW). Downloads `wi
 
 ---
 
-## 20. Run modes and installation
+## 21. Run modes and installation
 
 `MainWindow.AppRunModeKind` enum:
 
@@ -409,7 +486,7 @@ The `MasselGUARD` Scheduled Task is created at `RunLevel=Highest` during install
 
 ---
 
-## 21. Tray icon rendering
+## 22. Tray icon rendering
 
 `App.TrayIconHelper.RenderIcon(int S, int activeCount)` produces a 32-bit ARGB bitmap at size S (typically 16 or 32 px) using GDI+ (`System.Drawing`).
 
@@ -426,7 +503,7 @@ The icon is only redrawn when `_lastTrayActiveCount` changes — not on the 1-se
 
 ---
 
-## 22. WiFi Rules panel (main window)
+## 23. WiFi Rules panel (main window)
 
 A read-only summary of `AppConfig.Rules` displayed below the tunnel management buttons in `Grid.Row="3"` (header) and `Grid.Row="4"` (content) of the left column.
 
@@ -439,7 +516,7 @@ The right column (Activity Log) uses `Grid.RowSpan="5"` so it always fills the f
 
 ---
 
-## 23. Tunnel uptime
+## 24. Tunnel uptime
 
 `TunnelEntryViewModel._connectedAt` (nullable `DateTime`) is set to `DateTime.UtcNow` when `IsActive` transitions `false → true`. It is cleared on disconnect.
 
@@ -453,22 +530,27 @@ The right column (Activity Log) uses `Grid.RowSpan="5"` so it always fills the f
 
 ---
 
-## 24. Deferred-save pattern (SettingsWindow)
+## 25. Deferred-save pattern (SettingsWindow)
 
 `SettingsWindow` creates `_draft = _main.ConfigSvc.Config.DeepClone()` on `Loaded`. All handler mutations target `_draft`. `_vm` (SettingsViewModel) is populated from `_draft` and stages additional fields (rules, language, mode, log level, themes).
 
 On **Save** (`SaveBtn_Click`):
 1. Snapshot `before = _main.ConfigSvc.Config.DeepClone()`
-2. Copy `_draft` fields to `ConfigSvc.Config`
+2. Copy all `_draft` fields to `ConfigSvc.Config` (includes font override, activity log, confirm-on-close, theme fields)
 3. Call `_vm.DoSave()` — writes `_vm` fields to config and calls `ConfigSvc.Save()`
 4. If extended logging: call `LogChangedSettings(before, ConfigSvc.Config)` — logs only differing fields
 
-On **Cancel** / close without Save:
-- `OnClosing` calls `ThemeManager.Instance.Load(_originalTheme)` to revert any live theme preview
+On **Cancel / close without Save** (`OnClosing`):
+- Always: both preview timers stopped (`_fontPreviewTimer`, `_themePreviewTimer`)
+- Theme reverted to `_originalTheme` via `ThemeManager.Instance.Load(_originalTheme)`
+- Font reverted to committed config via `ThemeManager.ApplyFontOverride(...)`
+- Activity log panel visibility reverted to `_main.ConfigSvc.Config.ShowActivityLog`
+
+`_savedSuccessfully = true` is set in `SaveBtn_Click` before `Close()` — `OnClosing` skips the revert block on a successful save.
 
 ---
 
-## 25. WiFi rule name and execution counter
+## 26. WiFi rule name and execution counter
 
 `TunnelRule` model fields added:
 ```csharp
@@ -488,7 +570,7 @@ RuleName = string.IsNullOrEmpty(r.Name) ? autoName : r.Name;
 
 ---
 
-## 26. WiFi rules drag-to-reorder
+## 27. WiFi rules drag-to-reorder
 
 `WifiRulesListView` has `AllowDrop="True"`. Three handlers:
 - `PreviewMouseDown` — captures `WifiRuleRow` and start position
@@ -497,7 +579,7 @@ RuleName = string.IsNullOrEmpty(r.Name) ? autoName : r.Name;
 
 ---
 
-## 27. Double-fire prevention
+## 28. Double-fire prevention
 
 Two guards prevent rules firing twice on a network switch:
 
@@ -524,12 +606,12 @@ Sequence on network switch (MasselTHINGS → MasselNET):
 
 ---
 
-## 28. Build number
+## 29. Build number
 
 `BUILD.bat` generates the build number:
 ```bat
 for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyMMddHHmm"') do set BUILD_NUM=%%a
-set FULL_VERSION=2.9.0.%BUILD_NUM%
+set FULL_VERSION=3.0.0.%BUILD_NUM%
 ```
 
 Injects into `UpdateChecker.cs` via a temp `.ps1` file:
@@ -542,7 +624,7 @@ powershell -File temp.ps1
 
 ---
 
-## 29. Tray menu icons
+## 30. Tray menu icons
 
 `DrawMenuIcon(MenuIconKind)` produces a 16×16 GDI+ bitmap using theme colours from `Application.Current.Resources`:
 
@@ -557,7 +639,7 @@ powershell -File temp.ps1
 
 ---
 
-## 30. Notification duration
+## 31. Notification duration
 
 `AppConfig.NotificationDurationSeconds` (default 5). Picker in Settings → Appearance: 3 / 5 / 10 / 15 / 30 seconds.
 
@@ -565,7 +647,7 @@ powershell -File temp.ps1
 
 ---
 
-## 31. Defaults button popup
+## 32. Defaults button popup
 
 `DefaultsBtn_Click` builds a code-only `Window` (no XAML) with two `ComboBox` pickers — default action tunnel and open network protection — each with a "— clear —" entry. Positioned at:
 
@@ -579,7 +661,7 @@ On Save: writes `DefaultAction`, `DefaultTunnel`, `OpenWifiTunnel` to config, th
 
 ---
 
-## 32. Drag tunnels into groups
+## 33. Drag tunnels into groups
 
 Each tab button created in `AddTab()` receives:
 ```csharp
@@ -592,7 +674,7 @@ btn.Drop      += TunnelTabDrop;
 
 ---
 
-## 33. Settings tab routing
+## 34. Settings tab routing
 
 `TabBtn_Click` maps button `Name` → page name via a `switch`:
 
@@ -615,7 +697,7 @@ string tab = btn.Name switch
 
 ---
 
-## 34. Toast notification model
+## 35. Toast notification model
 
 `ToastNotification` (public record-like class):
 
@@ -633,7 +715,7 @@ The legacy `ShowTrayNotification(string title, string body, int durationMs)` ove
 
 ---
 
-## 35. Rule edit → tunnel list refresh
+## 36. Rule edit → tunnel list refresh
 
 `WifiRuleAdd_Click`, `WifiRuleEdit_Click`, and `WifiRuleDelete_Click` all call:
 1. `RefreshWifiRulesPanel()` — rebuilds the `WifiRuleRow` collection with updated `ExecutionCount` and names
@@ -643,7 +725,7 @@ This ensures the Rules column in the tunnel list stays in sync with any rule cha
 
 ---
 
-## 36. Managed Portable version check
+## 37. Managed Portable version check
 
 `NormaliseVersion(v)` strips leading `v`/`V` and whitespace. Comparison:
 

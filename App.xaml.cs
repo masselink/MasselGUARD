@@ -12,29 +12,52 @@ namespace MasselGUARD
 {
     public partial class App : System.Windows.Application
     {
-        private WinForms.NotifyIcon?      _trayIcon;
+        private WinForms.NotifyIcon?       _trayIcon;
         private WinForms.ContextMenuStrip? _trayMenu;
         private WinForms.ToolStripMenuItem? _tunnelMenuHeader;
+        private WinForms.ToolStripMenuItem? _trayShowItem;
+        private WinForms.ToolStripMenuItem? _trayExitItem;
         private MainWindow? _mainWindow;
         private Mutex?      _instanceMutex;
         private bool        _lastSystemDark = true;
 
-        // ── System theme polling ──────────────────────────────────────────────
+        // ── System theme change handling ──────────────────────────────────────
+
+        /// <summary>
+        /// Reacts to a Windows dark ↔ light mode transition.
+        /// Must be called on the UI / Dispatcher thread.
+        /// </summary>
+        private void OnSystemThemeChanged(bool isDark)
+        {
+            // __system__ theme always follows the current Windows dark/light mode.
+            if (ThemeManager.Instance.CurrentThemeName is "__system__" or "system")
+            {
+                ThemeManager.Instance.LoadSystem(isDark);
+                return;
+            }
+
+            var cfg = MasselGUARD.MainWindow.GetConfigStatic();
+            if (cfg == null) return;
+
+            // AutoTheme: switch to the user-configured dark or light theme.
+            if (cfg.AutoTheme)
+            {
+                var target = isDark ? cfg.ActiveDarkTheme : cfg.ActiveLightTheme;
+                if (!string.IsNullOrEmpty(target) && target != ThemeManager.Instance.CurrentThemeName)
+                {
+                    ThemeManager.Instance.Load(target);
+                    cfg.ActiveTheme = target;
+                }
+            }
+        }
+
+        /// <summary>Polling fallback — detects dark/light changes if the event fires late or is missed.</summary>
         private void PollSystemTheme()
         {
-            var cfg = MasselGUARD.MainWindow.GetConfigStatic();
-            if (cfg == null || !cfg.AutoTheme) return;
-
             bool isDark = ThemeManager.GetSystemIsDark();
             if (isDark == _lastSystemDark) return;
             _lastSystemDark = isDark;
-
-            var target = isDark ? cfg.ActiveDarkTheme : cfg.ActiveLightTheme;
-            if (!string.IsNullOrEmpty(target) && target != ThemeManager.Instance.CurrentThemeName)
-            {
-                ThemeManager.Instance.Load(target);
-                cfg.ActiveTheme = target;
-            }
+            OnSystemThemeChanged(isDark);
         }
 
         protected override void OnStartup(StartupEventArgs e)
@@ -57,6 +80,35 @@ namespace MasselGUARD
             {
                 var bootCfg = new Services.ConfigService();
                 bootCfg.Load();
+
+                // ── Emergency reset (Shift held at startup) ──────────────────────
+                // Useful if a bad font choice (e.g. Wingdings) or custom theme makes
+                // the UI unreadable.  Detect the key press immediately (before any
+                // windows open), reset and save to disk, then show the confirmation
+                // *after* the theme is loaded so the dialog uses the correct palette.
+                bool shiftHeld       = (WinForms.Control.ModifierKeys & WinForms.Keys.Shift) != 0;
+                bool shiftFontReset  = false;
+                bool shiftThemeReset = false;
+
+                if (shiftHeld)
+                {
+                    if (bootCfg.Config.FontOverrideEnabled)
+                    {
+                        bootCfg.Config.FontOverrideEnabled = false;
+                        bootCfg.Config.FontOverrideFamily  = "";
+                        bootCfg.Config.FontOverrideSize    = 0.0;
+                        shiftFontReset = true;
+                    }
+                    if (bootCfg.Config.UseCustomTheme || bootCfg.Config.SystemThemeMode != "auto")
+                    {
+                        bootCfg.Config.UseCustomTheme  = false;
+                        bootCfg.Config.SystemThemeMode = "auto";
+                        shiftThemeReset = true;
+                    }
+                    if (shiftFontReset || shiftThemeReset)
+                        bootCfg.Save();
+                }
+
                 // Use explicit load with fallback to ensure lang files are found
                 string langCode = bootCfg.Config.Language ?? "en";
                 var langFile = System.IO.Path.Combine(AppContext.BaseDirectory, "lang", langCode + ".json");
@@ -64,11 +116,44 @@ namespace MasselGUARD
                     langFile = System.IO.Path.Combine(AppContext.BaseDirectory, "lang", "en.json");
                 if (System.IO.File.Exists(langFile))
                     Lang.Instance.Load(langCode);
-                ThemeManager.Instance.Load(bootCfg.Config.ActiveTheme ?? "default-dark");
+
+                if (shiftThemeReset)
+                    ThemeManager.Instance.LoadSystem(ThemeManager.GetSystemIsDark());
+                else
+                    ThemeManager.Instance.Load(bootCfg.Config.ActiveTheme ?? "default-dark");
+
+                // Show the reset confirmation now that theme resources are loaded
+                if (shiftFontReset || shiftThemeReset)
+                {
+                    var parts = new System.Collections.Generic.List<string>();
+                    if (shiftFontReset)  parts.Add("• Font override reset to system UI font");
+                    if (shiftThemeReset) parts.Add("• Custom theme reverted to Windows system colours (auto mode)");
+                    ShowThemedInfo(
+                        "MasselGUARD — Emergency Reset",
+                        string.Join("\n", parts) + "\n\nThis was triggered by holding Shift at startup.");
+                }
             }
             ThemeManager.Instance.ThemeChanged += OnThemeChanged;
 
-            // ── 1c. System theme auto-switch polling ─────────────────────────
+            // ── 1c. System dark/light tracking ───────────────────────────────
+            // Seed from the real current state so the first poll doesn't fire a
+            // spurious change if the user is in light mode (field defaults to true).
+            _lastSystemDark = ThemeManager.GetSystemIsDark();
+
+            // React immediately when Windows flips dark ↔ light mode.
+            // UserPreferenceChanged fires (on a thread-pool thread) when the shell
+            // broadcasts WM_SETTINGCHANGE / WM_SYSCOLORCHANGE — marshal to Dispatcher.
+            Microsoft.Win32.SystemEvents.UserPreferenceChanged += (_, e) =>
+            {
+                if (e.Category != Microsoft.Win32.UserPreferenceCategory.General) return;
+                bool nowDark = ThemeManager.GetSystemIsDark();
+                if (nowDark == _lastSystemDark) return;
+                _lastSystemDark = nowDark;
+                Dispatcher.BeginInvoke(() => OnSystemThemeChanged(nowDark));
+            };
+
+            // 5-second poll as a belt-and-braces backup (some Windows builds
+            // deliver the colour-change message late or not at all to WPF).
             var sysPollTimer = new System.Windows.Threading.DispatcherTimer
             {
                 Interval = TimeSpan.FromSeconds(5)
@@ -92,24 +177,24 @@ namespace MasselGUARD
 
             if (!isNewInstance)
             {
-                // Verify a real process is running before treating as duplicate.
-                // After install/move the mutex can be orphaned (old process exited
-                // without releasing it). Retry up to 2 s if no real instance found.
-                if (!RealInstanceExists())
+                // Retry acquiring the mutex for up to 3 s regardless of whether a
+                // real process is visible.  This covers two scenarios:
+                //   (1) Orphaned mutex — old process crashed without releasing it.
+                //   (2) Update-installer — the installer closes the running instance
+                //       and immediately launches the new one before the old process
+                //       has fully exited and released the mutex.
+                for (int i = 0; i < 6 && !isNewInstance; i++)
                 {
-                    for (int i = 0; i < 4 && !isNewInstance; i++)
+                    System.Threading.Thread.Sleep(500);
+                    try
                     {
-                        System.Threading.Thread.Sleep(500);
-                        try
-                        {
-                            _instanceMutex?.Dispose();
-                            _instanceMutex = new Mutex(
-                                initiallyOwned: true,
-                                name: "Global\\MasselGUARD_SingleInstance",
-                                out isNewInstance);
-                        }
-                        catch { }
+                        _instanceMutex?.Dispose();
+                        _instanceMutex = new Mutex(
+                            initiallyOwned: true,
+                            name: "Global\\MasselGUARD_SingleInstance",
+                            out isNewInstance);
                     }
+                    catch { }
                 }
 
                 if (!isNewInstance && RealInstanceExists())
@@ -118,7 +203,7 @@ namespace MasselGUARD
                     Shutdown();
                     return;
                 }
-                // Orphaned mutex acquired after retry — continue normally
+                // Acquired after wait (orphaned mutex or update scenario) — continue normally
             }
 
 
@@ -154,28 +239,76 @@ namespace MasselGUARD
             _trayMenu.ShowCheckMargin = false;
             _trayMenu.Renderer = new DarkMenuRenderer();
 
-            var showItem = new WinForms.ToolStripMenuItem(Lang.T("TrayShowWindow"));
-            showItem.Font   = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold);
-            showItem.Image  = DrawMenuIcon(MenuIconKind.Window);
-            showItem.Click += (_, _) => ShowMainWindow();
-            _trayMenu.Items.Add(showItem);
+            _trayShowItem = new WinForms.ToolStripMenuItem(Lang.T("TrayShowWindow"));
+            _trayShowItem.Font   = GetTrayFont(bold: true);
+            _trayShowItem.Image  = DrawMenuIcon(MenuIconKind.Window);
+            _trayShowItem.Click += (_, _) => ShowMainWindow();
+            _trayMenu.Items.Add(_trayShowItem);
             _trayMenu.Items.Add(new WinForms.ToolStripSeparator());
 
-            // Tunnel submenu placeholder — rebuilt by RebuildTrayTunnelMenu
+            // Tunnel submenu placeholder — rebuilt lazily by RebuildTrayTunnelMenu on Opening
             _tunnelMenuHeader = new WinForms.ToolStripMenuItem(Lang.T("TrayTunnels"));
-            _tunnelMenuHeader.Font  = new System.Drawing.Font("Segoe UI", 9f, System.Drawing.FontStyle.Bold);
+            _tunnelMenuHeader.Font  = GetTrayFont(bold: true);
             _tunnelMenuHeader.Image = DrawMenuIcon(MenuIconKind.ShieldOff);
             _trayMenu.Items.Add(_tunnelMenuHeader);
             _trayMenu.Items.Add(new WinForms.ToolStripSeparator());
 
-            var exitItem = new WinForms.ToolStripMenuItem(Lang.T("TrayExit"));
-            exitItem.Font  = new System.Drawing.Font("Segoe UI", 9f);
-            exitItem.Image = DrawMenuIcon(MenuIconKind.Exit);
-            exitItem.Click += (_, _) => { _trayIcon!.Visible = false; Shutdown(); };
-            _trayMenu.Items.Add(exitItem);
+            _trayExitItem = new WinForms.ToolStripMenuItem(Lang.T("TrayExit"));
+            _trayExitItem.Font  = GetTrayFont();
+            _trayExitItem.Image = DrawMenuIcon(MenuIconKind.Exit);
+            _trayExitItem.Click += (_, _) =>
+            {
+                if (_mainWindow == null) { _trayIcon!.Visible = false; Shutdown(); return; }
+                _mainWindow.Dispatcher.Invoke(() =>
+                {
+                    var activeTunnels = _mainWindow._vm.TunnelList
+                        .Where(t => t.IsActive).ToList();
+
+                    // No active tunnels — exit immediately without asking
+                    if (activeTunnels.Count == 0)
+                    {
+                        _trayIcon!.Visible = false;
+                        Shutdown();
+                        return;
+                    }
+
+                    // Active tunnels present — confirm only when ConfirmOnClose is set
+                    bool needsConfirm = _mainWindow.ConfigSvc.Config.ConfirmOnClose;
+                    if (needsConfirm)
+                    {
+                        string plural = activeTunnels.Count == 1 ? "" : "s";
+                        bool doExit = _mainWindow.ShowThemedYesNo(
+                            $"There {(activeTunnels.Count == 1 ? "is" : "are")} {activeTunnels.Count} active tunnel{plural}.\n\nDisconnect and exit MasselGUARD?",
+                            "Exit MasselGUARD");
+                        if (!doExit) return;
+                    }
+
+                    // Disconnect all active tunnels then exit
+                    foreach (var t in activeTunnels)
+                        t.DisconnectCommand.Execute(null);
+                    _mainWindow._vm.RefreshTunnelStatus();
+
+                    _trayIcon!.Visible = false;
+                    Shutdown();
+                });
+            };
+            _trayMenu.Items.Add(_trayExitItem);
 
             _trayIcon.ContextMenuStrip = _trayMenu;
             _trayIcon.DoubleClick += (_, _) => ShowMainWindow();
+
+            // Rebuild the grouped tunnel list lazily whenever the menu opens
+            _trayMenu.Opening += (_, _) => RebuildTrayTunnelMenu();
+
+            // Keep static menu item labels in sync with the active language
+            Lang.Instance.LanguageChanged += (_, _) => UpdateTrayMenuLanguage();
+        }
+
+        private void UpdateTrayMenuLanguage()
+        {
+            if (_trayShowItem    != null) _trayShowItem.Text    = Lang.T("TrayShowWindow");
+            if (_tunnelMenuHeader != null) _tunnelMenuHeader.Text = Lang.T("TrayTunnels");
+            if (_trayExitItem    != null) _trayExitItem.Text    = Lang.T("TrayExit");
         }
 
         private enum MenuIconKind { ShieldOff, ShieldOn, Window, Exit }
@@ -361,6 +494,44 @@ namespace MasselGUARD
                 _tunnelMenuHeader.Image = DrawMenuIcon(
                     _lastActiveCount > 0 ? MenuIconKind.ShieldOn : MenuIconKind.ShieldOff);
             ApplyTrayMenuTheme();
+            // Re-apply fonts so a font-override change saved from Settings takes effect
+            ApplyTrayFonts();
+        }
+
+        /// <summary>
+        /// Returns a System.Drawing.Font that respects the user's font-override settings.
+        /// Falls back to "Segoe UI" at the given default size when no override is active.
+        /// Tray fonts use the same family as the app font but 3 pt smaller by default,
+        /// mirroring the Tiny tier (base − 2) at a size that fits WinForms menus.
+        /// </summary>
+        private System.Drawing.Font GetTrayFont(bool bold = false, float defaultSize = 9f)
+        {
+            string family = "Segoe UI";
+            float  size   = defaultSize;
+
+            var cfg = _mainWindow?.ConfigSvc?.Config;
+            if (cfg?.FontOverrideEnabled == true)
+            {
+                if (!string.IsNullOrWhiteSpace(cfg.FontOverrideFamily))
+                    family = cfg.FontOverrideFamily;
+                if (cfg.FontOverrideSize > 0)
+                    size = Math.Max(7f, (float)cfg.FontOverrideSize - 2f); // Tiny tier
+            }
+
+            var style = bold
+                ? System.Drawing.FontStyle.Bold
+                : System.Drawing.FontStyle.Regular;
+
+            try   { return new System.Drawing.Font(family, size, style); }
+            catch { return new System.Drawing.Font("Segoe UI", size,    style); }
+        }
+
+        /// <summary>Re-applies the current font override to the static tray menu items.</summary>
+        private void ApplyTrayFonts()
+        {
+            if (_trayShowItem     != null) _trayShowItem.Font     = GetTrayFont(bold: true);
+            if (_tunnelMenuHeader != null) _tunnelMenuHeader.Font = GetTrayFont(bold: true);
+            if (_trayExitItem     != null) _trayExitItem.Font     = GetTrayFont();
         }
 
         private void ApplyTrayMenuTheme()
@@ -378,73 +549,196 @@ namespace MasselGUARD
             return v is System.Drawing.Color c ? c : fallback;
         }
 
-        public void RebuildTrayTunnelMenu(List<string> tunnels, List<string> active)
+        private void RebuildTrayTunnelMenu()
         {
-            if (_tunnelMenuHeader == null) return;
+            if (_tunnelMenuHeader == null || _mainWindow == null) return;
             _tunnelMenuHeader.DropDownItems.Clear();
 
-            if (tunnels.Count == 0)
+            // Gather tunnel + group data on the WPF UI thread
+            List<ViewModels.TunnelEntryViewModel> allTunnels = new();
+            List<Models.TunnelGroup> groups = new();
+            _mainWindow.Dispatcher.Invoke(() =>
+            {
+                allTunnels = _mainWindow._vm.TunnelList.ToList();
+                groups     = _mainWindow.ConfigSvc.Config.TunnelGroups.ToList();
+            });
+
+            // Read theme colours — handles Drawing.Color (Tray* keys), Media.Color (C.* keys),
+            // and SolidColorBrush (named brush keys like Accent, TextMuted).
+            System.Drawing.Color GetColor(string key, System.Drawing.Color fb)
+            {
+                try
+                {
+                    var v = System.Windows.Application.Current?.Resources[key];
+                    if (v is System.Drawing.Color dc)                        return dc;  // Theme.Tray* stored as System.Drawing.Color
+                    if (v is System.Windows.Media.Color mc)
+                        return System.Drawing.Color.FromArgb(mc.A, mc.R, mc.G, mc.B);
+                    if (v is System.Windows.Media.SolidColorBrush scb)
+                        return System.Drawing.Color.FromArgb(
+                            scb.Color.A, scb.Color.R, scb.Color.G, scb.Color.B);
+                }
+                catch { }
+                return fb;
+            }
+
+            var accentColor = GetColor("Accent",             System.Drawing.Color.FromArgb( 88, 166, 255));
+            var mutedColor  = GetColor("TextMuted",          System.Drawing.Color.FromArgb(110, 118, 129));
+            var bgColor     = GetColor("Theme.TrayBgColor",  System.Drawing.Color.FromArgb( 22,  27,  34));
+            var txtColor    = GetColor("Theme.TrayTextColor",System.Drawing.Color.FromArgb(230, 237, 243));
+
+            var activeTunnels = allTunnels.Where(t => t.IsActive).ToList();
+
+            // ── "Disconnect All" — visible only when at least one tunnel is active ──
+            if (activeTunnels.Count > 0)
+            {
+                var disconnectAll = new WinForms.ToolStripMenuItem(Lang.T("TrayDisconnectAll"));
+                disconnectAll.Font      = GetTrayFont(bold: true);
+                disconnectAll.ForeColor = accentColor;
+                disconnectAll.Click += (_, _) =>
+                {
+                    _mainWindow?.Dispatcher.Invoke(() =>
+                    {
+                        foreach (var t in _mainWindow._vm.TunnelList.Where(t2 => t2.IsActive).ToList())
+                            t.DisconnectCommand.Execute(null);
+                        _mainWindow._vm.RefreshTunnelStatus();
+                    });
+                };
+                _tunnelMenuHeader.DropDownItems.Add(disconnectAll);
+                _tunnelMenuHeader.DropDownItems.Add(new WinForms.ToolStripSeparator());
+            }
+
+            // ── Empty state ───────────────────────────────────────────────────────
+            if (allTunnels.Count == 0)
             {
                 var none = new WinForms.ToolStripMenuItem(Lang.T("TrayNoTunnels"));
-                none.Font    = new System.Drawing.Font("Consolas", 9f);
-                none.Enabled = false;
+                none.Font      = new System.Drawing.Font("Segoe UI", 9f);
+                none.ForeColor = mutedColor;
+                none.Enabled   = false;
                 _tunnelMenuHeader.DropDownItems.Add(none);
                 return;
             }
 
-            var disconnectAll = new WinForms.ToolStripMenuItem(Lang.T("TrayDisconnectAll"));
-            disconnectAll.Font = new System.Drawing.Font("Consolas", 9f, System.Drawing.FontStyle.Bold);
-            disconnectAll.Click += (_, _) =>
+            // ── Groups as fly-out submenus ────────────────────────────────────────
+            bool hasGroupedTunnels = groups.Count > 0
+                && allTunnels.Any(t => !string.IsNullOrEmpty(t.Group)
+                                       && groups.Any(g => g.Name == t.Group));
+
+            foreach (var grp in groups)
             {
-                if (_mainWindow is MainWindow mw)
-                    mw.Dispatcher.Invoke(() =>
-                    {
-                        foreach (var t in active.ToList()) mw.TunnelSvc.Disconnect(mw.ConfigSvc.Config.Tunnels.FirstOrDefault(x=>x.Name==t) ?? new Models.StoredTunnel{Name=t,Source="local"});
-                        mw._vm.RefreshTunnelStatus();
-                    });
-            };
-            _tunnelMenuHeader.DropDownItems.Add(disconnectAll);
-            _tunnelMenuHeader.DropDownItems.Add(new WinForms.ToolStripSeparator());
+                var tunnelsInGroup = allTunnels.Where(t => t.Group == grp.Name).ToList();
+                if (tunnelsInGroup.Count == 0) continue;   // skip empty groups
 
-            foreach (var tunnel in tunnels)
+                bool groupHasActive = tunnelsInGroup.Any(t => t.IsActive);
+
+                // Group item — opens a submenu listing its tunnels
+                var groupItem = new WinForms.ToolStripMenuItem(grp.Name);
+                groupItem.Font      = GetTrayFont(bold: true);
+                groupItem.ForeColor = groupHasActive ? accentColor : txtColor;
+                groupItem.Image     = MakeStatusDot(groupHasActive ? accentColor : mutedColor);
+
+                // Apply dark renderer + correct bg to the fly-out — without this the
+                // submenu uses the Windows system renderer and looks completely different.
+                ApplyDropDownStyle(groupItem, bgColor);
+
+                foreach (var tunnel in tunnelsInGroup)
+                    AddTunnelItem(groupItem.DropDownItems, tunnel, accentColor, mutedColor);
+
+                _tunnelMenuHeader.DropDownItems.Add(groupItem);
+            }
+
+            // ── Ungrouped tunnels ─────────────────────────────────────────────────
+            var ungrouped = allTunnels
+                .Where(t => string.IsNullOrEmpty(t.Group)
+                            || !groups.Any(g => g.Name == t.Group))
+                .ToList();
+
+            if (ungrouped.Count > 0)
             {
-                bool isActive = active.Contains(tunnel);
-
-                // Each tunnel is a direct click-to-toggle item — no submenu, no bullet prefix
-                var item = new WinForms.ToolStripMenuItem(tunnel);
-
-                if (isActive)
+                if (hasGroupedTunnels)
                 {
-                    // Connected: bold green text + checkmark image drawn inline
-                    item.Font      = new System.Drawing.Font("Consolas", 9f, System.Drawing.FontStyle.Bold);
-                    item.ForeColor = System.Drawing.Color.FromArgb(63, 185, 80);   // #3FB950 green
-                    item.Image     = MakeStatusDot(System.Drawing.Color.FromArgb(63, 185, 80));
+                    // When groups exist, ungrouped gets its own submenu too
+                    bool ungroupedHasActive = ungrouped.Any(t => t.IsActive);
+                    var ungroupedItem = new WinForms.ToolStripMenuItem(Lang.T("TrayUngrouped"));
+                    ungroupedItem.Font      = GetTrayFont(bold: true);
+                    ungroupedItem.ForeColor = ungroupedHasActive ? accentColor : txtColor;
+                    ungroupedItem.Image     = MakeStatusDot(ungroupedHasActive ? accentColor : mutedColor);
+
+                    ApplyDropDownStyle(ungroupedItem, bgColor);
+
+                    foreach (var tunnel in ungrouped)
+                        AddTunnelItem(ungroupedItem.DropDownItems, tunnel, accentColor, mutedColor);
+
+                    // Separator before the ungrouped submenu when groups are present
+                    if (groups.Any(g => allTunnels.Any(t => t.Group == g.Name)))
+                        _tunnelMenuHeader.DropDownItems.Add(new WinForms.ToolStripSeparator());
+
+                    _tunnelMenuHeader.DropDownItems.Add(ungroupedItem);
                 }
                 else
                 {
-                    item.Font      = new System.Drawing.Font("Consolas", 9f);
-                    item.ForeColor = System.Drawing.Color.FromArgb(139, 148, 158); // #8B949E sub
-                    item.Image     = MakeStatusDot(System.Drawing.Color.FromArgb(48, 54, 61));  // dim dot
+                    // No groups at all — show tunnels as a flat list
+                    foreach (var tunnel in ungrouped)
+                        AddTunnelItem(_tunnelMenuHeader.DropDownItems, tunnel, accentColor, mutedColor);
                 }
-
-                string t2 = tunnel;
-                bool   a2 = isActive;
-                item.Click += (_, _) =>
-                {
-                    if (_mainWindow is MainWindow mw)
-                        mw.Dispatcher.Invoke(() =>
-                        {
-                            var st2 = mw.ConfigSvc.Config.Tunnels.FirstOrDefault(x=>x.Name==t2) ?? new Models.StoredTunnel{Name=t2,Source="local"};
-                            if (a2) mw.TunnelSvc.Disconnect(st2); else mw.TunnelSvc.Connect(st2, mw.ConfigSvc.Config);
-                            mw._vm.RefreshTunnelStatus();
-                        });
-                };
-                _tunnelMenuHeader.DropDownItems.Add(item);
             }
 
-            // Keep icon badge in sync with the active count
+            // Keep tray icon badge in sync
             if (_trayIcon != null)
-                _trayIcon.Icon = GetTrayIcon(active.Count);
+                _trayIcon.Icon = GetTrayIcon(activeTunnels.Count);
+        }
+
+        /// <summary>
+        /// Applies the DarkMenuRenderer and correct background colour to a submenu's DropDown,
+        /// preventing WinForms from painting it with the Windows system colours.
+        /// </summary>
+        private static void ApplyDropDownStyle(
+            WinForms.ToolStripMenuItem item,
+            System.Drawing.Color bgColor)
+        {
+            item.DropDown.Renderer  = new DarkMenuRenderer();
+            item.DropDown.BackColor = bgColor;
+            if (item.DropDown is WinForms.ToolStripDropDownMenu ddm)
+            {
+                ddm.ShowImageMargin = false;
+                ddm.ShowCheckMargin = false;
+            }
+        }
+
+        private void AddTunnelItem(
+            WinForms.ToolStripItemCollection items,
+            ViewModels.TunnelEntryViewModel tunnel,
+            System.Drawing.Color accentColor,
+            System.Drawing.Color mutedColor)
+        {
+            var item = new WinForms.ToolStripMenuItem(tunnel.Name);
+
+            if (tunnel.IsActive)
+            {
+                item.Font      = GetTrayFont(bold: true);
+                item.ForeColor = accentColor;
+                item.Image     = MakeStatusDot(accentColor);
+            }
+            else
+            {
+                item.Font      = GetTrayFont();
+                item.ForeColor = mutedColor;
+                item.Image     = MakeStatusDot(mutedColor);
+            }
+
+            var capture = tunnel;
+            item.Click += (_, _) =>
+            {
+                _mainWindow?.Dispatcher.Invoke(() =>
+                {
+                    if (capture.IsActive)
+                        capture.DisconnectCommand.Execute(null);
+                    else
+                        capture.ConnectCommand.Execute(null);
+                    _mainWindow._vm.RefreshTunnelStatus();
+                });
+            };
+
+            items.Add(item);
         }
 
 
@@ -508,16 +802,155 @@ namespace MasselGUARD
             return false;
         }
 
+        /// <summary>
+        /// Shows a simple one-button info dialog themed to match the current dark/light palette.
+        /// Must be called after ThemeManager has loaded a theme so resource colours are available.
+        /// </summary>
+        private static void ShowThemedInfo(string title, string message)
+        {
+            // Read colours from the already-loaded theme resources
+            System.Windows.Media.Color Clr(string key, System.Windows.Media.Color fb)
+            {
+                var v = Application.Current?.Resources[key];
+                if (v is System.Windows.Media.SolidColorBrush b) return b.Color;
+                if (v is System.Windows.Media.Color c)           return c;
+                return fb;
+            }
+
+            var bg      = Clr("WindowBg",    System.Windows.Media.Color.FromRgb( 28,  28,  28));
+            var surface = Clr("Surface",     System.Windows.Media.Color.FromRgb( 44,  44,  44));
+            var border  = Clr("BorderColor", System.Windows.Media.Color.FromRgb( 61,  61,  61));
+            var accent  = Clr("Accent",      System.Windows.Media.Color.FromRgb(  0, 120, 212));
+            var textC   = Clr("TextPrimary", System.Windows.Media.Color.FromRgb(238, 238, 238));
+            var cardBg  = Clr("CardBg",      System.Windows.Media.Color.FromRgb( 37,  37,  37));
+            var hovC    = Clr("Highlight",   System.Windows.Media.Color.FromRgb( 48,  48,  48));
+
+            var cr = Application.Current?.Resources["Theme.CornerRadius"] is CornerRadius r ? r : new CornerRadius(0);
+            var ff = Application.Current?.Resources["Theme.FontFamily"]   is System.Windows.Media.FontFamily f
+                     ? f : new System.Windows.Media.FontFamily("Segoe UI");
+
+            System.Windows.Media.Brush Br(System.Windows.Media.Color c) =>
+                new System.Windows.Media.SolidColorBrush(c);
+
+            // Title bar
+            var titleBar = new System.Windows.Controls.Border
+            {
+                Background = Br(surface),
+                Height     = 40,
+                Child      = new System.Windows.Controls.TextBlock
+                {
+                    Text              = title,
+                    FontFamily        = ff,
+                    FontSize          = 12,
+                    FontWeight        = FontWeights.Bold,
+                    Foreground        = Br(accent),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin            = new Thickness(14, 0, 0, 0),
+                },
+            };
+
+            // Message body
+            var msgBlock = new System.Windows.Controls.TextBlock
+            {
+                Text         = message,
+                FontFamily   = ff,
+                FontSize     = 11,
+                Foreground   = Br(textC),
+                TextWrapping = System.Windows.TextWrapping.Wrap,
+                Margin       = new Thickness(0, 0, 0, 20),
+            };
+
+            // OK button (themed Border + TextBlock — avoids default Button chrome)
+            var okTb = new System.Windows.Controls.TextBlock
+            {
+                Text                = "OK",
+                FontFamily          = ff,
+                FontSize            = 11,
+                FontWeight          = FontWeights.SemiBold,
+                Foreground          = Br(textC),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment   = VerticalAlignment.Center,
+            };
+            var okBtn = new System.Windows.Controls.Border
+            {
+                Background          = Br(cardBg),
+                BorderBrush         = Br(border),
+                BorderThickness     = new Thickness(1),
+                CornerRadius        = cr,
+                Padding             = new Thickness(28, 6, 28, 6),
+                Cursor              = System.Windows.Input.Cursors.Hand,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Child               = okTb,
+            };
+            okBtn.MouseEnter += (_, _) => okBtn.Background = Br(hovC);
+            okBtn.MouseLeave += (_, _) => okBtn.Background = Br(cardBg);
+
+            var body = new System.Windows.Controls.StackPanel
+            {
+                Margin = new Thickness(20, 18, 20, 18),
+            };
+            body.Children.Add(msgBlock);
+            body.Children.Add(okBtn);
+
+            var grid = new System.Windows.Controls.Grid();
+            grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+            grid.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = System.Windows.GridLength.Auto });
+            System.Windows.Controls.Grid.SetRow(titleBar, 0);
+            System.Windows.Controls.Grid.SetRow(body,     1);
+            grid.Children.Add(titleBar);
+            grid.Children.Add(body);
+
+            var wrapper = new System.Windows.Controls.Border
+            {
+                Background      = Br(bg),
+                BorderBrush     = Br(border),
+                BorderThickness = new Thickness(1),
+                CornerRadius    = cr,
+                Child           = grid,
+            };
+
+            Window? win = null;
+            win = new Window
+            {
+                Title                 = title,
+                Width                 = 400,
+                SizeToContent         = SizeToContent.Height,
+                WindowStyle           = WindowStyle.None,
+                AllowsTransparency    = true,
+                Background            = System.Windows.Media.Brushes.Transparent,
+                ResizeMode            = ResizeMode.NoResize,
+                WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                Content               = wrapper,
+            };
+
+            titleBar.MouseLeftButtonDown += (_, ev) =>
+            {
+                if (ev.LeftButton == System.Windows.Input.MouseButtonState.Pressed) win!.DragMove();
+            };
+            okBtn.MouseLeftButtonUp += (_, _) => win!.Close();
+
+            win.ShowDialog();
+        }
+
         private void ShowAlreadyRunning()
         {
-            // colours — defined inline since App resources aren't loaded yet
-            var bg      = System.Windows.Media.Color.FromRgb(13,  17,  23);
-            var panel   = System.Windows.Media.Color.FromRgb(22,  27,  34);
-            var border  = System.Windows.Media.Color.FromRgb(48,  54,  61);
-            var accent  = System.Windows.Media.Color.FromRgb(88, 166, 255);
-            var textC   = System.Windows.Media.Color.FromRgb(230, 237, 243);
-            var subC    = System.Windows.Media.Color.FromRgb(139, 148, 158);
-            var warn    = System.Windows.Media.Color.FromRgb(247, 129, 102);
+            // The theme is loaded before the single-instance check, so
+            // Application.Current.Resources already holds the correct colours.
+            System.Windows.Media.Color Clr(string key, System.Windows.Media.Color fb)
+            {
+                var v = Application.Current?.Resources[key];
+                if (v is System.Windows.Media.SolidColorBrush b) return b.Color;
+                if (v is System.Windows.Media.Color c)           return c;
+                return fb;
+            }
+
+            var bg      = Clr("WindowBg",    System.Windows.Media.Color.FromRgb(13,  17,  23));
+            var panel   = Clr("Surface",     System.Windows.Media.Color.FromRgb(22,  27,  34));
+            var border  = Clr("BorderColor", System.Windows.Media.Color.FromRgb(48,  54,  61));
+            var accent  = Clr("Accent",      System.Windows.Media.Color.FromRgb(88, 166, 255));
+            var textC   = Clr("TextPrimary", System.Windows.Media.Color.FromRgb(230, 237, 243));
+            var subC    = Clr("TextMuted",   System.Windows.Media.Color.FromRgb(139, 148, 158));
+            var warn    = Clr("Danger",      System.Windows.Media.Color.FromRgb(247, 129, 102));
             System.Windows.Media.Brush Br(System.Windows.Media.Color c) =>
                 new System.Windows.Media.SolidColorBrush(c);
 
@@ -572,8 +1005,8 @@ namespace MasselGUARD
                 Margin       = new Thickness(0, 0, 0, 20)
             });
 
-            var bgExit  = System.Windows.Media.Color.FromRgb(36, 41, 51);
-            var hovExit = System.Windows.Media.Color.FromRgb(55, 62, 76);
+            var bgExit  = Clr("CardBg",    System.Windows.Media.Color.FromRgb(36, 41, 51));
+            var hovExit = Clr("Highlight", System.Windows.Media.Color.FromRgb(55, 62, 76));
             var exitBtn = MakeBtn(Lang.T("AlreadyRunningBtnExit"), textC, bgExit, hovExit);
             exitBtn.HorizontalAlignment = HorizontalAlignment.Right;
             stack.Children.Add(exitBtn);
@@ -742,11 +1175,12 @@ namespace MasselGUARD
 
             bool active = activeCount > 0;
 
-            // Colours
-            var colActive   = ToDrawing("Success",    System.Drawing.Color.FromArgb( 34, 197,  94));  // green when active
-            var colIdleFill = ToDrawing("CardBg",     System.Drawing.Color.FromArgb( 22,  27,  34));  // dark fill when idle
-            var colIdleRim  = ToDrawing("BorderColor",System.Drawing.Color.FromArgb( 48,  54,  61));  // muted rim when idle
-            var colChevron  = ToDrawing("Accent",     System.Drawing.Color.FromArgb( 88, 166, 255));  // accent chevron when idle
+            // Always the same dark shield — chevron colour is the only thing that changes,
+            // mirroring the ShieldChevronBrush logic in the main window title bar.
+            var colShieldFill = ToDrawing("CardBg",      System.Drawing.Color.FromArgb( 22,  27,  34));
+            var colShieldRim  = ToDrawing("BorderColor", System.Drawing.Color.FromArgb( 48,  54,  61));
+            var colChevronOn  = ToDrawing("Accent",      System.Drawing.Color.FromArgb( 88, 166, 255)); // connected
+            var colChevronOff = ToDrawing("TextMuted",   System.Drawing.Color.FromArgb(110, 118, 129)); // idle
 
             // ── Shield path ─────────────────────────────────────────────────
             var shield = new System.Drawing.Drawing2D.GraphicsPath();
@@ -757,55 +1191,26 @@ namespace MasselGUARD
             shield.AddLine   (X(2),  Y(13),   X(2),  Y(5));
             shield.CloseFigure();
 
-            if (active)
-            {
-                // ── ACTIVE: filled green shield, white chevron ────────────────
-                using var fill = new System.Drawing.SolidBrush(colActive);
+            // Same dark shield in both states
+            using (var fill = new System.Drawing.SolidBrush(colShieldFill))
                 g.FillPath(fill, shield);
-
-                // Subtle darker inner rim
-                using var rim = new System.Drawing.Pen(
-                    System.Drawing.Color.FromArgb(80, 0, 0, 0), X(0.8f));
+            using (var rim = new System.Drawing.Pen(colShieldRim, X(1.2f)))
                 g.DrawPath(rim, shield);
 
-                // White chevron (check-style) — sits inside the shield
-                using var pen = new System.Drawing.Pen(System.Drawing.Color.White, X(2.2f))
-                {
-                    StartCap = System.Drawing.Drawing2D.LineCap.Round,
-                    EndCap   = System.Drawing.Drawing2D.LineCap.Round,
-                    LineJoin = System.Drawing.Drawing2D.LineJoin.Round,
-                };
-                var chevron = new System.Drawing.PointF[]
-                {
-                    new(X(7.5f), Y(12)),
-                    new(X(11),   Y(16)),
-                    new(X(17),   Y(9)),
-                };
-                g.DrawLines(pen, chevron);
-            }
-            else
+            // Chevron: grey when no connection, Accent colour when connected
+            using var pen = new System.Drawing.Pen(active ? colChevronOn : colChevronOff, X(2.2f))
             {
-                // ── IDLE: dark fill, muted rim, accent chevron ────────────────
-                using (var fill = new System.Drawing.SolidBrush(colIdleFill))
-                    g.FillPath(fill, shield);
-                using (var rim = new System.Drawing.Pen(colIdleRim, X(1.2f)))
-                    g.DrawPath(rim, shield);
-
-                // Downward-pointing accent chevron
-                using var pen = new System.Drawing.Pen(colChevron, X(2.0f))
-                {
-                    StartCap = System.Drawing.Drawing2D.LineCap.Round,
-                    EndCap   = System.Drawing.Drawing2D.LineCap.Round,
-                    LineJoin = System.Drawing.Drawing2D.LineJoin.Round,
-                };
-                var chevron = new System.Drawing.PointF[]
-                {
-                    new(X(7.5f), Y(9.5f)),
-                    new(X(12),   Y(15)),
-                    new(X(16.5f),Y(9.5f)),
-                };
-                g.DrawLines(pen, chevron);
-            }
+                StartCap = System.Drawing.Drawing2D.LineCap.Round,
+                EndCap   = System.Drawing.Drawing2D.LineCap.Round,
+                LineJoin = System.Drawing.Drawing2D.LineJoin.Round,
+            };
+            var chevron = new System.Drawing.PointF[]
+            {
+                new(X(7f),  Y(9.5f)),
+                new(X(12f), Y(15f)),
+                new(X(17f), Y(9.5f)),
+            };
+            g.DrawLines(pen, chevron);
 
             shield.Dispose();
             return bmp;

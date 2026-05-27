@@ -56,6 +56,20 @@ namespace MasselGUARD.ViewModels
 
         private DateTime? _connectedAt;
 
+        /// <summary>UTC time when this tunnel became active. Null when disconnected.</summary>
+        public DateTime? ConnectedAt => _connectedAt;
+
+        /// <summary>
+        /// Restores a previously known connect time so that after a list rebuild
+        /// the uptime counter continues from the original connection rather than resetting.
+        /// Only takes effect while the tunnel is already active.
+        /// </summary>
+        public void RestoreConnectedAt(DateTime? connectedAt)
+        {
+            if (_isActive && connectedAt.HasValue)
+                _connectedAt = connectedAt;
+        }
+
         public string StatusText    => IsActive
             ? $"● {UptimeDisplay}"
             : IsAvailable ? "○ Disconnected" : "Unavailable";
@@ -80,9 +94,9 @@ namespace MasselGUARD.ViewModels
         public bool   ButtonEnabled => IsAvailable || IsActive;
         public string ButtonTooltip => IsActive ? $"Disconnect {Name}" : $"Connect {Name}";
 
-        public System.Windows.Media.Brush NameColor   => ThemeBrush("TextPrimary");
-        public System.Windows.Media.Brush TypeColor   => ThemeBrush(IsLocal ? "Accent" : "TextMuted");
-        public System.Windows.Media.Brush StatusColor => ThemeBrush(IsActive ? "Success" : IsAvailable ? "TextMuted" : "Danger");
+        public System.Windows.Media.Brush NameColor   => ThemeBrush(IsActive ? "Accent" : "TextPrimary");
+        public System.Windows.Media.Brush TypeColor   => ThemeBrush("TextMuted");
+        public System.Windows.Media.Brush StatusColor => ThemeBrush(IsActive ? "Accent" : IsAvailable ? "TextMuted" : "Danger");
         public System.Windows.TextDecorationCollection? NameDecoration => null;
 
         /// <summary>4px colour strip shown before the tunnel name. Transparent when no group colour.</summary>

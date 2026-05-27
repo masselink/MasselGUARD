@@ -22,6 +22,10 @@
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
     <ApplicationIcon>MasselGUARD.ico</ApplicationIcon>
+    <Version>3.0.0</Version>
+    <AssemblyVersion>3.0.0.0</AssemblyVersion>
+    <FileVersion>3.0.0.0</FileVersion>
+    <InformationalVersion>3.0.0</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -59,4 +63,5 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
 </Project>

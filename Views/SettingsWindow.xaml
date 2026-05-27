@@ -168,7 +168,31 @@
                                 </StackPanel>
                             </Border>
 
-
+                            <!-- Interface -->
+                            <TextBlock Text="Interface"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Show activity log"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Text="Display the activity log panel on the right side of the main window."
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                                   Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <ToggleButton Grid.Column="1" x:Name="ShowActivityLogToggle"
+                                                  Style="{StaticResource ToggleSwitch}"
+                                                  Checked="ShowActivityLog_Changed"
+                                                  Unchecked="ShowActivityLog_Changed"
+                                                  VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
 
                         </StackPanel>
 
@@ -440,33 +464,269 @@
                         <!-- ══ APPEARANCE PAGE ══════════════════════════════ -->
                         <StackPanel x:Name="PageAppearance" Visibility="Collapsed">
 
-                            <!-- Auto-switch toggle -->
+                            <!-- System theme section -->
                             <TextBlock Text="{Binding [SettingsSectionTheme], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource SettingsSectionHeader}"/>
-                            <Border x:Name="ThemePickerCard" Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding [SettingsThemeAutoLabel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                               Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Text="{Binding [SettingsThemeAutoDesc], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               TextWrapping="Wrap" Margin="0,2,0,10"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton x:Name="SysModeLight" GroupName="SysMode" Tag="light"
+                                                     Content="Light"
+                                                     Style="{StaticResource PillRadio}"
+                                                     Checked="SystemMode_Changed"/>
+                                        <RadioButton x:Name="SysModeDark" GroupName="SysMode" Tag="dark"
+                                                     Content="Dark"
+                                                     Style="{StaticResource PillRadio}" Margin="6,0,0,0"
+                                                     Checked="SystemMode_Changed"/>
+                                        <RadioButton x:Name="SysModeAuto" GroupName="SysMode" Tag="auto"
+                                                     Content="Auto"
+                                                     Style="{StaticResource PillRadio}" Margin="6,0,0,0"
+                                                     Checked="SystemMode_Changed"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Custom appearance toggle -->
+                            <TextBlock Text="Custom appearance"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{Binding [SettingsThemeAutoLabel], Source={x:Static local:Lang.Instance}}"
+                                        <TextBlock Text="Use custom theme"
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
                                                    Foreground="{DynamicResource TextPrimary}"/>
-                                        <TextBlock Text="{Binding [SettingsThemeAutoDesc], Source={x:Static local:Lang.Instance}}"
+                                        <TextBlock Text="Enable theme files for dark and light mode. When off, Windows 11 colors are used."
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                                   Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"
-                                                   TextWrapping="Wrap"/>
+                                                   Foreground="{DynamicResource TextMuted}"
+                                                   TextWrapping="Wrap" Margin="0,2,0,0"/>
                                     </StackPanel>
-                                    <ToggleButton Grid.Column="1" x:Name="AutoThemeToggle"
+                                    <ToggleButton Grid.Column="1" x:Name="CustomThemeToggle"
                                                   Width="44" Height="22" Margin="12,0,0,0"
                                                   VerticalAlignment="Center"
                                                   Style="{StaticResource ToggleSwitch}"
-                                                  Checked="AutoTheme_Changed" Unchecked="AutoTheme_Changed"/>
+                                                  Checked="CustomTheme_Changed" Unchecked="CustomTheme_Changed"/>
                                 </Grid>
                             </Border>
 
-                            <!-- Background notifications -->
+                            <!-- Theme pickers — only visible when custom theme is on -->
+                            <StackPanel x:Name="CustomThemePickersPanel" Visibility="Collapsed">
+
+                                <!-- Dark theme -->
+                                <TextBlock Text="{Binding [SettingsThemeDarkLabel], Source={x:Static local:Lang.Instance}}"
+                                           Style="{StaticResource SettingsSectionHeader}"/>
+                                <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
+                                    <ComboBox x:Name="DarkThemePicker" Padding="8,4"
+                                              SelectionChanged="DarkThemePicker_SelectionChanged">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           FontFamily="{DynamicResource Theme.FontFamily}"
+                                                           FontSize="11" Foreground="{DynamicResource TextPrimary}"
+                                                           Margin="0,2"/>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </Border>
+                                <Border x:Name="DarkThemeInfoPanel" Style="{StaticResource SettingsCard}"
+                                        Margin="0,0,0,4" Visibility="Collapsed">
+                                    <TextBlock x:Name="DarkThemeInfoText"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+                                </Border>
+                                <!-- Dark theme preview button -->
+                                <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Preview dark theme for 10 seconds."
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                                   Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"
+                                                   TextWrapping="Wrap"/>
+                                        <Button Grid.Column="1" x:Name="DarkThemePreviewBtn"
+                                                Content="▶  Preview" FontSize="9" Padding="8,3"
+                                                Width="76"
+                                                Style="{StaticResource FlatBtn}"
+                                                Foreground="{DynamicResource TextMuted}"
+                                                VerticalAlignment="Center"
+                                                Margin="10,0,0,0"
+                                                Click="DarkThemePreview_Click"
+                                                ToolTip="Preview the dark theme for 10 s — works regardless of current system mode"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Light theme -->
+                                <TextBlock Text="{Binding [SettingsThemeLightLabel], Source={x:Static local:Lang.Instance}}"
+                                           Style="{StaticResource SettingsSectionHeader}"/>
+                                <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
+                                    <ComboBox x:Name="LightThemePicker" Padding="8,4"
+                                              SelectionChanged="LightThemePicker_SelectionChanged">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           FontFamily="{DynamicResource Theme.FontFamily}"
+                                                           FontSize="11" Foreground="{DynamicResource TextPrimary}"
+                                                           Margin="0,2"/>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </Border>
+                                <Border x:Name="LightThemeInfoPanel" Style="{StaticResource SettingsCard}"
+                                        Margin="0,0,0,4" Visibility="Collapsed">
+                                    <TextBlock x:Name="LightThemeInfoText"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+                                </Border>
+                                <!-- Light theme preview button -->
+                                <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="Preview light theme for 10 seconds."
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                                   Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"
+                                                   TextWrapping="Wrap"/>
+                                        <Button Grid.Column="1" x:Name="LightThemePreviewBtn"
+                                                Content="▶  Preview" FontSize="9" Padding="8,3"
+                                                Width="76"
+                                                Style="{StaticResource FlatBtn}"
+                                                Foreground="{DynamicResource TextMuted}"
+                                                VerticalAlignment="Center"
+                                                Margin="10,0,0,0"
+                                                Click="LightThemePreview_Click"
+                                                ToolTip="Preview the light theme for 10 s — works regardless of current system mode"/>
+                                    </Grid>
+                                </Border>
+
+                            </StackPanel>
+
+                            <!-- ── Font override ─────────────────────────────── -->
+                            <TextBlock Text="Font"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Override font"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Text="Replace the theme font with a custom typeface."
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                                   Foreground="{DynamicResource TextMuted}"
+                                                   TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <ToggleButton Grid.Column="1" x:Name="FontOverrideToggle"
+                                                  Width="44" Height="22" Margin="12,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  Style="{StaticResource ToggleSwitch}"
+                                                  Checked="FontOverride_Changed"
+                                                  Unchecked="FontOverride_Changed"/>
+                                </Grid>
+                            </Border>
+
+                            <StackPanel x:Name="FontPickerPanel" Visibility="Collapsed" Margin="0,0,0,16">
+                                <!-- Font family picker -->
+                                <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
+                                    <StackPanel>
+                                        <TextBlock Text="Font family"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextMuted}" Margin="0,0,0,6"/>
+                                        <ComboBox x:Name="FontFamilyPicker"
+                                                  IsEditable="True"
+                                                  MaxDropDownHeight="220"
+                                                  FontSize="11" Padding="6,4"
+                                                  TextSearch.TextPath="DisplayName"
+                                                  SelectionChanged="FontFamilyPicker_Changed"
+                                                  LostFocus="FontFamilyPicker_LostFocus">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontFamily="{Binding FontFamily}"
+                                                               FontSize="12"
+                                                               VerticalAlignment="Center"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                        <TextBlock Text="Leave blank to use the Windows system UI font."
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                                   Foreground="{DynamicResource TextMuted}" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                                <!-- Live preview — between picker and slider so you see the font before sizing -->
+                                <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
+                                    <StackPanel>
+                                        <TextBlock Text="Preview"
+                                                   FontSize="9" Foreground="{DynamicResource TextMuted}"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBlock x:Name="FontPreviewLabel"
+                                                   Text="MasselGUARD — 1.MasselinkVPN-Split-AG — Connected 3m 55s"
+                                                   FontSize="11" Foreground="{DynamicResource TextPrimary}"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+                                <!-- Font size slider + preview button -->
+                                <Border Style="{StaticResource SettingsCard}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Font size"
+                                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                                       FontSize="10" Foreground="{DynamicResource TextMuted}"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" x:Name="FontSizeValueLabel"
+                                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                                       FontSize="10" Foreground="{DynamicResource TextPrimary}"
+                                                       VerticalAlignment="Center" Text="12 pt"/>
+                                        </Grid>
+                                        <!-- min────●────max  [▶ Preview] -->
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider Grid.Column="0" x:Name="FontSizeSlider"
+                                                    Minimum="8" Maximum="18" Value="12"
+                                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                                    SmallChange="1" LargeChange="2"
+                                                    VerticalAlignment="Center"
+                                                    ValueChanged="FontSizeSlider_Changed"/>
+                                            <Button Grid.Column="1" x:Name="FontPreviewBtn"
+                                                    Content="▶  Preview" FontSize="9" Padding="8,3"
+                                                    Width="76"
+                                                    Style="{StaticResource FlatBtn}"
+                                                    Foreground="{DynamicResource TextMuted}"
+                                                    VerticalAlignment="Center"
+                                                    Margin="10,0,0,0"
+                                                    Click="FontPreview_Click"
+                                                    ToolTip="Apply this font to the whole interface for 10 s"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- Notifications -->
                             <TextBlock Text="{Binding [SettingsTrayPopupLabel], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource SettingsSectionHeader}"/>
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
@@ -504,52 +764,6 @@
                                               Width="80" FontSize="11" Margin="12,0,0,0"
                                               SelectionChanged="NotifDuration_Changed"/>
                                 </Grid>
-                            </Border>
-
-                            <!-- Dark theme -->
-                            <TextBlock Text="{Binding [SettingsThemeDarkLabel], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SettingsSectionHeader}"/>
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
-                                <ComboBox x:Name="DarkThemePicker" Padding="8,4"
-                                          SelectionChanged="DarkThemePicker_SelectionChanged">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding DisplayName}"
-                                                       FontFamily="{DynamicResource Theme.FontFamily}"
-                                                       FontSize="11" Foreground="{DynamicResource TextPrimary}"
-                                                       Margin="0,2"/>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                            </Border>
-                            <Border x:Name="DarkThemeInfoPanel" Style="{StaticResource SettingsCard}"
-                                    Margin="0,0,0,16" Visibility="Collapsed">
-                                <TextBlock x:Name="DarkThemeInfoText"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
-                            </Border>
-
-                            <!-- Light theme -->
-                            <TextBlock Text="{Binding [SettingsThemeLightLabel], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SettingsSectionHeader}"/>
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
-                                <ComboBox x:Name="LightThemePicker" Padding="8,4"
-                                          SelectionChanged="LightThemePicker_SelectionChanged">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding DisplayName}"
-                                                       FontFamily="{DynamicResource Theme.FontFamily}"
-                                                       FontSize="11" Foreground="{DynamicResource TextPrimary}"
-                                                       Margin="0,2"/>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                            </Border>
-                            <Border x:Name="LightThemeInfoPanel" Style="{StaticResource SettingsCard}"
-                                    Margin="0,0,0,16" Visibility="Collapsed">
-                                <TextBlock x:Name="LightThemeInfoText"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
                             </Border>
 
                         </StackPanel>
@@ -651,6 +865,30 @@
                                                   Style="{StaticResource ToggleSwitch}"
                                                   Checked="StartWithWindows_Changed"
                                                   Unchecked="StartWithWindows_Changed"
+                                                  VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Confirm on close toggle -->
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,4,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Confirm disconnect on exit"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Text="When active tunnels are running, ask before disconnecting them on exit. When off, tunnels are disconnected silently."
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                                   Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <ToggleButton Grid.Column="1" x:Name="ConfirmOnCloseToggle"
+                                                  Style="{StaticResource ToggleSwitch}"
+                                                  Checked="ConfirmOnClose_Changed"
+                                                  Unchecked="ConfirmOnClose_Changed"
                                                   VerticalAlignment="Center"/>
                                 </Grid>
                             </Border>

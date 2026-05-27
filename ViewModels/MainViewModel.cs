@@ -166,11 +166,28 @@ namespace MasselGUARD.ViewModels
         {
             Application.Current?.Dispatcher.Invoke(() =>
             {
+                // Snapshot connect-times before destroying the existing VMs so that
+                // tunnels which were already active keep their uptime counter running.
+                var connectedAt = TunnelList
+                    .Where(t => t.IsActive && t.ConnectedAt.HasValue)
+                    .ToDictionary(t => t.Name, t => t.ConnectedAt!.Value,
+                                  StringComparer.OrdinalIgnoreCase);
+
                 TunnelList.Clear();
                 foreach (var s in _config.Config.Tunnels
                     .Where(t => IsSourceAllowed(t.Source)))
                 {
-                    TunnelList.Add(new TunnelEntryViewModel(s, _tunnels, _log, _config));
+                    var vm = new TunnelEntryViewModel(s, _tunnels, _log, _config);
+                    TunnelList.Add(vm);
+                }
+
+                // Restore connect-times on tunnels that are still active after rebuild.
+                // RefreshStatus sets IsActive first, so RestoreConnectedAt can check it.
+                foreach (var vm in TunnelList)
+                {
+                    vm.RefreshStatus();
+                    if (connectedAt.TryGetValue(vm.Name, out var t0))
+                        vm.RestoreConnectedAt(t0);
                 }
             });
         }

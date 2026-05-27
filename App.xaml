@@ -27,12 +27,14 @@
         <SolidColorBrush x:Key="TextMuted"      Color="{StaticResource C.TextMuted}"/>
         <SolidColorBrush x:Key="Highlight"      Color="{StaticResource C.Highlight}"/>
         <!-- Extra semantic brushes — no C.* backing color, set directly by ThemeManager -->
-        <SolidColorBrush x:Key="ErrorColor"     Color="#F78166"/>
-        <SolidColorBrush x:Key="ErrorBg"        Color="#3D1A1A"/>
-        <SolidColorBrush x:Key="WarningColor"   Color="#D29922"/>
-        <SolidColorBrush x:Key="WarningBg"      Color="#3D2A0A"/>
-        <SolidColorBrush x:Key="ListHover"      Color="#141A22"/>
-        <SolidColorBrush x:Key="ListSelected"   Color="#0D2748"/>
+        <SolidColorBrush x:Key="ErrorColor"        Color="#F78166"/>
+        <SolidColorBrush x:Key="ErrorBg"           Color="#3D1A1A"/>
+        <SolidColorBrush x:Key="WarningColor"      Color="#D29922"/>
+        <SolidColorBrush x:Key="WarningBg"         Color="#3D2A0A"/>
+        <SolidColorBrush x:Key="ListHover"         Color="#141A22"/>
+        <SolidColorBrush x:Key="ListSelected"      Color="#0D2748"/>
+        <!-- Shield chevron: grey=disconnected, Accent=connected — updated at runtime -->
+        <SolidColorBrush x:Key="ShieldChevronBrush" Color="{StaticResource C.TextMuted}"/>
 
         <!-- ── Base text ── -->
         <Style TargetType="TextBlock">
@@ -89,6 +91,77 @@
             <Setter Property="Foreground" Value="{DynamicResource Success}"/>
         </Style>
 
+        <!-- ── Chrome button — title-bar min / max / log / settings ── -->
+        <Style x:Key="ChromeBtn" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground"      Value="{DynamicResource TextMuted}"/>
+            <Setter Property="FontFamily"      Value="{DynamicResource Theme.FontFamily}"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="0"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#22AAAAAA"/>
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#33AAAAAA"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ── Chrome close button — red hover, Windows 11 style ── -->
+        <Style x:Key="ChromeCloseBtn" TargetType="Button">
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground"      Value="{DynamicResource TextMuted}"/>
+            <Setter Property="FontFamily"      Value="{DynamicResource Theme.FontFamily}"/>
+            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg"
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="0"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#C42B1C"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#9B2226"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="PrimaryBtn" TargetType="Button" BasedOn="{StaticResource FlatBtn}">
             <Setter Property="Background"  Value="{DynamicResource Accent}"/>
             <Setter Property="Foreground"  Value="{DynamicResource WindowBg}"/>
@@ -100,6 +173,31 @@
                     <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
                 </Trigger>
             </Style.Triggers>
+        </Style>
+
+        <!-- ── Sortable column header button ── -->
+        <Style x:Key="SortHeaderBtn" TargetType="Button">
+            <Setter Property="Background"                 Value="Transparent"/>
+            <Setter Property="BorderThickness"            Value="0"/>
+            <Setter Property="Foreground"                 Value="{DynamicResource TextMuted}"/>
+            <Setter Property="FontFamily"                 Value="{DynamicResource Theme.FontFamily}"/>
+            <Setter Property="Padding"                    Value="0"/>
+            <Setter Property="Cursor"                     Value="Hand"/>
+            <Setter Property="HorizontalAlignment"        Value="Left"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="Center"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- ── TextBox ── -->
