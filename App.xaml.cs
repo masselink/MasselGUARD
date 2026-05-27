@@ -67,6 +67,17 @@ namespace MasselGUARD
             // Global exception handler — show error instead of silent crash
             DispatcherUnhandledException += (_, ex) =>
             {
+                // ResourceReferenceKeyNotFoundException is a harmless WPF shutdown artifact.
+                // When Application.Shutdown() is called (e.g. after an update), WPF's teardown
+                // sequence triggers a final layout pass that tries to re-evaluate {DynamicResource}
+                // bindings on still-open windows — but the theme ResourceDictionary has already
+                // been cleared. There is nothing the user can do about it, so suppress silently.
+                if (ex.Exception is System.Windows.ResourceReferenceKeyNotFoundException)
+                {
+                    ex.Handled = true;
+                    return;
+                }
+
                 System.Windows.MessageBox.Show(
                     $"Unhandled error:\n\n{ex.Exception.GetType().Name}: {ex.Exception.Message}\n\n{ex.Exception.StackTrace?.Split('\n').FirstOrDefault()}",
                     "MasselGUARD — Unexpected Error",

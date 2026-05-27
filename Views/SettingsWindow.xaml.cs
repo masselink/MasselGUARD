@@ -1371,15 +1371,16 @@ namespace MasselGUARD.Views
                         cfg.LastUpdateCheck.ToLocalTime().ToString("g"));
 
             // Status badge: colour + text
-            bool hasLatest  = !string.IsNullOrEmpty(cfg.LatestKnownVersion);
-            bool upToDate   = hasLatest && string.Compare(current, cfg.LatestKnownVersion,
-                                  StringComparison.OrdinalIgnoreCase) >= 0;
-            bool updateAvail = hasLatest && !upToDate;
+            // Use proper version comparison (handles build numbers correctly).
+            bool hasLatest   = !string.IsNullOrEmpty(cfg.LatestKnownVersion);
+            bool updateAvail = hasLatest && UpdateChecker.IsNewerVersion(cfg.LatestKnownVersion);
+            bool isAhead     = hasLatest && UpdateChecker.IsAheadOfLatest(cfg.LatestKnownVersion);
 
             if (UpdateStatusBadge != null && UpdateStatusLabel != null)
             {
                 if (!hasLatest)
                 {
+                    // Never checked
                     UpdateStatusBadge.Background = (System.Windows.Media.Brush)
                         Application.Current.Resources["Surface"];
                     UpdateStatusBadge.BorderBrush = (System.Windows.Media.Brush)
@@ -1389,18 +1390,9 @@ namespace MasselGUARD.Views
                         Application.Current.Resources["TextMuted"];
                     UpdateStatusLabel.Text = Lang.T("SettingsUpdateUnknown");
                 }
-                else if (upToDate)
+                else if (updateAvail)
                 {
-                    UpdateStatusBadge.Background = (System.Windows.Media.Brush)
-                        Application.Current.Resources["Success"];
-                    UpdateStatusBadge.BorderBrush = System.Windows.Media.Brushes.Transparent;
-                    UpdateStatusBadge.BorderThickness = new Thickness(0);
-                    UpdateStatusLabel.Foreground = (System.Windows.Media.Brush)
-                        Application.Current.Resources["WindowBg"];
-                    UpdateStatusLabel.Text = Lang.T("SettingsUpdateCurrent", current);
-                }
-                else
-                {
+                    // Update available — Accent
                     UpdateStatusBadge.Background = (System.Windows.Media.Brush)
                         Application.Current.Resources["Accent"];
                     UpdateStatusBadge.BorderBrush = System.Windows.Media.Brushes.Transparent;
@@ -1408,6 +1400,28 @@ namespace MasselGUARD.Views
                     UpdateStatusLabel.Foreground = (System.Windows.Media.Brush)
                         Application.Current.Resources["WindowBg"];
                     UpdateStatusLabel.Text = Lang.T("SettingsUpdateAvailable", cfg.LatestKnownVersion!);
+                }
+                else if (isAhead)
+                {
+                    // Running a build newer than what's published — Success (same green as up-to-date)
+                    UpdateStatusBadge.Background = (System.Windows.Media.Brush)
+                        Application.Current.Resources["Success"];
+                    UpdateStatusBadge.BorderBrush = System.Windows.Media.Brushes.Transparent;
+                    UpdateStatusBadge.BorderThickness = new Thickness(0);
+                    UpdateStatusLabel.Foreground = (System.Windows.Media.Brush)
+                        Application.Current.Resources["WindowBg"];
+                    UpdateStatusLabel.Text = Lang.T("SettingsUpdateAhead", cfg.LatestKnownVersion!);
+                }
+                else
+                {
+                    // Exactly up to date — Success
+                    UpdateStatusBadge.Background = (System.Windows.Media.Brush)
+                        Application.Current.Resources["Success"];
+                    UpdateStatusBadge.BorderBrush = System.Windows.Media.Brushes.Transparent;
+                    UpdateStatusBadge.BorderThickness = new Thickness(0);
+                    UpdateStatusLabel.Foreground = (System.Windows.Media.Brush)
+                        Application.Current.Resources["WindowBg"];
+                    UpdateStatusLabel.Text = Lang.T("SettingsUpdateCurrent", current);
                 }
             }
 
@@ -1465,6 +1479,14 @@ namespace MasselGUARD.Views
                     Lang.T("UpdateAvailableMsg", latest.TagName, current),
                     Lang.T("UpdateAvailableTitle")))
                     _main.RunUpdate();
+            }
+            else if (latest != null && UpdateChecker.IsAheadOfLatest(latest.TagName))
+            {
+                MessageBox.Show(
+                    Lang.T("SettingsUpdateAheadMsg", latest.TagName),
+                    Lang.T("SettingsUpdateAheadTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
         }
 

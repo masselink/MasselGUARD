@@ -1,7 +1,7 @@
 {
   "_language": "🇩🇪  Deutsch",
   "_code": "de",
-  "AppTitle": "MasselGUARD v3.0.0",
+  "AppTitle": "MasselGUARD v3.0.1",
   "StatusWifi": "WLAN:",
   "StatusActiveTunnel": "Aktiver Tunnel:",
   "StatusScanning": "Suche…",
@@ -95,6 +95,9 @@
   "ImportFailed": "Import failed: {0}",
   "SettingsSectionUpdate": "UPDATES",
   "SettingsUpdateChecking": "Checking for updates…",
+  "SettingsUpdateAhead": "Neuer als {0} 🚀",
+  "SettingsUpdateAheadTitle": "Versionscheck",
+  "SettingsUpdateAheadMsg": "Du verwendest einen Build, der neuer ist als das neueste Release ({0}).\n\nBeeindruckend — du bist der Entwicklung voraus! 🚀",
   "SettingsUpdateCurrent": "Aktuell — v{0}",
   "SettingsUpdateAvailable": "Version {0} available",
   "SettingsUpdateLastChecked": "Last checked: {0}",

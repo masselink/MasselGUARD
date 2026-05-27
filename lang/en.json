@@ -1,7 +1,7 @@
 {
   "_language": "🇬🇧  English",
   "_code": "en",
-  "AppTitle": "MasselGUARD v3.0.0",
+  "AppTitle": "MasselGUARD v3.0.1",
   "StatusWifi": "WiFi:",
   "StatusActiveTunnel": "Active tunnel:",
   "StatusScanning": "Scanning…",
@@ -303,6 +303,9 @@
   "BtnDefaults": "Defaults",
   "SettingsTabGroups": "Tunnel Groups",
   "UpdateCheckManual": "Manual",
+  "SettingsUpdateAhead": "Running ahead of {0} 🚀",
+  "SettingsUpdateAheadTitle": "Version check",
+  "SettingsUpdateAheadMsg": "You're running a build newer than the latest release ({0}).\n\nImpressive — you're ahead of the curve! 🚀",
   "SettingsUpdateUnknown": "Not checked",
   "SettingsUpdateNeverChecked": "Never checked",
   "BtnDownloadUpdate": "Download v{0}",
