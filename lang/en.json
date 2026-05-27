@@ -305,7 +305,7 @@
   "BtnDefaults": "Defaults",
   "SettingsTabGroups": "Tunnel Groups",
   "UpdateCheckManual": "Manual",
-  "SettingsUpdateAhead": "Running ahead of {0} 🚀",
+  "SettingsUpdateAhead": "Running ahead of {0}",
   "SettingsUpdateAheadTitle": "Version check",
   "SettingsUpdateAheadMsg": "You're running a build newer than the latest release ({0}).\n\nImpressive — you're ahead of the curve! 🚀",
   "SettingsUpdateUnknown": "Not checked",

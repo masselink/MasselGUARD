@@ -1378,51 +1378,33 @@ namespace MasselGUARD.Views
 
             if (UpdateStatusBadge != null && UpdateStatusLabel != null)
             {
+                // All states use the theme Accent colour — icons distinguish them.
+                var accentBg = (System.Windows.Media.Brush)Application.Current.Resources["Accent"];
+                var onAccent = (System.Windows.Media.Brush)Application.Current.Resources["WindowBg"];
+
+                UpdateStatusBadge.BorderBrush     = System.Windows.Media.Brushes.Transparent;
+                UpdateStatusBadge.BorderThickness  = new Thickness(0);
+                UpdateStatusBadge.Background       = accentBg;
+                UpdateStatusLabel.Foreground       = onAccent;
+
                 if (!hasLatest)
                 {
-                    // Never checked
-                    UpdateStatusBadge.Background = (System.Windows.Media.Brush)
+                    // Never checked — muted pill until user hits Check Now
+                    UpdateStatusBadge.Background      = (System.Windows.Media.Brush)
                         Application.Current.Resources["Surface"];
-                    UpdateStatusBadge.BorderBrush = (System.Windows.Media.Brush)
+                    UpdateStatusBadge.BorderBrush     = (System.Windows.Media.Brush)
                         Application.Current.Resources["BorderColor"];
                     UpdateStatusBadge.BorderThickness = new Thickness(1);
-                    UpdateStatusLabel.Foreground = (System.Windows.Media.Brush)
+                    UpdateStatusLabel.Foreground      = (System.Windows.Media.Brush)
                         Application.Current.Resources["TextMuted"];
-                    UpdateStatusLabel.Text = Lang.T("SettingsUpdateUnknown");
+                    UpdateStatusLabel.Text = "— " + Lang.T("SettingsUpdateUnknown");
                 }
                 else if (updateAvail)
-                {
-                    // Update available — Accent
-                    UpdateStatusBadge.Background = (System.Windows.Media.Brush)
-                        Application.Current.Resources["Accent"];
-                    UpdateStatusBadge.BorderBrush = System.Windows.Media.Brushes.Transparent;
-                    UpdateStatusBadge.BorderThickness = new Thickness(0);
-                    UpdateStatusLabel.Foreground = (System.Windows.Media.Brush)
-                        Application.Current.Resources["WindowBg"];
-                    UpdateStatusLabel.Text = Lang.T("SettingsUpdateAvailable", cfg.LatestKnownVersion!);
-                }
+                    UpdateStatusLabel.Text = "↑  " + Lang.T("SettingsUpdateAvailable", cfg.LatestKnownVersion!);
                 else if (isAhead)
-                {
-                    // Running a build newer than what's published — Success (same green as up-to-date)
-                    UpdateStatusBadge.Background = (System.Windows.Media.Brush)
-                        Application.Current.Resources["Success"];
-                    UpdateStatusBadge.BorderBrush = System.Windows.Media.Brushes.Transparent;
-                    UpdateStatusBadge.BorderThickness = new Thickness(0);
-                    UpdateStatusLabel.Foreground = (System.Windows.Media.Brush)
-                        Application.Current.Resources["WindowBg"];
-                    UpdateStatusLabel.Text = Lang.T("SettingsUpdateAhead", cfg.LatestKnownVersion!);
-                }
+                    UpdateStatusLabel.Text = "🚀  " + Lang.T("SettingsUpdateAhead", cfg.LatestKnownVersion!);
                 else
-                {
-                    // Exactly up to date — Success
-                    UpdateStatusBadge.Background = (System.Windows.Media.Brush)
-                        Application.Current.Resources["Success"];
-                    UpdateStatusBadge.BorderBrush = System.Windows.Media.Brushes.Transparent;
-                    UpdateStatusBadge.BorderThickness = new Thickness(0);
-                    UpdateStatusLabel.Foreground = (System.Windows.Media.Brush)
-                        Application.Current.Resources["WindowBg"];
-                    UpdateStatusLabel.Text = Lang.T("SettingsUpdateCurrent", current);
-                }
+                    UpdateStatusLabel.Text = "✓  " + Lang.T("SettingsUpdateCurrent", current);
             }
 
             // Check Now button label

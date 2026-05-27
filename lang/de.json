@@ -95,7 +95,7 @@
   "ImportFailed": "Import failed: {0}",
   "SettingsSectionUpdate": "UPDATES",
   "SettingsUpdateChecking": "Checking for updates…",
-  "SettingsUpdateAhead": "Neuer als {0} 🚀",
+  "SettingsUpdateAhead": "Neuer als {0}",
   "SettingsUpdateAheadTitle": "Versionscheck",
   "SettingsUpdateAheadMsg": "Du verwendest einen Build, der neuer ist als das neueste Release ({0}).\n\nBeeindruckend — du bist der Entwicklung voraus! 🚀",
   "SettingsUpdateCurrent": "Aktuell — v{0}",

@@ -95,7 +95,7 @@
   "ImportFailed": "Import failed: {0}",
   "SettingsSectionUpdate": "ACTUALIZACIONES",
   "SettingsUpdateChecking": "Checking for updates…",
-  "SettingsUpdateAhead": "Por delante de {0} 🚀",
+  "SettingsUpdateAhead": "Por delante de {0}",
   "SettingsUpdateAheadTitle": "Comprobación de versión",
   "SettingsUpdateAheadMsg": "Estás ejecutando una compilación más reciente que el último lanzamiento ({0}).\n\n¡Impresionante — estás por delante de la curva! 🚀",
   "SettingsUpdateCurrent": "Actualizado — v{0}",

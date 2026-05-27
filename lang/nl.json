@@ -95,7 +95,7 @@
   "ImportFailed": "Importeren mislukt: {0}",
   "SettingsSectionUpdate": "UPDATES",
   "SettingsUpdateChecking": "Controleren op updates…",
-  "SettingsUpdateAhead": "Nieuwer dan {0} 🚀",
+  "SettingsUpdateAhead": "Nieuwer dan {0}",
   "SettingsUpdateAheadTitle": "Versiecontrole",
   "SettingsUpdateAheadMsg": "Je draait een build die nieuwer is dan de laatste release ({0}).\n\nIndrukwekkend — je loopt voor op de curve! 🚀",
   "SettingsUpdateCurrent": "Up-to-date — v{0}",
