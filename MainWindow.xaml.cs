@@ -1231,11 +1231,29 @@ namespace MasselGUARD
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             if (_reallyClosing) return;   // allow Application.Current.Shutdown()
+
+            // Shift+close (e.g. Alt+F4 while holding Shift) → clean exit
+            if ((System.Windows.Input.Keyboard.Modifiers &
+                 System.Windows.Input.ModifierKeys.Shift) != 0)
+            {
+                e.Cancel = true;   // cancel this close; TryExit → ShutdownApp will handle it
+                ((App)Application.Current).TryExit();
+                return;
+            }
+
             e.Cancel = true;
             Hide();
         }
 
-        private void CloseBtn_Click(object sender, RoutedEventArgs e) => Hide();
+        private void CloseBtn_Click(object sender, RoutedEventArgs e)
+        {
+            // Shift+X → clean exit (same as tray Exit)
+            if ((System.Windows.Input.Keyboard.Modifiers &
+                 System.Windows.Input.ModifierKeys.Shift) != 0)
+                ((App)Application.Current).TryExit();
+            else
+                Hide();
+        }
 
         private void DismissBanner_Click(object sender, RoutedEventArgs e)
             => ErrorBanner.Visibility = Visibility.Collapsed;
@@ -1278,15 +1296,20 @@ namespace MasselGUARD
         }
         public void EditRulePublic(TunnelRule rule)
         {
+            var oldCount = rule.ExecutionCount;
             var dlg = new Views.RuleDialog(GetCurrentSsid(),
                 existingName:   rule.Name,
                 existingSsid:   rule.Ssid,
                 existingTunnel: rule.Tunnel,
+                executionCount: rule.ExecutionCount,
                 tunnels:        GetAvailableTunnels()) { Owner = this };
             if (dlg.ShowDialog() != true) return;
             rule.Name   = dlg.ResultName;
             rule.Ssid   = dlg.ResultSsid;
             rule.Tunnel = dlg.ResultTunnel;
+            if (dlg.ResultNewCounterValue >= 0) rule.ExecutionCount = dlg.ResultNewCounterValue;
+            if (dlg.ResultNewCounterValue >= 0)
+                LogSvc.Info($"  Counter: {oldCount} → {dlg.ResultNewCounterValue}");
         }
         public void DeleteRulePublic(TunnelRule rule)
         {
@@ -1660,19 +1683,24 @@ namespace MasselGUARD
                 .FirstOrDefault(r => r.Ssid == row.Ssid);
             if (rule == null) return;
 
+            var oldCount = rule.ExecutionCount;
             var dlg = new Views.RuleDialog(
                 WifiSvc.CurrentSsid,
                 existingName:   rule.Name,
                 existingSsid:   rule.Ssid,
                 existingTunnel: rule.Tunnel,
+                executionCount: rule.ExecutionCount,
                 tunnels:        GetTunnelNames())
                 { Owner = this };
             if (dlg.ShowDialog() != true) return;
             rule.Name   = dlg.ResultName;
             rule.Ssid   = dlg.ResultSsid;
             rule.Tunnel = dlg.ResultTunnel;
+            if (dlg.ResultNewCounterValue >= 0) rule.ExecutionCount = dlg.ResultNewCounterValue;
             ConfigSvc.Save();
             LogSvc.Ok($"Rule updated: {rule.Ssid}");
+            if (dlg.ResultNewCounterValue >= 0)
+                LogSvc.Info($"  Counter: {oldCount} → {dlg.ResultNewCounterValue}");
             RefreshWifiRulesPanel();
             _vm.RebuildTunnelList();
         }

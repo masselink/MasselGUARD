@@ -6,10 +6,7 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 
 > **User manual** → [`docs/MANUAL.md`](docs/MANUAL.md)
 > **Technical reference** → [`docs/MasselGUARD.md`](docs/MasselGUARD.md)
-> **Change history v3.0→v3.0.1** → [`docs/CHANGES_v300_to_v301.md`](docs/CHANGES_v300_to_v301.md)
-> **Change history v2.9→v3.0** → [`docs/CHANGES_v290_to_v300.md`](docs/CHANGES_v290_to_v300.md)
-> **Change history v2.5→v2.9** → [`docs/CHANGES_v250_to_v290.md`](docs/CHANGES_v250_to_v290.md)
-> **Change history v2.3→v2.5** → [`docs/CHANGES_v231_to_v250.md`](docs/CHANGES_v231_to_v250.md)
+> **Release notes (all versions)** → [`docs/WHATSNEW.md`](docs/WHATSNEW.md)
 
 ---
 
@@ -99,12 +96,12 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 BUILD.bat
 ```
 
-Generates build number (`3.0.1.YYMMDDHHMM`), injects into `UpdateChecker.cs`, compiles, copies output to `dist\`.
+Generates build number (`3.1.0.YYMMDDHHMM`), injects into `UpdateChecker.cs`, compiles, copies output to `dist\`.
 
 Banner:
 ```
   ----------------------------------------
-    MasselGUARD  v3.0.1.YYMMDDHHMM
+    MasselGUARD  v3.1.0.YYMMDDHHMM
     Harold Masselink  |  Claude.ai
   ----------------------------------------
 ```

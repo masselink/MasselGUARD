@@ -278,39 +278,10 @@ namespace MasselGUARD
             _trayExitItem.Image = DrawMenuIcon(MenuIconKind.Exit);
             _trayExitItem.Click += (_, _) =>
             {
-                if (_mainWindow == null) { _trayIcon!.Visible = false; Shutdown(); return; }
-                _mainWindow.Dispatcher.Invoke(() =>
-                {
-                    var activeTunnels = _mainWindow._vm.TunnelList
-                        .Where(t => t.IsActive).ToList();
-
-                    // No active tunnels — exit immediately without asking
-                    if (activeTunnels.Count == 0)
-                    {
-                        _trayIcon!.Visible = false;
-                        Shutdown();
-                        return;
-                    }
-
-                    // Active tunnels present — confirm only when ConfirmOnClose is set
-                    bool needsConfirm = _mainWindow.ConfigSvc.Config.ConfirmOnClose;
-                    if (needsConfirm)
-                    {
-                        string plural = activeTunnels.Count == 1 ? "" : "s";
-                        bool doExit = _mainWindow.ShowThemedYesNo(
-                            $"There {(activeTunnels.Count == 1 ? "is" : "are")} {activeTunnels.Count} active tunnel{plural}.\n\nDisconnect and exit MasselGUARD?",
-                            "Exit MasselGUARD");
-                        if (!doExit) return;
-                    }
-
-                    // Disconnect all active tunnels then exit
-                    foreach (var t in activeTunnels)
-                        t.DisconnectCommand.Execute(null);
-                    _mainWindow._vm.RefreshTunnelStatus();
-
-                    _trayIcon!.Visible = false;
-                    Shutdown();
-                });
+                if (_mainWindow != null)
+                    _mainWindow.Dispatcher.Invoke(TryExit);
+                else
+                    ShutdownApp();
             };
             _trayMenu.Items.Add(_trayExitItem);
 
@@ -429,6 +400,43 @@ namespace MasselGUARD
             IsShuttingDown     = true;
             _trayIcon!.Visible = false;
             Shutdown();
+        }
+
+        /// <summary>
+        /// Clean exit — identical behaviour to the tray "Exit" item:
+        /// disconnects active tunnels (with optional confirm when ConfirmOnClose is set)
+        /// then shuts down. Safe to call from any UI thread context.
+        /// </summary>
+        public void TryExit()
+        {
+            if (_mainWindow == null) { ShutdownApp(); return; }
+
+            var activeTunnels = _mainWindow._vm.TunnelList
+                .Where(t => t.IsActive).ToList();
+
+            // No active tunnels — exit immediately
+            if (activeTunnels.Count == 0)
+            {
+                ShutdownApp();
+                return;
+            }
+
+            // Active tunnels — confirm only when ConfirmOnClose is set
+            if (_mainWindow.ConfigSvc.Config.ConfirmOnClose)
+            {
+                string plural = activeTunnels.Count == 1 ? "" : "s";
+                bool doExit = _mainWindow.ShowThemedYesNo(
+                    $"There {(activeTunnels.Count == 1 ? "is" : "are")} {activeTunnels.Count} active tunnel{plural}.\n\nDisconnect and exit MasselGUARD?",
+                    "Exit MasselGUARD");
+                if (!doExit) return;
+            }
+
+            // Disconnect all active tunnels then exit
+            foreach (var t in activeTunnels)
+                t.DisconnectCommand.Execute(null);
+            _mainWindow._vm.RefreshTunnelStatus();
+
+            ShutdownApp();
         }
 
         private void ShowMainWindow()

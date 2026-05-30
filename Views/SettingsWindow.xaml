@@ -1056,8 +1056,10 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- Credits -->
-                            <Border Style="{StaticResource SettingsCard}">
+                            <!-- MasselGUARD -->
+                            <TextBlock Text="MasselGUARD"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
                                 <StackPanel>
                                     <TextBlock Text="by Harold Masselink"
                                                FontFamily="{DynamicResource Theme.FontFamily}"
@@ -1070,6 +1072,61 @@
                                                Margin="0,4,0,0"
                                                MouseLeftButtonUp="GithubLink_Click"/>
                                 </StackPanel>
+                            </Border>
+
+                            <!-- What's New -->
+                            <TextBlock Text="What's New"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}">
+                                <Grid Height="220">
+
+                                    <!-- Success state: scrollable markdown text -->
+                                    <ScrollViewer x:Name="WhatsNewScroll"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled">
+                                        <TextBlock x:Name="WhatsNewText"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="10"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   TextWrapping="Wrap"/>
+                                    </ScrollViewer>
+
+                                    <!-- Error state: shown when GitHub is unreachable -->
+                                    <StackPanel x:Name="WhatsNewErrorPanel"
+                                                Visibility="Collapsed"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Text="🌐"
+                                                   FontSize="30"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{DynamicResource TextMuted}"
+                                                   Margin="0,0,0,10"/>
+                                        <TextBlock Text="Could not load release notes."
+                                                   FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="11" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextMuted}"
+                                                   HorizontalAlignment="Center"
+                                                   Margin="0,0,0,18"/>
+                                        <TextBlock Text="github.com/masselink/MasselGUARD"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="10"
+                                                   Foreground="{DynamicResource Accent}"
+                                                   TextDecorations="Underline"
+                                                   Cursor="Hand"
+                                                   HorizontalAlignment="Center"
+                                                   Margin="0,0,0,6"
+                                                   MouseLeftButtonUp="WhatsNewLink_GitHub_Click"/>
+                                        <TextBlock Text="masselink.net"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="10"
+                                                   Foreground="{DynamicResource Accent}"
+                                                   TextDecorations="Underline"
+                                                   Cursor="Hand"
+                                                   HorizontalAlignment="Center"
+                                                   MouseLeftButtonUp="WhatsNewLink_Site_Click"/>
+                                    </StackPanel>
+
+                                </Grid>
                             </Border>
                         </StackPanel>
 

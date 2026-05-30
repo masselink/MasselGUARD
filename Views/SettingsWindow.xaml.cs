@@ -1420,6 +1420,14 @@ namespace MasselGUARD.Views
                     DoUpdateBtn.Content = Lang.T("BtnDownloadUpdate", cfg.LatestKnownVersion!);
             }
 
+            // What's New inline panel — fetch from GitHub; fall back to local file.
+            if (WhatsNewText != null && !_whatsNewLoaded)
+            {
+                _whatsNewLoaded   = true;
+                WhatsNewText.Text = "Loading…";
+                _ = LoadWhatsNewAsync();
+            }
+
             // Frequency pills
             SyncFrequencyPills();
         }
@@ -1610,9 +1618,59 @@ namespace MasselGUARD.Views
             catch { }
         }
 
+        private void WhatsNewLink_GitHub_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                "https://github.com/masselink/MasselGUARD") { UseShellExecute = true }); }
+            catch { }
+        }
+
+        private void WhatsNewLink_Site_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                "https://masselink.net/") { UseShellExecute = true }); }
+            catch { }
+        }
+
+        /// <summary>
+        /// Fetches WHATSNEW.md from the GitHub repo. Falls back to the local copy
+        /// shipped alongside the exe. Updates WhatsNewText on the UI thread.
+        /// </summary>
+        private async System.Threading.Tasks.Task LoadWhatsNewAsync()
+        {
+            const string RemoteUrl =
+                "https://raw.githubusercontent.com/masselink/MasselGUARD/main/docs/WHATSNEW.md";
+
+            string? text = null;
+
+            // Try GitHub (10-second timeout so the UI isn't stuck)
+            try
+            {
+                using var http = new System.Net.Http.HttpClient();
+                http.DefaultRequestHeaders.Add("User-Agent", "MasselGUARD");
+                http.Timeout = TimeSpan.FromSeconds(10);
+                text = await http.GetStringAsync(RemoteUrl);
+            }
+            catch { /* network unavailable */ }
+
+            // Update the UI (we're back on the UI thread — no ConfigureAwait(false) used)
+            if (text != null)
+            {
+                WhatsNewText.Text             = text;
+                WhatsNewScroll.Visibility     = Visibility.Visible;
+                WhatsNewErrorPanel.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                WhatsNewScroll.Visibility     = Visibility.Collapsed;
+                WhatsNewErrorPanel.Visibility = Visibility.Visible;
+            }
+        }
+
         private bool         _fontPickerPopulated      = false;
         private bool         _savedSuccessfully        = false;
         private bool         _updateCheckedThisSession = false;  // Download button only visible after manual check
+        private bool         _whatsNewLoaded           = false;  // Fetch once per session
         private ReleaseInfo? _latestRelease;                     // Cached from last CheckNow — needed by DoUpdate button
 
         // ── Font live-preview timer ───────────────────────────────────────────

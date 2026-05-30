@@ -4,7 +4,7 @@ setlocal enabledelayedexpansion
 
 rem ── Build number: YYMMDDHHMM ────────────────────────────────────────────────
 for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyMMddHHmm"') do set BUILD_NUM=%%a
-set VERSION=3.0.1
+set VERSION=3.1.0
 set FULL_VERSION=%VERSION%.%BUILD_NUM%
 
 rem ── Inject build number into UpdateChecker.cs ───────────────────────────────
@@ -98,6 +98,14 @@ if exist "%~dp0theme" (
 )
 echo.
 
+rem ── Step 3b: copy WHATSNEW.md into dist ─────────────────────────────────────
+if exist "%~dp0docs\WHATSNEW.md" (
+    copy /y "%~dp0docs\WHATSNEW.md" "%~dp0dist\WHATSNEW.md" >nul
+) else (
+    echo  WARNING: docs\WHATSNEW.md not found -- skipped.
+)
+echo.
+
 rem ── Step 4: copy DLLs from wireguard-deps ────────────────────────────────────
 echo  -------------------------------------------------------
 echo   Copying tunnel DLLs from wireguard-deps\...
@@ -130,6 +138,7 @@ echo   BUILD SUCCESSFUL
 echo  ==========================================
 echo.
 echo   dist\MasselGUARD.exe
+echo   dist\WHATSNEW.md
 echo   dist\lang\
 echo   dist\theme\
 if "!DLL_OK!"=="1" (

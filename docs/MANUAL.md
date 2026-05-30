@@ -1,6 +1,6 @@
 # MasselGUARD — User Manual
 
-**Version 3.0.1**
+**Version 3.1.0**
 
 ---
 
@@ -20,15 +20,16 @@
 12. [Settings — Default Action](#12-settings--default-action)
 13. [Settings — WiFi Rules](#13-settings--wifi-rules)
 14. [Settings — Advanced](#14-settings--advanced)
-15. [Pre/post scripts](#15-prepost-scripts)
-16. [Quick Connect](#16-quick-connect)
-17. [Import / Export settings](#17-import--export-settings)
-18. [The activity log](#18-the-activity-log)
-19. [System tray](#19-system-tray)
-20. [Themes](#20-themes)
-21. [Font override](#21-font-override)
-22. [Multiple languages](#22-multiple-languages)
-23. [Frequently asked questions](#23-frequently-asked-questions)
+15. [Settings — About](#15-settings--about)
+16. [Pre/post scripts](#16-prepost-scripts)
+17. [Quick Connect](#17-quick-connect)
+18. [Import / Export settings](#18-import--export-settings)
+19. [The activity log](#19-the-activity-log)
+20. [System tray](#20-system-tray)
+21. [Themes](#21-themes)
+22. [Font override](#22-font-override)
+23. [Multiple languages](#23-multiple-languages)
+24. [Frequently asked questions](#24-frequently-asked-questions)
 
 ---
 
@@ -187,6 +188,14 @@ Activates automatically on **passwordless** WiFi before any SSID rule. The assig
 
 The **Hits** column shows how many times each rule has triggered. Persisted in config — survives restarts. Shown in Accent colour when > 0, muted when 0.
 
+**Editing the counter** — open the Edit Rule dialog for any existing rule. Below the form fields (separated by a divider) the current hit count is displayed. Click **(Re)set counter** to open a small input dialog:
+
+- Type any positive integer to set a specific value.
+- Type `0` to clear the counter.
+- Cancel closes without making a change.
+
+The change is written to config when you save the rule dialog. The activity log records the old and new values: `Counter: 42 → 10`.
+
 ### Drag to reorder
 
 Drag rows in the WiFi Rules panel on the main window to change evaluation order. Rules evaluate top to bottom; first match wins.
@@ -331,19 +340,40 @@ When extended logging is active, only **changed** fields are logged after Save:
 
 ---
 
-## 15. Pre/post scripts
+## 15. Settings — About
+
+### Version and update
+
+- **Version label** — running build (e.g. `v3.1.0.2605301747`)
+- **Last checked** — timestamp of the most recent update check
+- **Status badge** — coloured pill:
+  - `↑` update available → Download button appears
+  - `🚀` running ahead of latest release (dev build)
+  - `✓` up to date
+  - `—` never checked
+- **Frequency** — On start / Daily / Weekly / Manual pill selector
+- **Check now** — runs an immediate check; if an update is found the Download button appears and a themed prompt offers to install now
+- **Download** button — only visible after a manual Check now in the current session; starts the in-app pipeline (download → extract → copy → relaunch)
+
+### What's New panel
+
+A scrollable panel showing release notes for all versions, fetched live from `docs/WHATSNEW.md` in the GitHub repository. Updated every time the About tab is opened (once per Settings session). If the network is unavailable, a fallback panel is shown with clickable links to `github.com/masselink/MasselGUARD` and `masselink.net`.
+
+---
+
+## 16. Pre/post scripts
 
 Four hook points per tunnel: Before connect / After connect / Before disconnect / After disconnect. `.bat` or `.ps1` files. Logged in Extended mode.
 
 ---
 
-## 16. Quick Connect
+## 17. Quick Connect
 
 Connect a `.conf` or `.conf.dpapi` file without importing. Appears as `⚡ filename` at top of tunnel list. Disappears after disconnecting.
 
 ---
 
-## 17. Import / Export settings
+## 18. Import / Export settings
 
 **Export** — saves to `.masselguard` (JSON). Tunnel configs not included.
 
@@ -351,7 +381,7 @@ Connect a `.conf` or `.conf.dpapi` file without importing. Appears as `⚡ filen
 
 ---
 
-## 18. The activity log
+## 19. The activity log
 
 Column header: **Time** | **Event** — consistent with Tunnels and WiFi Rules panels.
 
@@ -363,7 +393,7 @@ The panel can be collapsed via the `»` button in its header, or reopened via th
 
 ---
 
-## 19. System tray
+## 20. System tray
 
 **Icon states:**
 - Filled green shield — one or more tunnels active
@@ -378,7 +408,7 @@ Right-click → menu. Double-click → show main window. × in main window → m
 
 ---
 
-## 20. Themes
+## 21. Themes
 
 ### Built-in themes
 
@@ -398,7 +428,7 @@ See `theme/THEME_INFO.md` for the full key reference.
 
 ---
 
-## 21. Font override
+## 22. Font override
 
 Enable **Override font** in Settings → Appearance → Font to replace the theme typeface with any installed system font.
 
@@ -411,13 +441,13 @@ To return to the theme's own font: toggle **Override font** off.
 
 ---
 
-## 22. Multiple languages
+## 23. Multiple languages
 
 English, Dutch, German, French, Spanish. Change in Settings → General. Add a language: copy `lang\en.json`, translate, add `_code` and `_language` keys.
 
 ---
 
-## 23. Frequently asked questions
+## 24. Frequently asked questions
 
 **Rules fire twice when switching networks.**
 Fixed — debounce re-fire guard and `ApplyWifiState` duplicate guard prevent double execution.
@@ -447,7 +477,10 @@ Yes — drag the tunnel row and drop it onto the target group tab.
 Yes — enable Start with Windows in Settings → Advanced after installing. Subsequent launches relaunch via the Scheduled Task automatically.
 
 **What does the Hits column show?**
-How many times each WiFi rule has triggered since it was created. Persisted across restarts.
+How many times each WiFi rule has triggered since it was created. Persisted across restarts. You can view and edit it by opening the Edit Rule dialog — the counter appears below the form fields with a **(Re)set counter** button.
+
+**How do I exit completely instead of minimizing to tray?**
+Hold **Shift** while clicking the window's X button (or pressing Alt+F4). This performs a clean exit — same as Tray → Exit. Without Shift, the window hides to the tray and the app keeps running.
 
 **Can I hide the activity log?**
 Yes — click `»` in the log header, or use Settings → General → Interface → Show activity log. The `☰` button reappears in the tunnel header to bring it back.
@@ -460,3 +493,6 @@ Yes — enable Override font in Settings → Appearance → Font, pick a family 
 
 **The font or theme I chose makes the UI unreadable — how do I recover?**
 Hold **Shift** while launching MasselGUARD. Before any window opens, the app detects the key and resets both the font override (back to system UI font) and the custom theme (back to Windows system colours, auto mode). A confirmation dialog lists exactly what was cleared. Normal startup continues afterwards with the reset settings.
+
+**The What's New panel shows a "Could not load" message.**
+The panel fetches release notes live from GitHub. Check your internet connection. You can also visit `github.com/masselink/MasselGUARD` or `masselink.net` directly — both links in the error panel are clickable.
