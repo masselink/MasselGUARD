@@ -31,6 +31,11 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 - **Defaults button** in toolbar — set/clear both roles from a single popup centred on the window
 - Rules fire exactly once per network switch (double-fire prevention)
 
+### Kill switch
+- **Per-tunnel kill switch** — blocks all non-tunnel outbound traffic via Windows Firewall when a tunnel is active
+- **Global "Always" mode** — forces the kill switch on for every tunnel without a per-tunnel toggle
+- Firewall rules (`MasselGUARD_KS_*`) are removed on clean exit; stale rules from a crash are cleaned up at startup
+
 ### Tunnel management
 - Live tunnel list — Connect/Disconnect per entry, real-time uptime
 - **⚡ / 🔓 badges** inline after tunnel name for default action and open protection

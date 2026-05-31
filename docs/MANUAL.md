@@ -26,10 +26,11 @@
 18. [Import / Export settings](#18-import--export-settings)
 19. [The activity log](#19-the-activity-log)
 20. [System tray](#20-system-tray)
-21. [Themes](#21-themes)
-22. [Font override](#22-font-override)
-23. [Multiple languages](#23-multiple-languages)
-24. [Frequently asked questions](#24-frequently-asked-questions)
+21. [Kill switch](#21-kill-switch)
+22. [Themes](#22-themes)
+23. [Font override](#23-font-override)
+24. [Multiple languages](#24-multiple-languages)
+25. [Frequently asked questions](#25-frequently-asked-questions)
 
 ---
 
@@ -323,11 +324,19 @@ Rules changes save via the main Save button.
 **Order:**
 1. Import / Export settings
 2. Log level (Normal / Extended)
-3. Installation — run mode, Install/Uninstall button
-4. Start with Windows — Scheduled Task at `RunLevel=Highest`
-5. **Confirm disconnect on exit** — when off, active tunnels are disconnected silently on exit (default: on)
-6. WireGuard client — open the WireGuard for Windows app
-7. Orphaned services — scan and clean up
+3. Kill switch mode
+4. Installation — run mode, Install/Uninstall button
+5. Start with Windows — Scheduled Task at `RunLevel=Highest`
+6. **Confirm disconnect on exit** — when off, active tunnels are disconnected silently on exit (default: on)
+7. WireGuard client — open the WireGuard for Windows app
+8. Orphaned services — scan and clean up
+
+### Kill switch mode
+
+| Setting | Behaviour |
+|---|---|
+| **Off** (default) | Kill switch can be enabled per tunnel in the tunnel edit dialog |
+| **Always** | Kill switch is forced on for every tunnel; per-tunnel toggle is not shown |
 
 ### Extended log on Save
 
@@ -375,9 +384,14 @@ Connect a `.conf` or `.conf.dpapi` file without importing. Appears as `⚡ filen
 
 ## 18. Import / Export settings
 
-**Export** — saves to `.masselguard` (JSON). Tunnel configs not included.
+**Export** — saves to `.masselguard` (JSON). Tunnel configs not included. A themed confirmation dialog warns that configs are excluded before writing.
 
-**Import** — replaces settings. Version mismatch shows a themed warning. Available in Settings → Advanced and on wizard Step 0.
+**Import** — replaces settings and saves immediately to disk.
+- Version mismatch (file older **or** newer than the running build) shows a themed Yes/No warning before proceeding.
+- On success a themed prompt offers to **restart now** so all imported settings take effect immediately.
+  - **Yes** — launches a new MasselGUARD process and exits the current one.
+  - **No** — settings are already saved; a notice warns that some displayed values may not yet match the imported data until the next restart.
+- Available in Settings → Advanced and on wizard Step 0.
 
 ---
 
@@ -385,7 +399,13 @@ Connect a `.conf` or `.conf.dpapi` file without importing. Appears as `⚡ filen
 
 Column header: **Time** | **Event** — consistent with Tunnels and WiFi Rules panels.
 
-Extended mode adds: `[DBG]` entries, disconnect duration, settings change details.
+Extended mode adds:
+- `[DBG]` debug entries (connect timing, tunnel config fields)
+- A grey **continuation line** beneath each disconnect entry showing session duration and bandwidth:
+  ```
+  ↳ 2h 14m 07s  ·  ↑ 142 MB  ↓ 1.2 GB
+  ```
+- Settings change details after Save
 
 Entry count badge in header. Export Log saves to `.txt`.
 
@@ -408,7 +428,32 @@ Right-click → menu. Double-click → show main window. × in main window → m
 
 ---
 
-## 21. Themes
+## 21. Kill switch
+
+The kill switch blocks all outbound internet traffic except through the active WireGuard tunnel. If the tunnel drops, traffic is blocked rather than leaking over the regular network interface.
+
+### How it works
+
+MasselGUARD adds `MasselGUARD_KS_` prefixed rules to Windows Firewall:
+- Sets the default outbound policy to **Block** on all profiles (Domain, Private, Public)
+- Adds an explicit **Allow** rule for the WireGuard tunnel adapter and the remote endpoint IP/port
+- Removes all rules and restores **Allow** default on tunnel disconnect or app exit
+
+### Per-tunnel kill switch
+
+In the **Edit Tunnel** dialog, a **Kill Switch** toggle enables the feature for that tunnel only. The toggle is only visible when the global mode is **Off**.
+
+### Global "Always" mode
+
+Set in **Settings → Advanced → Kill Switch Mode = Always**. Every tunnel automatically uses the kill switch; the per-tunnel toggle is not shown.
+
+### Crash recovery
+
+At startup, `KillSwitchService.CleanupStaleRules()` removes any leftover `MasselGUARD_KS_*` firewall rules and resets the default outbound policy to Allow — recovering from a previous crash that prevented normal cleanup.
+
+---
+
+## 22. Themes
 
 ### Built-in themes
 
@@ -428,7 +473,7 @@ See `theme/THEME_INFO.md` for the full key reference.
 
 ---
 
-## 22. Font override
+## 23. Font override
 
 Enable **Override font** in Settings → Appearance → Font to replace the theme typeface with any installed system font.
 
@@ -441,13 +486,13 @@ To return to the theme's own font: toggle **Override font** off.
 
 ---
 
-## 23. Multiple languages
+## 24. Multiple languages
 
 English, Dutch, German, French, Spanish. Change in Settings → General. Add a language: copy `lang\en.json`, translate, add `_code` and `_language` keys.
 
 ---
 
-## 24. Frequently asked questions
+## 25. Frequently asked questions
 
 **Rules fire twice when switching networks.**
 Fixed — debounce re-fire guard and `ApplyWifiState` duplicate guard prevent double execution.
@@ -496,3 +541,18 @@ Hold **Shift** while launching MasselGUARD. Before any window opens, the app det
 
 **The What's New panel shows a "Could not load" message.**
 The panel fetches release notes live from GitHub. Check your internet connection. You can also visit `github.com/masselink/MasselGUARD` or `masselink.net` directly — both links in the error panel are clickable.
+
+**How does the kill switch work?**
+When enabled, MasselGUARD sets the Windows Firewall default outbound policy to Block and adds explicit Allow rules for the WireGuard tunnel adapter and endpoint. If the tunnel drops, traffic is blocked rather than routing over your regular internet connection.
+
+**My internet stopped working after MasselGUARD crashed.**
+The kill switch firewall rules were not cleaned up. Restart MasselGUARD — it removes stale `MasselGUARD_KS_*` rules and restores the default outbound policy to Allow at startup. Alternatively, open Windows Defender Firewall, remove any rules starting with `MasselGUARD_KS_`, and set the default outbound action back to Allow.
+
+**The kill switch toggle is greyed out in the tunnel edit dialog.**
+Settings → Advanced → Kill Switch Mode is set to **Always**, which forces the kill switch on for all tunnels. Set it to **Off** to re-enable the per-tunnel toggle.
+
+**Where do I see bandwidth usage?**
+In the activity log (Extended mode). After each disconnect a grey continuation line shows the session duration and bandwidth: `↳ 2h 14m  ·  ↑ 142 MB  ↓ 1.2 GB`. Switch to Extended in Settings → Advanced → Log level.
+
+**The import settings dialog showed raw placeholder text instead of a warning.**
+Fixed in v3.3.0 — `SettingsImportVersionWarning` and `SettingsImportVersionNewer` are now present in all five language files.

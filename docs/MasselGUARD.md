@@ -1,6 +1,6 @@
 # MasselGUARD — How it works
 
-Technical reference for v3.0.0 (build YYMMDDHHMM). For end-user instructions see [`MANUAL.md`](MANUAL.md).
+Technical reference for v3.2.0 (build YYMMDDHHMM). For end-user instructions see [`MANUAL.md`](MANUAL.md).
 
 ---
 
@@ -17,15 +17,16 @@ Technical reference for v3.0.0 (build YYMMDDHHMM). For end-user instructions see
 9. [Tunnel groups and categories](#9-tunnel-groups-and-categories)
 10. [Quick Connect](#10-quick-connect)
 11. [Open network protection](#11-open-network-protection)
-12. [Configuration and storage](#12-configuration-and-storage)
-13. [Security model](#13-security-model)
-14. [Theme system](#14-theme-system)
-15. [Font override system](#15-font-override-system)
-16. [Logging](#16-logging)
-17. [Settings panel](#17-settings-panel)
-18. [Import / Export settings](#18-import--export-settings)
-19. [Build and deployment](#19-build-and-deployment)
-20. [Troubleshooting](#20-troubleshooting)
+12. [Kill switch](#12-kill-switch)
+13. [Configuration and storage](#13-configuration-and-storage)
+14. [Security model](#14-security-model)
+15. [Theme system](#15-theme-system)
+16. [Font override system](#16-font-override-system)
+17. [Logging](#17-logging)
+18. [Settings panel](#18-settings-panel)
+19. [Import / Export settings](#19-import--export-settings)
+20. [Build and deployment](#20-build-and-deployment)
+21. [Troubleshooting](#21-troubleshooting)
 
 ---
 
@@ -230,7 +231,53 @@ Detects open (passwordless) WiFi by reading `WLAN_SECURITY_ATTRIBUTES.bSecurityE
 
 ---
 
-## 12. Configuration and storage
+## 12. Kill switch
+
+`KillSwitchService` (late-bound via `HNetCfg.FwPolicy2` / `HNetCfg.FwRule` COM) manages a traffic block rule set in Windows Firewall.
+
+### Enable flow
+
+```
+KillSwitchService.Enable(tunnelName, interfaceAlias, endpointIp, endpointPort)
+  ├─ lock(_lock) / already active → return
+  ├─ _savedDomain/Private/Public = policy.DefaultOutboundAction[prof]
+  ├─ policy.DefaultOutboundAction[ALL_PROFILES] = Block
+  ├─ Add MasselGUARD_KS_Allow_WG — Allow outbound on interfaceAlias (UDP/TCP)
+  ├─ Add MasselGUARD_KS_Allow_Endpoint — Allow UDP to endpointIp:endpointPort
+  ├─ Add MasselGUARD_KS_Allow_Loopback — Allow loopback (127.0.0.1/8)
+  ├─ Add MasselGUARD_KS_Allow_DHCP — Allow UDP port 67/68 (DHCP)
+  └─ _active.Add(tunnelName)
+```
+
+### Disable flow
+
+```
+KillSwitchService.Disable(tunnelName)
+  ├─ _active.Remove(tunnelName)
+  └─ if _active.Count == 0:
+       ├─ Restore DefaultOutboundAction from _savedDomain/Private/Public
+       └─ Remove all MasselGUARD_KS_* rules
+```
+
+`DisableAll()` clears `_active` and always restores policy — called on app exit from `App.OnExit`.
+
+### Startup cleanup
+
+`CleanupStaleRules()` called from `MainWindow.Loaded` before anything else:
+1. Restore `DefaultOutboundAction` to `Allow` for all three profiles
+2. Remove every rule whose `Name` starts with `MasselGUARD_KS_`
+
+### Global mode
+
+`AppConfig.KillSwitchMode` (`"off"` / `"always"`). When `"always"`, `isGlobalAlways = true` is passed to both `TunnelConfigDialog` and `TunnelMetadataDialog` — the per-tunnel toggle is hidden and the effective value is always `true`. The `stored.KillSwitch` field is only written when `!isGlobalAlways`.
+
+### Reference counting
+
+`_active` (`HashSet<string>`) tracks enabled tunnels. Policy is only applied on the **first** `Enable()` and only restored on the **last** `Disable()`. Concurrent tunnels all share the same firewall state.
+
+---
+
+## 13. Configuration and storage
 
 ### config.json — `%APPDATA%\MasselGUARD\config.json`
 
@@ -260,7 +307,7 @@ Detects open (passwordless) WiFi by reading `WLAN_SECURITY_ATTRIBUTES.bSecurityE
 
 ---
 
-## 13. Security model
+## 14. Security model
 
 ### DPAPI encryption
 
@@ -279,7 +326,7 @@ ACL: `SYSTEM + Administrators + owning user` only. Deleted within ~200 ms.
 
 ---
 
-## 14. Theme system
+## 15. Theme system
 
 Themes live in `theme/<folder>/theme.json`. See `theme/THEME_INFO.md` for the full key reference.
 
@@ -330,7 +377,7 @@ A `DispatcherTimer` counts 10 seconds, then `CancelThemePreview()` loads `_origi
 
 ---
 
-## 15. Font override system
+## 16. Font override system
 
 `ThemeManager.ApplyFontOverride(bool enabled, string family, double size)` injects font resources into `Application.Current.Resources`:
 
@@ -371,7 +418,7 @@ Changing the font picker or size slider while preview is active calls `CancelFon
 
 ---
 
-## 16. Logging
+## 17. Logging
 
 | Level | Shown in Normal | Shown in Extended |
 |---|---|---|
@@ -388,7 +435,7 @@ Continuation lines (detail sub-entries) render with a `↳` prefix in the timest
 
 ---
 
-## 17. Settings panel
+## 18. Settings panel
 
 | Tab | Key settings |
 |---|---|
@@ -404,7 +451,7 @@ Continuation lines (detail sub-entries) render with a `↳` prefix in the timest
 
 ---
 
-## 18. Import / Export settings
+## 19. Import / Export settings
 
 **Export** (Settings → Advanced → Export settings):
 - Shows a warning that tunnel configs are excluded and future-version compatibility is not guaranteed
@@ -419,7 +466,7 @@ Continuation lines (detail sub-entries) render with a `↳` prefix in the timest
 
 ---
 
-## 19. Build and deployment
+## 20. Build and deployment
 
 ### BUILD.bat
 
@@ -447,7 +494,7 @@ Builds `tunnel.dll` from source (requires Go 1.21+ and gcc/MinGW). Downloads `wi
 
 ---
 
-## 20. Troubleshooting
+## 21. Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
@@ -461,7 +508,7 @@ Builds `tunnel.dll` from source (requires Go 1.21+ and gcc/MinGW). Downloads `wi
 
 ---
 
-## 21. Run modes and installation
+## 22. Run modes and installation
 
 `MainWindow.AppRunModeKind` enum:
 
@@ -486,7 +533,7 @@ The `MasselGUARD` Scheduled Task is created at `RunLevel=Highest` during install
 
 ---
 
-## 22. Tray icon rendering
+## 23. Tray icon rendering
 
 `App.TrayIconHelper.RenderIcon(int S, int activeCount)` produces a 32-bit ARGB bitmap at size S (typically 16 or 32 px) using GDI+ (`System.Drawing`).
 
@@ -503,7 +550,7 @@ The icon is only redrawn when `_lastTrayActiveCount` changes — not on the 1-se
 
 ---
 
-## 23. WiFi Rules panel (main window)
+## 24. WiFi Rules panel (main window)
 
 A read-only summary of `AppConfig.Rules` displayed below the tunnel management buttons in `Grid.Row="3"` (header) and `Grid.Row="4"` (content) of the left column.
 
@@ -516,7 +563,7 @@ The right column (Activity Log) uses `Grid.RowSpan="5"` so it always fills the f
 
 ---
 
-## 24. Tunnel uptime
+## 25. Tunnel uptime
 
 `TunnelEntryViewModel._connectedAt` (nullable `DateTime`) is set to `DateTime.UtcNow` when `IsActive` transitions `false → true`. It is cleared on disconnect.
 
@@ -530,7 +577,7 @@ The right column (Activity Log) uses `Grid.RowSpan="5"` so it always fills the f
 
 ---
 
-## 25. Deferred-save pattern (SettingsWindow)
+## 26. Deferred-save pattern (SettingsWindow)
 
 `SettingsWindow` creates `_draft = _main.ConfigSvc.Config.DeepClone()` on `Loaded`. All handler mutations target `_draft`. `_vm` (SettingsViewModel) is populated from `_draft` and stages additional fields (rules, language, mode, log level, themes).
 
@@ -550,7 +597,7 @@ On **Cancel / close without Save** (`OnClosing`):
 
 ---
 
-## 26. WiFi rule name and execution counter
+## 27. WiFi rule name and execution counter
 
 `TunnelRule` model fields added:
 ```csharp
@@ -570,7 +617,7 @@ RuleName = string.IsNullOrEmpty(r.Name) ? autoName : r.Name;
 
 ---
 
-## 27. WiFi rules drag-to-reorder
+## 28. WiFi rules drag-to-reorder
 
 `WifiRulesListView` has `AllowDrop="True"`. Three handlers:
 - `PreviewMouseDown` — captures `WifiRuleRow` and start position
@@ -579,7 +626,7 @@ RuleName = string.IsNullOrEmpty(r.Name) ? autoName : r.Name;
 
 ---
 
-## 28. Double-fire prevention
+## 29. Double-fire prevention
 
 Two guards prevent rules firing twice on a network switch:
 
@@ -606,7 +653,7 @@ Sequence on network switch (MasselTHINGS → MasselNET):
 
 ---
 
-## 29. Build number
+## 30. Build number
 
 `BUILD.bat` generates the build number:
 ```bat
@@ -624,7 +671,7 @@ powershell -File temp.ps1
 
 ---
 
-## 30. Tray menu icons
+## 31. Tray menu icons
 
 `DrawMenuIcon(MenuIconKind)` produces a 16×16 GDI+ bitmap using theme colours from `Application.Current.Resources`:
 
@@ -639,7 +686,7 @@ powershell -File temp.ps1
 
 ---
 
-## 31. Notification duration
+## 32. Notification duration
 
 `AppConfig.NotificationDurationSeconds` (default 5). Picker in Settings → Appearance: 3 / 5 / 10 / 15 / 30 seconds.
 
@@ -647,7 +694,7 @@ powershell -File temp.ps1
 
 ---
 
-## 32. Defaults button popup
+## 33. Defaults button popup
 
 `DefaultsBtn_Click` builds a code-only `Window` (no XAML) with two `ComboBox` pickers — default action tunnel and open network protection — each with a "— clear —" entry. Positioned at:
 
@@ -661,7 +708,7 @@ On Save: writes `DefaultAction`, `DefaultTunnel`, `OpenWifiTunnel` to config, th
 
 ---
 
-## 33. Drag tunnels into groups
+## 34. Drag tunnels into groups
 
 Each tab button created in `AddTab()` receives:
 ```csharp
@@ -674,7 +721,7 @@ btn.Drop      += TunnelTabDrop;
 
 ---
 
-## 34. Settings tab routing
+## 35. Settings tab routing
 
 `TabBtn_Click` maps button `Name` → page name via a `switch`:
 
@@ -697,7 +744,7 @@ string tab = btn.Name switch
 
 ---
 
-## 35. Toast notification model
+## 36. Toast notification model
 
 `ToastNotification` (public record-like class):
 
@@ -715,7 +762,7 @@ The legacy `ShowTrayNotification(string title, string body, int durationMs)` ove
 
 ---
 
-## 36. Rule edit → tunnel list refresh
+## 37. Rule edit → tunnel list refresh
 
 `WifiRuleAdd_Click`, `WifiRuleEdit_Click`, and `WifiRuleDelete_Click` all call:
 1. `RefreshWifiRulesPanel()` — rebuilds the `WifiRuleRow` collection with updated `ExecutionCount` and names
@@ -725,7 +772,7 @@ This ensures the Rules column in the tunnel list stays in sync with any rule cha
 
 ---
 
-## 37. Managed Portable version check
+## 38. Managed Portable version check
 
 `NormaliseVersion(v)` strips leading `v`/`V` and whitespace. Comparison:
 
