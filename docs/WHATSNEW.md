@@ -1,4 +1,25 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  v3.2.5
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Update available badge
+  • A ↑ button in Accent colour appears in the title bar (before the
+    settings gear) whenever a newer version is available.
+  • Clicking it opens Settings → About directly so you can install
+    in one step.
+  • The badge appears immediately on startup if a newer version was
+    already known from a previous check, and updates after every
+    background or manual check.
+  • Disappears once the running build is up to date.
+
+Bug fixes
+  • Update check frequency (On start / Daily / Weekly / Manual) is now
+    correctly saved when pressing Save in Settings → About.
+    Previously the selection was staged in the draft but never committed
+    to config — it reverted to the previous value after closing Settings.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   v3.2.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

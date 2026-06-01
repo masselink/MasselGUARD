@@ -260,7 +260,10 @@ namespace MasselGUARD
             };
             retryTimer.Start();
 
-            // Background update check (frequency-based)
+            // Show badge immediately if a newer version was already known from a previous run
+            RefreshUpdateBadge();
+
+            // Background update check (frequency-based) — also refreshes the badge when done
             if (ShouldCheckForUpdates())
                 _ = CheckForUpdatesAsync(silent: true);
 
@@ -1027,6 +1030,18 @@ namespace MasselGUARD
             _vm.RebuildTunnelList();
             RebuildTunnelGroups();
             UpdateFooterLabel();
+            RefreshUpdateBadge();
+        }
+
+        private void UpdateAvailableBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new Views.SettingsWindow(this) { Owner = this, InitialTab = "About" };
+            win.ShowDialog();
+            LogSvc.IsExtended = ConfigSvc.Config.LogLevelSetting == "extended";
+            _vm.RebuildTunnelList();
+            RebuildTunnelGroups();
+            UpdateFooterLabel();
+            RefreshUpdateBadge();
         }
 
         // ── Button click handlers (thin — delegate to VM or OnXxx) ────────────
@@ -2426,6 +2441,10 @@ namespace MasselGUARD
             try
             {
                 var latest = await UpdateChecker.CheckNowAsync(ConfigSvc.Config, ConfigSvc.Save);
+
+                // Always refresh the badge — even when no update is found (clears a stale badge).
+                Dispatcher.Invoke(RefreshUpdateBadge);
+
                 if (latest == null) return;
                 if (!UpdateChecker.IsNewerVersion(latest.TagName)) return;
 
@@ -2448,6 +2467,31 @@ namespace MasselGUARD
                 }
             }
             catch { /* silent — network may not be available */ }
+        }
+
+        // ── Update badge ──────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Shows or hides the ↑ update badge in the title bar based on whether
+        /// a newer version has been seen. Safe to call from any thread via Dispatcher.
+        /// </summary>
+        public void RefreshUpdateBadge()
+        {
+            bool available = UpdateChecker.IsNewerVersion(ConfigSvc.Config.LatestKnownVersion);
+            var vis = available ? Visibility.Visible : Visibility.Collapsed;
+
+            if (UpdateAvailableBtn != null)
+            {
+                UpdateAvailableBtn.Visibility = vis;
+                if (available)
+                {
+                    var ver = ConfigSvc.Config.LatestKnownVersion?.TrimStart('v', 'V') ?? "";
+                    UpdateAvailableBtn.ToolTip =
+                        $"MasselGUARD v{ver} is available — click to install";
+                }
+            }
+            if (UpdateAvailableSep != null)
+                UpdateAvailableSep.Visibility = vis;
         }
 
         // ── Install helpers (used by SettingsWindow) ──────────────────────────

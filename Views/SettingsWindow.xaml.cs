@@ -23,6 +23,9 @@ namespace MasselGUARD.Views
         // correctly handles both system colours and custom theme files.
         private Models.AppConfig _draft = new(); // staged copy — only written to config on Save
 
+        /// <summary>Set before ShowDialog() to open on a specific tab. Defaults to "General".</summary>
+        public string InitialTab { get; set; } = "General";
+
         public SettingsWindow(MainWindow main)
         {
             _main = main;
@@ -44,7 +47,7 @@ namespace MasselGUARD.Views
                 _loading = false;
                 // Create a deep copy of the LIVE config — all edits go here until Save is pressed
                 _draft = _main.ConfigSvc.Config.DeepClone();
-                ShowTab("General");
+                ShowTab(InitialTab);
                 RefreshUpdateState();
             };
         }
@@ -1764,9 +1767,10 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.AutoReconnect       = _draft.AutoReconnect;
             _main.ConfigSvc.Config.ShowDnsIndicator    = _draft.ShowDnsIndicator;
             _main.ConfigSvc.Config.KillSwitchMode      = _draft.KillSwitchMode;
-            _main.ConfigSvc.Config.FontOverrideEnabled = _draft.FontOverrideEnabled;
-            _main.ConfigSvc.Config.FontOverrideFamily  = _draft.FontOverrideFamily;
-            _main.ConfigSvc.Config.FontOverrideSize    = _draft.FontOverrideSize;
+            _main.ConfigSvc.Config.FontOverrideEnabled    = _draft.FontOverrideEnabled;
+            _main.ConfigSvc.Config.FontOverrideFamily    = _draft.FontOverrideFamily;
+            _main.ConfigSvc.Config.FontOverrideSize      = _draft.FontOverrideSize;
+            _main.ConfigSvc.Config.UpdateCheckFrequency  = _draft.UpdateCheckFrequency;
 
             // Sync _vm.TunnelGroups from _draft so DoSave doesn't overwrite with stale data
             _vm.TunnelGroups.Clear();
@@ -1826,6 +1830,7 @@ namespace MasselGUARD.Views
             Check("Font override",         before.FontOverrideEnabled,   after.FontOverrideEnabled);
             Check("Font family",           before.FontOverrideFamily,    after.FontOverrideFamily);
             Check("Font size",             before.FontOverrideSize,      after.FontOverrideSize);
+            Check("Update frequency",      before.UpdateCheckFrequency,  after.UpdateCheckFrequency);
 
             // Rules list: compare by count and content
             var rulesAdded   = after.Rules.Where(r => !before.Rules.Any(b => b.Ssid == r.Ssid)).ToList();

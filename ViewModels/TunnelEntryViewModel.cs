@@ -299,6 +299,9 @@ namespace MasselGUARD.ViewModels
         {
             UserDisconnected = true;
             _dnsStatus = TunnelDll.DnsLeakStatus.Unknown;
+            OnPropertyChanged(nameof(DnsLeakVisibility));
+            OnPropertyChanged(nameof(DnsLeakDisplay));
+            OnPropertyChanged(nameof(DnsLeakColor));
             _rxBytes   = 0;
             _txBytes   = 0;
             _tunnels.Disconnect(StoredTunnel);

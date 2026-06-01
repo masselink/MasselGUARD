@@ -85,9 +85,26 @@
 
                         </StackPanel>
 
-                        <!-- Window controls: settings | minimize / maximize / close -->
+                        <!-- Window controls: update badge | settings | minimize / maximize / close -->
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                                     VerticalAlignment="Stretch">
+                            <!-- Update available badge — hidden until a newer version is found -->
+                            <Button x:Name="UpdateAvailableBtn"
+                                    FontSize="14" FontWeight="Bold" Padding="10,0"
+                                    Style="{StaticResource ChromeBtn}"
+                                    Foreground="{DynamicResource Accent}"
+                                    VerticalAlignment="Stretch"
+                                    Visibility="Collapsed"
+                                    Click="UpdateAvailableBtn_Click">
+                                <Button.Content>
+                                    <TextBlock Text="↑" FontSize="14" FontWeight="Bold"
+                                               Foreground="{DynamicResource Accent}"/>
+                                </Button.Content>
+                            </Button>
+                            <Rectangle x:Name="UpdateAvailableSep"
+                                       Width="1" Height="16" VerticalAlignment="Center"
+                                       Margin="0,0,4,0" Fill="{DynamicResource BorderColor}"
+                                       Visibility="Collapsed"/>
                             <!-- Settings -->
                             <Button Content="⚙" FontSize="13" Padding="12,0"
                                     Style="{StaticResource ChromeBtn}"
