@@ -2,13 +2,52 @@
   v3.5.0  —  Hypersonic Quokka
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+Activity timeline
+  • A canvas panel appears above the footer showing tunnel and WiFi
+    activity over the last 24 hours, 7 days, or 31 days.
+  • Tunnel bar (top, 16 px) — one stacked bar for all tunnels; each
+    connected session is drawn as a coloured segment per tunnel.
+  • WiFi band (below tunnel bar) — one row per distinct SSID seen in
+    the time window; each segment coloured per SSID. Only shown when
+    WiFi capture and Show WiFi are both on.
+  • Time axis at the bottom with tick marks and timestamps.
+  • Hover tooltip — move the mouse over the canvas to see everything
+    active at that point in time:
+      – Tunnel row: name, connected-since / time range, duration,
+        live KB/s when near now.
+      – WiFi row: SSID, connection time, duration, 🔒 secured / ⚠ open.
+  • < > navigation buttons — step through tunnel sessions in the time
+    window; tooltip pins to each session's midpoint and shows the WiFi
+    SSID active at that time.
+  • Panel auto-hides when both Show toggles are off.
+
+Settings — History page
+  • New dedicated tab in Settings for controlling what is recorded and
+    displayed.
+  • Capture toggles (independent):
+      – Connections — writes tunnel_history.json
+      – WiFi (SSID) — writes wifi_history.json including open/secured
+  • Show toggles (independent, disabled when capture is off):
+      – Connections — draw tunnel bars in the timeline chart
+      – WiFi (SSID) — draw WiFi rows in the timeline chart
+  • Activity chart time range pill: Last 24 hours / Last 7 days /
+    Last 31 days.
+
+Tunnel config file storage
+  • Tunnel configs are now stored as individual DPAPI-encrypted
+    .conf.dpapi files in %APPDATA%\MasselGUARD\tunnels\.
+  • config.json stores only the file path — no key material is ever
+    written to config.json.
+  • Existing inline-encrypted entries are migrated automatically on
+    first launch.
+
 CLI — new commands
   • connect --all — connect all tunnels at once (optionally scoped with
     --group <name>).
   • info <name> — detailed status for one tunnel: type, group, uptime,
     last connected timestamp and trigger source.
-  • log [n] — last n connection history entries (default 20). Reads from
-    the same history.json as Settings → History — no duplication.
+  • log [n] — last n activity log entries (default 20). Reads from
+    tunnel_history.json — no duplication with the GUI.
       --logtype normal     tunnel | when | duration  (default)
       --logtype extended   adds the trigger source column
   • check-update — live check against GitHub; prints update status and
