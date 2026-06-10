@@ -1,3 +1,9 @@
+## v3.7.0 — Chromatic Chameleon
+
+*In development — theming is the main topic of this release.*
+
+---
+
 ## v3.6.0 — Dangerous Donkey
 
 ### Settings reorganized — 7 tabs

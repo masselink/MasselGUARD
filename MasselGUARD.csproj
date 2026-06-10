@@ -33,10 +33,10 @@
     <ApplicationIcon>MasselGUARD.ico</ApplicationIcon>
     <!-- Default versions for IDE / dotnet build without BUILD.bat.
          BUILD.bat overrides these via -p:Version / -p:InformationalVersion. -->
-    <Version>3.6.0</Version>
-    <AssemblyVersion>3.6.0.0</AssemblyVersion>
-    <FileVersion>3.6.0.0</FileVersion>
-    <InformationalVersion>3.6.0</InformationalVersion>
+    <Version>3.7.0</Version>
+    <AssemblyVersion>3.7.0.0</AssemblyVersion>
+    <FileVersion>3.7.0.0</FileVersion>
+    <InformationalVersion>3.7.0</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
