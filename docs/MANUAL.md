@@ -1,6 +1,6 @@
 # MasselGUARD — User Manual
 
-**Version 3.5.0 — Hypersonic Quokka**
+**Version 3.6.0 — Dangerous Donkey**
 
 ---
 
@@ -15,20 +15,20 @@
 7. [Default action and open network protection](#7-default-action-and-open-network-protection)
 8. [WiFi Rules](#8-wifi-rules)
 9. [Settings — General](#9-settings--general)
-10. [Settings — Tunnel Groups](#10-settings--tunnel-groups)
-11. [Settings — Appearance](#11-settings--appearance)
-12. [Settings — Default Action](#12-settings--default-action)
-13. [Settings — WiFi Rules](#13-settings--wifi-rules)
-14. [Settings — History](#14-settings--history)
-15. [Settings — Advanced](#15-settings--advanced)
-16. [Settings — About](#16-settings--about)
-17. [Pre/post scripts](#17-prepost-scripts)
-18. [Quick Connect](#18-quick-connect)
-19. [Import / Export settings](#19-import--export-settings)
-20. [The activity log](#20-the-activity-log)
-21. [Activity timeline](#21-activity-timeline)
-22. [System tray](#22-system-tray)
-23. [Kill switch](#23-kill-switch)
+10. [Settings — Tunnels](#10-settings--tunnels)
+11. [Settings — WiFi](#11-settings--wifi)
+12. [Settings — Appearance](#12-settings--appearance)
+13. [Settings — History](#13-settings--history)
+14. [Settings — Advanced](#14-settings--advanced)
+15. [Settings — About](#15-settings--about)
+16. [Pre/post scripts](#16-prepost-scripts)
+17. [Quick Connect](#17-quick-connect)
+18. [Import / Export settings](#18-import--export-settings)
+19. [The activity log](#19-the-activity-log)
+20. [Activity timeline](#20-activity-timeline)
+21. [System tray](#21-system-tray)
+22. [Kill switch](#22-kill-switch)
+23. [Auto-reconnect](#23-auto-reconnect)
 24. [Themes](#24-themes)
 25. [Font override](#25-font-override)
 26. [Multiple languages](#26-multiple-languages)
@@ -74,13 +74,17 @@ Runs on first launch and when starting a newer version than the last wizard run.
 
 **Step 0 — Welcome:** Upgrade banner (on version change). Install-choice card (first-run Standalone). Import settings card.
 
-**Step 1 — Language & Appearance:** Language picker and theme selector. Changes apply immediately as a preview.
+**Step 1 — Language & Appearance:** Language picker (with country flags) and theme selector. Changes apply immediately as a preview.
 
 **Step 2 — Operating mode:** Standalone / Companion / Mixed.
 
-**Step 3 — Automation:** Disable WiFi rules toggle. Show WiFi rules panel toggle.
+**Step 3 — Startup:** How MasselGUARD is installed, whether it starts automatically with Windows, and confirm disconnect on exit.
 
-**Step 4 — Done:** Version label and Check for updates.
+**Step 4 — WiFi:** Explains how WiFi rules, the default action, and open network protection work together (rules themselves are created after the wizard, in Settings → WiFi). Disable WiFi rules toggle. Show WiFi rules panel toggle.
+
+**Step 5 — Behavior:** Auto-reconnect mode (Off / Per tunnel / Always), DNS leak indicator, history capture (connections / WiFi), tray notifications.
+
+**Step 6 — Done:** Summary of every chosen setting, version label, and Check for updates.
 
 ---
 
@@ -123,7 +127,7 @@ Column header: **Time** | **Event**. Entry count badge. Export Log button.
 The log panel can be shown or hidden:
 - **`☰` button** — appears on the right side of the tunnel header only when the log is collapsed; click to show
 - **`»` button** — appears on the right side of the activity log header; click to collapse
-- Toggle state persists across sessions (see Settings → General → Interface)
+- Toggle state persists across sessions (see Settings → Appearance → Interface)
 
 ### Footer bar
 
@@ -135,7 +139,7 @@ Left: run mode (green when Managed) | Centre: ⚡ default tunnel + 🔓 open pro
 
 ### Tunnel groups
 
-Manage in **Settings → Tunnel Groups**. Each group row has:
+Manage in **Settings → Tunnels**. Each group row has:
 - 👁 Hide/show the group tab
 - ⭐ Set as startup default
 - Name field (editable inline)
@@ -173,7 +177,7 @@ Activates automatically on **passwordless** WiFi before any SSID rule. The assig
 ### Setting them
 
 - **Defaults button** in the tunnel toolbar (popup centred on window) — immediate save
-- **Settings → Default Action** — saves on Settings Save
+- **Settings → WiFi** — saves on Settings Save
 - **Edit tunnel dialog** footer bar toggles — saves on dialog Save
 
 ---
@@ -222,26 +226,69 @@ Language picker — changes take effect immediately. Five languages: English, Du
 - **Companion** — Automates the WireGuard for Windows app
 - **Mixed** — Both simultaneously
 
-### Interface
+### Startup & exit
 
-- **Show activity log** — shows or hides the activity log panel on the right side of the main window. Changes take immediate effect. Saved state persists across restarts.
+- **Start with Windows** — registers a Scheduled Task at `RunLevel=Highest`, so MasselGUARD starts elevated without a UAC prompt
+- **Confirm disconnect on exit** — when active tunnels are running, ask before disconnecting them on exit. When off, tunnels are disconnected silently (default: on)
 
-All changes deferred until Save. Cancel discards everything, including the log visibility change.
+All changes deferred until Save.
 
 ---
 
-## 10. Settings — Tunnel Groups
+## 10. Settings — Tunnels
+
+All tunnel-wide configuration in one place: groups, connection behaviour, and display options.
+
+### Tunnel groups
+
+- Group list — add/edit/reorder/delete groups, set colour and visibility
+- Add group: type name + click + Add
+
+### Auto-reconnect mode
+
+| Setting | Behaviour |
+|---|---|
+| **Off** (default) | Auto-reconnect is disabled globally |
+| **Per tunnel** | Each tunnel has its own toggle in the Edit Tunnel dialog |
+| **Always** | Every tunnel reconnects on unexpected drop; per-tunnel toggle is not shown |
+
+### Kill switch mode
+
+| Setting | Behaviour |
+|---|---|
+| **Per tunnel** (default) | Kill switch can be enabled per tunnel in the tunnel edit dialog |
+| **Always** | Kill switch is forced on for every tunnel; per-tunnel toggle is not shown |
+
+### Config validation
+
+Pre-flight validation checks WireGuard config files for errors (invalid IPs, missing keys, bad CIDRs) before connecting. The **Skip config validation globally** toggle disables it as a last resort — invalid configs will still fail, just with a less clear error.
+
+### Display
 
 - **Always hide tunnel count** — removes the `n` number from all group tab buttons
 - **Hide empty groups** — suppresses tabs with no tunnels in the current filter
-- Group list — add/edit/reorder/delete groups, set colour and visibility
-- Add group: type name + click + Add
+- **Show DNS leak indicator** — shows or hides the DNS status badge on active tunnels
 
 Changes deferred until Save.
 
 ---
 
-## 11. Settings — Appearance
+## 11. Settings — WiFi
+
+Everything that controls what happens when your network changes, in evaluation order: rules first, then the default action when no rule matches, plus open network protection.
+
+**Layout (top to bottom):**
+1. Rules list — Add / Edit / Delete buttons
+2. **Disable WiFi rules** toggle — pauses all automation
+3. **Default action** picker: None / Disconnect / Activate tunnel — applied when no rule matches the current SSID. Same as the Defaults button popup but deferred to Settings Save
+4. **Open network protection** tunnel picker — activated when connecting to an unsecured (open) WiFi network, before any SSID rule or default action
+5. Display — **Hide WiFi rules on main window** and **Show Rules column** in tunnel list toggles
+
+Rules changes save via the main Save button.
+
+---
+
+## 12. Settings — Appearance
 
 ### System theme mode
 
@@ -253,20 +300,13 @@ A pill strip sets whether dark or light mode is used:
 | **Light** | Always use the light theme |
 | **Dark** | Always use the dark theme |
 
-### Custom appearance
+### Theme
 
-The **Use custom theme** toggle switches between two colour sources:
-
-| State | Source |
-|---|---|
-| **Off** (default) | Windows 11 system accent colours |
-| **On** | Custom theme files from the `theme/` folder |
-
-When enabled, two theme pickers appear — one for dark mode, one for light mode — so each mode can have its own theme file. Selections are independent.
+A **single theme picker** selects the theme. Every theme contains both a dark and a light colour variant — the System mode pill decides which variant is shown. **System (Windows colors)** is a first-class entry in the picker and uses the Windows 11 accent palette instead of a theme file.
 
 ### Theme preview
 
-Theme selections are **not applied immediately**. Click **▶ Preview** to apply the selected theme to the interface for 10 seconds, then it reverts automatically. Click again (shown as `↩ Xs`) to revert early. Changing any theme setting while a preview is active cancels the preview.
+Theme selections are **not applied immediately**. Click **▶ Dark** or **▶ Light** to apply that colour variant of the selected theme to the interface for 10 seconds, then it reverts automatically. Click again (shown as `↩ Xs`) to revert early. Changing any theme setting while a preview is active cancels the preview.
 
 ### Font override
 
@@ -300,29 +340,13 @@ The **▶ Preview** button next to the size slider applies the draft font to the
 - Strip colour: Accent (rule), Success/green (open network), Warning (default action)
 - Slides in from bottom-right; auto-dismisses after configured duration
 
----
+### Interface
 
-## 12. Settings — Default Action
-
-- Default action picker: None / Disconnect / Activate tunnel
-- Open network protection tunnel picker
-- Same as Defaults button popup but deferred to Settings Save
+- **Show activity log** — shows or hides the activity log panel on the right side of the main window. Changes take immediate effect. Saved state persists across restarts.
 
 ---
 
-## 13. Settings — WiFi Rules
-
-**Layout (top to bottom):**
-1. Rules list — Add / Edit / Delete buttons
-2. **Disable WiFi rules** toggle — pauses all automation
-3. **Hide WiFi rules on main window** toggle
-4. **Show Rules column** in tunnel list toggle
-
-Rules changes save via the main Save button.
-
----
-
-## 14. Settings — History
+## 13. Settings — History
 
 Controls what connection and WiFi data is recorded and displayed in the activity timeline.
 
@@ -348,24 +372,16 @@ Pill selector: **Last 24 hours** · **Last 7 days** · **Last 31 days**
 
 ---
 
-## 15. Settings — Advanced
+## 14. Settings — Advanced
+
+App maintenance and diagnostics only — tunnel behaviour settings (auto-reconnect, kill switch, config validation) live on the **Tunnels** tab; startup settings live on **General**.
 
 **Order:**
 1. Import / Export settings
 2. Log level (Normal / Extended)
-3. Kill switch mode
-4. Installation — run mode, Install/Uninstall button
-5. Start with Windows — Scheduled Task at `RunLevel=Highest`
-6. **Confirm disconnect on exit** — when off, active tunnels are disconnected silently on exit (default: on)
-7. WireGuard client — open the WireGuard for Windows app
-8. Orphaned services — scan and clean up
-
-### Kill switch mode
-
-| Setting | Behaviour |
-|---|---|
-| **Off** (default) | Kill switch can be enabled per tunnel in the tunnel edit dialog |
-| **Always** | Kill switch is forced on for every tunnel; per-tunnel toggle is not shown |
+3. Installation — run mode, Install/Uninstall button
+4. WireGuard client — open the WireGuard for Windows app
+5. Orphaned services — scan and clean up
 
 ### Extended log on Save
 
@@ -378,14 +394,14 @@ When extended logging is active, only **changed** fields are logged after Save:
 
 ---
 
-## 16. Settings — About
+## 15. Settings — About
 
 ### Version and update
 
 The version block shows:
 ```
-MasselGUARD v3.3.0  |  Camouflaged Koala
-build  2606011200
+MasselGUARD v3.6.0  |  Dangerous Donkey
+build  2606040000
 ```
 Version codenames are assigned per Major.Minor.Patch release. The build stamp is hidden in IDE/debug builds.
 
@@ -401,23 +417,23 @@ Version codenames are assigned per Major.Minor.Patch release. The build stamp is
 
 ### What's New panel
 
-A scrollable panel showing release notes for all versions, fetched live from `docs/WHATSNEW.md` in the GitHub repository. Updated every time the About tab is opened (once per Settings session). If the network is unavailable, a fallback panel is shown with clickable links to `github.com/masselink/MasselGUARD` and `masselink.net`.
+A scrollable panel showing release notes for all versions, fetched live from `docs/WHATSNEW.md` in the GitHub repository and rendered as formatted Markdown (headings, tables, bold). Updated every time the About tab is opened (once per Settings session). If the network is unavailable, a fallback panel is shown with clickable links to `github.com/masselink/MasselGUARD` and `masselink.net`.
 
 ---
 
-## 17. Pre/post scripts
+## 16. Pre/post scripts
 
 Four hook points per tunnel: Before connect / After connect / Before disconnect / After disconnect. `.bat` or `.ps1` files. Logged in Extended mode.
 
 ---
 
-## 18. Quick Connect
+## 17. Quick Connect
 
 Connect a `.conf` or `.conf.dpapi` file without importing. Appears as `⚡ filename` at top of tunnel list. Disappears after disconnecting.
 
 ---
 
-## 19. Import / Export settings
+## 18. Import / Export settings
 
 **Export** — saves to `.masselguard` (JSON). Tunnel configs not included. A themed confirmation dialog warns that configs are excluded before writing.
 
@@ -430,7 +446,7 @@ Connect a `.conf` or `.conf.dpapi` file without importing. Appears as `⚡ filen
 
 ---
 
-## 20. The activity log
+## 19. The activity log
 
 Column header: **Time** | **Event** — consistent with Tunnels and WiFi Rules panels.
 
@@ -448,7 +464,7 @@ The panel can be collapsed via the `»` button in its header, or reopened via th
 
 ---
 
-## 21. Activity timeline
+## 20. Activity timeline
 
 The activity timeline is a canvas shown above the footer when at least one history layer is active. It covers the last 24 h, 7 d, or 31 d (set in Settings → History → Activity chart).
 
@@ -486,7 +502,7 @@ The `<` and `>` buttons step through tunnel sessions within the current time win
 
 ---
 
-## 22. System tray
+## 21. System tray
 
 **Icon states:**
 - Filled green shield — one or more tunnels active
@@ -501,7 +517,7 @@ Right-click → menu. Double-click → show main window. × in main window → m
 
 ---
 
-## 23. Kill switch
+## 22. Kill switch
 
 The kill switch blocks all outbound internet traffic except through the active WireGuard tunnel. If the tunnel drops, traffic is blocked rather than leaking over the regular network interface.
 
@@ -518,7 +534,7 @@ In the **Edit Tunnel** dialog, a **Kill Switch** toggle enables the feature for 
 
 ### Global "Always" mode
 
-Set in **Settings → Advanced → Kill Switch Mode = Always**. Every tunnel automatically uses the kill switch; the per-tunnel toggle is not shown.
+Set in **Settings → Tunnels → Kill switch mode = Always**. Every tunnel automatically uses the kill switch; the per-tunnel toggle is not shown.
 
 ### Crash recovery
 
@@ -526,21 +542,71 @@ At startup, `KillSwitchService.CleanupStaleRules()` removes any leftover `Massel
 
 ---
 
+## 23. Auto-reconnect
+
+MasselGUARD detects when a tunnel drops unexpectedly and reconnects it automatically — up to 3 attempts with increasing backoff (5 s, 10 s, 15 s).
+
+### What counts as unexpected
+
+An unexpected drop is any tunnel failure **not** triggered deliberately. These are **never** retried:
+- User clicking Disconnect
+- A WiFi rule disconnecting the tunnel
+- CLI `disconnect` or `disconnect-all`
+- Deactivating the tunnel in the WireGuard for Windows app — MasselGUARD recognises a clean deactivate and logs `was deactivated via the WireGuard app — not reconnecting`
+
+These **are** retried:
+- WireGuard kernel adapter crash
+- Machine waking from sleep with the VPN adapter gone
+- WireGuard for Windows service crashing unexpectedly
+
+### Global mode
+
+Set in **Settings → Tunnels → Auto-reconnect**:
+
+| Mode | Behaviour |
+|---|---|
+| **Off** | Disabled globally — no tunnels reconnect automatically |
+| **Per tunnel** | Each tunnel has its own toggle in the Edit Tunnel dialog |
+| **Always** (default) | Every tunnel reconnects; the per-tunnel toggle is not shown |
+
+### Per-tunnel toggle
+
+When global mode is **Per tunnel**, a **🔄 Auto-reconnect** toggle appears in the Edit Tunnel dialog footer (next to Kill switch). Enable it for tunnels you want to reconnect automatically.
+
+When global mode is **Always**, the toggle shows greyed out with *(controlled globally)*.
+When global mode is **Off**, the toggle is hidden entirely.
+
+### Activity log entries
+
+```
+[AutoReconnect] 'WorkVPN' dropped — reconnecting in 5s (attempt 1/3)…
+[AutoReconnect] 'WorkVPN' reconnected successfully.
+```
+
+```
+[AutoReconnect] 'WorkVPN' dropped — reconnecting in 5s (attempt 1/3)…
+[AutoReconnect] 'WorkVPN' — attempt 1 failed.
+[AutoReconnect] 'WorkVPN' dropped — reconnecting in 10s (attempt 2/3)…
+[AutoReconnect] 'WorkVPN' — giving up after 3 attempts.
+```
+
+---
+
 ## 24. Themes
 
 ### Built-in themes
 
-Six built-in: Default Dark/Light, Grey Dark/Light, High Contrast Dark/Light.
+Two built-in themes — **Grey** and **High Contrast** — plus **System (Windows colors)**, which uses the Windows 11 accent palette and is the default. Each theme contains both a dark and a light colour variant; the Appearance System mode (Light / Dark / Auto) decides which one is shown.
 
 ### Custom theme files
 
-Drop a `theme/<folder>/theme.json` file into the `theme/` folder. Set `"type": "dark"` or `"type": "light"` so it appears in the correct picker.
+Drop a `<folder>/theme.json` into the `theme\` folder next to the exe, or into `%APPDATA%\MasselGUARD\themes\` (survives app updates). The root level holds structural settings (font, corner radius, chrome); colours live in `"dark"` and `"light"` sections. Either section may be omitted — the missing variant is auto-generated at load time by HSL lightness inversion.
 
 Custom themes can override `AppName` to change the name shown in toast notifications.
 
 ### Live preview
 
-Use the **▶ Preview** button in Settings → Appearance to see a theme for 10 seconds before committing. Cancel Settings to revert to the last saved theme.
+Use the **▶ Dark** / **▶ Light** buttons in Settings → Appearance to see a colour variant for 10 seconds before committing. Cancel Settings to revert to the last saved theme.
 
 See `theme/THEME_INFO.md` for the full key reference.
 
@@ -561,7 +627,7 @@ To return to the theme's own font: toggle **Override font** off.
 
 ## 26. Multiple languages
 
-English, Dutch, German, French, Spanish. Change in Settings → General. Add a language: copy `lang\en.json`, translate, add `_code` and `_language` keys.
+English, Dutch, German, French, Spanish. Change in Settings → General — the picker shows a country flag next to each language. Add a language: copy `lang\en.json`, translate, set the `_code`, `_language`, and `_flag` keys, and drop a matching 20×15 `<flag>.png` into `lang\flags\`.
 
 ---
 
@@ -571,7 +637,7 @@ English, Dutch, German, French, Spanish. Change in Settings → General. Add a l
 Fixed — debounce re-fire guard and `ApplyWifiState` duplicate guard prevent double execution.
 
 **Groups tab in Settings does nothing when clicked.**
-Fixed — the tab now correctly shows the Tunnel Groups page with group management controls.
+Fixed — the Tunnels tab shows the group management controls.
 
 **My tunnel group picker is empty when editing a tunnel.**
 Fixed — the dialog now receives the group list directly from the live config.
@@ -592,7 +658,7 @@ Removed. All settings (including rules) save when the main Settings Save button 
 Yes — drag the tunnel row and drop it onto the target group tab.
 
 **Can I run without a UAC prompt?**
-Yes — enable Start with Windows in Settings → Advanced after installing. Subsequent launches relaunch via the Scheduled Task automatically.
+Yes — enable Start with Windows in Settings → General after installing. Subsequent launches relaunch via the Scheduled Task automatically.
 
 **What does the Hits column show?**
 How many times each WiFi rule has triggered since it was created. Persisted across restarts. You can view and edit it by opening the Edit Rule dialog — the counter appears below the form fields with a **(Re)set counter** button.
@@ -601,7 +667,7 @@ How many times each WiFi rule has triggered since it was created. Persisted acro
 Hold **Shift** while clicking the window's X button (or pressing Alt+F4). This performs a clean exit — same as Tray → Exit. Without Shift, the window hides to the tray and the app keeps running.
 
 **Can I hide the activity log?**
-Yes — click `»` in the log header, or use Settings → General → Interface → Show activity log. The `☰` button reappears in the tunnel header to bring it back.
+Yes — click `»` in the log header, or use Settings → Appearance → Interface → Show activity log. The `☰` button reappears in the tunnel header to bring it back.
 
 **Theme changes apply immediately and I can't cancel — how do I preview safely?**
 Use the **▶ Preview** button in Settings → Appearance. It applies the theme for 10 seconds then automatically reverts. Cancel Settings to undo all uncommitted changes.
@@ -615,6 +681,15 @@ Hold **Shift** while launching MasselGUARD. Before any window opens, the app det
 **The What's New panel shows a "Could not load" message.**
 The panel fetches release notes live from GitHub. Check your internet connection. You can also visit `github.com/masselink/MasselGUARD` or `masselink.net` directly — both links in the error panel are clickable.
 
+**How does auto-reconnect work?**
+When MasselGUARD detects that a tunnel dropped unexpectedly, it waits 5 seconds then tries to reconnect. If that fails it retries after 10 s, then 15 s. It gives up after 3 failed attempts. Every step is logged in the activity log.
+
+**Auto-reconnect fired when I intentionally disconnected.**
+This should not happen — MasselGUARD marks all intentional disconnects (user click, WiFi rule, CLI) before stopping the tunnel, and the reconnect logic checks that mark. If you see it happening please report the steps that triggered it.
+
+**The Auto-reconnect toggle is greyed out / missing in the Edit Tunnel dialog.**
+If it is greyed out with *(controlled globally)*, Settings → Tunnels → Auto-reconnect is set to **Always**. If it is missing entirely, the mode is **Off** — enable Per tunnel or Always first.
+
 **How does the kill switch work?**
 When enabled, MasselGUARD sets the Windows Firewall default outbound policy to Block and adds explicit Allow rules for the WireGuard tunnel adapter and endpoint. If the tunnel drops, traffic is blocked rather than routing over your regular internet connection.
 
@@ -622,7 +697,7 @@ When enabled, MasselGUARD sets the Windows Firewall default outbound policy to B
 The kill switch firewall rules were not cleaned up. Restart MasselGUARD — it removes stale `MasselGUARD_KS_*` rules and restores the default outbound policy to Allow at startup. Alternatively, open Windows Defender Firewall, remove any rules starting with `MasselGUARD_KS_`, and set the default outbound action back to Allow.
 
 **The kill switch toggle is greyed out in the tunnel edit dialog.**
-Settings → Advanced → Kill Switch Mode is set to **Always**, which forces the kill switch on for all tunnels. Set it to **Off** to re-enable the per-tunnel toggle.
+Settings → Tunnels → Kill switch mode is set to **Always**, which forces the kill switch on for all tunnels. Set it to **Off** to re-enable the per-tunnel toggle.
 
 **Where do I see bandwidth usage?**
 In the activity log (Extended mode). After each disconnect a grey continuation line shows the session duration and bandwidth: `↳ 2h 14m  ·  ↑ 142 MB  ↓ 1.2 GB`. Switch to Extended in Settings → Advanced → Log level.
@@ -638,7 +713,7 @@ MasselGUARD includes a full CLI for scripting and automation. The GUI and CLI sh
 
 ### Requirements
 
-Must run as Administrator. When invoked from a non-elevated terminal, Windows will prompt for elevation via UAC and open a new console window. To avoid the prompt, install MasselGUARD and enable **Start with Windows** (Settings → Advanced) — the Scheduled Task runs at `RunLevel=Highest` so no UAC dialog appears.
+Must run as Administrator. When invoked from a non-elevated terminal, Windows will prompt for elevation via UAC and open a new console window. To avoid the prompt, install MasselGUARD and enable **Start with Windows** (Settings → General) — the Scheduled Task runs at `RunLevel=Highest` so no UAC dialog appears.
 
 **Tip:** run PowerShell or cmd.exe as Administrator for inline output without a separate window.
 
@@ -654,7 +729,9 @@ Must run as Administrator. When invoked from a non-elevated terminal, Windows wi
 | `disconnect <name>` | — | Disconnect a tunnel by name |
 | `disconnect-all` | — | Disconnect all active tunnels |
 | `info <name>` | — | Detailed status for one tunnel (type, group, uptime, source) |
-| `log [n]` | — | Last *n* connection history entries (default 20) |
+| `log [n]` | — | Last *n* activity log entries (default 20) |
+| `tunnel-history [n]` | — | Connection history with source and traffic (default 20) |
+| `wifi-history [n]` | — | WiFi SSID history with duration and security (default 20) |
 | `check-update` | `--check-update` | Live update check against GitHub |
 | `version` | `--version`, `-v` | Show version, build, author and update status |
 | `help` | `--help`, `-h` | Show this command reference |
@@ -717,8 +794,8 @@ MasselGUARD info "1.MasselinkVPN-Split-AG"
 ### Version output
 
 ```
-MasselGUARD v3.3.0  |  Camouflaged Koala
-build:   2506011430
+MasselGUARD v3.6.0  |  Dangerous Donkey
+build:   2606040000
 Harold Masselink  |  https://masselink.net
 Update:  up to date
 ```

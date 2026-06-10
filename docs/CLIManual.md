@@ -1,6 +1,6 @@
 # MasselGUARD — CLI Manual
 
-**Version 3.5.0 — Hypersonic Quokka**
+**Version 3.6.0 — Dangerous Donkey**
 
 MasselGUARD includes a full command-line interface for scripting, automation, and headless operation. The CLI and the GUI share the same WireGuard kernel driver and the same configuration — any change made via CLI is reflected in the GUI within ~1 second, and vice versa.
 
@@ -20,6 +20,8 @@ MasselGUARD includes a full command-line interface for scripting, automation, an
    - [disconnect-all](#disconnect-all)
    - [info](#info)
    - [log](#log)
+   - [tunnel-history](#tunnel-history)
+   - [wifi-history](#wifi-history)
    - [import](#import)
    - [delete](#delete)
    - [rawconnect](#rawconnect)
@@ -37,7 +39,7 @@ MasselGUARD includes a full command-line interface for scripting, automation, an
 - **Running from an elevated terminal** (recommended) — run PowerShell or cmd.exe as Administrator. Output appears inline in the same window.
 - **Running from a non-elevated terminal** — Windows will prompt for UAC elevation and open a new console window. A "Press any key to close" prompt appears so you can read the output before the window closes.
 
-> **Tip:** Install MasselGUARD and enable **Start with Windows** (Settings → Advanced). The Scheduled Task runs at `RunLevel=Highest`, so subsequent CLI calls from any context will not show a UAC popup.
+> **Tip:** Install MasselGUARD and enable **Start with Windows** (Settings → General). The Scheduled Task runs at `RunLevel=Highest`, so subsequent CLI calls from any context will not show a UAC popup.
 
 ---
 
@@ -396,6 +398,134 @@ MasselGUARD log 50 --json
 
 ---
 
+### tunnel-history
+
+Shows tunnel connection history. Reads from `%APPDATA%\MasselGUARD\tunnel_history.json`. Always includes the trigger source and — in JSON output — session traffic bytes.
+
+```
+MasselGUARD tunnel-history
+MasselGUARD tunnel-history <n>
+```
+
+**Options:**
+
+| Flag | Effect |
+|---|---|
+| `<n>` | Number of entries to show (default: 20) |
+| `--json` | Full JSON output including source and traffic bytes |
+
+**Examples:**
+
+```powershell
+# Last 20 entries
+MasselGUARD tunnel-history
+
+# Last 10 entries
+MasselGUARD tunnel-history 10
+
+# Machine-readable
+MasselGUARD tunnel-history 50 --json
+```
+
+**Plain output:**
+```
+  Tunnel              When               Duration    Source
+  ──────────────────  ─────────────────  ──────────  ──────────────────────────
+  1.HomeVPN           today 09:31        active      Rule: HomeWifi → HomeVPN
+  2.WorkVPN-Full      yesterday 14:05    42m 10s     Manual
+  1.HomeVPN           yesterday 08:12    6h 41m      Auto-reconnect
+```
+
+**JSON output:**
+```json
+[
+  {
+    "tunnel":           "1.HomeVPN",
+    "connected_at":     "2026-06-02T09:31:00+02:00",
+    "disconnected_at":  null,
+    "duration_sec":     null,
+    "active":           true,
+    "source":           "Rule: HomeWifi → HomeVPN",
+    "rx_bytes":         0,
+    "tx_bytes":         0
+  },
+  {
+    "tunnel":           "2.WorkVPN-Full",
+    "connected_at":     "2026-06-01T14:05:00+02:00",
+    "disconnected_at":  "2026-06-01T14:47:10+02:00",
+    "duration_sec":     2530,
+    "active":           false,
+    "source":           "Manual",
+    "rx_bytes":         148404224,
+    "tx_bytes":         12582912
+  }
+]
+```
+
+---
+
+### wifi-history
+
+Shows WiFi SSID connection history. Reads from `%APPDATA%\MasselGUARD\wifi_history.json`. Requires **Settings → History → Capture → WiFi (SSID)** to be enabled; returns an empty list otherwise.
+
+```
+MasselGUARD wifi-history
+MasselGUARD wifi-history <n>
+```
+
+**Options:**
+
+| Flag | Effect |
+|---|---|
+| `<n>` | Number of entries to show (default: 20) |
+| `--json` | Full JSON output including `open` flag and timestamps |
+
+**Examples:**
+
+```powershell
+# Last 20 entries
+MasselGUARD wifi-history
+
+# Last 5 entries
+MasselGUARD wifi-history 5
+
+# Machine-readable
+MasselGUARD wifi-history --json
+```
+
+**Plain output:**
+```
+  SSID              When               Duration    Security
+  ────────────────  ─────────────────  ──────────  ────────
+  HomeNetwork       today 07:45        active      secured
+  CoffeeShop-Free   yesterday 11:20    1h 12m      open
+  WorkOffice        yesterday 08:05    9h 02m      secured
+```
+
+**JSON output:**
+```json
+[
+  {
+    "ssid":             "HomeNetwork",
+    "connected_at":     "2026-06-02T07:45:00+02:00",
+    "disconnected_at":  null,
+    "duration_sec":     null,
+    "active":           true,
+    "open":             false
+  },
+  {
+    "ssid":             "CoffeeShop-Free",
+    "connected_at":     "2026-06-01T11:20:00+02:00",
+    "disconnected_at":  "2026-06-01T12:32:00+02:00",
+    "duration_sec":     4320,
+    "active":           false,
+    "open":             true
+  }
+]
+```
+
+---
+
 ### import
 
 Imports a WireGuard `.conf` or `.conf.dpapi` file into MasselGUARD as a local tunnel. Duplicate names are rejected.
@@ -578,27 +708,27 @@ MasselGUARD check-update --json
 
 **Plain output:**
 ```
-Up to date — v3.5.0 is the latest release.
+Up to date — v3.6.0 is the latest release.
 ```
 ```
-Update available: v3.6.0  (current: v3.5.0)
+Update available: v3.7.0  (current: v3.6.0)
 ```
 
 **JSON output:**
 ```json
 {
   "result":  "up_to_date",
-  "current": "3.5.0",
-  "latest":  "3.5.0",
-  "message": "Up to date — v3.5.0 is the latest release."
+  "current": "3.6.0",
+  "latest":  "3.6.0",
+  "message": "Up to date — v3.6.0 is the latest release."
 }
 ```
 ```json
 {
   "result":  "update_available",
-  "current": "3.5.0",
-  "latest":  "3.6.0",
-  "message": "Update available: v3.6.0  (current: v3.5.0)"
+  "current": "3.6.0",
+  "latest":  "3.7.0",
+  "message": "Update available: v3.7.0  (current: v3.6.0)"
 }
 ```
 
@@ -616,8 +746,8 @@ MasselGUARD -v
 
 **Plain output:**
 ```
-MasselGUARD v3.5.0  |  Hypersonic Quokka
-build:   2506011430
+MasselGUARD v3.6.0  |  Dangerous Donkey
+build:   2606040000
 Harold Masselink  |  https://masselink.net
 Update:  up to date
 ```
@@ -625,9 +755,9 @@ Update:  up to date
 **JSON output:**
 ```json
 {
-  "version":       "3.5.0",
-  "codename":      "Hypersonic Quokka",
-  "build":         "2506011430",
+  "version":       "3.6.0",
+  "codename":      "Dangerous Donkey",
+  "build":         "2606040000",
   "update_status": "up to date"
 }
 ```

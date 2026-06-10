@@ -1,6 +1,6 @@
 # MasselGUARD — How it works
 
-Technical reference for v3.5.0 — Hypersonic Quokka. For end-user instructions see [`MANUAL.md`](MANUAL.md).
+Technical reference for v3.6.0 — Dangerous Donkey. For end-user instructions see [`MANUAL.md`](MANUAL.md).
 
 ---
 
@@ -196,6 +196,15 @@ StopTunnel(name)
   └─ RunTunnelScript(PostDisconnectScript)
 ```
 
+### External transitions (companion tunnels)
+
+The 1-second status poll (`MainViewModel.RefreshTunnelStatus`) compares each tunnel's cached `IsActive` against the live service state. Transitions that MasselGUARD did not initiate (WireGuard app, CLI) are handled explicitly:
+
+- **External connect** → log `Connected: <name> via WireGuard app`, `TunnelService.RecordExternalConnect` opens a history entry (source *WireGuard app*), snapshots byte counters, and clears any stale intentional-disconnect mark and `UserDisconnected` flag.
+- **External disconnect** → `TunnelService.RecordExternalDisconnect` closes the open history entry, writes extended-log continuation lines, and logs `Disconnected: <name> via WireGuard app`.
+
+Auto-reconnect distinguishes a *clean deactivate* from a *crash* by checking whether the `WireGuardTunnel$<name>` SCM entry still exists. The WireGuard app stops the service **before** deleting the entry, so the check at drop time races the deletion — `AutoReconnectAsync` therefore re-checks after a 2 s grace delay (and after every backoff delay) and aborts with `was deactivated via the WireGuard app — not reconnecting` when the entry is gone. Reconnect attempts `await vm.ConnectAsync()` so success/failure is judged after the connect actually finishes.
+
 ---
 
 ## 8. Pre/post scripts
@@ -219,7 +228,7 @@ Script values take two forms:
 
 ## 9. Tunnel groups and categories
 
-Each tunnel can be assigned to a named group. Groups are managed in Settings → General. The tunnel list shows: All · group tabs · Uncategorized. `RebuildTunnelGroups()` builds the tab strip; selection is preserved by name across rebuilds.
+Each tunnel can be assigned to a named group. Groups are managed in Settings → Tunnels. The tunnel list shows: All · group tabs · Uncategorized. `RebuildTunnelGroups()` builds the tab strip; selection is preserved by name across rebuilds.
 
 ---
 
@@ -240,7 +249,7 @@ Config is never written to `%APPDATA%\MasselGUARD\tunnels\`.
 
 ## 11. Open network protection
 
-Detects open (passwordless) WiFi by reading `WLAN_SECURITY_ATTRIBUTES.bSecurityEnabled` at offset 580. A value of `0` means no security. Activates the configured protection tunnel **before** any SSID rule or default action. Configure in Settings → WiFi Rules → Open Network Protection.
+Detects open (passwordless) WiFi by reading `WLAN_SECURITY_ATTRIBUTES.bSecurityEnabled` at offset 580. A value of `0` means no security. Activates the configured protection tunnel **before** any SSID rule or default action. Configure in Settings → WiFi → Open network protection.
 
 ---
 
@@ -395,52 +404,53 @@ ACL: `SYSTEM + Administrators + owning user` only. Deleted within ~200 ms.
 
 ## 16. Theme system
 
-Themes live in `theme/<folder>/theme.json`. See `theme/THEME_INFO.md` for the full key reference.
+Themes are **unified dual-variant** files: one `theme.json` per theme containing both colour variants. See `theme/THEME_INFO.md` for the full key reference.
 
-| Folder | Type | Style |
-|---|---|---|
-| `default-dark` | dark | Rounded (6 px) |
-| `default-light` | light | Rounded (6 px) |
-| `grey-dark` | dark | Sharp (0 px) |
-| `grey-light` | light | Sharp (0 px) |
-| `highcontrast-dark` | dark | Near-sharp (2 px), WCAG AAA |
-| `highcontrast-light` | light | Near-sharp (2 px), WCAG AAA |
+| Location | Purpose |
+|---|---|
+| `<exedir>\theme\<folder>\theme.json` | Bundled built-in themes (`grey`, `highcontrast`) |
+| `%APPDATA%\MasselGUARD\themes\<folder>\theme.json` | User themes — survive app updates, checked first |
 
-`ThemeManager.Instance.Load(folder)` applies all values into `Application.Current.Resources`. Every `{DynamicResource}` binding updates immediately.
+`ThemeManager.BuiltinThemeNames` = `{ "grey", "highcontrast" }`; the virtual `__system__` theme (Windows accent palette) is also treated as built-in.
 
-### Custom appearance system
+### File format
 
-`AppConfig.UseCustomTheme` (bool, default `false`) separates colour sources:
+Root level holds **structural settings only** (font, corner radius, chrome, `AppName`); colour fields live in `"dark"` and `"light"` sections:
 
-- **Off** → `ThemeManager.Instance.LoadSystem(isDark)` — Windows 11 system accent palette
-- **On** → `ThemeManager.Instance.Load(ActiveDarkTheme or ActiveLightTheme)` — custom file
+```json
+{
+  "name": "My Theme",
+  "fontFamily": "Segoe UI",
+  "cornerRadius": 6,
+  "dark":  { "colorWindowBg": "#0E1117", "colorAccent": "#58A6FF" },
+  "light": { "colorWindowBg": "#F6F8FA", "colorAccent": "#0969DA" }
+}
+```
+
+### Load and resolution
+
+`ThemeManager.Instance.Load(name, isDark)` resolves the variant and applies all values into `Application.Current.Resources` (every `{DynamicResource}` binding updates immediately):
+
+```
+variant = isDark ? def.Dark : def.Light
+if variant != null      → MergeVariant(root, variant)
+else if other != null   → AutoInvertVariant(MergeVariant(root, other))   ← auto-generated
+else                    → def                                            ← legacy single-file theme
+```
+
+`AutoInvertVariant` derives the missing variant by HSL lightness inversion: neutral colours (S < 15 %) invert fully; backgrounds clamp to L ∈ [0.06, 0.94]; chromatic colours clamp to L ∈ [0.30, 0.75]. Nothing is written to disk — computed on every load. Colour fields missing from both sections fall back to the Windows system palette.
+
+### Theme selection
+
+`AppConfig.ActiveTheme` (default `"__system__"`) stores the single selected theme. `__system__` → `ThemeManager.Instance.LoadSystem(isDark)` (Windows 11 accent palette); anything else → `Load(ActiveTheme, isDark)`.
 
 `AppConfig.SystemThemeMode` (`"auto"` / `"light"` / `"dark"`) determines dark/light preference:
 - `"auto"` — polls `HKCU\...\Themes\Personalize\AppsUseLightTheme` every 5 seconds
 - `"light"` / `"dark"` — fixed regardless of Windows setting
 
-`AppConfig.ActiveDarkTheme` and `AppConfig.ActiveLightTheme` are stored independently so switching modes doesn't reset either picker.
-
 ### Theme preview (Settings)
 
-`DarkThemePicker_SelectionChanged`, `LightThemePicker_SelectionChanged`, `SystemMode_Changed`, and `CustomTheme_Changed` **do not apply** the theme live. They only update `_draft`. The `ThemePreviewBtn` applies the full draft state:
-
-```csharp
-private void ApplyDraftTheme()
-{
-    bool isDark = IsDraftDark();
-    if (!_draft.UseCustomTheme)
-        ThemeManager.Instance.LoadSystem(isDark);
-    else
-    {
-        var target = isDark ? _draft.ActiveDarkTheme : _draft.ActiveLightTheme;
-        ThemeManager.Instance.Load(target);
-    }
-    ThemeManager.ApplyFontOverride(_draft.FontOverrideEnabled, _draft.FontOverrideFamily, _draft.FontOverrideSize);
-}
-```
-
-A `DispatcherTimer` counts 10 seconds, then `CancelThemePreview()` loads `_originalTheme` and restores committed font.
+Picker and mode changes **do not apply** the theme live — they only update `_draft`. The **▶ Dark** / **▶ Light** buttons apply the selected theme's variant for 10 seconds via a `DispatcherTimer`; `CancelThemePreview()` then calls `_main.ApplyThemeFromConfig()`, which re-reads the committed config.
 
 ---
 
@@ -506,15 +516,15 @@ Continuation lines (detail sub-entries) render with a `↳` prefix in the timest
 
 | Tab | Key settings |
 |---|---|
-| **General** | Language, app mode, show activity log |
-| **Tunnel Groups** | Group add/edit/reorder, colours, visibility, hide count, hide empty |
-| **Appearance** | System mode, custom theme toggle, dark/light theme pickers, theme preview, font override, font preview, notifications |
-| **Default Action** | WiFi fallback (none / disconnect / activate + tunnel), open network protection |
-| **WiFi Rules** | Disable WiFi rules toggle, SSID→tunnel rules |
-| **Advanced** | Import/export, log level, install/uninstall, start with Windows, confirm on close, WireGuard client, orphaned services |
+| **General** | Language, app mode, start with Windows, confirm on close |
+| **Tunnels** | Group add/edit/reorder, colours, visibility; auto-reconnect mode, kill switch mode, config validation; hide count, hide empty, DNS indicator |
+| **WiFi** | SSID→tunnel rules, disable WiFi rules toggle, WiFi fallback (none / disconnect / activate + tunnel), open network protection, rules panel visibility |
+| **Appearance** | System mode, custom theme toggle, dark/light theme pickers, theme preview, font override, font preview, notifications, show activity log |
+| **History** | Capture/show toggles, chart time range, connection history list |
+| **Advanced** | Import/export, log level, install/uninstall, WireGuard client, orphaned services |
 | **About** | Version, update check frequency, check now |
 
-**Deferred save** — all tabs (including WiFi Rules) commit on the main Save button. Cancel reverts theme, font, and activity log visibility to committed state.
+**Deferred save** — all tabs (including WiFi rules) commit on the main Save button. Cancel reverts theme, font, and activity log visibility to committed state.
 
 ---
 
@@ -816,15 +826,17 @@ btn.Drop      += TunnelTabDrop;
 ```csharp
 string tab = btn.Name switch
 {
-    "TabBtnGroups"        => "Groups",
+    "TabBtnTunnels"       => "Tunnels",
+    "TabBtnWifi"          => "Wifi",
     "TabBtnAppearance"    => "Appearance",
-    "TabBtnDefaultAction" => "DefaultAction",
-    "TabBtnRules"         => "Rules",
     "TabBtnAdvanced"      => "Advanced",
+    "TabBtnHistory"       => "History",
     "TabBtnAbout"         => "About",
     _                     => "General",
 };
 ```
+
+Legacy tab names are mapped inside `ShowTab` for callers that still pass the pre-3.7 names: `"Groups"` → `"Tunnels"`, `"Rules"`/`"DefaultAction"` → `"Wifi"`.
 
 `Tab` is not used for routing because `SideTabBtn` style triggers on `Tag="Active"` for the highlight — the tag is exclusively for visual state.
 
