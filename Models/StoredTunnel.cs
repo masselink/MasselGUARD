@@ -30,8 +30,15 @@ namespace MasselGUARD.Models
         public string PostDisconnectScript{ get; set; } = "";
 
         // ── Advanced ─────────────────────────────────────────────────────────
-        public bool KillSwitch    { get; set; } = false;
-        public int  RetryCount    { get; set; } = 0;
-        public int  RetryDelaySec { get; set; } = 5;
+        public bool KillSwitch      { get; set; } = false;
+        public bool AutoReconnect   { get; set; } = false;
+        public int  RetryCount      { get; set; } = 0;
+        public int  RetryDelaySec   { get; set; } = 5;
+        /// <summary>
+        /// When true, pre-flight config validation is skipped for this tunnel.
+        /// Use only when the config is known to be valid but uses constructs
+        /// the validator does not yet understand.
+        /// </summary>
+        public bool SkipValidation  { get; set; } = false;
     }
 }

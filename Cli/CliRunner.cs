@@ -24,7 +24,9 @@ namespace MasselGUARD.Cli
     ///   disconnect &lt;name&gt;            Disconnect a tunnel by name
     ///   disconnect-all               Disconnect all active tunnels
     ///   info &lt;name&gt;                  Detailed status for one tunnel
-    ///   log [n]                      Recent connection history (default 20)
+    ///   log [n]                      Recent activity log entries (default 20)
+    ///   tunnel-history [n]       Connection history (default 20)
+    ///   wifi-history [n]             WiFi SSID history (default 20)
     ///   import &lt;file&gt;               Import a .conf or .conf.dpapi tunnel
     ///   delete &lt;name&gt;               Remove a tunnel from config
     ///   rawconnect                   Connect a tunnel built from inline parameters
@@ -96,6 +98,8 @@ namespace MasselGUARD.Cli
                     "disconnect-all"                    => CmdDisconnectAll(cfg, json, quiet, group),
                     "info"                              => CmdInfo(args, cfg, json),
                     "log"                               => CmdLog(args, json, logType),
+                    "tunnel-history"                => CmdTunnelHistory(args, json),
+                    "wifi-history"                      => CmdWifiHistory(args, json),
                     "import"                            => CmdImport(args, cfg, configSvc, json, quiet),
                     "delete"        or "remove"         => CmdDelete(args, cfg, configSvc, json, quiet),
                     "rawconnect"                        => CmdRawConnect(args, cfg, configSvc, json, quiet),
@@ -255,6 +259,14 @@ namespace MasselGUARD.Cli
                     $"Tunnel '{tunnel.Name}' is already connected.");
                 return 2;
             }
+
+            // For companion tunnels the service may need to be registered before
+            // starting, which involves SCM calls and WaitForStatus polling (up to 15 s).
+            // Print a progress line so the console stays visibly active.
+            bool isCompanion = !string.Equals(tunnel.Source, "local",
+                StringComparison.OrdinalIgnoreCase);
+            if (isCompanion && !quiet && !json)
+                CliOutput.Info($"Connecting '{tunnel.Name}' (WireGuard companion)…");
 
             bool ok = MakeTunnelService().Connect(tunnel, cfg, "CLI");
             if (ok)
@@ -480,6 +492,105 @@ namespace MasselGUARD.Cli
             return 0;
         }
 
+        // ── tunnel-history ────────────────────────────────────────────────
+
+        private static int CmdTunnelHistory(string[] args, bool json)
+        {
+            int n = 20;
+            var nArg = args.Skip(1).FirstOrDefault(a => !a.StartsWith("-", StringComparison.Ordinal));
+            if (nArg != null) int.TryParse(nArg, out n);
+            if (n <= 0) n = 20;
+
+            var hist = new HistoryService();
+            hist.Load();
+            var entries = hist.Entries.Take(n).ToList();
+
+            if (json)
+            {
+                CliOutput.PrintJson(entries.Select(e => new
+                {
+                    tunnel          = e.TunnelName,
+                    connected_at    = e.ConnectedAt.ToLocalTime().ToString("o"),
+                    disconnected_at = e.DisconnectedAt?.ToLocalTime().ToString("o"),
+                    duration_sec    = e.DisconnectedAt.HasValue
+                        ? (int?)(int)(e.DisconnectedAt.Value - e.ConnectedAt).TotalSeconds : null,
+                    active          = e.DisconnectedAt == null,
+                    source          = e.Source,
+                    rx_bytes        = e.SessionRxBytes,
+                    tx_bytes        = e.SessionTxBytes,
+                }));
+                return 0;
+            }
+
+            if (entries.Count == 0) { CliOutput.Info("No connection history."); return 0; }
+
+            int nameW = Math.Max(entries.Max(e => e.TunnelName.Length), 6);
+            int whenW = 18, durW = 10;
+
+            CliOutput.Info($"  {"Tunnel".PadRight(nameW)}  {"When".PadRight(whenW)}  {"Duration".PadRight(durW)}  Source");
+            CliOutput.Info($"  {new string('─', nameW)}  {new string('─', whenW)}  {new string('─', durW)}  ──────────────────");
+
+            foreach (var e in entries)
+            {
+                var when = FormatWhen(e.ConnectedAt.ToLocalTime()).PadRight(whenW);
+                var dur  = e.DisconnectedAt.HasValue
+                    ? FormatUptime(e.DisconnectedAt.Value - e.ConnectedAt).PadRight(durW)
+                    : "active    ";
+                var src  = string.IsNullOrEmpty(e.Source) ? "Manual" : e.Source;
+                CliOutput.Info($"  {e.TunnelName.PadRight(nameW)}  {when}  {dur}  {src}");
+            }
+            return 0;
+        }
+
+        // ── wifi-history ──────────────────────────────────────────────────────
+
+        private static int CmdWifiHistory(string[] args, bool json)
+        {
+            int n = 20;
+            var nArg = args.Skip(1).FirstOrDefault(a => !a.StartsWith("-", StringComparison.Ordinal));
+            if (nArg != null) int.TryParse(nArg, out n);
+            if (n <= 0) n = 20;
+
+            var hist = new HistoryService();
+            hist.LoadSsid();
+            var entries = hist.SsidEntries.Take(n).ToList();
+
+            if (json)
+            {
+                CliOutput.PrintJson(entries.Select(e => new
+                {
+                    ssid            = e.Ssid,
+                    connected_at    = e.ConnectedAt.ToLocalTime().ToString("o"),
+                    disconnected_at = e.DisconnectedAt?.ToLocalTime().ToString("o"),
+                    duration_sec    = e.DisconnectedAt.HasValue
+                        ? (int?)(int)(e.DisconnectedAt.Value - e.ConnectedAt).TotalSeconds : null,
+                    active          = e.DisconnectedAt == null,
+                    open            = e.IsOpen,
+                }));
+                return 0;
+            }
+
+            if (entries.Count == 0) { CliOutput.Info("No WiFi history."); return 0; }
+
+            int ssidW = Math.Max(entries.Max(e => (e.Ssid ?? "").Length), 4);
+            int whenW = 18, durW = 10;
+
+            CliOutput.Info($"  {"SSID".PadRight(ssidW)}  {"When".PadRight(whenW)}  {"Duration".PadRight(durW)}  Security");
+            CliOutput.Info($"  {new string('─', ssidW)}  {new string('─', whenW)}  {new string('─', durW)}  ────────");
+
+            foreach (var e in entries)
+            {
+                var ssid = (e.Ssid ?? "").PadRight(ssidW);
+                var when = FormatWhen(e.ConnectedAt.ToLocalTime()).PadRight(whenW);
+                var dur  = e.DisconnectedAt.HasValue
+                    ? FormatUptime(e.DisconnectedAt.Value - e.ConnectedAt).PadRight(durW)
+                    : "active    ";
+                var sec  = e.IsOpen ? "open" : "secured";
+                CliOutput.Info($"  {ssid}  {when}  {dur}  {sec}");
+            }
+            return 0;
+        }
+
         // ── import ────────────────────────────────────────────────────────────
 
         private static int CmdImport(string[] args, AppConfig cfg, ConfigService configSvc,
@@ -528,10 +639,41 @@ namespace MasselGUARD.Cli
                 if (isDpapi)
                 {
                     var cipher = File.ReadAllBytes(filePath);
-                    var plain  = System.Security.Cryptography.ProtectedData.Unprotect(
-                        cipher, null,
-                        System.Security.Cryptography.DataProtectionScope.CurrentUser);
+
+                    // Try CurrentUser scope first (MasselGUARD's own tunnel storage).
+                    byte[]? plain = null;
+                    try
+                    {
+                        plain = System.Security.Cryptography.ProtectedData.Unprotect(
+                            cipher, null,
+                            System.Security.Cryptography.DataProtectionScope.CurrentUser);
+                    }
+                    catch { }
+
+                    // Fall back to LocalMachine scope — WireGuard for Windows uses this.
+                    if (plain == null)
+                    {
+                        try
+                        {
+                            plain = System.Security.Cryptography.ProtectedData.Unprotect(
+                                cipher, null,
+                                System.Security.Cryptography.DataProtectionScope.LocalMachine);
+                        }
+                        catch { }
+                    }
+
+                    if (plain == null)
+                    {
+                        CliOutput.Error($"Failed to decrypt '{filePath}': DPAPI decryption failed " +
+                                        "(tried CurrentUser and LocalMachine scopes). " +
+                                        "Run as Administrator and ensure the file was encrypted on this machine.");
+                        return 1;
+                    }
+
                     plainText = System.Text.Encoding.UTF8.GetString(plain);
+                    // Strip UTF-8 BOM if present
+                    if (plainText.Length > 0 && plainText[0] == '﻿')
+                        plainText = plainText.Substring(1);
                 }
                 else
                 {
@@ -869,7 +1011,9 @@ namespace MasselGUARD.Cli
             CliOutput.Info("  disconnect <name>          Disconnect a tunnel by name");
             CliOutput.Info("  disconnect-all             Disconnect all active tunnels");
             CliOutput.Info("  info <name>                Detailed status for one tunnel");
-            CliOutput.Info("  log [n]                    Last n connection history entries (default 20)");
+            CliOutput.Info("  log [n]                    Last n activity log entries (default 20)");
+            CliOutput.Info("  tunnel-history [n]     Connection history with source and traffic (default 20)");
+            CliOutput.Info("  wifi-history [n]           WiFi SSID history with duration and security (default 20)");
             CliOutput.Info("  import <file>              Import a .conf or .conf.dpapi tunnel");
             CliOutput.Info("  delete <name>              Remove a tunnel from config");
             CliOutput.Info("  rawconnect                 Connect a tunnel built from inline parameters");
@@ -899,7 +1043,7 @@ namespace MasselGUARD.Cli
             CliOutput.Info("rawconnect options:");
             CliOutput.Info("  --endpoint <host:port>     Server endpoint  (required)");
             CliOutput.Info("  --pubkey <key>             Server public key  (required)");
-            CliOutput.Info("  --privkey <key>            Client private key (WARNING! visible in ps)");
+            CliOutput.Info("  --privkey <key>            Client private key (WARNING! visible in ps/console)");
             CliOutput.Info("  --privkeyfile <path>       Client private key from file (safer)");
             CliOutput.Info("  --address <CIDR>           Interface address");
             CliOutput.Info("  --dns <servers>            DNS servers");

@@ -195,7 +195,6 @@ namespace MasselGUARD
                 try { Directory.SetCurrentDirectory(exeDir); } catch { }
                 NativeMethods.SetDllDirectory(exeDir);
 
-
                 try
                 {
                     bool ok = NativeMethods.WireGuardTunnelService(conf);
@@ -566,16 +565,53 @@ namespace MasselGUARD
                             }
                             if (status == ServiceControllerStatus.Stopped)
                             {
-                                log("Service exited cleanly — tunnel is up in kernel.");
-                                tunnelUp = true;
+                                // wireguard-NT's WireGuardTunnelService() installs the
+                                // kernel adapter and returns immediately — service exits
+                                // in ~50-100 ms.  BUT a failed launch (driver load error,
+                                // config not found, etc.) also yields Stopped.
+                                // Wait briefly then probe the management pipe so we can
+                                // tell the two apart before declaring success.
+                                Thread.Sleep(300);
+                                if (IsRunning(tunnelName))
+                                {
+                                    log("Service exited cleanly — tunnel is up in kernel.");
+                                    tunnelUp = true;
+                                }
+                                else
+                                {
+                                    // Pipe not found — service exited but tunnel adapter
+                                    // is not present.  Check network adapter as fallback.
+                                    var stats = GetTrafficStats(tunnelName);
+                                    if (stats.AdapterFound)
+                                    {
+                                        log("Service exited — adapter present (no pipe yet).");
+                                        tunnelUp = true;
+                                    }
+                                    else
+                                    {
+                                        log("[ERR] Service exited but tunnel adapter not found. " +
+                                            "WireGuardTunnelService() likely failed — check Windows " +
+                                            "Event Log (System) for driver errors.");
+                                        // tunnelUp stays false → exception thrown below
+                                    }
+                                }
                                 break;
                             }
                         }
                         if (!tunnelUp)
                         {
+                            // Remove the orphaned service entry before surfacing the error.
+                            // (EnsureStopped is called again here because the service is
+                            // already Stopped; it will just delete the SCM entry.)
+                            try { EnsureStopped(serviceName, _ => { }); } catch { }
+
                             sc.Refresh();
+                            string state = sc.Status.ToString();
                             throw new InvalidOperationException(
-                                $"Service did not start within 10 s (status: {sc.Status}).");
+                                $"Tunnel did not come up within 10 s (service status: {state}). " +
+                                "Possible causes: driver blocked by antivirus/Secure Boot, " +
+                                "wireguard.dll version mismatch, or missing kernel support. " +
+                                "Check Windows Event Log (System) for details.");
                         }
                     }
                 }
