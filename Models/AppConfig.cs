@@ -82,6 +82,9 @@ namespace MasselGUARD.Models
         public string ActiveTheme { get; set; } = "__system__";
         /// <summary>"auto" (follow Windows) | "light" | "dark"</summary>
         public string SystemThemeMode  { get; set; } = "auto";
+        /// <summary>Git/HTTPS repo URL the "Download shared themes" button fetches from
+        /// (a GitHub repo URL or a direct .zip archive URL). Empty = not configured.</summary>
+        public string SharedThemesRepoUrl { get; set; } = "";
         /// <summary>When true (default) clicking ✕ shows a confirm dialog before closing.</summary>
         public bool   ConfirmOnClose   { get; set; } = true;
 
@@ -104,6 +107,19 @@ namespace MasselGUARD.Models
         /// inline next to each active tunnel's status.
         /// </summary>
         public bool ShowDnsIndicator { get; set; } = true;
+
+        // ── Possible-DNS-leak alerts ──────────────────────────────────────────
+        // Three independent delivery channels for "this active tunnel may be leaking
+        // DNS". The icon (ShowDnsIndicator above) is an always-on status badge; the
+        // log + toast warnings are edge-triggered (once per leak episode) and only
+        // fire while the leak is UNMITIGATED — i.e. smart name resolution is still
+        // enabled. Turn all three off to disable DNS-leak surfacing entirely.
+
+        /// <summary>Write a warning line to the activity log on a possible (unmitigated) DNS leak.</summary>
+        public bool DnsLeakWarnLog { get; set; } = true;
+
+        /// <summary>Show a tray toast on a possible (unmitigated) DNS leak.</summary>
+        public bool DnsLeakWarnToast { get; set; } = true;
 
         // ── Info / statistics section ─────────────────────────────────────────
         /// <summary>Show the timeline/statistics panel above the footer.</summary>

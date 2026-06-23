@@ -85,7 +85,7 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 - **Theme preview** — apply the selected theme for 10 seconds before committing; auto-reverts
 - **Font override** — pick any installed font; per-typeface rendering in the dropdown; size slider 8–18 pt
 - **Theme Builder** *(coming soon)* — create and edit custom dual-variant themes with live preview
-- Built-in themes: **Grey** and **High Contrast**, plus **System (Windows colors)**; user themes in `%APPDATA%\MasselGUARD\themes\`
+- Built-in themes: **Grey** and **High Contrast**, plus **System (Windows colors)**; user themes in `%APPDATA%\MasselGUARD\custom_themes\`
 
 ### Settings
 - **Organized in 7 tabs** — General / Tunnels / WiFi / Appearance / History / Advanced / About

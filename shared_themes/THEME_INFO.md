@@ -27,10 +27,12 @@ These are not backed by a folder — they are built into the app and always avai
 
 ## Custom themes
 
-Place a folder in `%APPDATA%\MasselGUARD\themes\` containing a `theme.json`. The app picks it up immediately — no restart needed. Select it in **Settings → Appearance**.
+Place a folder in `%APPDATA%\MasselGUARD\custom_themes\` containing a `theme.json`. The app picks it up immediately — no restart needed. Select it in **Settings → Appearance**.
+
+> Upgrading from a pre-3.7 version? Themes in the old `%APPDATA%\MasselGUARD\themes\` folder are moved to `custom_themes\` automatically on first launch.
 
 > Custom themes survive app updates and reinstalls.  
-> Built-in themes in the `theme\` folder next to the exe are read-only.
+> Shipped / downloaded themes in the `shared_themes\` folder next to the exe are read-only.
 
 ---
 

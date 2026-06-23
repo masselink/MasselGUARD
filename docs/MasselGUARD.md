@@ -408,10 +408,10 @@ Themes are **unified dual-variant** files: one `theme.json` per theme containing
 
 | Location | Purpose |
 |---|---|
-| `<exedir>\theme\<folder>\theme.json` | Bundled built-in themes (`grey`, `highcontrast`) |
-| `%APPDATA%\MasselGUARD\themes\<folder>\theme.json` | User themes — survive app updates, checked first |
+| `<exedir>\shared_themes\<folder>\theme.json` | Shipped / downloaded themes that come with the install (`blueongrey` = "Blue on grey", `highcontrast` = "High Contrast" (WCAG AAA), `glass` = "Glass", translucent) |
+| `%APPDATA%\MasselGUARD\custom_themes\<folder>\theme.json` | User themes — survive app updates, checked first (migrated from the pre-3.7 `themes\` folder on first launch) |
 
-`ThemeManager.BuiltinThemeNames` = `{ "grey", "highcontrast" }`; the virtual `__system__` theme (Windows accent palette) is also treated as built-in.
+`ThemeManager.SharedThemeNames()` discovers the shared themes **from disk** — every folder under `<exedir>\shared_themes\` with a `theme.json`. Shared themes are **read-only** but can be deleted and copied (Duplicate creates an editable custom copy). The app embeds no theme names; adding/removing a shared theme is just a folder there. Only the virtual `__system__` theme (Windows accent palette) is built in code, read-only and non-deletable (`IsBuiltinTheme`). The builder shows three groups: **Built-in** (System only), **Shared** (`shared_themes\`, read-only/deletable), **Custom** (`custom_themes\`, editable). The Dark/Light pill previews live for read-only themes too.
 
 ### File format
 

@@ -100,11 +100,11 @@ namespace MasselGUARD.Views
             TabBtnAbout.Tag      = tab == "About"      ? "Active" : null;
 
             if (tab == "General")    { RefreshGroupList(); RefreshModeStatusBox(); SyncStartWithWindows(); SyncConfirmOnClose(); }
-            if (tab == "Tunnels")    { RefreshGroupList(); SyncArMode(); SyncKsMode(); SyncSkipTunnelValidation(); SyncShowDnsIndicator(); }
+            if (tab == "Tunnels")    { RefreshGroupList(); SyncArMode(); SyncKsMode(); SyncSkipTunnelValidation(); }
             if (tab == "Wifi")       RefreshAutomationControls();
             if (tab == "Appearance") PopulateThemePicker();
             if (tab == "History")    RefreshHistoryTab();
-            if (tab == "Advanced")   { RefreshInstallState(); RefreshDllStatus(); RefreshWireGuardSection(); ScanOrphans(); PopulateLogLevelPicker(); }
+            if (tab == "Advanced")   { RefreshInstallState(); RefreshDllStatus(); RefreshWireGuardSection(); ScanOrphans(); PopulateLogLevelPicker(); RefreshDnsLeakSection(); }
             if (tab == "About")      RefreshUpdateState();
         }
 
@@ -537,6 +537,14 @@ namespace MasselGUARD.Views
                     .OfType<System.Windows.Controls.ComboBoxItem>()
                     .FirstOrDefault(i => (int)i.Tag == cur)
                     ?? NotifDurationPicker.Items[1];
+                _loading = false;
+            }
+
+            // Shared-themes repo URL
+            if (SharedThemesRepoBox != null)
+            {
+                _loading = true;
+                SharedThemesRepoBox.Text = _draft.SharedThemesRepoUrl ?? "";
                 _loading = false;
             }
 
@@ -1130,6 +1138,78 @@ namespace MasselGUARD.Views
                 MainWindow.DetectWireGuardInstallDir() ?? Lang.T("SettingsWgNotFound"));
         }
 
+        // ── DNS leak protection (smart name resolution + parallel A/AAAA) ───────
+        private void RefreshDnsLeakSection()
+        {
+            UpdateDnsRow(Services.DnsLeakService.IsSmartNameResolutionDisabled(),
+                         DnsLeakStatusLabel, DnsLeakDisableBtn, DnsLeakEnableBtn);
+            UpdateDnsRow(Services.DnsLeakService.IsParallelQueriesDisabled(),
+                         DnsParallelStatusLabel, DnsParallelDisableBtn, DnsParallelEnableBtn);
+
+            // Possible-leak alert channels (icon / log / toast; all off = disabled).
+            _loading = true;
+            if (ShowDnsIndicatorToggle != null) ShowDnsIndicatorToggle.IsChecked = _draft.ShowDnsIndicator;
+            if (DnsLeakWarnLogToggle   != null) DnsLeakWarnLogToggle.IsChecked   = _draft.DnsLeakWarnLog;
+            if (DnsLeakWarnToastToggle != null) DnsLeakWarnToastToggle.IsChecked = _draft.DnsLeakWarnToast;
+            _loading = false;
+        }
+
+        private void DnsLeakWarnLog_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.DnsLeakWarnLog = DnsLeakWarnLogToggle?.IsChecked == true;
+        }
+
+        private void DnsLeakWarnToast_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.DnsLeakWarnToast = DnsLeakWarnToastToggle?.IsChecked == true;
+        }
+
+        private void UpdateDnsRow(bool disabled, System.Windows.Controls.TextBlock? status,
+                                  System.Windows.Controls.Button? disableBtn,
+                                  System.Windows.Controls.Button? enableBtn)
+        {
+            if (status != null)
+            {
+                status.Text = disabled
+                    ? Lang.T("SettingsDnsLeakStatusOn")
+                    : Lang.T("SettingsDnsLeakStatusOff");
+                status.Foreground = (System.Windows.Media.Brush)FindResource(
+                    disabled ? "Success" : "TextMuted");
+            }
+            // Grey out the button matching the current state.
+            if (disableBtn != null) disableBtn.IsEnabled = !disabled;
+            if (enableBtn  != null) enableBtn.IsEnabled  = disabled;
+        }
+
+        /// <summary>Runs a DNS-policy change, reports the result, and refreshes the section.</summary>
+        private void ApplyDnsPolicy(Action change)
+        {
+            try
+            {
+                change();
+                _main.ShowThemedInfo(Lang.T("SettingsDnsLeakAppliedMsg"), Lang.T("SettingsSectionDnsLeak"));
+            }
+            catch (Exception ex)
+            {
+                _main.ShowThemedInfo(Lang.T("SettingsDnsLeakError", ex.Message), Lang.T("SettingsSectionDnsLeak"));
+            }
+            RefreshDnsLeakSection();
+        }
+
+        private void DnsLeakDisable_Click(object sender, RoutedEventArgs e) =>
+            ApplyDnsPolicy(Services.DnsLeakService.DisableSmartNameResolution);
+
+        private void DnsLeakEnable_Click(object sender, RoutedEventArgs e) =>
+            ApplyDnsPolicy(Services.DnsLeakService.EnableSmartNameResolution);
+
+        private void DnsParallelDisable_Click(object sender, RoutedEventArgs e) =>
+            ApplyDnsPolicy(Services.DnsLeakService.DisableParallelQueries);
+
+        private void DnsParallelEnable_Click(object sender, RoutedEventArgs e) =>
+            ApplyDnsPolicy(Services.DnsLeakService.EnableParallelQueries);
+
         private void ScanOrphans()
         {
             var orphans = _main.GetOrphanedServices();
@@ -1507,6 +1587,65 @@ namespace MasselGUARD.Views
             }
         }
 
+        private void OpenThemeBuilder_Click(object sender, RoutedEventArgs e)
+        {
+            // Close Settings first: the builder applies and saves themes directly,
+            // and a Settings save afterwards would overwrite ActiveTheme with the
+            // stale deferred draft. OnClosing also reverts any running preview, so
+            // the builder starts from the committed theme.
+            Close();
+            var builder = new ThemeBuilderWindow(_main) { Owner = _main };
+            builder.Show();
+        }
+
+        private void SharedThemesRepo_Changed(object sender, TextChangedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.SharedThemesRepoUrl = SharedThemesRepoBox.Text.Trim();
+        }
+
+        private async void DownloadThemes_Click(object sender, RoutedEventArgs e)
+        {
+            var url = SharedThemesRepoBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                _main.ShowThemedInfo("Enter a theme repository URL first (a GitHub repo URL or a direct .zip).",
+                    "Shared themes");
+                return;
+            }
+
+            // Persist the URL right away so it survives even if Settings is closed
+            // without Save (mirrors the immediate-effect fields elsewhere here).
+            _draft.SharedThemesRepoUrl = url;
+            _main.ConfigSvc.Config.SharedThemesRepoUrl = url;
+            _main.ConfigSvc.Save();
+
+            DownloadThemesBtn.IsEnabled = false;
+            ShowDownloadStatus("Downloading…");
+            try
+            {
+                var result = await Services.ThemeDownloadService.DownloadAsync(url, ThemeManager.SharedThemeRoot);
+                PopulateThemePicker();   // surface the new/updated shared themes
+                ShowDownloadStatus($"Installed {result.Count} theme(s): {string.Join(", ", result.Names)}");
+            }
+            catch (Exception ex)
+            {
+                ShowDownloadStatus("Download failed.");
+                _main.ShowThemedInfo($"Could not download themes:\n{ex.Message}", "Shared themes");
+            }
+            finally
+            {
+                DownloadThemesBtn.IsEnabled = true;
+            }
+        }
+
+        private void ShowDownloadStatus(string text)
+        {
+            if (DownloadThemesStatus == null) return;
+            DownloadThemesStatus.Text = text;
+            DownloadThemesStatus.Visibility = Visibility.Visible;
+        }
+
         private void RunWizard_Click(object sender, RoutedEventArgs e)
         {
             var wiz = new WizardWindow(_main) { Owner = this };
@@ -1577,14 +1716,6 @@ namespace MasselGUARD.Views
             if (_loading) return;
             if (sender is System.Windows.Controls.RadioButton rb && rb.Tag is string tag)
                 _draft.AutoReconnectMode = tag;
-        }
-
-        private void SyncShowDnsIndicator()
-        {
-            if (ShowDnsIndicatorToggle == null) return;
-            _loading = true;
-            ShowDnsIndicatorToggle.IsChecked = _draft.ShowDnsIndicator;
-            _loading = false;
         }
 
         private void ShowDnsIndicator_Changed(object sender, System.Windows.RoutedEventArgs e)
@@ -1756,6 +1887,8 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.ConfirmOnClose      = _draft.ConfirmOnClose;
             _main.ConfigSvc.Config.AutoReconnectMode   = _draft.AutoReconnectMode;
             _main.ConfigSvc.Config.ShowDnsIndicator    = _draft.ShowDnsIndicator;
+            _main.ConfigSvc.Config.DnsLeakWarnLog      = _draft.DnsLeakWarnLog;
+            _main.ConfigSvc.Config.DnsLeakWarnToast    = _draft.DnsLeakWarnToast;
             _main.ConfigSvc.Config.KillSwitchMode      = _draft.KillSwitchMode;
             _main.ConfigSvc.Config.SkipTunnelValidation = _draft.SkipTunnelValidation;
             _main.ConfigSvc.Config.FontOverrideEnabled    = _draft.FontOverrideEnabled;

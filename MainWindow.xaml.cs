@@ -544,21 +544,27 @@ namespace MasselGUARD
                     Content         = hideCount ? label : $"{label}  {count}",
                     Tag             = tag,
                     Style           = (Style)FindResource("FlatBtn"),
-                    Background      = active && tabBg != null ? tabBg :
-                                      active ? (Brush)FindResource("Surface") :
-                                      tabBg ?? Brushes.Transparent,
                     BorderThickness = new Thickness(0, 0, 0, active ? 2 : 0),
-                    BorderBrush     = active
-                        ? (tabBg != null ? tabBg : (Brush)FindResource("Accent"))
-                        : Brushes.Transparent,
-                    Foreground      = tabFg ??
-                                      (active ? (Brush)FindResource("Accent")
-                                               : (Brush)FindResource("TextMuted")),
                     FontSize        = 9,
                     Padding         = new Thickness(8, 2, 8, 2),
                     FontWeight      = active ? FontWeights.Bold : FontWeights.Normal,
                     Margin          = new Thickness(0, 0, 2, 0),
                 };
+
+                // Theme-derived colours use dynamic resource references so the tabs
+                // (including the selected one) restyle with theme switches and live
+                // Theme Builder edits — FindResource would freeze a snapshot of the
+                // brush at build time. Group-specific colours stay literal.
+                if (active && tabBg != null)  btn.Background = tabBg;
+                else if (active)              btn.SetResourceReference(BackgroundProperty, "Surface");
+                else                          btn.Background = tabBg ?? Brushes.Transparent;
+
+                if (!active)                  btn.BorderBrush = Brushes.Transparent;
+                else if (tabBg != null)       btn.BorderBrush = tabBg;
+                else                          btn.SetResourceReference(BorderBrushProperty, "Accent");
+
+                if (tabFg != null)            btn.Foreground = tabFg;
+                else                          btn.SetResourceReference(ForegroundProperty, active ? "Accent" : "TextMuted");
                 btn.Click += TunnelTab_Click;
                 btn.AllowDrop = true;
                 btn.DragOver  += TunnelTabDragOver;
@@ -1391,6 +1397,7 @@ namespace MasselGUARD
             if (dlg.ShowDialog() != true) return;
             var rule = new TunnelRule { Ssid = dlg.ResultSsid, Tunnel = dlg.ResultTunnel };
             ConfigSvc.Config.Rules.Add(rule);
+            OnRulesChanged();
         }
         public void EditRulePublic(TunnelRule rule)
         {
@@ -1408,10 +1415,12 @@ namespace MasselGUARD
             if (dlg.ResultNewCounterValue >= 0) rule.ExecutionCount = dlg.ResultNewCounterValue;
             if (dlg.ResultNewCounterValue >= 0)
                 LogSvc.Info($"  Counter: {oldCount} → {dlg.ResultNewCounterValue}");
+            OnRulesChanged();
         }
         public void DeleteRulePublic(TunnelRule rule)
         {
             ConfigSvc.Config.Rules.Remove(rule);
+            OnRulesChanged();
         }
 
         private string? GetCurrentSsid() => WifiSvc.CurrentSsid;
@@ -1444,16 +1453,27 @@ namespace MasselGUARD
 
                     presentInScm.Add(svc.ServiceName);
 
-                    // Running services are actively in use — not orphans.
+                    // Running/starting services are actively in use — not orphans.
                     // Both WireGuard for Windows and MasselGUARD delete the SCM entry
                     // when a tunnel is deactivated, so any stopped service is leftover debris.
-                    if (svc.Status == System.ServiceProcess.ServiceControllerStatus.Running)
+                    if (svc.Status is System.ServiceProcess.ServiceControllerStatus.Running
+                                   or System.ServiceProcess.ServiceControllerStatus.StartPending)
                         continue;
 
                     // Already queued for deletion — hide until SCM confirms it is gone.
                     if (_pendingOrphanDeletion.Contains(svc.ServiceName)) continue;
 
                     var name = svc.ServiceName[prefix.Length..];
+
+                    // A tunnel MasselGUARD is mid-connect on (service created but not yet
+                    // started), active, or mid-disconnect is not an orphan. Without this,
+                    // the startup orphan check races an auto-connect and flags the
+                    // brand-new service in its brief Stopped window.
+                    var vm = _vm.TunnelList.FirstOrDefault(t =>
+                        t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                    if (vm != null && (vm.IsConnecting || vm.IsActive || vm.IsDisconnecting))
+                        continue;
+
                     result.Add(new OrphanedService(svc.ServiceName, name));
                 }
 
@@ -1746,6 +1766,23 @@ namespace MasselGUARD
             if (WifiRuleDeleteBtn != null) WifiRuleDeleteBtn.IsEnabled = hasSelection;
         }
 
+        /// <summary>
+        /// Call after ANY change to <c>ConfigSvc.Config.Rules</c>. Persists the change,
+        /// refreshes the WiFi rules panel, and rebuilds BOTH the tunnel VMs and the
+        /// grouped list view so the per-tunnel rule-count column reflects it.
+        /// <c>RebuildTunnelList</c> alone is not enough: <c>TunnelsListView</c> is bound to
+        /// a <c>.ToList()</c> snapshot produced by <c>ApplyGroupFilter</c> (via
+        /// <c>RebuildTunnelGroups</c>), not to the live <c>_vm.TunnelList</c> collection, so
+        /// without the group rebuild the column keeps showing the pre-change VMs.
+        /// </summary>
+        public void OnRulesChanged()
+        {
+            ConfigSvc.Save();
+            RefreshWifiRulesPanel();
+            _vm.RebuildTunnelList();
+            RebuildTunnelGroups();
+        }
+
         private void WifiRuleAdd_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new Views.RuleDialog(
@@ -1756,10 +1793,8 @@ namespace MasselGUARD
             var rule = new Models.TunnelRule
                 { Name = dlg.ResultName, Ssid = dlg.ResultSsid, Tunnel = dlg.ResultTunnel };
             ConfigSvc.Config.Rules.Add(rule);
-            ConfigSvc.Save();
             LogSvc.Ok($"Rule added: {rule.Ssid}");
-            RefreshWifiRulesPanel();
-            _vm.RebuildTunnelList();
+            OnRulesChanged();
         }
 
         private void WifiRuleEdit_Click(object sender, RoutedEventArgs e)
@@ -1783,12 +1818,10 @@ namespace MasselGUARD
             rule.Ssid   = dlg.ResultSsid;
             rule.Tunnel = dlg.ResultTunnel;
             if (dlg.ResultNewCounterValue >= 0) rule.ExecutionCount = dlg.ResultNewCounterValue;
-            ConfigSvc.Save();
             LogSvc.Ok($"Rule updated: {rule.Ssid}");
             if (dlg.ResultNewCounterValue >= 0)
                 LogSvc.Info($"  Counter: {oldCount} → {dlg.ResultNewCounterValue}");
-            RefreshWifiRulesPanel();
-            _vm.RebuildTunnelList();
+            OnRulesChanged();
         }
 
         private void WifiRuleDelete_Click(object sender, RoutedEventArgs e)
@@ -1799,10 +1832,8 @@ namespace MasselGUARD
             if (rule == null) return;
             if (!ShowThemedYesNo($"Delete rule for \"{rule.Ssid}\"?", "Delete rule")) return;
             ConfigSvc.Config.Rules.Remove(rule);
-            ConfigSvc.Save();
             LogSvc.Ok($"Rule deleted: {rule.Ssid}");
-            RefreshWifiRulesPanel();
-            _vm.RebuildTunnelList();
+            OnRulesChanged();
         }
 
         // ── Defaults popup ────────────────────────────────────────────────────

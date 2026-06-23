@@ -375,29 +375,6 @@
                                 </Grid>
                             </Border>
 
-                            <!-- Show DNS leak indicator toggle -->
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,4,0,0">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{Binding [ShowDnsIndicatorLabel], Source={x:Static local:Lang.Instance}}"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                                                   Foreground="{DynamicResource TextPrimary}"/>
-                                        <TextBlock Text="{Binding [ShowDnsIndicatorDesc], Source={x:Static local:Lang.Instance}}"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
-                                                   Margin="0,2,0,0"/>
-                                    </StackPanel>
-                                    <ToggleButton Grid.Column="1" x:Name="ShowDnsIndicatorToggle"
-                                                  Style="{StaticResource ToggleSwitch}"
-                                                  Checked="ShowDnsIndicator_Changed"
-                                                  Unchecked="ShowDnsIndicator_Changed"
-                                                  VerticalAlignment="Center"/>
-                                </Grid>
-                            </Border>
 
                         </StackPanel>
 
@@ -729,7 +706,7 @@
                                 </ComboBox>
                             </Border>
                             <!-- Theme preview: test dark and light variant -->
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -756,6 +733,62 @@
                                             Click="LightThemePreview_Click"
                                             ToolTip="Preview the light variant for 10 s"/>
                                 </Grid>
+                            </Border>
+
+                            <!-- Theme Builder launcher -->
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding [ThemeBuilderTitle], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Text="{Binding [ThemeBuilderDesc], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                                   Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1"
+                                            Content="{Binding [ThemeBuilderOpenBtn], Source={x:Static local:Lang.Instance}}"
+                                            Style="{StaticResource FlatBtn}" FontSize="10" Padding="12,5"
+                                            Margin="12,0,0,0" VerticalAlignment="Center"
+                                            Click="OpenThemeBuilder_Click"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Shared-theme repository: download / update shared themes -->
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Shared theme repository"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                               Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Text="Download or update shared themes from a git repository (a GitHub repo URL or a direct .zip). They install into the read-only shared_themes folder; same-named themes are overwritten, your own themes are untouched."
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,2,0,8"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" x:Name="SharedThemesRepoBox"
+                                                 FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                 Padding="6,4" VerticalContentAlignment="Center"
+                                                 TextChanged="SharedThemesRepo_Changed"/>
+                                        <Button Grid.Column="1" x:Name="DownloadThemesBtn"
+                                                Content="Download" Style="{StaticResource FlatBtn}"
+                                                FontSize="10" Padding="12,5" Margin="8,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Click="DownloadThemes_Click"/>
+                                    </Grid>
+                                    <TextBlock x:Name="DownloadThemesStatus"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,6,0,0" Visibility="Collapsed"/>
+                                </StackPanel>
                             </Border>
 
                             <!-- ── Font override ─────────────────────────────── -->
@@ -977,6 +1010,156 @@
                                               MinWidth="110" FontSize="11" Padding="8,4"
                                               SelectionChanged="LogLevel_Changed"/>
                                 </Grid>
+                            </Border>
+
+                            <!-- DNS leak protection (smart multi-homed name resolution) -->
+                            <TextBlock Text="{Binding [SettingsSectionDnsLeak], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Background="{DynamicResource Surface}"
+                                    BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                                    CornerRadius="{DynamicResource Theme.CornerRadius}"
+                                    Padding="10,8" Margin="0,0,0,6">
+                                <TextBlock Text="{Binding [SettingsDnsLeakInfo], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <StackPanel>
+
+                                    <!-- Option 1: smart multi-homed name resolution -->
+                                    <TextBlock Text="{Binding [SettingsDnsLeakSmartLabel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                               FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Text="{Binding [SettingsDnsLeakSmartDesc], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,2,0,6"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" x:Name="DnsLeakStatusLabel"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="8,0,0,0">
+                                            <Button x:Name="DnsLeakDisableBtn"
+                                                    Content="{Binding [BtnDnsLeakDisable], Source={x:Static local:Lang.Instance}}"
+                                                    Style="{StaticResource SuccessBtn}" FontSize="10" Padding="12,5"
+                                                    Click="DnsLeakDisable_Click"/>
+                                            <Button x:Name="DnsLeakEnableBtn"
+                                                    Content="{Binding [BtnDnsLeakEnable], Source={x:Static local:Lang.Instance}}"
+                                                    Style="{StaticResource FlatBtn}" FontSize="10" Padding="12,5"
+                                                    Margin="6,0,0,0" Click="DnsLeakEnable_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Divider -->
+                                    <Border Height="1" Background="{DynamicResource BorderColor}"
+                                            Margin="0,12,0,12"/>
+
+                                    <!-- Option 2: parallel A / AAAA queries -->
+                                    <TextBlock Text="{Binding [SettingsDnsLeakParallelLabel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                               FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Text="{Binding [SettingsDnsLeakParallelDesc], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,2,0,6"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" x:Name="DnsParallelStatusLabel"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="8,0,0,0">
+                                            <Button x:Name="DnsParallelDisableBtn"
+                                                    Content="{Binding [BtnDnsLeakDisable], Source={x:Static local:Lang.Instance}}"
+                                                    Style="{StaticResource SuccessBtn}" FontSize="10" Padding="12,5"
+                                                    Click="DnsParallelDisable_Click"/>
+                                            <Button x:Name="DnsParallelEnableBtn"
+                                                    Content="{Binding [BtnDnsLeakEnable], Source={x:Static local:Lang.Instance}}"
+                                                    Style="{StaticResource FlatBtn}" FontSize="10" Padding="12,5"
+                                                    Margin="6,0,0,0" Click="DnsParallelEnable_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Divider -->
+                                    <Border Height="1" Background="{DynamicResource BorderColor}"
+                                            Margin="0,12,0,12"/>
+
+                                    <!-- Possible-leak alerts: independent delivery channels (all off = disabled) -->
+                                    <TextBlock Text="{Binding [SettingsDnsLeakWarnLabel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                               FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Text="{Binding [SettingsDnsLeakWarnDesc], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,2,0,8"/>
+
+                                    <!-- Channel: inline status icon (next to bandwidth) -->
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding [SettingsDnsLeakAlertIcon], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <ToggleButton Grid.Column="1" x:Name="ShowDnsIndicatorToggle"
+                                                      Style="{StaticResource ToggleSwitch}"
+                                                      VerticalAlignment="Center" Margin="8,0,0,0"
+                                                      Checked="ShowDnsIndicator_Changed"
+                                                      Unchecked="ShowDnsIndicator_Changed"/>
+                                    </Grid>
+
+                                    <!-- Channel: activity-log warning -->
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding [SettingsDnsLeakAlertLog], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <ToggleButton Grid.Column="1" x:Name="DnsLeakWarnLogToggle"
+                                                      Style="{StaticResource ToggleSwitch}"
+                                                      VerticalAlignment="Center" Margin="8,0,0,0"
+                                                      Checked="DnsLeakWarnLog_Changed"
+                                                      Unchecked="DnsLeakWarnLog_Changed"/>
+                                    </Grid>
+
+                                    <!-- Channel: tray toast -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding [SettingsDnsLeakAlertToast], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <ToggleButton Grid.Column="1" x:Name="DnsLeakWarnToastToggle"
+                                                      Style="{StaticResource ToggleSwitch}"
+                                                      VerticalAlignment="Center" Margin="8,0,0,0"
+                                                      Checked="DnsLeakWarnToast_Changed"
+                                                      Unchecked="DnsLeakWarnToast_Changed"/>
+                                    </Grid>
+
+                                    <TextBlock Text="{Binding [SettingsDnsLeakReboot], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,12,0,0"/>
+                                </StackPanel>
                             </Border>
 
                             <!-- Installation -->

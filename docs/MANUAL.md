@@ -600,7 +600,7 @@ Two built-in themes — **Grey** and **High Contrast** — plus **System (Window
 
 ### Custom theme files
 
-Drop a `<folder>/theme.json` into the `theme\` folder next to the exe, or into `%APPDATA%\MasselGUARD\themes\` (survives app updates). The root level holds structural settings (font, corner radius, chrome); colours live in `"dark"` and `"light"` sections. Either section may be omitted — the missing variant is auto-generated at load time by HSL lightness inversion.
+Drop a `<folder>/theme.json` into the `shared_themes\` folder next to the exe (shipped/downloaded, read-only in the builder), or into `%APPDATA%\MasselGUARD\custom_themes\` (your own, editable; survives app updates; pre-3.7 themes in the old `themes\` folder are moved here automatically on first launch). The root level holds structural settings (font, corner radius, chrome); colours live in `"dark"` and `"light"` sections. Either section may be omitted — the missing variant is auto-generated at load time by HSL lightness inversion.
 
 Custom themes can override `AppName` to change the name shown in toast notifications.
 

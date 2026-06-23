@@ -843,28 +843,31 @@
                                                        VerticalAlignment="Center" Margin="0,0,10,0"/>
                                             <RadioButton x:Name="Range24hBtn" GroupName="InfoTimeRange"
                                                          IsChecked="True" Margin="0,0,10,0"
+                                                         VerticalAlignment="Center"
                                                          Checked="InfoRange_Changed">
                                                 <RadioButton.Style><Style TargetType="RadioButton"><Setter Property="Template"><Setter.Value>
                                                     <ControlTemplate TargetType="RadioButton">
-                                                        <TextBlock x:Name="tb" Text="24h" FontSize="9" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand"/>
+                                                        <TextBlock x:Name="tb" Text="24h" FontSize="9" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand" VerticalAlignment="Center"/>
                                                         <ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="tb" Property="Foreground" Value="{DynamicResource Accent}"/><Setter TargetName="tb" Property="FontWeight" Value="SemiBold"/></Trigger></ControlTemplate.Triggers>
                                                     </ControlTemplate>
                                                 </Setter.Value></Setter></Style></RadioButton.Style>
                                             </RadioButton>
                                             <RadioButton x:Name="Range7dBtn" GroupName="InfoTimeRange"
-                                                         Margin="0,0,10,0" Checked="InfoRange_Changed">
+                                                         Margin="0,0,10,0" VerticalAlignment="Center"
+                                                         Checked="InfoRange_Changed">
                                                 <RadioButton.Style><Style TargetType="RadioButton"><Setter Property="Template"><Setter.Value>
                                                     <ControlTemplate TargetType="RadioButton">
-                                                        <TextBlock x:Name="tb" Text="7d" FontSize="9" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand"/>
+                                                        <TextBlock x:Name="tb" Text="7d" FontSize="9" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand" VerticalAlignment="Center"/>
                                                         <ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="tb" Property="Foreground" Value="{DynamicResource Accent}"/><Setter TargetName="tb" Property="FontWeight" Value="SemiBold"/></Trigger></ControlTemplate.Triggers>
                                                     </ControlTemplate>
                                                 </Setter.Value></Setter></Style></RadioButton.Style>
                                             </RadioButton>
                                             <RadioButton x:Name="Range31dBtn" GroupName="InfoTimeRange"
+                                                         VerticalAlignment="Center"
                                                          Checked="InfoRange_Changed">
                                                 <RadioButton.Style><Style TargetType="RadioButton"><Setter Property="Template"><Setter.Value>
                                                     <ControlTemplate TargetType="RadioButton">
-                                                        <TextBlock x:Name="tb" Text="31d" FontSize="9" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand"/>
+                                                        <TextBlock x:Name="tb" Text="31d" FontSize="9" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand" VerticalAlignment="Center"/>
                                                         <ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="tb" Property="Foreground" Value="{DynamicResource Accent}"/><Setter TargetName="tb" Property="FontWeight" Value="SemiBold"/></Trigger></ControlTemplate.Triggers>
                                                     </ControlTemplate>
                                                 </Setter.Value></Setter></Style></RadioButton.Style>

@@ -12,12 +12,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <!-- Suppress duplicate assembly attributes caused by the WPF wpftmp build step
-         (OutputType=WinExe).  The wpftmp project generates its own AssemblyInfo using
-         the same -p:Version / -p:InformationalVersion properties from BUILD.bat, so
-         version and build-stamp attributes are still embedded correctly. -->
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <StartupObject>MasselGUARD.Program</StartupObject>
     <!-- Strip all framework satellite resource folders (tr, ru, fr, de, etc.)
@@ -37,6 +31,9 @@
     <AssemblyVersion>3.7.0.0</AssemblyVersion>
     <FileVersion>3.7.0.0</FileVersion>
     <InformationalVersion>3.7.0</InformationalVersion>
+    <!-- Keep the SDK from appending "+<git-sha>" to InformationalVersion — the
+         About page shows the raw value as the build stamp. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -46,13 +43,25 @@
     <PackageReference Include="ZXing.Net.Bindings.Windows.Compatibility" Version="0.16.9" />
   </ItemGroup>
 
-  <!-- Explicitly exclude the deps\ build cache — it contains third-party C# source
-       (wireguard-windows demo project) that must never be compiled by this project. -->
+  <!-- Exclude sibling sub-projects from THIS project's default globs. Both live under
+       the GUI project directory, so the SDK's '**/*.cs' compile glob would otherwise
+       pull them in:
+         * deps\          — third-party wireguard-windows demo source (never compile).
+         * MasselGUARDcli\ — the CLI project. The CLI shares the GUI's source via
+           <Compile Include> LINKS (one-way), so the GUI must never compile the CLI's
+           own files. Critically this also excludes MasselGUARDcli\obj\, whose generated
+           MasselGUARDcli.AssemblyInfo.cs would otherwise be compiled into the GUI and
+           collide with the GUI's own assembly attributes (CS0579 "duplicate attribute" —
+           it only surfaced once the CLI had been built and its obj\ was populated). -->
   <ItemGroup>
     <Compile Remove="deps\**" />
     <Content Remove="deps\**" />
     <EmbeddedResource Remove="deps\**" />
     <None Remove="deps\**" />
+    <Compile Remove="MasselGUARDcli\**" />
+    <Content Remove="MasselGUARDcli\**" />
+    <EmbeddedResource Remove="MasselGUARDcli\**" />
+    <None Remove="MasselGUARDcli\**" />
   </ItemGroup>
 
   <ItemGroup>
