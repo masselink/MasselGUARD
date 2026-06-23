@@ -50,7 +50,29 @@ namespace MasselGUARD.Views
                 _draft = _main.ConfigSvc.Config.DeepClone();
                 ShowTab(InitialTab);
                 RefreshUpdateState();
+                RefreshLocalizedStrings();
             };
+
+            Lang.Instance.LanguageChanged += OnLanguageChanged;
+            Closed += (_, _) => Lang.Instance.LanguageChanged -= OnLanguageChanged;
+        }
+
+        private void OnLanguageChanged(object? sender, EventArgs e) =>
+            RefreshLocalizedStrings();
+
+        /// <summary>Refresh labels set from code-behind (not WPF Lang bindings).</summary>
+        private void RefreshLocalizedStrings()
+        {
+            UpdateThemePreviewBtn();
+            UpdateFontPreviewBtn();
+            if (FontSizeSlider != null)
+                UpdateFontSizeLabel(FontSizeSlider.Value);
+        }
+
+        private void UpdateFontSizeLabel(double size)
+        {
+            if (FontSizeValueLabel != null)
+                FontSizeValueLabel.Text = string.Format(Lang.T("SettingsFontSizeUnit"), (int)Math.Round(size));
         }
 
         // ── Tab routing ───────────────────────────────────────────────────────
@@ -119,6 +141,7 @@ namespace MasselGUARD.Views
             {
                 Lang.Instance.Load(item.Code);
                 _vm.Language = item.Code;
+                RefreshLocalizedStrings();
             }
         }
 
@@ -642,11 +665,11 @@ namespace MasselGUARD.Views
 
         private void UpdateThemePreviewBtn()
         {
-            if (DarkThemePreviewBtn  != null) { DarkThemePreviewBtn.Content  = "▶  Dark";  DarkThemePreviewBtn.Foreground  = (System.Windows.Media.Brush)FindResource("TextMuted"); }
-            if (LightThemePreviewBtn != null) { LightThemePreviewBtn.Content = "▶  Light"; LightThemePreviewBtn.Foreground = (System.Windows.Media.Brush)FindResource("TextMuted"); }
+            if (DarkThemePreviewBtn  != null) { DarkThemePreviewBtn.Content  = Lang.T("SettingsThemePreviewDarkBtn");  DarkThemePreviewBtn.Foreground  = (System.Windows.Media.Brush)FindResource("TextMuted"); }
+            if (LightThemePreviewBtn != null) { LightThemePreviewBtn.Content = Lang.T("SettingsThemePreviewLightBtn"); LightThemePreviewBtn.Foreground = (System.Windows.Media.Brush)FindResource("TextMuted"); }
             if (_themePreviewActive && _themePreviewSourceBtn != null)
             {
-                _themePreviewSourceBtn.Content    = $"↩  {_themePreviewSecondsLeft}s";
+                _themePreviewSourceBtn.Content    = string.Format(Lang.T("SettingsFontPreviewActive"), _themePreviewSecondsLeft);
                 _themePreviewSourceBtn.Foreground = (System.Windows.Media.Brush)FindResource("Accent");
             }
         }
@@ -736,7 +759,7 @@ namespace MasselGUARD.Views
             if (FontSizeSlider != null)
                 FontSizeSlider.Value = Math.Clamp(sliderVal, 8.0, 18.0);
             if (FontSizeValueLabel != null)
-                FontSizeValueLabel.Text = $"{(int)sliderVal} pt";
+                UpdateFontSizeLabel(sliderVal);
 
             _loading = false;
 
@@ -809,7 +832,7 @@ namespace MasselGUARD.Views
             double size = Math.Round(e.NewValue);
             _draft.FontOverrideSize = size;
             if (FontSizeValueLabel != null)
-                FontSizeValueLabel.Text = $"{(int)size} pt";
+                UpdateFontSizeLabel(size);
             if (_fontPreviewActive) CancelFontPreview();
         }
 
@@ -880,13 +903,13 @@ namespace MasselGUARD.Views
             if (FontPreviewBtn == null) return;
             if (_fontPreviewActive)
             {
-                FontPreviewBtn.Content    = $"↩  {_fontPreviewSecondsLeft}s";
+                FontPreviewBtn.Content    = string.Format(Lang.T("SettingsFontPreviewActive"), _fontPreviewSecondsLeft);
                 FontPreviewBtn.Foreground =
                     (System.Windows.Media.Brush)FindResource("Accent");
             }
             else
             {
-                FontPreviewBtn.Content    = "▶  Preview";
+                FontPreviewBtn.Content    = Lang.T("SettingsFontPreviewBtn");
                 FontPreviewBtn.Foreground =
                     (System.Windows.Media.Brush)FindResource("TextMuted");
             }
@@ -1948,8 +1971,8 @@ namespace MasselGUARD.Views
             Check("Hide count badge",      before.AlwaysHideTunnelCount, after.AlwaysHideTunnelCount);
             Check("Default group",         before.DefaultGroup,          after.DefaultGroup);
             Check("Show DNS indicator",    before.ShowDnsIndicator,      after.ShowDnsIndicator);
-            Check("Kill switch mode",      before.KillSwitchMode,        after.KillSwitchMode);
-            Check("Auto-reconnect mode",   before.AutoReconnectMode,     after.AutoReconnectMode);
+            Check(Lang.T("SettingsKillSwitchModeTitle"),      before.KillSwitchMode,        after.KillSwitchMode);
+            Check(Lang.T("SettingsAutoReconnectModeTitle"),   before.AutoReconnectMode,     after.AutoReconnectMode);
             Check("Font override",         before.FontOverrideEnabled,   after.FontOverrideEnabled);
             Check("Font family",           before.FontOverrideFamily,    after.FontOverrideFamily);
             Check("Font size",             before.FontOverrideSize,      after.FontOverrideSize);
