@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using Microsoft.Win32;
 
 namespace MasselGUARD.Services
@@ -83,9 +84,14 @@ namespace MasselGUARD.Services
         {
             try
             {
+                // Full System32 path (not a bare "ipconfig") so an elevated process can
+                // never pick up a planted ipconfig.exe from the app dir / PATH.
+                var ipconfig = Path.Combine(Environment.SystemDirectory, "ipconfig.exe");
+                if (!File.Exists(ipconfig)) return;
+
                 using var p = Process.Start(new ProcessStartInfo
                 {
-                    FileName               = "ipconfig",
+                    FileName               = ipconfig,
                     Arguments              = "/flushdns",
                     CreateNoWindow         = true,
                     UseShellExecute        = false,

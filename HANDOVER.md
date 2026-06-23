@@ -325,6 +325,7 @@ functional but unreachable** — nothing instantiates it. What it has:
 
 | Date | Session work |
 |---|---|
+| 2026-06-23 | **i18n-ja PR integrated + JP flag + security hardening.** Merged the Japanese i18n PR into dev (lang key union, ja.json backfilled to 427-key parity). Added missing **`lang/flags/jp.png`** (20×15 Hinomaru; ja.json declares `_flag:"jp"`, loaded by `UiHelpers` from `lang/flags/{_flag}.png`). **Security:** added `ThemeManager.ResolveThemeAsset(folder, fileName)` — rejects rooted/UNC paths and `..` traversal and confirms the resolved path stays inside the theme folder; routed background/app-icon/tray-icon/logo loading through it so an untrusted (downloaded) theme.json can't point the app at files outside its folder. Build 0/0. |
 | 2026-06-10 | 3.6.0 finished & committed (settings reorg, external tracking, auto-reconnect, flags, docs). 3.7.0 cycle started (Chromatic Chameleon). Theme Builder design written and agreed, incl. image-based seeding and tray mock preview (this file). |
 | 2026-06-10 | **Phase 1 done** — Theme Builder launcher card in Appearance, Settings closes on launch, lang keys ×5, picker-refresh verified. Build verified. |
 | 2026-06-10 | **Phase 2 done** — live apply with 180 ms debounce, LIVE indicator + Saved ✓ status, dirty tracking with save/discard prompts on close and theme-switch, revert via ApplyThemeFromConfig. |

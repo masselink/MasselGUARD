@@ -697,8 +697,8 @@ namespace MasselGUARD
                 return;
             }
 
-            var imgPath = Path.Combine(folder, d.BackgroundImage);
-            if (!File.Exists(imgPath))
+            var imgPath = ResolveThemeAsset(folder, d.BackgroundImage);
+            if (imgPath == null || !File.Exists(imgPath))
             {
                 res["Theme.BackgroundBrush"] = new SolidColorBrush(Colors.Transparent);
                 res["Theme.HasBackground"]   = Visibility.Collapsed;
@@ -746,9 +746,9 @@ namespace MasselGUARD
         {
             // appIcon = tray icon + Window.Icon (taskbar) only.
             // The title bar uses 'logo' or the built-in shield — never appIcon.
-            if (!string.IsNullOrWhiteSpace(d.AppIcon))
+            var iconPath = ResolveThemeAsset(folder, d.AppIcon);
+            if (iconPath != null)
             {
-                var iconPath = Path.Combine(folder, d.AppIcon);
                 if (File.Exists(iconPath))
                 {
                     try
@@ -779,9 +779,8 @@ namespace MasselGUARD
 
             object? LoadStateIcon(string file)
             {
-                if (string.IsNullOrWhiteSpace(file) || string.IsNullOrEmpty(folder)) return null;
-                var path = Path.Combine(folder, file);
-                if (!File.Exists(path)) return null;
+                var path = ResolveThemeAsset(folder, file);
+                if (path == null || !File.Exists(path)) return null;
                 try { return BitmapToWinFormsIcon(LoadImageUncached(path)); }
                 catch { return null; }
             }
@@ -817,6 +816,27 @@ namespace MasselGUARD
         /// place) and guarantees a re-saved file under the same name shows its new
         /// content instead of a stale cached bitmap.
         /// </summary>
+        /// <summary>
+        /// Resolves a theme asset (logo / background / icon) named in theme.json to an
+        /// absolute path, but ONLY if it stays inside the theme's own folder. Rejects
+        /// rooted/UNC paths and "../" traversal so a theme — including one downloaded from
+        /// a shared-theme repo — can't point the app at files outside its folder. Returns
+        /// null when the value is empty or escapes the folder (treated as "no asset").
+        /// </summary>
+        private static string? ResolveThemeAsset(string folder, string? fileName)
+        {
+            if (string.IsNullOrWhiteSpace(folder) || string.IsNullOrWhiteSpace(fileName)) return null;
+            if (Path.IsPathRooted(fileName)) return null;   // must be a relative name
+            try
+            {
+                var root = Path.GetFullPath(folder.TrimEnd('\\', '/')) + Path.DirectorySeparatorChar;
+                var full = Path.GetFullPath(Path.Combine(folder, fileName));
+                if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase)) return null;
+                return full;
+            }
+            catch { return null; }
+        }
+
         internal static BitmapImage LoadImageUncached(string path)
         {
             var bmp = new BitmapImage();
@@ -831,9 +851,9 @@ namespace MasselGUARD
 
         private static void ApplyLogo(ResourceDictionary res, ThemeDefinition d, string folder)
         {
-            if (!string.IsNullOrWhiteSpace(d.Logo))
+            var logoPath = ResolveThemeAsset(folder, d.Logo);
+            if (logoPath != null)
             {
-                var logoPath = Path.Combine(folder, d.Logo);
                 if (File.Exists(logoPath))
                 {
                     try
