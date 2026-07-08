@@ -118,14 +118,32 @@
                                         CornerRadius="6">
                                     <StackPanel>
                                         <!-- Preview -->
-                                        <Border Height="158" Background="{DynamicResource Surface}"
-                                                CornerRadius="6,6,0,0" ClipToBounds="True">
+                                        <Border x:Name="PreviewBorder" Height="158" Background="{DynamicResource Surface}"
+                                                CornerRadius="6,6,0,0" ClipToBounds="True" Cursor="Hand"
+                                                MouseLeftButtonUp="Preview_Click">
                                             <Grid>
                                                 <TextBlock Text="no preview"
                                                            FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                            Foreground="{DynamicResource TextMuted}"
                                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                 <Image Source="{Binding Preview}" Stretch="UniformToFill"/>
+
+                                                <!-- Hover hint: this preview can be zoomed -->
+                                                <Border Background="#66000000">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding ElementName=PreviewBorder, Path=IsMouseOver}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <TextBlock Text="&#x1F50D;" FontSize="26"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               Foreground="White"/>
+                                                </Border>
                                             </Grid>
                                         </Border>
                                         <StackPanel Margin="12,10,12,12">
@@ -162,6 +180,21 @@
                            Foreground="{DynamicResource TextMuted}"
                            HorizontalAlignment="Center" VerticalAlignment="Center"
                            TextWrapping="Wrap" MaxWidth="520" TextAlignment="Center"/>
+
+                <!-- Zoomed preview overlay — only covers the card area, so the title bar,
+                     search/Dark-Light toggle, and footer stay reachable while it's open. -->
+                <Border x:Name="ZoomOverlay" Background="#D0000000" CornerRadius="6"
+                        Visibility="Collapsed" MouseLeftButtonUp="CloseZoom_Click">
+                    <Grid>
+                        <Image x:Name="ZoomImage" Stretch="Uniform" Margin="24"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <Button Content="&#x2715;" Style="{StaticResource FlatBtn}"
+                                HorizontalAlignment="Right" VerticalAlignment="Top"
+                                Padding="10,6" Margin="0,8,8,0"
+                                Foreground="White" Background="Transparent" BorderThickness="0"
+                                Click="CloseZoom_Click"/>
+                    </Grid>
+                </Border>
             </Grid>
 
             <!-- Footer -->

@@ -28,6 +28,7 @@ namespace MasselGUARD.Views
         private ListCollectionView? _view;
         private bool _previewDark = true;
         private bool _shiftPeek;   // hold-Shift Windows-colours fallback active
+        private ThemeBrowserItem? _zoomedItem;   // card currently shown enlarged, if any
 
         /// <summary>True if at least one theme was installed (so the caller refreshes its picker).</summary>
         public bool AnyInstalled { get; private set; }
@@ -112,6 +113,24 @@ namespace MasselGUARD.Views
             if (!IsInitialized) return;
             _previewDark = PreviewDarkBtn.IsChecked == true;
             await LoadPreviewsAsync();
+            if (_zoomedItem != null) ZoomImage.Source = _zoomedItem.Preview;   // keep the zoomed image in sync
+        }
+
+        // ── Zoomed preview ───────────────────────────────────────────────────
+        private void Preview_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not FrameworkElement fe || fe.DataContext is not ThemeBrowserItem item) return;
+            if (item.Preview == null) return;
+            _zoomedItem = item;
+            ZoomImage.Source    = item.Preview;
+            ZoomOverlay.Visibility = Visibility.Visible;
+        }
+
+        private void CloseZoom_Click(object sender, RoutedEventArgs e)
+        {
+            ZoomOverlay.Visibility = Visibility.Collapsed;
+            ZoomImage.Source       = null;
+            _zoomedItem            = null;
         }
 
         private static BitmapImage? BmpFromBytes(byte[]? data)
@@ -228,6 +247,12 @@ namespace MasselGUARD.Views
         // is readable even if the currently-active theme (e.g. a broken live edit) isn't.
         protected override void OnPreviewKeyDown(KeyEventArgs e)
         {
+            if (e.Key == Key.Escape && ZoomOverlay.Visibility == Visibility.Visible)
+            {
+                CloseZoom_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+
             bool inTextBox = Keyboard.FocusedElement is TextBox;
             if ((e.Key is Key.LeftShift or Key.RightShift) && !_shiftPeek && !inTextBox)
             {
