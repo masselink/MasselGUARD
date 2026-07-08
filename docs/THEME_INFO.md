@@ -6,12 +6,17 @@ The default theme is **System (Windows colors)**, which reads the active Windows
 
 ---
 
-## Built-in themes
+## Shared themes (downloadable)
+
+The app bundles no themes. These are published in the
+[MasselGUARD-themes](https://github.com/masselink/MasselGUARD-themes) repo and installed via
+**Settings → Appearance → Browse shared themes…** into `%APPDATA%\MasselGUARD\themes\`.
 
 | Folder | Display name | Corner radius | Notes |
 |---|---|---|---|
-| `grey\` | Blue on grey | 0 px (sharp) | Flat grey with blue accent, utilitarian |
-| `highcontrast\` | High Contrast | 2 px | WCAG AAA compliant |
+| `blueongrey\` | Blue on grey | 0 px (sharp) | Flat grey with blue accent, utilitarian |
+| `highcontrast\` | High Contrast | 2 px | Black/white with strong, vivid accents for low-vision use |
+| `glass\` | Glass | 10 px | Translucent window + see-through panels |
 
 ---
 
@@ -27,12 +32,11 @@ These are not backed by a folder — they are built into the app and always avai
 
 ## Custom themes
 
-Place a folder in `%APPDATA%\MasselGUARD\custom_themes\` containing a `theme.json`. The app picks it up immediately — no restart needed. Select it in **Settings → Appearance**.
+Place a folder in `%APPDATA%\MasselGUARD\themes\` containing a `theme.json`. The app picks it up immediately — no restart needed. Select it in **Settings → Appearance**.
 
-> Upgrading from a pre-3.7 version? Themes in the old `%APPDATA%\MasselGUARD\themes\` folder are moved to `custom_themes\` automatically on first launch.
-
-> Custom themes survive app updates and reinstalls.  
-> Shipped / downloaded themes in the `shared_themes\` folder next to the exe are read-only.
+> All non-System themes — yours and downloaded ones — share this `themes\` folder, and all are
+> editable in the builder. Older `custom_themes\` / `shared-themes\` folders are merged into it
+> automatically on first launch. Only the System theme is read-only.
 
 ---
 
@@ -40,9 +44,9 @@ Place a folder in `%APPDATA%\MasselGUARD\custom_themes\` containing a `theme.jso
 
 A theme file has two sections:
 
-- **Root level** — structural settings shared between dark and light (font, corner radius, window chrome, background image, logo).
-- **`"dark"`** — colour fields for dark mode.
-- **`"light"`** — colour fields for light mode.
+- **Root level** — structural settings shared between dark and light (font, corner radius, window chrome), plus legacy shared-fallback slots for image assets.
+- **`"dark"`** — colour fields for dark mode, plus that variant's own image assets (logo, app icon, background image, tray icons).
+- **`"light"`** — colour fields for light mode, plus that variant's own image assets.
 
 Either the `dark` or the `light` section (or both) can be omitted. When one is missing the app **auto-generates** the missing side at load time using HSL lightness inversion. Nothing is written to disk.
 
@@ -152,6 +156,11 @@ Omitting a field falls back to the Windows system palette colour for that slot.
 | `colorListSelected` | List row background when selected / active |
 | `colorLogTimestamp` | Timestamp text in the activity log. Defaults to `colorBorder` if omitted |
 
+`colorListHover`, `colorTrayHover` and `colorHighlight` are the three keys the Theme Builder
+gives dedicated transparency sliders (**Transparency** section) — they're the fields most
+often used with an alpha byte (e.g. `#A0303030`) since they overlay content rather than
+filling an opaque area. A plain `#RRGGBB` works too (fully opaque).
+
 ### Tray context menu *(inside `"dark"` or `"light"` section)*
 
 Leave any of these empty to inherit the corresponding semantic colour.
@@ -183,22 +192,36 @@ Leave any of these empty to inherit the corresponding semantic colour.
 | `showStatusWifi` | bool | `true` | Show / hide the WiFi network label |
 | `showStatusTunnel` | bool | `true` | Show / hide the active tunnel label |
 
-### Background image *(root level)*
+### Background image *(per-variant, inside `"dark"` / `"light"` — root is a legacy fallback)*
 
 | Key | Type | Default | Description |
 |---|---|---|---|
-| `backgroundImage` | string | `""` | Filename of an image in **this theme folder** — e.g. `"bg.png"`. Leave empty for none |
-| `backgroundStretch` | string | `"stretch"` | `"stretch"` (fill window) · `"center"` · `"tile"` · `"topLeft"` |
-| `backgroundOpacity` | number | `1.0` | `0.0` (invisible) to `1.0` (fully opaque) |
+| `backgroundImage` | string | `""` | Filename of an image in **this theme folder** — e.g. `"bg-dark.jpg"`. Leave empty for none |
+| `backgroundStretch` | string | `"stretch"` | `"stretch"` (fill window) · `"center"` · `"tile"` · `"topLeft"`. Root level — shared by both variants, it's layout, not an image |
+| `backgroundOpacity` | number | `1.0` | `0.0` (invisible) to `1.0` (fully opaque). Root level — shared by both variants |
 
-### Custom icon and logo *(root level)*
+The Theme Builder shows separate Light and Dark background-image pickers and writes each into
+its own `"dark"` / `"light"` section, matching the colour split. The root-level `backgroundImage`
+field still works as a shared fallback for hand-written themes that ship one image for both
+modes — set it (and leave both variants empty) to use it everywhere, or set a variant's own
+`backgroundImage` to override just that mode.
+
+### Custom icon, logo and tray icons *(per-variant, inside `"dark"` / `"light"` — root is a legacy fallback)*
 
 | Key | Type | Description |
 |---|---|---|
 | `appIcon` | string | Filename of a custom tray + title bar icon. Supports `.ico`, `.png`, `.bmp`, `.jpg`. Leave empty for the built-in shield |
 | `logo` | string | Filename of a custom logo shown in the title bar. Leave empty for the default |
-| `logoWidth` | int | Logo display width in px. Default `28` |
-| `logoHeight` | int | Logo display height in px. Default `28` |
+| `logoWidth` | int | Logo display width in px. Default `28`. Root level — shared by both variants |
+| `logoHeight` | int | Logo display height in px. Default `28`. Root level — shared by both variants |
+| `trayIconConnected` | string | Filename of a custom tray icon shown while a tunnel is connected. Leave empty for the built-in icon |
+| `trayIconDisconnected` | string | Filename of a custom tray icon shown while disconnected. Leave empty for the built-in icon |
+
+Like the background image, `appIcon`, `logo`, `trayIconConnected` and `trayIconDisconnected` are
+each **dark/light sensitive by default** — the Theme Builder gives every one of them two
+independent pickers (Light and Dark) and writes both into the `"dark"` / `"light"` sections. The
+root-level field of the same name is only a legacy shared fallback (used when a variant's own
+value is empty), for hand-written themes that ship a single image for both modes.
 
 ### Advanced
 

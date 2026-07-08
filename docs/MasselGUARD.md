@@ -404,14 +404,13 @@ ACL: `SYSTEM + Administrators + owning user` only. Deleted within ~200 ms.
 
 ## 16. Theme system
 
-Themes are **unified dual-variant** files: one `theme.json` per theme containing both colour variants. See `theme/THEME_INFO.md` for the full key reference.
+Themes are **unified dual-variant** files: one `theme.json` per theme containing both colour variants. See `docs/THEME_INFO.md` and `docs/THEME_EXAMPLE.md` for the full key reference.
 
 | Location | Purpose |
 |---|---|
-| `<exedir>\shared_themes\<folder>\theme.json` | Shipped / downloaded themes that come with the install (`blueongrey` = "Blue on grey", `highcontrast` = "High Contrast" (WCAG AAA), `glass` = "Glass", translucent) |
-| `%APPDATA%\MasselGUARD\custom_themes\<folder>\theme.json` | User themes — survive app updates, checked first (migrated from the pre-3.7 `themes\` folder on first launch) |
+| `%APPDATA%\MasselGUARD\themes\<folder>\theme.json` | All non-System themes — downloaded (Theme Browser) and user-made (Theme Builder) — live here per-user; survive app updates. The app bundles none |
 
-`ThemeManager.SharedThemeNames()` discovers the shared themes **from disk** — every folder under `<exedir>\shared_themes\` with a `theme.json`. Shared themes are **read-only** but can be deleted and copied (Duplicate creates an editable custom copy). The app embeds no theme names; adding/removing a shared theme is just a folder there. Only the virtual `__system__` theme (Windows accent palette) is built in code, read-only and non-deletable (`IsBuiltinTheme`). The builder shows three groups: **Built-in** (System only), **Shared** (`shared_themes\`, read-only/deletable), **Custom** (`custom_themes\`, editable). The Dark/Light pill previews live for read-only themes too.
+`ThemeManager.ThemeNames()` discovers themes **from disk** — every folder under `%APPDATA%\MasselGUARD\themes\` with a `theme.json`. **The app bundles no themes**; they are either installed by the Theme Browser (from the shared-themes repo) or created by the Theme Builder — both into the same per-user folder, so everything is editable and survives app updates. `ConsolidateThemeFolders` merges any old `custom_themes\`/`shared-themes\`/`shared_themes\` into `themes\` at startup; Create/Duplicate/Import refuse to overwrite an existing name (`ThemeExists`). Only the virtual `__system__` theme (Windows accent palette) is built in code, read-only and non-deletable (`IsBuiltinTheme`); every theme in `themes\` is editable and deletable. The builder lists **Built-in** (System) and **THEMES** (all the rest). The Dark/Light pill previews live for read-only themes too.
 
 ### File format
 

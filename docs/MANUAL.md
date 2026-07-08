@@ -74,17 +74,19 @@ Runs on first launch and when starting a newer version than the last wizard run.
 
 **Step 0 — Welcome:** Upgrade banner (on version change). Install-choice card (first-run Standalone). Import settings card.
 
-**Step 1 — Language & Appearance:** Language picker (with country flags) and theme selector. Changes apply immediately as a preview.
+**Step 1 — Language & Appearance:** Language picker (with country flags), Dark/Light/Auto colour-scheme mode, and a theme picker (every installed theme, including downloaded ones). Changes apply immediately as a preview. "Download more themes…" opens the community theme browser directly and refreshes the picker with anything newly installed.
 
-**Step 2 — Operating mode:** Standalone / Companion / Mixed.
+**Step 2 — Choose your view:** Simple / Manual / Expert preset cards pre-fill the timeline, activity log, and WiFi rules panel/column visibility toggles in one click (also hides the timeline's WiFi-only strip, not just the tunnel bars). Manual also turns off WiFi automation, since rules don't apply without it. A fourth **Custom** card reveals the same four toggles individually instead of a fixed bundle. Every value stays freely editable afterward — in Settings, or by re-picking a preset from the reusable selector at the top of Settings → General.
 
-**Step 3 — Startup:** How MasselGUARD is installed, whether it starts automatically with Windows, and confirm disconnect on exit.
+**Step 3 — Operating mode:** Standalone / Companion / Mixed.
 
-**Step 4 — WiFi:** Explains how WiFi rules, the default action, and open network protection work together (rules themselves are created after the wizard, in Settings → WiFi). Disable WiFi rules toggle. Show WiFi rules panel toggle.
+**Step 4 — Startup:** How MasselGUARD is installed, whether it starts automatically with Windows, and confirm disconnect on exit.
 
-**Step 5 — Behavior:** Auto-reconnect mode (Off / Per tunnel / Always), DNS leak indicator, history capture (connections / WiFi), tray notifications.
+**Step 5 — WiFi:** Explains how WiFi rules, the default action, and open network protection work together (rules themselves are created after the wizard, in Settings → WiFi). Disable WiFi rules toggle. Show WiFi rules panel toggle. **Skipped entirely** (both Next and Back) if WiFi rules were already disabled in Step 2 — nothing left to configure there.
 
-**Step 6 — Done:** Summary of every chosen setting, version label, and Check for updates.
+**Step 6 — Behavior:** Auto-reconnect mode (Off / Per tunnel / Always), DNS leak indicator, history capture (connections / WiFi), tray notifications.
+
+**Step 7 — Done:** Summary of every chosen setting, version label, and Check for updates.
 
 ---
 
@@ -600,7 +602,7 @@ Two built-in themes — **Grey** and **High Contrast** — plus **System (Window
 
 ### Custom theme files
 
-Drop a `<folder>/theme.json` into the `shared_themes\` folder next to the exe (shipped/downloaded, read-only in the builder), or into `%APPDATA%\MasselGUARD\custom_themes\` (your own, editable; survives app updates; pre-3.7 themes in the old `themes\` folder are moved here automatically on first launch). The root level holds structural settings (font, corner radius, chrome); colours live in `"dark"` and `"light"` sections. Either section may be omitted — the missing variant is auto-generated at load time by HSL lightness inversion.
+Drop a `<folder>/theme.json` into `%APPDATA%\MasselGUARD\themes\` (your own, editable; survives app updates). Themes installed via the Theme Browser land in the same folder. The app bundles no themes itself; only the System (Windows colours) theme is built in. The root level holds structural settings (font, corner radius, chrome); colours live in `"dark"` and `"light"` sections. Either section may be omitted — the missing variant is auto-generated at load time by HSL lightness inversion.
 
 Custom themes can override `AppName` to change the name shown in toast notifications.
 
@@ -608,7 +610,7 @@ Custom themes can override `AppName` to change the name shown in toast notificat
 
 Use the **▶ Dark** / **▶ Light** buttons in Settings → Appearance to see a colour variant for 10 seconds before committing. Cancel Settings to revert to the last saved theme.
 
-See `theme/THEME_INFO.md` for the full key reference.
+See `docs/THEME_INFO.md` (and `docs/THEME_EXAMPLE.md`) for the full key reference.
 
 ---
 

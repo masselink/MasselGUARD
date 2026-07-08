@@ -48,6 +48,14 @@ namespace MasselGUARD.Views
                 _loading = false;
                 // Create a deep copy of the LIVE config — all edits go here until Save is pressed
                 _draft = _main.ConfigSvc.Config.DeepClone();
+                // Shared-theme repo URL lives on the Advanced page — seed it once here so it
+                // is populated regardless of which tab opens first.
+                if (SharedThemesRepoBox != null)
+                {
+                    _loading = true;
+                    SharedThemesRepoBox.Text = _draft.SharedThemesRepoUrl ?? "";
+                    _loading = false;
+                }
                 ShowTab(InitialTab);
                 RefreshUpdateState();
                 RefreshLocalizedStrings();
@@ -443,6 +451,7 @@ namespace MasselGUARD.Views
             if (_loading) return;
             _draft.ShowTimeline = ShowTimelineToggle?.IsChecked == true;
             _main.ConfigSvc.Config.ShowTimeline = _draft.ShowTimeline;
+            _main.ConfigSvc.Save();
             _main.ApplyInfoSectionMode();
         }
 
@@ -451,6 +460,7 @@ namespace MasselGUARD.Views
             if (_loading) return;
             _draft.StoreConnectionHistory = StoreConnectionHistoryToggle?.IsChecked == true;
             _main.ConfigSvc.Config.StoreConnectionHistory = _draft.StoreConnectionHistory;
+            _main.ConfigSvc.Save();
             UpdateTimelineShowEnabled();
             _main.ApplyInfoSectionMode();
         }
@@ -563,14 +573,6 @@ namespace MasselGUARD.Views
                 _loading = false;
             }
 
-            // Shared-themes repo URL
-            if (SharedThemesRepoBox != null)
-            {
-                _loading = true;
-                SharedThemesRepoBox.Text = _draft.SharedThemesRepoUrl ?? "";
-                _loading = false;
-            }
-
             // Font override sync (PopulateFontPicker manages its own _loading guard)
             PopulateFontPicker();
 
@@ -591,6 +593,9 @@ namespace MasselGUARD.Views
             if (sender is not RadioButton rb || rb.Tag is not string tag) return;
             _draft.SystemThemeMode = tag;
             if (_themePreviewActive) CancelThemePreview();
+            // Apply immediately — no countdown, stays until Saved or the window closes
+            // (OnClosing prompts to keep or discard if it's still unsaved by then).
+            ApplySpecificTheme(forceLight: !IsDraftDark());
         }
 
         private void ThemePicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1618,7 +1623,20 @@ namespace MasselGUARD.Views
             // the builder starts from the committed theme.
             Close();
             var builder = new ThemeBuilderWindow(_main) { Owner = _main };
+            // Return focus to Settings → Appearance once the manager closes.
+            builder.Closed += (_, _) => _main.OpenSettings("Appearance");
             builder.Show();
+        }
+
+        /// <summary>Shortcut: opens the Theme Manager and immediately its community
+        /// theme browser, skipping the extra click through "Manage themes…".</summary>
+        private void DownloadThemes_Click(object sender, RoutedEventArgs e)
+        {
+            Close();
+            var builder = new ThemeBuilderWindow(_main) { Owner = _main };
+            builder.Closed += (_, _) => _main.OpenSettings("Appearance");
+            builder.Show();
+            builder.OpenCommunityThemes();
         }
 
         private void SharedThemesRepo_Changed(object sender, TextChangedEventArgs e)
@@ -1627,46 +1645,11 @@ namespace MasselGUARD.Views
             _draft.SharedThemesRepoUrl = SharedThemesRepoBox.Text.Trim();
         }
 
-        private async void DownloadThemes_Click(object sender, RoutedEventArgs e)
+        /// <summary>Reset the repo URL to the official MasselGUARD themes repository.</summary>
+        private void ResetThemesRepo_Click(object sender, RoutedEventArgs e)
         {
-            var url = SharedThemesRepoBox.Text.Trim();
-            if (string.IsNullOrWhiteSpace(url))
-            {
-                _main.ShowThemedInfo("Enter a theme repository URL first (a GitHub repo URL or a direct .zip).",
-                    "Shared themes");
-                return;
-            }
-
-            // Persist the URL right away so it survives even if Settings is closed
-            // without Save (mirrors the immediate-effect fields elsewhere here).
-            _draft.SharedThemesRepoUrl = url;
-            _main.ConfigSvc.Config.SharedThemesRepoUrl = url;
-            _main.ConfigSvc.Save();
-
-            DownloadThemesBtn.IsEnabled = false;
-            ShowDownloadStatus("Downloading…");
-            try
-            {
-                var result = await Services.ThemeDownloadService.DownloadAsync(url, ThemeManager.SharedThemeRoot);
-                PopulateThemePicker();   // surface the new/updated shared themes
-                ShowDownloadStatus($"Installed {result.Count} theme(s): {string.Join(", ", result.Names)}");
-            }
-            catch (Exception ex)
-            {
-                ShowDownloadStatus("Download failed.");
-                _main.ShowThemedInfo($"Could not download themes:\n{ex.Message}", "Shared themes");
-            }
-            finally
-            {
-                DownloadThemesBtn.IsEnabled = true;
-            }
-        }
-
-        private void ShowDownloadStatus(string text)
-        {
-            if (DownloadThemesStatus == null) return;
-            DownloadThemesStatus.Text = text;
-            DownloadThemesStatus.Visibility = Visibility.Visible;
+            SharedThemesRepoBox.Text = Models.AppConfig.DefaultSharedThemesRepoUrl;
+            SharedThemesRepoBox.CaretIndex = SharedThemesRepoBox.Text.Length;
         }
 
         private void RunWizard_Click(object sender, RoutedEventArgs e)
@@ -1687,6 +1670,46 @@ namespace MasselGUARD.Views
         // ── Handlers required by XAML ─────────────────────────────────────────
         private void Mode_Changed(object sender, System.Windows.RoutedEventArgs e)
             => AppMode_Changed(sender, e);
+
+        // ── View preset — re-applies the same bundle of panel-visibility settings
+        // the first-run wizard offers. Applies immediately (like the individual
+        // toggles below) rather than waiting for the window's Save button.
+        private void PresetSimple_Click(object sender, System.Windows.RoutedEventArgs e) =>
+            ApplyViewPreset(showTimeline: false, showActivityLog: false, showWifiRules: true, manualMode: false);
+
+        private void PresetManual_Click(object sender, System.Windows.RoutedEventArgs e) =>
+            ApplyViewPreset(showTimeline: false, showActivityLog: true, showWifiRules: false, manualMode: true);
+
+        private void PresetExpert_Click(object sender, System.Windows.RoutedEventArgs e) =>
+            ApplyViewPreset(showTimeline: true, showActivityLog: true, showWifiRules: true, manualMode: false);
+
+        private void ApplyViewPreset(bool showTimeline, bool showActivityLog, bool showWifiRules, bool manualMode)
+        {
+            _draft.ShowTimeline              = showTimeline;
+            _draft.ShowActivityLog           = showActivityLog;
+            _draft.ShowWifiRulesOnMainWindow = showWifiRules;
+            _draft.ShowTunnelRulesColumn     = showWifiRules;
+            // The timeline panel also stays visible from WiFi history alone
+            // (ApplyInfoSectionMode: ShowTimeline || ShowWifiInChart) — tie it to the
+            // same on/off so Simple/Manual genuinely hide it, not just the tunnel bars.
+            _draft.ShowWifiInChart           = showTimeline;
+            _vm.DisableWifiRules             = manualMode;
+
+            var cfg = _main.ConfigSvc.Config;
+            cfg.ShowTimeline              = showTimeline;
+            cfg.ShowActivityLog           = showActivityLog;
+            cfg.ShowWifiRulesOnMainWindow = showWifiRules;
+            cfg.ShowTunnelRulesColumn     = showWifiRules;
+            cfg.ShowWifiInChart           = showTimeline;
+            cfg.ManualMode                = manualMode;
+            _main.ConfigSvc.Save();
+
+            _main.RefreshWifiRulesPanel();
+            _main._vm.NotifyRulesColumnChanged();
+            _main.ApplyInfoSectionMode();
+            _main.SetLogPanelVisible(showActivityLog);
+            RefreshCurrentTab();
+        }
 
         private void SuppressUpdatePrompt_Changed(object sender, System.Windows.RoutedEventArgs e)
         {
@@ -1885,6 +1908,14 @@ namespace MasselGUARD.Views
 
         private void SaveBtn_Click(object sender, System.Windows.RoutedEventArgs e)
         {
+            CommitDraft();
+            Close();
+        }
+
+        /// <summary>Writes the whole draft to config + applies side effects. Does not close
+        /// the window — used by both the Save button and the close-time "keep changes" prompt.</summary>
+        private void CommitDraft()
+        {
             _savedSuccessfully = true;
 
             // Snapshot BEFORE committing so diff is accurate
@@ -1939,7 +1970,6 @@ namespace MasselGUARD.Views
             // Apply the correct theme based on the new settings (overrides DoSave preview)
             _main.ApplyThemeFromConfig();
             _main.ApplyInfoSectionMode();
-            Close();
         }
 
         private void LogChangedSettings(Models.AppConfig before, Models.AppConfig after)
@@ -2027,6 +2057,7 @@ namespace MasselGUARD.Views
             if (_loading) return;
             _draft.StoreWifiHistory = StoreWifiHistoryToggle?.IsChecked == true;
             _main.ConfigSvc.Config.StoreWifiHistory = _draft.StoreWifiHistory;
+            _main.ConfigSvc.Save();
             UpdateTimelineShowEnabled();
             _main.ApplyInfoSectionMode();
         }
@@ -2038,6 +2069,7 @@ namespace MasselGUARD.Views
                 ChartRange31d?.IsChecked == true ? 31 :
                 ChartRange7d?.IsChecked  == true ?  7 : 1;
             _main.ConfigSvc.Config.InfoTimeRangeDays = _draft.InfoTimeRangeDays;
+            _main.ConfigSvc.Save();
             _main.ApplyInfoSectionMode();
         }
 
@@ -2046,6 +2078,7 @@ namespace MasselGUARD.Views
             if (_loading) return;
             _draft.ShowWifiInChart = ShowWifiInChartToggle?.IsChecked == true;
             _main.ConfigSvc.Config.ShowWifiInChart = _draft.ShowWifiInChart;
+            _main.ConfigSvc.Save();
             _main.ApplyInfoSectionMode();
         }
 
@@ -2069,6 +2102,18 @@ namespace MasselGUARD.Views
             // If closed without saving, revert any live previews.
             if (!_savedSuccessfully)
             {
+                // The System theme mode (Dark/Light/Follow system) applies live as soon as
+                // it's changed (see SystemMode_Changed) — if that's still unsaved when the
+                // window closes, ask whether to keep it instead of silently discarding it.
+                bool systemModeChanged = _draft.SystemThemeMode != _main.ConfigSvc.Config.SystemThemeMode;
+                if (systemModeChanged && ThemedMessageDialog.Confirm(this,
+                        "You changed the appearance mode (Dark/Light/Follow system) without saving.\n\n" +
+                        "Keep this change?", "Unsaved appearance change"))
+                {
+                    CommitDraft();   // saves everything staged, matching the Save button
+                    return;
+                }
+
                 // Revert theme + font to last saved state.
                 _main.ApplyThemeFromConfig();
                 // Revert log visibility to what was committed before Settings opened.

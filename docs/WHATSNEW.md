@@ -64,7 +64,7 @@ The theme architecture has been completely redesigned. Instead of maintaining se
 - Theme selection is now a **single picker** — choose one theme, the app applies the dark or light colours based on Settings → Appearance → System mode (Light / Dark / Auto).
 - Custom themes survive a mode switch automatically.
 - Built-in themes: **Grey** and **High Contrast** — plus **System (Windows colors)**, which uses the Windows accent palette and is the default.
-- Custom themes can also live in `%APPDATA%\MasselGUARD\custom_themes\` so they survive app updates.
+- Custom themes live in `%APPDATA%\MasselGUARD\themes\` so they survive app updates.
 
 #### Colour auto-generation
 

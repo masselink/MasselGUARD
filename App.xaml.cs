@@ -95,8 +95,9 @@ namespace MasselGUARD
                 var bootCfg = new Services.ConfigService();
                 bootCfg.Load();
 
-                // Move pre-3.7 user themes from themes\ → custom_themes\ before any load.
-                ThemeManager.MigrateLegacyUserThemes();
+                // Consolidate any custom_themes\ / shared-themes\ / shared_themes\ folders
+                // into the single themes\ folder before any load.
+                ThemeManager.ConsolidateThemeFolders();
 
                 // ── Emergency reset (Shift held at startup) ──────────────────────
                 // Useful if a bad font choice (e.g. Wingdings) or custom theme makes

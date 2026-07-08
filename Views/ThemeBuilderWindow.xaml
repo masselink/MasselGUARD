@@ -2,10 +2,11 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:MasselGUARD"
-        Title="Theme Builder"
+        Title="Theme Manager"
         Width="840" Height="660"
         WindowStyle="None" AllowsTransparency="True"
         Background="Transparent" ResizeMode="NoResize"
+        Opacity="{DynamicResource Theme.WindowOpacity}"
         WindowStartupLocation="CenterOwner">
 
     <Border Background="{DynamicResource WindowBg}"
@@ -23,7 +24,7 @@
                     CornerRadius="{DynamicResource Theme.CornerRadiusTop}"
                     MouseLeftButtonDown="TitleBar_MouseDown">
                 <Grid>
-                    <TextBlock Text="Theme Builder"
+                    <TextBlock Text="Theme Manager"
                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="13" FontWeight="Bold"
                                Foreground="{DynamicResource Accent}"
                                VerticalAlignment="Center" Margin="16,0"/>
@@ -47,29 +48,27 @@
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <!-- New / Import theme buttons -->
-                        <Grid Grid.Row="0" Margin="8,8,8,4">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <Button Grid.Column="0" Content="+ New theme"
-                                    Style="{StaticResource FlatBtn}" FontSize="10"
-                                    HorizontalAlignment="Stretch" Padding="10,6"
-                                    Click="NewTheme_Click"/>
-                            <Button Grid.Column="1" Content="Import…"
-                                    Style="{StaticResource FlatBtn}" FontSize="10"
-                                    Margin="4,0,0,0" Padding="10,6"
-                                    Click="ImportTheme_Click"
-                                    ToolTip="Import a theme from a .zip exported by the Theme Builder"/>
-                        </Grid>
+                        <!-- Add theme (create / download / import) -->
+                        <Button Grid.Row="0" Content="+ Add theme"
+                                Style="{StaticResource FlatBtn}"
+                                HorizontalAlignment="Stretch" Margin="8,8,8,4"
+                                Click="AddTheme_Click"
+                                ToolTip="Create a new theme, download community themes, or import from a .zip"/>
+
+                        <!-- Community themes (browse / install from the repository) -->
+                        <Button Grid.Row="1" Content="Community themes"
+                                Style="{StaticResource FlatBtn}"
+                                HorizontalAlignment="Stretch" Margin="8,0,8,4"
+                                Click="DownloadThemes_Click"
+                                ToolTip="Browse and install themes from the community repository"/>
 
                         <!-- Theme list -->
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
                             <StackPanel>
                                 <!-- Built-in header -->
                                 <TextBlock Text="BUILT-IN"
@@ -83,6 +82,7 @@
                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                     <ListBox.ItemContainerStyle>
                                         <Style TargetType="ListBoxItem">
+                                            <EventSetter Event="PreviewMouseRightButtonDown" Handler="ThemeItem_RightClick"/>
                                             <Setter Property="Background"  Value="Transparent"/>
                                             <Setter Property="BorderThickness" Value="0"/>
                                             <Setter Property="Padding"     Value="10,5"/>
@@ -99,36 +99,8 @@
                                     </ListBox.ItemContainerStyle>
                                 </ListBox>
 
-                                <!-- Shared header -->
-                                <TextBlock Text="SHARED"
-                                           FontFamily="{DynamicResource Theme.FontFamily}"
-                                           FontSize="9" FontWeight="Bold"
-                                           Foreground="{DynamicResource TextMuted}"
-                                           Margin="12,10,8,4"/>
-                                <ListBox x:Name="SharedList"
-                                         Background="Transparent" BorderThickness="0"
-                                         SelectionChanged="ThemeList_SelectionChanged"
-                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                    <ListBox.ItemContainerStyle>
-                                        <Style TargetType="ListBoxItem">
-                                            <Setter Property="Background"  Value="Transparent"/>
-                                            <Setter Property="BorderThickness" Value="0"/>
-                                            <Setter Property="Padding"     Value="10,5"/>
-                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                            <Style.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource ListHover}"/>
-                                                </Trigger>
-                                                <Trigger Property="IsSelected" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource ListSelected}"/>
-                                                </Trigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </ListBox.ItemContainerStyle>
-                                </ListBox>
-
-                                <!-- Custom header -->
-                                <TextBlock Text="CUSTOM"
+                                <!-- Themes header -->
+                                <TextBlock Text="THEMES"
                                            FontFamily="{DynamicResource Theme.FontFamily}"
                                            FontSize="9" FontWeight="Bold"
                                            Foreground="{DynamicResource TextMuted}"
@@ -139,6 +111,7 @@
                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                     <ListBox.ItemContainerStyle>
                                         <Style TargetType="ListBoxItem">
+                                            <EventSetter Event="PreviewMouseRightButtonDown" Handler="ThemeItem_RightClick"/>
                                             <Setter Property="Background"  Value="Transparent"/>
                                             <Setter Property="BorderThickness" Value="0"/>
                                             <Setter Property="Padding"     Value="10,5"/>
@@ -155,21 +128,25 @@
                                     </ListBox.ItemContainerStyle>
                                 </ListBox>
 
-                                <!-- Empty custom state -->
+                                <!-- Empty state -->
                                 <TextBlock x:Name="NoCustomLabel"
-                                           Text="No custom themes yet."
+                                           Text="No themes yet — create one or download from Browse themes…"
                                            FontFamily="{DynamicResource Theme.FontFamily}"
                                            FontSize="9" Foreground="{DynamicResource TextMuted}"
                                            Margin="12,0,8,0" TextWrapping="Wrap"/>
                             </StackPanel>
                         </ScrollViewer>
 
-                        <!-- Delete button -->
-                        <Button Grid.Row="2" x:Name="DeleteThemeBtn"
-                                Content="Delete theme"
-                                Style="{StaticResource DangerBtn}" FontSize="10"
-                                HorizontalAlignment="Stretch" Margin="8,4,8,8" Padding="10,6"
-                                IsEnabled="False" Click="DeleteTheme_Click"/>
+                        <!-- Hints: right-click a theme + hold-Shift fallback -->
+                        <StackPanel Grid.Row="3" Margin="12,4,8,8">
+                            <TextBlock Text="Right-click a theme for Apply / Duplicate / Export / Delete."
+                                       FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                       Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+                            <TextBlock Text="Hold Shift to fall back to Windows colours if your edits become unreadable."
+                                       FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                       Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                       Margin="0,4,0,0"/>
+                        </StackPanel>
                     </Grid>
                 </Border>
 
@@ -193,7 +170,7 @@
                                     Background="{DynamicResource Surface}"
                                     BorderBrush="{DynamicResource Accent}" BorderThickness="2,0,0,0"
                                     Padding="12,8" Margin="0,0,0,12">
-                                <TextBlock Text="System and shared themes are read-only. Use  Duplicate  to create an editable copy."
+                                <TextBlock Text="The System theme is read-only. Use  Duplicate  to create an editable copy."
                                            FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                            Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
                             </Border>
@@ -281,14 +258,14 @@
                                                              GroupName="EditVariant"
                                                              Style="{StaticResource PillRadio}" Margin="6,0,0,0"
                                                              Checked="Variant_Changed"/>
-                                                <CheckBox x:Name="InvertCopyCheck" Content="Invert"
-                                                          FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
-                                                          Foreground="{DynamicResource TextMuted}"
-                                                          VerticalAlignment="Center" Margin="16,0,0,0"
-                                                          Checked="InvertCopy_Changed" Unchecked="InvertCopy_Changed"
-                                                          ToolTip="When on, ALL copy actions — the row arrows (← →) and the Copy-all buttons — copy each colour INVERTED for the opposite lightness instead of raw. The arrows change to ⇇ ⇉ to show the mode is active."/>
                                             </StackPanel>
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <CheckBox x:Name="InvertCopyCheck" Content="Copy inverted color"
+                                                          FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                          Foreground="{DynamicResource TextMuted}"
+                                                          VerticalAlignment="Center" Margin="0,0,16,0"
+                                                          Checked="InvertCopy_Changed" Unchecked="InvertCopy_Changed"
+                                                          ToolTip="When on, ALL copy actions — the row arrows (← →) and the Copy-all buttons — copy each colour INVERTED for the opposite lightness instead of raw. The arrows change to ⇇ ⇉ to show the mode is active."/>
                                                 <Button x:Name="CopyAllLightBtn" Content="Copy all → Light"
                                                         Style="{StaticResource FlatBtn}" FontSize="9" Padding="8,3"
                                                         Click="CopyAllToLight_Click"
@@ -385,8 +362,8 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- ── Window chrome ──────────────────────────────── -->
-                            <TextBlock Text="Window" Style="{StaticResource SettingsSectionHeader}"/>
+                            <!-- ── Transparency ───────────────────────────────── -->
+                            <TextBlock Text="Transparency" Style="{StaticResource SettingsSectionHeader}"/>
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
                                 <StackPanel>
 
@@ -432,6 +409,79 @@
                                                    VerticalAlignment="Center" HorizontalAlignment="Right"/>
                                     </Grid>
 
+                                    <!-- Per-colour transparency (alpha channel baked into that colour's hex) -->
+                                    <TextBlock Text="Colour transparency" FontFamily="{DynamicResource Theme.FontFamily}"
+                                               FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"
+                                               Margin="0,4,0,8"/>
+
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="40"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="List row — hover"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"
+                                                   ToolTip="Transparency of the list row hover colour (set above under List row — hover)"/>
+                                        <Slider Grid.Column="1" x:Name="ListHoverAlphaSlider" Tag="ColorListHover"
+                                                Minimum="0" Maximum="1.0" SmallChange="0.05"
+                                                VerticalAlignment="Center"
+                                                ValueChanged="ColorAlpha_Changed"/>
+                                        <TextBlock Grid.Column="2" x:Name="ListHoverAlphaLabel"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                    </Grid>
+
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="40"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Tray menu hover"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"
+                                                   ToolTip="Transparency of the tray menu hover colour (set above under Tray menu hover)"/>
+                                        <Slider Grid.Column="1" x:Name="TrayHoverAlphaSlider" Tag="ColorTrayHover"
+                                                Minimum="0" Maximum="1.0" SmallChange="0.05"
+                                                VerticalAlignment="Center"
+                                                ValueChanged="ColorAlpha_Changed"/>
+                                        <TextBlock Grid.Column="2" x:Name="TrayHoverAlphaLabel"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                    </Grid>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="40"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Highlight / overlay"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"
+                                                   ToolTip="Transparency of the Highlight colour (set above under Highlight)"/>
+                                        <Slider Grid.Column="1" x:Name="HighlightAlphaSlider" Tag="ColorHighlight"
+                                                Minimum="0" Maximum="1.0" SmallChange="0.05"
+                                                VerticalAlignment="Center"
+                                                ValueChanged="ColorAlpha_Changed"/>
+                                        <TextBlock Grid.Column="2" x:Name="HighlightAlphaLabel"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                    </Grid>
+
+                                </StackPanel>
+                            </Border>
+
+                            <!-- ── Window (header + status bar) ───────────────── -->
+                            <TextBlock Text="Window" Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <StackPanel>
+
                                     <!-- Title bar height -->
                                     <Grid Margin="0,0,0,10">
                                         <Grid.ColumnDefinitions>
@@ -452,31 +502,23 @@
                                                    VerticalAlignment="Center" HorizontalAlignment="Right"/>
                                     </Grid>
 
-                                    <!-- Toggles -->
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <!-- Header toggles -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
                                         <CheckBox x:Name="ShowTitleBarIconCheck" Content="Title bar icon"
                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                   Foreground="{DynamicResource TextPrimary}" Margin="0,0,16,0"
                                                   Checked="Toggle_Changed" Unchecked="Toggle_Changed"/>
                                         <CheckBox x:Name="ShowTitleBarAppNameCheck" Content="App name in title bar"
                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
-                                                  Foreground="{DynamicResource TextPrimary}" Margin="0,0,16,0"
-                                                  Checked="Toggle_Changed" Unchecked="Toggle_Changed"/>
-                                        <CheckBox x:Name="ShowResizeGripCheck" Content="Resize grip"
-                                                  FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                   Foreground="{DynamicResource TextPrimary}"
                                                   Checked="Toggle_Changed" Unchecked="Toggle_Changed"/>
                                     </StackPanel>
 
-                                </StackPanel>
-                            </Border>
+                                    <!-- Status bar -->
+                                    <TextBlock Text="Status bar" FontFamily="{DynamicResource Theme.FontFamily}"
+                                               FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"
+                                               Margin="0,0,0,8"/>
 
-                            <!-- ── Status bar ─────────────────────────────────── -->
-                            <TextBlock Text="Status bar" Style="{StaticResource SettingsSectionHeader}"/>
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
-                                <StackPanel>
-
-                                    <!-- Show + height -->
                                     <Grid Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="120"/>
@@ -512,41 +554,72 @@
                             </Border>
 
                             <!-- ── Assets ─────────────────────────────────────── -->
+                            <!-- Every image asset is always dark/light sensitive: two independent
+                                 pickers per asset (Light + Dark), each falling back to the other
+                                 variant's / a legacy shared value only until you pick one explicitly. -->
                             <TextBlock Text="Assets" Style="{StaticResource SettingsSectionHeader}"/>
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
                                 <StackPanel>
-
-                                    <!-- Per-variant assets: logo + background follow the Dark/Light pill -->
-                                    <CheckBox x:Name="PerVariantAssetsCheck"
-                                              FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
-                                              Foreground="{DynamicResource TextPrimary}"
-                                              Margin="0,0,0,10"
-                                              Checked="PerVariantAssets_Changed"
-                                              Unchecked="PerVariantAssets_Changed"
-                                              Content="Different images per Dark/Light variant (logo, background, tray icons)"
-                                              ToolTip="When on, the logo, background image, and tray icon boxes edit the variant selected by the Dark/Light pill in the Colors section. When off, one set of images is used for both variants."/>
 
                                     <!-- Logo -->
                                     <TextBlock Text="Logo  (shown in the title bar — replaces the shield icon)"
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
                                                Foreground="{DynamicResource TextMuted}" Margin="0,0,0,6"/>
-                                    <Grid Margin="0,0,0,8">
+                                    <Grid Margin="0,0,0,4">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0" x:Name="LogoPathBox"
+                                        <TextBlock Grid.Column="0" Text="Light" FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="9" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="LogoLightPathBox"
                                                  FontFamily="Consolas" FontSize="10"
                                                  Padding="6,4" TextChanged="Field_Changed"/>
-                                        <Button Grid.Column="1" Content="Browse…" FontSize="10" Padding="8,4"
+                                        <Button Grid.Column="2" Content="Browse…" FontSize="10" Padding="8,4"
                                                 Margin="6,0,0,0" Style="{StaticResource FlatBtn}"
-                                                Click="BrowseLogo_Click"/>
-                                        <Button Grid.Column="2" Content="Clear" FontSize="10" Padding="8,4"
+                                                Click="BrowseLogoLight_Click"/>
+                                        <Button Grid.Column="3" Content="Clear" FontSize="10" Padding="8,4"
                                                 Margin="4,0,0,0" Style="{StaticResource FlatBtn}"
-                                                Click="ClearLogo_Click"/>
+                                                Click="ClearLogoLight_Click"/>
+                                        <Border Grid.Column="4" x:Name="LogoPreviewBorderLight" Margin="8,0,0,0"
+                                                Background="{DynamicResource Surface}"
+                                                BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                                                CornerRadius="3" Padding="6,2" Visibility="Collapsed">
+                                            <Image x:Name="LogoPreviewImgLight" Width="24" Height="24"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                                        </Border>
                                     </Grid>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Dark" FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="9" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="LogoDarkPathBox"
+                                                 FontFamily="Consolas" FontSize="10"
+                                                 Padding="6,4" TextChanged="Field_Changed"/>
+                                        <Button Grid.Column="2" Content="Browse…" FontSize="10" Padding="8,4"
+                                                Margin="6,0,0,0" Style="{StaticResource FlatBtn}"
+                                                Click="BrowseLogoDark_Click"/>
+                                        <Button Grid.Column="3" Content="Clear" FontSize="10" Padding="8,4"
+                                                Margin="4,0,0,0" Style="{StaticResource FlatBtn}"
+                                                Click="ClearLogoDark_Click"/>
+                                        <Border Grid.Column="4" x:Name="LogoPreviewBorderDark" Margin="8,0,0,0"
+                                                Background="{DynamicResource Surface}"
+                                                BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                                                CornerRadius="3" Padding="6,2" Visibility="Collapsed">
+                                            <Image x:Name="LogoPreviewImgDark" Width="24" Height="24"
+                                                   RenderOptions.BitmapScalingMode="HighQuality"/>
+                                        </Border>
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
                                         <TextBlock Text="Width" FontFamily="{DynamicResource Theme.FontFamily}"
                                                    FontSize="10" Foreground="{DynamicResource TextMuted}"
                                                    VerticalAlignment="Center" Margin="0,0,6,0"/>
@@ -559,77 +632,135 @@
                                         <TextBox x:Name="LogoHeightBox" Width="46"
                                                  FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                  Padding="4,3" TextChanged="Field_Changed"/>
-                                        <!-- Logo preview -->
-                                        <Border x:Name="LogoPreviewBorder" Margin="12,0,0,0"
-                                                Background="{DynamicResource Surface}"
-                                                BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
-                                                CornerRadius="3" Padding="6,2" Visibility="Collapsed">
-                                            <Image x:Name="LogoPreviewImg" Width="28" Height="28"
-                                                   RenderOptions.BitmapScalingMode="HighQuality"/>
-                                        </Border>
                                     </StackPanel>
 
                                     <!-- App icon -->
                                     <TextBlock Text="App icon  (tray icon and taskbar button — .ico, .png, .bmp)"
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
                                                Foreground="{DynamicResource TextMuted}" Margin="0,0,0,6"/>
-                                    <Grid>
+                                    <Grid Margin="0,0,0,4">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0" x:Name="AppIconPathBox"
+                                        <TextBlock Grid.Column="0" Text="Light" FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="9" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="AppIconLightPathBox"
                                                  FontFamily="Consolas" FontSize="10"
                                                  Padding="6,4" TextChanged="Field_Changed"/>
-                                        <Button Grid.Column="1" Content="Browse…" FontSize="10" Padding="8,4"
+                                        <Button Grid.Column="2" Content="Browse…" FontSize="10" Padding="8,4"
                                                 Margin="6,0,0,0" Style="{StaticResource FlatBtn}"
-                                                Click="BrowseIcon_Click"/>
-                                        <Button Grid.Column="2" Content="Clear" FontSize="10" Padding="8,4"
+                                                Click="BrowseIconLight_Click"/>
+                                        <Button Grid.Column="3" Content="Clear" FontSize="10" Padding="8,4"
                                                 Margin="4,0,0,0" Style="{StaticResource FlatBtn}"
-                                                Click="ClearIcon_Click"/>
+                                                Click="ClearIconLight_Click"/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Dark" FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="9" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="AppIconDarkPathBox"
+                                                 FontFamily="Consolas" FontSize="10"
+                                                 Padding="6,4" TextChanged="Field_Changed"/>
+                                        <Button Grid.Column="2" Content="Browse…" FontSize="10" Padding="8,4"
+                                                Margin="6,0,0,0" Style="{StaticResource FlatBtn}"
+                                                Click="BrowseIconDark_Click"/>
+                                        <Button Grid.Column="3" Content="Clear" FontSize="10" Padding="8,4"
+                                                Margin="4,0,0,0" Style="{StaticResource FlatBtn}"
+                                                Click="ClearIconDark_Click"/>
                                     </Grid>
 
                                     <!-- Tray icon: connected state -->
                                     <TextBlock Text="Tray icon — connected  (shown while a tunnel is up; empty = app icon / built-in shield)"
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                               Foreground="{DynamicResource TextMuted}" Margin="0,10,0,6"/>
-                                    <Grid Margin="0,0,0,8">
+                                               Foreground="{DynamicResource TextMuted}" Margin="0,4,0,6"/>
+                                    <Grid Margin="0,0,0,4">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0" x:Name="TrayIconConnBox"
+                                        <TextBlock Grid.Column="0" Text="Light" FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="9" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="TrayIconConnLightBox"
                                                  FontFamily="Consolas" FontSize="10"
                                                  Padding="6,4" TextChanged="Field_Changed"/>
-                                        <Button Grid.Column="1" Content="Browse…" FontSize="10" Padding="8,4"
+                                        <Button Grid.Column="2" Content="Browse…" FontSize="10" Padding="8,4"
                                                 Margin="6,0,0,0" Style="{StaticResource FlatBtn}"
-                                                Click="BrowseTrayConn_Click"/>
-                                        <Button Grid.Column="2" Content="Clear" FontSize="10" Padding="8,4"
+                                                Click="BrowseTrayConnLight_Click"/>
+                                        <Button Grid.Column="3" Content="Clear" FontSize="10" Padding="8,4"
                                                 Margin="4,0,0,0" Style="{StaticResource FlatBtn}"
-                                                Click="ClearTrayConn_Click"/>
+                                                Click="ClearTrayConnLight_Click"/>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Dark" FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="9" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="TrayIconConnDarkBox"
+                                                 FontFamily="Consolas" FontSize="10"
+                                                 Padding="6,4" TextChanged="Field_Changed"/>
+                                        <Button Grid.Column="2" Content="Browse…" FontSize="10" Padding="8,4"
+                                                Margin="6,0,0,0" Style="{StaticResource FlatBtn}"
+                                                Click="BrowseTrayConnDark_Click"/>
+                                        <Button Grid.Column="3" Content="Clear" FontSize="10" Padding="8,4"
+                                                Margin="4,0,0,0" Style="{StaticResource FlatBtn}"
+                                                Click="ClearTrayConnDark_Click"/>
                                     </Grid>
 
                                     <!-- Tray icon: disconnected state -->
                                     <TextBlock Text="Tray icon — disconnected  (shown while no tunnel is up)"
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
                                                Foreground="{DynamicResource TextMuted}" Margin="0,0,0,6"/>
-                                    <Grid>
+                                    <Grid Margin="0,0,0,4">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0" x:Name="TrayIconDiscBox"
+                                        <TextBlock Grid.Column="0" Text="Light" FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="9" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="TrayIconDiscLightBox"
                                                  FontFamily="Consolas" FontSize="10"
                                                  Padding="6,4" TextChanged="Field_Changed"/>
-                                        <Button Grid.Column="1" Content="Browse…" FontSize="10" Padding="8,4"
+                                        <Button Grid.Column="2" Content="Browse…" FontSize="10" Padding="8,4"
                                                 Margin="6,0,0,0" Style="{StaticResource FlatBtn}"
-                                                Click="BrowseTrayDisc_Click"/>
-                                        <Button Grid.Column="2" Content="Clear" FontSize="10" Padding="8,4"
+                                                Click="BrowseTrayDiscLight_Click"/>
+                                        <Button Grid.Column="3" Content="Clear" FontSize="10" Padding="8,4"
                                                 Margin="4,0,0,0" Style="{StaticResource FlatBtn}"
-                                                Click="ClearTrayDisc_Click"/>
+                                                Click="ClearTrayDiscLight_Click"/>
+                                    </Grid>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Dark" FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="9" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="TrayIconDiscDarkBox"
+                                                 FontFamily="Consolas" FontSize="10"
+                                                 Padding="6,4" TextChanged="Field_Changed"/>
+                                        <Button Grid.Column="2" Content="Browse…" FontSize="10" Padding="8,4"
+                                                Margin="6,0,0,0" Style="{StaticResource FlatBtn}"
+                                                Click="BrowseTrayDiscDark_Click"/>
+                                        <Button Grid.Column="3" Content="Clear" FontSize="10" Padding="8,4"
+                                                Margin="4,0,0,0" Style="{StaticResource FlatBtn}"
+                                                Click="ClearTrayDiscDark_Click"/>
                                     </Grid>
 
                                 </StackPanel>
@@ -640,25 +771,49 @@
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
                                 <StackPanel>
 
-                                    <!-- Path row -->
-                                    <Grid Margin="0,0,0,8">
+                                    <!-- Light path row -->
+                                    <Grid Margin="0,0,0,4">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0" x:Name="BgImagePathBox"
+                                        <TextBlock Grid.Column="0" Text="Light" FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="9" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="BgImageLightPathBox"
                                                  FontFamily="Consolas" FontSize="10"
                                                  Padding="6,4" TextChanged="Field_Changed"/>
-                                        <Button Grid.Column="1" Content="Browse…" FontSize="10" Padding="8,4"
+                                        <Button Grid.Column="2" Content="Browse…" FontSize="10" Padding="8,4"
                                                 Margin="6,0,0,0" Style="{StaticResource FlatBtn}"
-                                                Click="BrowseBg_Click"/>
-                                        <Button Grid.Column="2" Content="Clear" FontSize="10" Padding="8,4"
+                                                Click="BrowseBgLight_Click"/>
+                                        <Button Grid.Column="3" Content="Clear" FontSize="10" Padding="8,4"
                                                 Margin="4,0,0,0" Style="{StaticResource FlatBtn}"
-                                                Click="ClearBg_Click"/>
+                                                Click="ClearBgLight_Click"/>
                                     </Grid>
 
-                                    <!-- Stretch mode -->
+                                    <!-- Dark path row -->
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="36"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Dark" FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="9" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="BgImageDarkPathBox"
+                                                 FontFamily="Consolas" FontSize="10"
+                                                 Padding="6,4" TextChanged="Field_Changed"/>
+                                        <Button Grid.Column="2" Content="Browse…" FontSize="10" Padding="8,4"
+                                                Margin="6,0,0,0" Style="{StaticResource FlatBtn}"
+                                                Click="BrowseBgDark_Click"/>
+                                        <Button Grid.Column="3" Content="Clear" FontSize="10" Padding="8,4"
+                                                Margin="4,0,0,0" Style="{StaticResource FlatBtn}"
+                                                Click="ClearBgDark_Click"/>
+                                    </Grid>
+
+                                    <!-- Stretch mode (shared — layout, not per-variant) -->
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                         <TextBlock Text="Stretch"
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
@@ -706,31 +861,20 @@
             <Border Grid.Row="2" Background="{DynamicResource Surface}"
                     CornerRadius="{DynamicResource Theme.CornerRadiusBottom}">
                 <Grid Margin="12,0">
-                    <!-- Undo/redo + Duplicate + Export (left) -->
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                    <!-- Undo / redo (left) -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
                         <Button x:Name="UndoBtn" Content="↶"
-                                Style="{StaticResource FlatBtn}" FontSize="13" Padding="10,0"
+                                Style="{StaticResource FlatBtn}" Padding="10,4"
                                 IsEnabled="False"
                                 ToolTip="Undo (Ctrl+Z)" Click="Undo_Click"/>
                         <Button x:Name="RedoBtn" Content="↷"
-                                Style="{StaticResource FlatBtn}" FontSize="13" Padding="10,0"
-                                Margin="4,0,0,0" IsEnabled="False"
+                                Style="{StaticResource FlatBtn}" Padding="10,4"
+                                Margin="6,0,0,0" IsEnabled="False"
                                 ToolTip="Redo (Ctrl+Y)" Click="Redo_Click"/>
-                        <Border Width="1" Background="{DynamicResource BorderColor}"
-                                Margin="8,8,8,8"/>
-                        <Button x:Name="DuplicateBtn" Content="Duplicate"
-                                Style="{StaticResource FlatBtn}" FontSize="11" Padding="14,0"
-                                IsEnabled="False"
-                                Click="Duplicate_Click"/>
-                        <Button x:Name="ExportBtn" Content="Export…"
-                                Style="{StaticResource FlatBtn}" FontSize="11" Padding="14,0"
-                                Margin="8,0,0,0" IsEnabled="False"
-                                Click="ExportTheme_Click"
-                                ToolTip="Export this theme (theme.json + images) as a .zip"/>
                     </StackPanel>
 
-                    <!-- Right: live indicator + status + save -->
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <!-- Right: live indicator + status + cancel + save -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                         <TextBlock x:Name="LiveIndicator" Text="● LIVE"
                                    FontFamily="{DynamicResource Theme.FontFamily}"
                                    FontSize="10" FontWeight="Bold"
@@ -744,12 +888,12 @@
                                    Foreground="{DynamicResource Success}"
                                    VerticalAlignment="Center" Margin="0,0,10,0"/>
                         <Button x:Name="CancelBtn" Content="Cancel"
-                                Style="{StaticResource FlatBtn}" FontSize="11" Padding="16,0"
+                                Style="{StaticResource FlatBtn}" Padding="14,6"
                                 Margin="0,0,6,0" IsEnabled="False"
                                 ToolTip="Discard unsaved changes (revert to last saved)"
                                 Click="Cancel_Click"/>
                         <Button x:Name="SaveBtn" Content="Save"
-                                Style="{StaticResource SuccessBtn}" FontSize="11" Padding="20,0"
+                                Style="{StaticResource SuccessBtn}" Padding="18,6"
                                 IsEnabled="False"
                                 Click="Save_Click"/>
                     </StackPanel>

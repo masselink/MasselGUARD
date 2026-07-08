@@ -810,7 +810,6 @@
         <GridLength  x:Key="Theme.TitleBarHeight">48</GridLength>
         <Visibility  x:Key="Theme.ShowTitleBarIcon">Visible</Visibility>
         <Visibility  x:Key="Theme.ShowTitleBarAppName">Visible</Visibility>
-        <Visibility  x:Key="Theme.ShowResizeGrip">Visible</Visibility>
         <sys:Double  x:Key="Theme.WindowOpacity">1.0</sys:Double>
         <!-- Status bar -->
         <Visibility  x:Key="Theme.ShowStatusBar">Visible</Visibility>

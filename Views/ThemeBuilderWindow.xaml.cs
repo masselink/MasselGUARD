@@ -23,8 +23,9 @@ namespace MasselGUARD.Views
         private readonly MainWindow   _main;
         private ThemeDefinition       _draft    = new();
         private string                _editingName  = "";   // folder name being edited
-        private bool                  _readOnly    = false;  // System + Shared: editor locked
-        private bool                  _canDelete   = false;  // Shared + Custom: deletable (not System)
+        private bool                  _readOnly    = false;  // only the System theme is read-only
+        private bool                  _canDelete   = false;  // every theme except System can be deleted
+        private bool                  _shiftPeek   = false;  // hold-Shift Windows-colours preview active
         private bool                  _loading      = false;
         private bool                  _dirty        = false; // unsaved edits exist
         // Debounces live apply so slider drags / hex typing don't restyle per keystroke
@@ -39,12 +40,13 @@ namespace MasselGUARD.Views
         private Dictionary<string, string> ActiveVals => _editingDark ? _darkVals : _lightVals;
 
         // ── Per-variant assets ────────────────────────────────────────────────
-        // When enabled, logo + background image + tray icons follow the Dark/Light
-        // pill (stored in the variant sections); otherwise one shared set lives at
-        // root level.
-        private bool   _perVariantAssets = false;
-        private string _darkLogo  = "", _lightLogo  = "", _darkBgImg = "", _lightBgImg = "";
-        private string _darkTrayC = "", _lightTrayC = "", _darkTrayD = "", _lightTrayD = "";
+        // Every image asset is always dark/light sensitive — each has its own Light
+        // and Dark box in the editor, stored in the variant sections on save. A
+        // legacy theme with only a shared root-level asset seeds both sides on load
+        // (see LoadTheme/FirstNonEmpty); saving migrates it to the dual format.
+        private string _darkLogo    = "", _lightLogo    = "", _darkBgImg = "", _lightBgImg = "";
+        private string _darkTrayC   = "", _lightTrayC   = "", _darkTrayD = "", _lightTrayD = "";
+        private string _darkAppIcon = "", _lightAppIcon = "";
 
         // Color-picker controls built in BuildColorRows() — both variants shown side by side.
         private readonly Dictionary<string, TextBox> _lightBoxes    = new();
@@ -96,11 +98,9 @@ namespace MasselGUARD.Views
         public ThemeBuilderWindow(MainWindow main)
         {
             _main = main;
-            // Pin this window to System (Windows colors): local resources shadow the
-            // application resources, so live theme edits restyle the MAIN window but
-            // never the builder itself — the editor stays readable even while a
-            // broken draft theme is applied.
-            ThemeManager.ApplySystemTo(Resources);
+            // The manager follows the active theme like every other window (DynamicResource);
+            // editing a theme live restyles it too. If a draft makes the UI unreadable, hold
+            // Shift while starting the app to revert to the Windows default theme.
             InitializeComponent();
             BuildColorRows();
             PopulateThemeList();
@@ -119,6 +119,24 @@ namespace MasselGUARD.Views
                 Interval = TimeSpan.FromMilliseconds(180),
             };
             _applyTimer.Tick += (_, _) => { _applyTimer.Stop(); CaptureUndoStep(); ApplyDraftLive(); };
+
+            // Open on the currently-active theme instead of the empty state.
+            Loaded += (_, _) => SelectActiveTheme();
+        }
+
+        /// <summary>Selects the active theme in the list so the manager opens editing it.</summary>
+        private void SelectActiveTheme()
+        {
+            var active = ThemeManager.Instance.CurrentThemeName;
+            if (active is not ("__system__" or "system"))
+                foreach (ListBoxItem item in CustomList.Items)
+                    if (string.Equals(item.Tag as string, active, StringComparison.OrdinalIgnoreCase))
+                    {
+                        CustomList.SelectedItem = item;
+                        return;
+                    }
+            // System theme, or the active theme is missing → fall back to System (first built-in).
+            if (BuiltinList.Items.Count > 0) BuiltinList.SelectedIndex = 0;
         }
 
         /// <summary>Font families WPF cannot use as a normal typeface (Win11 variable-font collections).</summary>
@@ -158,9 +176,9 @@ namespace MasselGUARD.Views
             public Dictionary<string, string> Dark  = new();
             public Dictionary<string, string> Light = new();
             public bool EditingDark;
-            public bool PerVariant;
             public string DarkLogo = "", LightLogo = "", DarkBgImg = "", LightBgImg = "",
-                          DarkTrayC = "", LightTrayC = "", DarkTrayD = "", LightTrayD = "";
+                          DarkTrayC = "", LightTrayC = "", DarkTrayD = "", LightTrayD = "",
+                          DarkAppIcon = "", LightAppIcon = "";
         }
 
         private ThemeSnapshot Snapshot() => new()
@@ -169,11 +187,11 @@ namespace MasselGUARD.Views
             Dark        = new Dictionary<string, string>(_darkVals),
             Light       = new Dictionary<string, string>(_lightVals),
             EditingDark = _editingDark,
-            PerVariant  = _perVariantAssets,
             DarkLogo    = _darkLogo,  LightLogo  = _lightLogo,
             DarkBgImg   = _darkBgImg, LightBgImg = _lightBgImg,
             DarkTrayC   = _darkTrayC, LightTrayC = _lightTrayC,
             DarkTrayD   = _darkTrayD, LightTrayD = _lightTrayD,
+            DarkAppIcon = _darkAppIcon, LightAppIcon = _lightAppIcon,
         };
 
         /// <summary>Records the previous settled state for undo. Called once per debounced edit burst.</summary>
@@ -191,12 +209,12 @@ namespace MasselGUARD.Views
             _draft = s.Def;
             _darkVals.Clear();  foreach (var kv in s.Dark)  _darkVals[kv.Key]  = kv.Value;
             _lightVals.Clear(); foreach (var kv in s.Light) _lightVals[kv.Key] = kv.Value;
-            _editingDark      = s.EditingDark;
-            _perVariantAssets = s.PerVariant;
+            _editingDark = s.EditingDark;
             _darkLogo  = s.DarkLogo;  _lightLogo  = s.LightLogo;
             _darkBgImg = s.DarkBgImg; _lightBgImg = s.LightBgImg;
             _darkTrayC = s.DarkTrayC; _lightTrayC = s.LightTrayC;
             _darkTrayD = s.DarkTrayD; _lightTrayD = s.LightTrayD;
+            _darkAppIcon = s.DarkAppIcon; _lightAppIcon = s.LightAppIcon;
 
             _applyTimer.Stop();
             _loading = true;
@@ -241,7 +259,32 @@ namespace MasselGUARD.Views
                 if (e.Key == System.Windows.Input.Key.Z) { Undo_Click(this, new RoutedEventArgs()); e.Handled = true; }
                 else if (e.Key == System.Windows.Input.Key.Y) { Redo_Click(this, new RoutedEventArgs()); e.Handled = true; }
             }
+
+            // Hold Shift (when not typing in a box) to preview the window in Windows colours —
+            // a readable escape hatch while editing a theme live.
+            if ((e.Key is Key.LeftShift or Key.RightShift) && !_shiftPeek && !inTextBox)
+            {
+                _shiftPeek = true;
+                ThemeManager.ApplySystemTo(Resources);   // local resources shadow the app theme
+            }
             base.OnPreviewKeyDown(e);
+        }
+
+        protected override void OnPreviewKeyUp(System.Windows.Input.KeyEventArgs e)
+        {
+            if ((e.Key is Key.LeftShift or Key.RightShift) && _shiftPeek)
+            {
+                _shiftPeek = false;
+                Resources.Clear();   // drop the local override → back to the active theme
+            }
+            base.OnPreviewKeyUp(e);
+        }
+
+        /// <summary>Clear the hold-Shift preview if focus leaves mid-hold (KeyUp may not fire).</summary>
+        protected override void OnDeactivated(EventArgs e)
+        {
+            if (_shiftPeek) { _shiftPeek = false; Resources.Clear(); }
+            base.OnDeactivated(e);
         }
 
         // ── Cancel / revert ───────────────────────────────────────────────────
@@ -259,8 +302,7 @@ namespace MasselGUARD.Views
         /// <summary>
         /// When unsaved edits exist, asks whether to save them. Returns after the
         /// choice is handled: save (and activate) or discard (revert the live app
-        /// to the committed theme). The themed dialog uses the System palette (not the
-        /// live draft), so it stays readable even while a broken draft is applied.
+        /// to the committed theme).
         /// </summary>
         private void ResolveDirtyDraft(string question)
         {
@@ -305,17 +347,27 @@ namespace MasselGUARD.Views
                     UpdateSwatch(_lightSwatches, key, lv);
                     UpdateSwatch(_darkSwatches,  key, dv);
                 }
+                SyncAlphaSliders();
             }
             finally { _loading = wasLoading; }
             UpdateTrayPreview();
         }
 
         // ── Per-variant assets ────────────────────────────────────────────────
+        // Both boxes (Light + Dark) are always visible and independently editable —
+        // no pill dependency. "Active*" is only used to pick which side feeds the
+        // flat CollectDraft() result (the variant currently being live-previewed).
 
         private string ActiveLogo
         {
             get => _editingDark ? _darkLogo : _lightLogo;
             set { if (_editingDark) _darkLogo = value; else _lightLogo = value; }
+        }
+
+        private string ActiveAppIcon
+        {
+            get => _editingDark ? _darkAppIcon : _lightAppIcon;
+            set { if (_editingDark) _darkAppIcon = value; else _lightAppIcon = value; }
         }
 
         private string ActiveBgImg
@@ -336,48 +388,15 @@ namespace MasselGUARD.Views
             set { if (_editingDark) _darkTrayD = value; else _lightTrayD = value; }
         }
 
-        /// <summary>Asset filename stem — variant-suffixed in per-variant mode so
-        /// dark and light images don't overwrite each other in the theme folder.</summary>
-        private string AssetBaseName(string baseName) =>
-            _perVariantAssets ? $"{baseName}-{(_editingDark ? "dark" : "light")}" : baseName;
+        /// <summary>Asset filename stem, suffixed by variant so dark and light images
+        /// don't overwrite each other in the theme folder.</summary>
+        private static string AssetBaseName(string baseName, bool dark) =>
+            $"{baseName}-{(dark ? "dark" : "light")}";
 
-        private void PopulateAssetBoxes()
-        {
-            bool wasLoading = _loading;
-            _loading = true;
-            try
-            {
-                LogoPathBox.Text     = ActiveLogo;
-                BgImagePathBox.Text  = ActiveBgImg;
-                TrayIconConnBox.Text = ActiveTrayC;
-                TrayIconDiscBox.Text = ActiveTrayD;
-            }
-            finally { _loading = wasLoading; }
-            RefreshLogoPreview();
-        }
-
-        private void PerVariantAssets_Changed(object sender, RoutedEventArgs e)
-        {
-            if (!IsInitialized || _loading) return;
-            _perVariantAssets = PerVariantAssetsCheck.IsChecked == true;
-
-            if (_perVariantAssets)
-            {
-                // Seed both variants from the current shared images
-                _darkLogo  = _lightLogo  = LogoPathBox.Text.Trim();
-                _darkBgImg = _lightBgImg = BgImagePathBox.Text.Trim();
-                _darkTrayC = _lightTrayC = TrayIconConnBox.Text.Trim();
-                _darkTrayD = _lightTrayD = TrayIconDiscBox.Text.Trim();
-            }
-            else
-            {
-                // Collapse to one shared set — the boxes keep the currently
-                // shown variant's images as the shared values
-                _darkLogo  = _lightLogo  = _darkBgImg = _lightBgImg = "";
-                _darkTrayC = _lightTrayC = _darkTrayD = _lightTrayD = "";
-            }
-            OnEditorChanged();
-        }
+        /// <summary>First non-empty value, used to seed a variant asset box from a legacy
+        /// shared root-level asset when the variant section doesn't have its own.</summary>
+        private static string FirstNonEmpty(string? a, string? b) =>
+            !string.IsNullOrWhiteSpace(a) ? a! : (b ?? "");
 
         private void Variant_Changed(object sender, RoutedEventArgs e)
         {
@@ -386,9 +405,10 @@ namespace MasselGUARD.Views
             bool wantDark = VariantDark.IsChecked == true;
             if (wantDark == _editingDark) return;
 
-            _editingDark = wantDark;            // boxes already synced to the old set
+            _editingDark = wantDark;            // colour boxes already synced to the old set
             PopulateColorBoxes();
-            if (_perVariantAssets) PopulateAssetBoxes();
+            // Asset boxes don't move with the pill (both variants are always shown),
+            // only the live-previewed variant (via CollectDraft's Active* reads) changes.
 
             // Restyle the app to the newly selected variant right away — this is the
             // Dark/Light preview, so it works for read-only (shared/System) themes too.
@@ -715,7 +735,6 @@ namespace MasselGUARD.Views
         private void PopulateThemeList()
         {
             BuiltinList.Items.Clear();
-            SharedList.Items.Clear();
             CustomList.Items.Clear();
 
             var active = ThemeManager.Instance.CurrentThemeName;
@@ -725,32 +744,16 @@ namespace MasselGUARD.Views
             BuiltinList.Items.Add(BuildListItem("__system__", "System (Windows colors)",
                 isBuiltin: true, isActive: active is "__system__" or "system"));
 
-            // SHARED — every folder shipped/downloaded into the install's shared_themes\
-            // folder. Read-only (locked) but deletable and copyable (Duplicate to edit).
-            foreach (var name in ThemeManager.SharedThemeNames())
+            // THEMES — every theme in %APPDATA%\MasselGUARD\themes\ (downloaded + user-made),
+            // all editable.
+            var names = ThemeManager.ThemeNames();
+            foreach (var name in names)
             {
                 var display = ThemeManager.GetThemeDisplayName(name);
-                SharedList.Items.Add(BuildListItem(name, display, isBuiltin: true, isActive: name == active));
+                CustomList.Items.Add(BuildListItem(name, display, isBuiltin: false, isActive: name == active));
             }
 
-            // CUSTOM — the user's own themes in %APPDATA%\MasselGUARD\custom_themes\
-            var userRoot = ThemeManager.UserThemeRoot;
-            List<string> customNames = new();
-            if (Directory.Exists(userRoot))
-                customNames = Directory.GetDirectories(userRoot)
-                    .Select(d => Path.GetFileName(d)!)
-                    .Where(n => File.Exists(Path.Combine(userRoot, n, "theme.json")))
-                    .OrderBy(n => n)
-                    .ToList();
-
-            foreach (var name in customNames)
-            {
-                var display = ThemeManager.GetThemeDisplayName(name);
-                var item    = BuildListItem(name, display, isBuiltin: false, isActive: name == active);
-                CustomList.Items.Add(item);
-            }
-
-            NoCustomLabel.Visibility = customNames.Count == 0
+            NoCustomLabel.Visibility = names.Count == 0
                 ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -794,7 +797,6 @@ namespace MasselGUARD.Views
             if ((sender as ListBox)?.SelectedItem != null)
             {
                 if (sender != BuiltinList) BuiltinList.SelectedItem = null;
-                if (sender != SharedList)  SharedList.SelectedItem  = null;
                 if (sender != CustomList)  CustomList.SelectedItem  = null;
             }
 
@@ -807,12 +809,43 @@ namespace MasselGUARD.Views
             LoadTheme(name);
         }
 
+        /// <summary>Right-click a theme row → select it and open its per-theme action menu
+        /// (Apply / Duplicate / Export / Delete, gated by the theme kind).</summary>
+        private void ThemeItem_RightClick(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not ListBoxItem lbi) return;
+            lbi.IsSelected = true;   // routes through ThemeList_SelectionChanged → LoadTheme
+            if (string.IsNullOrEmpty(_editingName)) return;
+
+            var menu = new ContextMenu();
+            void Item(string header, RoutedEventHandler handler)
+            {
+                var mi = new MenuItem { Header = header };
+                mi.Click += handler;
+                menu.Items.Add(mi);
+            }
+
+            Item("Apply", Apply_Click);
+            Item("Duplicate", Duplicate_Click);
+            if (_editingName is not ("__system__" or "system"))
+                Item("Export…", ExportTheme_Click);
+            if (_canDelete)
+            {
+                menu.Items.Add(new Separator());
+                Item("Delete", DeleteTheme_Click);
+            }
+
+            menu.PlacementTarget = lbi;
+            menu.IsOpen = true;
+            e.Handled = true;
+        }
+
         private void LoadTheme(string name)
         {
             _editingName = name;
-            // Editor is read-only for the System theme AND shared themes (shipped/downloaded);
-            // only the user's own custom themes are editable. Shared + custom can be deleted.
-            _readOnly  = ThemeManager.IsBuiltinTheme(name) || ThemeManager.IsSharedTheme(name);
+            // Only the virtual System theme is read-only; every theme in the themes\ folder
+            // (downloaded or user-made) is editable and deletable.
+            _readOnly  = ThemeManager.IsBuiltinTheme(name);
             _canDelete = !ThemeManager.IsBuiltinTheme(name);
             _dirty       = false;
             _applyTimer?.Stop();
@@ -856,20 +889,19 @@ namespace MasselGUARD.Views
                 _editingDark = legacyDark;
             }
 
-            // Per-variant asset overrides (logo / background / tray icons in the variant sections)
-            _darkLogo   = _draft.Dark?.Logo                  ?? "";
-            _lightLogo  = _draft.Light?.Logo                 ?? "";
-            _darkBgImg  = _draft.Dark?.BackgroundImage       ?? "";
-            _lightBgImg = _draft.Light?.BackgroundImage      ?? "";
-            _darkTrayC  = _draft.Dark?.TrayIconConnected     ?? "";
-            _lightTrayC = _draft.Light?.TrayIconConnected    ?? "";
-            _darkTrayD  = _draft.Dark?.TrayIconDisconnected  ?? "";
-            _lightTrayD = _draft.Light?.TrayIconDisconnected ?? "";
-            _perVariantAssets = name != "__system__" &&
-                (_darkLogo.Length  > 0 || _lightLogo.Length  > 0 ||
-                 _darkBgImg.Length > 0 || _lightBgImg.Length > 0 ||
-                 _darkTrayC.Length > 0 || _lightTrayC.Length > 0 ||
-                 _darkTrayD.Length > 0 || _lightTrayD.Length > 0);
+            // Per-variant asset overrides (logo / app icon / background / tray icons).
+            // A legacy theme with only a shared root-level asset seeds both sides here;
+            // saving writes it back into both variant sections (that is the migration).
+            _darkLogo    = FirstNonEmpty(_draft.Dark?.Logo,                  _draft.Logo);
+            _lightLogo   = FirstNonEmpty(_draft.Light?.Logo,                 _draft.Logo);
+            _darkAppIcon  = FirstNonEmpty(_draft.Dark?.AppIcon,               _draft.AppIcon);
+            _lightAppIcon = FirstNonEmpty(_draft.Light?.AppIcon,              _draft.AppIcon);
+            _darkBgImg   = FirstNonEmpty(_draft.Dark?.BackgroundImage,       _draft.BackgroundImage);
+            _lightBgImg  = FirstNonEmpty(_draft.Light?.BackgroundImage,      _draft.BackgroundImage);
+            _darkTrayC   = FirstNonEmpty(_draft.Dark?.TrayIconConnected,     _draft.TrayIconConnected);
+            _lightTrayC  = FirstNonEmpty(_draft.Light?.TrayIconConnected,    _draft.TrayIconConnected);
+            _darkTrayD   = FirstNonEmpty(_draft.Dark?.TrayIconDisconnected,  _draft.TrayIconDisconnected);
+            _lightTrayD  = FirstNonEmpty(_draft.Light?.TrayIconDisconnected, _draft.TrayIconDisconnected);
 
             _loading = true;
             try { PopulateEditor(); }
@@ -880,14 +912,10 @@ namespace MasselGUARD.Views
             EditorPanel.Visibility     = Visibility.Visible;
             ReadOnlyBanner.Visibility  = _readOnly ? Visibility.Visible : Visibility.Collapsed;
 
-            // Buttons — System is duplicable (seeds a copy of the live palette)
-            // but not exportable (it has no folder on disk). Shared themes are read-only
-            // but can still be deleted, duplicated and exported.
+            // Per-theme actions (Apply / Duplicate / Export / Delete) live in the right-click
+            // context menu, built on demand from _readOnly/_canDelete. Only Save lives here.
             SetEditorReadOnly(_readOnly);
-            DuplicateBtn.IsEnabled   = true;
-            ExportBtn.IsEnabled      = name != "__system__";
-            DeleteThemeBtn.IsEnabled = _canDelete;
-            SaveBtn.IsEnabled        = !_readOnly;
+            SaveBtn.IsEnabled = !_readOnly;
 
             // Editable theme → edits apply live
             LiveIndicator.Visibility = _readOnly ? Visibility.Collapsed : Visibility.Visible;
@@ -927,7 +955,6 @@ namespace MasselGUARD.Views
             TitleBarHeightSlider.Value  = d.TitleBarHeight;
             ShowTitleBarIconCheck.IsChecked    = d.ShowTitleBarIcon;
             ShowTitleBarAppNameCheck.IsChecked = d.ShowTitleBarAppName;
-            ShowResizeGripCheck.IsChecked      = d.ShowResizeGrip;
 
             // Status bar
             ShowStatusBarCheck.IsChecked    = d.ShowStatusBar;
@@ -935,19 +962,23 @@ namespace MasselGUARD.Views
             ShowStatusWifiCheck.IsChecked   = d.ShowStatusWifi;
             ShowStatusTunnelCheck.IsChecked = d.ShowStatusTunnel;
 
-            // Assets — per-variant mode shows the active variant's images
-            PerVariantAssetsCheck.IsChecked = _perVariantAssets;
-            LogoPathBox.Text     = _perVariantAssets ? ActiveLogo  : d.Logo;
-            LogoWidthBox.Text    = d.LogoWidth.ToString();
-            LogoHeightBox.Text   = d.LogoHeight.ToString();
-            AppIconPathBox.Text  = d.AppIcon;
-            TrayIconConnBox.Text = _perVariantAssets ? ActiveTrayC : d.TrayIconConnected;
-            TrayIconDiscBox.Text = _perVariantAssets ? ActiveTrayD : d.TrayIconDisconnected;
-            RefreshLogoPreview();
+            // Assets — always dark/light sensitive; both boxes are shown at once
+            LogoLightPathBox.Text     = _lightLogo;
+            LogoDarkPathBox.Text      = _darkLogo;
+            LogoWidthBox.Text         = d.LogoWidth.ToString();
+            LogoHeightBox.Text        = d.LogoHeight.ToString();
+            AppIconLightPathBox.Text  = _lightAppIcon;
+            AppIconDarkPathBox.Text   = _darkAppIcon;
+            TrayIconConnLightBox.Text = _lightTrayC;
+            TrayIconConnDarkBox.Text  = _darkTrayC;
+            TrayIconDiscLightBox.Text = _lightTrayD;
+            TrayIconDiscDarkBox.Text  = _darkTrayD;
+            RefreshLogoPreviews();
 
             // Background
-            BgImagePathBox.Text   = _perVariantAssets ? ActiveBgImg : d.BackgroundImage;
-            BgOpacitySlider.Value = d.BackgroundOpacity;
+            BgImageLightPathBox.Text = _lightBgImg;
+            BgImageDarkPathBox.Text  = _darkBgImg;
+            BgOpacitySlider.Value    = d.BackgroundOpacity;
             (d.BackgroundStretch?.ToLowerInvariant() switch
             {
                 "center"  => StretchCenter,
@@ -985,22 +1016,28 @@ namespace MasselGUARD.Views
             CornerRadiusSlider.IsEnabled = !readOnly;
             OpacitySlider.IsEnabled  = !readOnly;
             PanelOpacitySlider.IsEnabled = !readOnly;
-            PerVariantAssetsCheck.IsEnabled = !readOnly;
+            ListHoverAlphaSlider.IsEnabled = !readOnly;
+            TrayHoverAlphaSlider.IsEnabled = !readOnly;
+            HighlightAlphaSlider.IsEnabled = !readOnly;
             TitleBarHeightSlider.IsEnabled = !readOnly;
             ShowTitleBarIconCheck.IsEnabled    = !readOnly;
             ShowTitleBarAppNameCheck.IsEnabled = !readOnly;
-            ShowResizeGripCheck.IsEnabled      = !readOnly;
             ShowStatusBarCheck.IsEnabled    = !readOnly;
             StatusBarHeightSlider.IsEnabled = !readOnly;
             ShowStatusWifiCheck.IsEnabled   = !readOnly;
             ShowStatusTunnelCheck.IsEnabled = !readOnly;
-            LogoPathBox.IsReadOnly     = readOnly;
-            LogoWidthBox.IsReadOnly    = readOnly;
-            LogoHeightBox.IsReadOnly   = readOnly;
-            AppIconPathBox.IsReadOnly  = readOnly;
-            TrayIconConnBox.IsReadOnly = readOnly;
-            TrayIconDiscBox.IsReadOnly = readOnly;
-            BgImagePathBox.IsReadOnly = readOnly;
+            LogoLightPathBox.IsReadOnly     = readOnly;
+            LogoDarkPathBox.IsReadOnly      = readOnly;
+            LogoWidthBox.IsReadOnly         = readOnly;
+            LogoHeightBox.IsReadOnly        = readOnly;
+            AppIconLightPathBox.IsReadOnly  = readOnly;
+            AppIconDarkPathBox.IsReadOnly   = readOnly;
+            TrayIconConnLightBox.IsReadOnly = readOnly;
+            TrayIconConnDarkBox.IsReadOnly  = readOnly;
+            TrayIconDiscLightBox.IsReadOnly = readOnly;
+            TrayIconDiscDarkBox.IsReadOnly  = readOnly;
+            BgImageLightPathBox.IsReadOnly  = readOnly;
+            BgImageDarkPathBox.IsReadOnly   = readOnly;
             BgOpacitySlider.IsEnabled = !readOnly;
             StretchFill.IsEnabled    = !readOnly;
             StretchCenter.IsEnabled  = !readOnly;
@@ -1055,27 +1092,38 @@ namespace MasselGUARD.Views
             }
 
             var dlg = new ColorPickerDialog(current) { Owner = this };
-            dlg.ShowDialog();
-            if (dlg.Selected is Color c)
+            // Live-preview each drag/hex edit in the app immediately, same path as typing a hex value.
+            dlg.PreviewChanged += c =>
             {
-                var hex = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
                 if (boxes.TryGetValue(key, out var tb))
-                    tb.Text = hex;   // triggers ColorBox_TextChanged → live apply + swatch
-            }
+                    tb.Text = $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+            };
+            dlg.ShowDialog();
+
+            var final = dlg.Selected ?? current;   // Cancel → revert the live preview
+            var hex   = $"#{final.R:X2}{final.G:X2}{final.B:X2}";
+            if (boxes.TryGetValue(key, out var box2))
+                box2.Text = hex;   // triggers ColorBox_TextChanged → live apply + swatch
         }
 
         // ── Field change handlers — every edit feeds the debounced live apply ──
         private void Field_Changed(object sender, TextChangedEventArgs e)
         {
             if (_loading) return;
-            // In per-variant mode the asset boxes edit the active variant
-            if (_perVariantAssets)
-            {
-                if (sender == LogoPathBox)     ActiveLogo  = LogoPathBox.Text.Trim();
-                if (sender == BgImagePathBox)  ActiveBgImg = BgImagePathBox.Text.Trim();
-                if (sender == TrayIconConnBox) ActiveTrayC = TrayIconConnBox.Text.Trim();
-                if (sender == TrayIconDiscBox) ActiveTrayD = TrayIconDiscBox.Text.Trim();
-            }
+            // Each asset box writes straight into its own dark/light field — always
+            // dual, no pill dependency.
+            if      (sender == LogoLightPathBox)     _lightLogo    = LogoLightPathBox.Text.Trim();
+            else if (sender == LogoDarkPathBox)      _darkLogo     = LogoDarkPathBox.Text.Trim();
+            else if (sender == AppIconLightPathBox)  _lightAppIcon = AppIconLightPathBox.Text.Trim();
+            else if (sender == AppIconDarkPathBox)   _darkAppIcon  = AppIconDarkPathBox.Text.Trim();
+            else if (sender == TrayIconConnLightBox) _lightTrayC   = TrayIconConnLightBox.Text.Trim();
+            else if (sender == TrayIconConnDarkBox)  _darkTrayC    = TrayIconConnDarkBox.Text.Trim();
+            else if (sender == TrayIconDiscLightBox) _lightTrayD   = TrayIconDiscLightBox.Text.Trim();
+            else if (sender == TrayIconDiscDarkBox)  _darkTrayD    = TrayIconDiscDarkBox.Text.Trim();
+            else if (sender == BgImageLightPathBox)  _lightBgImg   = BgImageLightPathBox.Text.Trim();
+            else if (sender == BgImageDarkPathBox)   _darkBgImg    = BgImageDarkPathBox.Text.Trim();
+
+            if (sender == LogoLightPathBox || sender == LogoDarkPathBox) RefreshLogoPreviews();
             OnEditorChanged();
         }
 
@@ -1147,6 +1195,65 @@ namespace MasselGUARD.Views
             OnEditorChanged();
         }
 
+        // ── Per-colour transparency (List hover / Tray hover / Highlight) ──────
+        // The alpha lives inside the colour's own hex value (#AARRGGBB), so these sliders
+        // just rewrite that colour's alpha byte through the same TextBox → live-apply path
+        // the hex boxes and colour picker already use. Nothing new to persist or migrate.
+
+        /// <summary>Alpha byte encoded in a colour hex string; 255 (opaque) if unset/invalid.</summary>
+        private static byte HexAlpha(string? hex)
+        {
+            if (string.IsNullOrWhiteSpace(hex)) return 255;
+            try { return ((Color)ColorConverter.ConvertFromString(hex)).A; }
+            catch { return 255; }
+        }
+
+        /// <summary>Returns hex with its alpha byte replaced, keeping the RGB (black if unset).</summary>
+        private static string WithAlpha(string hex, byte alpha)
+        {
+            Color c;
+            try { c = string.IsNullOrWhiteSpace(hex) ? Colors.Black : (Color)ColorConverter.ConvertFromString(hex); }
+            catch { c = Colors.Black; }
+            return $"#{alpha:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
+        }
+
+        private void ColorAlpha_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!IsInitialized || _loading) return;
+            if (sender is not Slider slider || slider.Tag is not string key) return;
+
+            var label = slider.Name switch
+            {
+                nameof(ListHoverAlphaSlider) => ListHoverAlphaLabel,
+                nameof(TrayHoverAlphaSlider) => TrayHoverAlphaLabel,
+                nameof(HighlightAlphaSlider) => HighlightAlphaLabel,
+                _ => null,
+            };
+            if (label != null) label.Text = $"{slider.Value:P0}";
+
+            // Nothing to make transparent yet if the colour itself hasn't been set.
+            if (!ActiveVals.TryGetValue(key, out var current) || string.IsNullOrWhiteSpace(current)) return;
+
+            var boxes = _editingDark ? _darkBoxes : _lightBoxes;
+            if (boxes.TryGetValue(key, out var box))
+                box.Text = WithAlpha(current, (byte)Math.Round(slider.Value * 255));   // → ColorBox_TextChanged
+        }
+
+        /// <summary>Syncs the alpha sliders to the active variant's current colour values.</summary>
+        private void SyncAlphaSliders()
+        {
+            SetAlphaSlider(ListHoverAlphaSlider, ListHoverAlphaLabel, "ColorListHover");
+            SetAlphaSlider(TrayHoverAlphaSlider, TrayHoverAlphaLabel, "ColorTrayHover");
+            SetAlphaSlider(HighlightAlphaSlider, HighlightAlphaLabel, "ColorHighlight");
+        }
+
+        private void SetAlphaSlider(Slider slider, TextBlock label, string key)
+        {
+            var hex = ActiveVals.TryGetValue(key, out var v) ? v : "";
+            slider.Value = HexAlpha(hex) / 255.0;
+            label.Text    = $"{slider.Value:P0}";
+        }
+
         private void UpdateSliderLabels()
         {
             FontSizeLabel.Text        = $"{(int)FontSizeSlider.Value} pt";
@@ -1156,47 +1263,46 @@ namespace MasselGUARD.Views
             TitleBarHeightLabel.Text  = $"{(int)TitleBarHeightSlider.Value} px";
             StatusBarHeightLabel.Text = $"{(int)StatusBarHeightSlider.Value} px";
             BgOpacityLabel.Text       = $"{BgOpacitySlider.Value:P0}";
+            ListHoverAlphaLabel.Text  = $"{ListHoverAlphaSlider.Value:P0}";
+            TrayHoverAlphaLabel.Text  = $"{TrayHoverAlphaSlider.Value:P0}";
+            HighlightAlphaLabel.Text  = $"{HighlightAlphaSlider.Value:P0}";
         }
 
-        // ── Asset browsers ────────────────────────────────────────────────────
-        private void BrowseLogo_Click(object sender, RoutedEventArgs e)
+        // ── Asset browsers — one Browse/Clear pair per variant per asset ───────
+        private const string LogoFilter = "Logo image|*.png;*.jpg;*.jpeg;*.bmp;*.svg";
+        private const string IconFilter = "Icon image|*.ico;*.png;*.bmp;*.jpg;*.jpeg";
+        private const string BgFilter   = "Background image|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tiff";
+
+        private void BrowseAsset(TextBox box, string filter, string baseName, bool dark)
         {
-            var path = BrowseImage("Logo image|*.png;*.jpg;*.jpeg;*.bmp;*.svg");
-            if (path != null) { LogoPathBox.Text = CopyAssetToTheme(path, AssetBaseName("logo")); RefreshLogoPreview(); }
-        }
-        private void ClearLogo_Click(object sender, RoutedEventArgs e)
-        {
-            LogoPathBox.Text = "";
-            LogoPreviewBorder.Visibility = Visibility.Collapsed;
+            var path = BrowseImage(filter);
+            if (path != null) box.Text = CopyAssetToTheme(path, AssetBaseName(baseName, dark));
         }
 
-        private void BrowseIcon_Click(object sender, RoutedEventArgs e)
-        {
-            var path = BrowseImage("App icon|*.ico;*.png;*.bmp;*.jpg;*.jpeg");
-            if (path != null) AppIconPathBox.Text = CopyAssetToTheme(path, "icon");
-        }
-        private void ClearIcon_Click(object sender, RoutedEventArgs e) => AppIconPathBox.Text = "";
+        private void BrowseLogoLight_Click(object sender, RoutedEventArgs e) { BrowseAsset(LogoLightPathBox, LogoFilter, "logo", dark: false); RefreshLogoPreviews(); }
+        private void BrowseLogoDark_Click(object sender, RoutedEventArgs e)  { BrowseAsset(LogoDarkPathBox,  LogoFilter, "logo", dark: true);  RefreshLogoPreviews(); }
+        private void ClearLogoLight_Click(object sender, RoutedEventArgs e) { LogoLightPathBox.Text = ""; RefreshLogoPreviews(); }
+        private void ClearLogoDark_Click(object sender, RoutedEventArgs e)  { LogoDarkPathBox.Text  = ""; RefreshLogoPreviews(); }
 
-        private void BrowseTrayConn_Click(object sender, RoutedEventArgs e)
-        {
-            var path = BrowseImage("Tray icon|*.ico;*.png;*.bmp;*.jpg;*.jpeg");
-            if (path != null) TrayIconConnBox.Text = CopyAssetToTheme(path, AssetBaseName("tray-connected"));
-        }
-        private void ClearTrayConn_Click(object sender, RoutedEventArgs e) => TrayIconConnBox.Text = "";
+        private void BrowseIconLight_Click(object sender, RoutedEventArgs e) => BrowseAsset(AppIconLightPathBox, IconFilter, "icon", dark: false);
+        private void BrowseIconDark_Click(object sender, RoutedEventArgs e)  => BrowseAsset(AppIconDarkPathBox,  IconFilter, "icon", dark: true);
+        private void ClearIconLight_Click(object sender, RoutedEventArgs e) => AppIconLightPathBox.Text = "";
+        private void ClearIconDark_Click(object sender, RoutedEventArgs e)  => AppIconDarkPathBox.Text  = "";
 
-        private void BrowseTrayDisc_Click(object sender, RoutedEventArgs e)
-        {
-            var path = BrowseImage("Tray icon|*.ico;*.png;*.bmp;*.jpg;*.jpeg");
-            if (path != null) TrayIconDiscBox.Text = CopyAssetToTheme(path, AssetBaseName("tray-disconnected"));
-        }
-        private void ClearTrayDisc_Click(object sender, RoutedEventArgs e) => TrayIconDiscBox.Text = "";
+        private void BrowseTrayConnLight_Click(object sender, RoutedEventArgs e) => BrowseAsset(TrayIconConnLightBox, IconFilter, "tray-connected", dark: false);
+        private void BrowseTrayConnDark_Click(object sender, RoutedEventArgs e)  => BrowseAsset(TrayIconConnDarkBox,  IconFilter, "tray-connected", dark: true);
+        private void ClearTrayConnLight_Click(object sender, RoutedEventArgs e) => TrayIconConnLightBox.Text = "";
+        private void ClearTrayConnDark_Click(object sender, RoutedEventArgs e)  => TrayIconConnDarkBox.Text  = "";
 
-        private void BrowseBg_Click(object sender, RoutedEventArgs e)
-        {
-            var path = BrowseImage("Background image|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tiff");
-            if (path != null) BgImagePathBox.Text = CopyAssetToTheme(path, AssetBaseName("bg"));
-        }
-        private void ClearBg_Click(object sender, RoutedEventArgs e) => BgImagePathBox.Text = "";
+        private void BrowseTrayDiscLight_Click(object sender, RoutedEventArgs e) => BrowseAsset(TrayIconDiscLightBox, IconFilter, "tray-disconnected", dark: false);
+        private void BrowseTrayDiscDark_Click(object sender, RoutedEventArgs e)  => BrowseAsset(TrayIconDiscDarkBox,  IconFilter, "tray-disconnected", dark: true);
+        private void ClearTrayDiscLight_Click(object sender, RoutedEventArgs e) => TrayIconDiscLightBox.Text = "";
+        private void ClearTrayDiscDark_Click(object sender, RoutedEventArgs e)  => TrayIconDiscDarkBox.Text  = "";
+
+        private void BrowseBgLight_Click(object sender, RoutedEventArgs e) => BrowseAsset(BgImageLightPathBox, BgFilter, "bg", dark: false);
+        private void BrowseBgDark_Click(object sender, RoutedEventArgs e)  => BrowseAsset(BgImageDarkPathBox,  BgFilter, "bg", dark: true);
+        private void ClearBgLight_Click(object sender, RoutedEventArgs e) => BgImageLightPathBox.Text = "";
+        private void ClearBgDark_Click(object sender, RoutedEventArgs e)  => BgImageDarkPathBox.Text  = "";
 
         private static string? BrowseImage(string filter)
         {
@@ -1205,8 +1311,7 @@ namespace MasselGUARD.Views
         }
 
         /// <summary>Folder of the theme currently being edited, at its real location —
-        /// <c>shared_themes\</c> for shared themes, <c>custom_themes\</c> for the user's own.
-        /// Edits/saves/deletes target this so shared themes update in place.</summary>
+        /// the unified <c>themes\</c> folder. Edits/saves/deletes target this folder.</summary>
         private string EditingThemeDir => ThemeManager.ThemeFolder(_editingName);
 
         /// <summary>
@@ -1228,26 +1333,31 @@ namespace MasselGUARD.Views
             catch { return Path.GetFileName(srcPath); }
         }
 
-        private void RefreshLogoPreview()
+        private void RefreshLogoPreviews()
         {
-            var logoFile = LogoPathBox?.Text ?? "";
+            RefreshLogoPreview(LogoLightPathBox?.Text ?? "", LogoPreviewBorderLight, LogoPreviewImgLight);
+            RefreshLogoPreview(LogoDarkPathBox?.Text  ?? "", LogoPreviewBorderDark,  LogoPreviewImgDark);
+        }
+
+        private void RefreshLogoPreview(string logoFile, Border border, Image img)
+        {
             if (string.IsNullOrWhiteSpace(logoFile) || string.IsNullOrEmpty(_editingName))
             {
-                LogoPreviewBorder.Visibility = Visibility.Collapsed;
+                border.Visibility = Visibility.Collapsed;
                 return;
             }
             var full = Path.Combine(ThemeManager.UserThemeRoot, _editingName, logoFile);
             if (!File.Exists(full)) full = Path.Combine(ThemeManager.ThemeFolder(_editingName), logoFile);
-            if (!File.Exists(full)) { LogoPreviewBorder.Visibility = Visibility.Collapsed; return; }
+            if (!File.Exists(full)) { border.Visibility = Visibility.Collapsed; return; }
 
             try
             {
                 // Uncached + fully-loaded: keeps the file unlocked for overwrites and
                 // shows the new content when logo.png is replaced under the same name
-                LogoPreviewImg.Source        = ThemeManager.LoadImageUncached(full);
-                LogoPreviewBorder.Visibility = Visibility.Visible;
+                img.Source         = ThemeManager.LoadImageUncached(full);
+                border.Visibility  = Visibility.Visible;
             }
-            catch { LogoPreviewBorder.Visibility = Visibility.Collapsed; }
+            catch { border.Visibility = Visibility.Collapsed; }
         }
 
         // ── Collect draft from UI ─────────────────────────────────────────────
@@ -1272,21 +1382,22 @@ namespace MasselGUARD.Views
                 TitleBarHeight     = (int)TitleBarHeightSlider.Value,
                 ShowTitleBarIcon   = ShowTitleBarIconCheck.IsChecked == true,
                 ShowTitleBarAppName= ShowTitleBarAppNameCheck.IsChecked == true,
-                ShowResizeGrip     = ShowResizeGripCheck.IsChecked == true,
 
                 ShowStatusBar     = ShowStatusBarCheck.IsChecked == true,
                 StatusBarHeight   = (int)StatusBarHeightSlider.Value,
                 ShowStatusWifi    = ShowStatusWifiCheck.IsChecked == true,
                 ShowStatusTunnel  = ShowStatusTunnelCheck.IsChecked == true,
 
-                Logo         = LogoPathBox.Text.Trim(),
+                // Assets are always dual — the flat draft (used for live preview) takes
+                // whichever side the Dark/Light pill (_editingDark) is currently showing.
+                Logo         = ActiveLogo,
                 LogoWidth    = int.TryParse(LogoWidthBox.Text,  out var lw) ? lw : 28,
                 LogoHeight   = int.TryParse(LogoHeightBox.Text, out var lh) ? lh : 28,
-                AppIcon      = AppIconPathBox.Text.Trim(),
-                TrayIconConnected    = TrayIconConnBox.Text.Trim(),
-                TrayIconDisconnected = TrayIconDiscBox.Text.Trim(),
+                AppIcon      = ActiveAppIcon,
+                TrayIconConnected    = ActiveTrayC,
+                TrayIconDisconnected = ActiveTrayD,
 
-                BackgroundImage   = BgImagePathBox.Text.Trim(),
+                BackgroundImage   = ActiveBgImg,
                 BackgroundStretch = GetCheckedTag(StretchFill, StretchCenter, StretchTile, StretchTopLeft),
                 BackgroundOpacity = Math.Round(BgOpacitySlider.Value, 2),
             };
@@ -1308,18 +1419,28 @@ namespace MasselGUARD.Views
             return "";
         }
 
-        // ── New theme ─────────────────────────────────────────────────────────
-        private void NewTheme_Click(object sender, RoutedEventArgs e)
+        // ── Add theme (create / download / import) ───────────────────────────
+        private void AddTheme_Click(object sender, RoutedEventArgs e)
         {
-            var dlg = new NewThemeDialog { Owner = this };
+            var themes = ThemeManager.ThemeNames()
+                .Select(id => (id, display: ThemeManager.GetThemeDisplayName(id)))
+                .ToList();
+            var dlg = new AddThemeDialog(themes) { Owner = this };
             dlg.ShowDialog();
-            if (!dlg.Confirmed) return;
+
+            switch (dlg.Mode)
+            {
+                case AddThemeMode.Download: DownloadThemes_Click(this, new RoutedEventArgs()); return;
+                case AddThemeMode.Import:   ImportTheme_Click(this, new RoutedEventArgs());   return;
+                case AddThemeMode.Create:   break;
+                default:                    return;   // cancelled
+            }
 
             var folderName = SanitizeFolderName(dlg.FolderName);
             if (string.IsNullOrEmpty(folderName)) return;
 
             ThemeDefinition seed;
-            string? lightBg = null, darkBg = null;
+            string? lightBg = null, darkBg = null, copyAssetsFrom = null;
 
             if (dlg.FromImage)
             {
@@ -1335,26 +1456,33 @@ namespace MasselGUARD.Views
                 catch (Exception ex)
                 {
                     ThemedMessageDialog.Info(this, $"Could not build a palette from the image:\n{ex.Message}",
-                        "Theme Builder");
+                        "Theme Manager");
                     return;
                 }
-                seed.Name = Path.GetFileNameWithoutExtension(dlg.LightImagePath);
                 if (dlg.UseAsBackground) { lightBg = dlg.LightImagePath; darkBg = dlg.DarkImagePath; }
+            }
+            else if (!string.IsNullOrEmpty(dlg.BasedOnThemeId))
+            {
+                // Based on an existing theme: clone its definition + copy its image/font assets.
+                var baseDef = ThemeManager.GetThemeMetadata(dlg.BasedOnThemeId);
+                seed = baseDef != null
+                    ? JsonSerializer.Deserialize<ThemeDefinition>(JsonSerializer.Serialize(baseDef)) ?? new ThemeDefinition()
+                    : new ThemeDefinition();
+                copyAssetsFrom = ThemeManager.ThemeFolder(dlg.BasedOnThemeId);
             }
             else
             {
-                // Clone the active definition (serialize round-trip) — mutating
-                // ThemeManager.Instance.Current directly would rename the live theme.
+                // Current theme — clone the active definition (serialize round-trip) so we
+                // don't mutate the live ThemeManager.Instance.Current.
                 var current = ThemeManager.Instance.Current ?? ThemeDefinition.Default;
-                seed = JsonSerializer.Deserialize<ThemeDefinition>(
-                           JsonSerializer.Serialize(current)) ?? new ThemeDefinition();
-                seed.Name = "New Theme";
+                seed = JsonSerializer.Deserialize<ThemeDefinition>(JsonSerializer.Serialize(current)) ?? new ThemeDefinition();
             }
 
+            seed.Name        = dlg.FolderName.Trim();
             seed.Creator     = "";
             seed.Description = "";
 
-            CreateAndEditTheme(folderName, seed, lightBg: lightBg, darkBg: darkBg);
+            CreateAndEditTheme(folderName, seed, lightBg: lightBg, darkBg: darkBg, copyAssetsFrom: copyAssetsFrom);
         }
 
         /// <summary>Copies an image into the theme folder as that variant's window background.</summary>
@@ -1432,16 +1560,24 @@ namespace MasselGUARD.Views
         }
 
         private void CreateAndEditTheme(string folderName, ThemeDefinition seed,
-            string? bgImageSource = null, string? lightBg = null, string? darkBg = null)
+            string? bgImageSource = null, string? lightBg = null, string? darkBg = null,
+            string? copyAssetsFrom = null)
         {
             var dir = Path.Combine(ThemeManager.UserThemeRoot, folderName);
             if (Directory.Exists(dir))
             {
-                ThemedMessageDialog.Info(this, $"A theme named '{folderName}' already exists.", "Theme Builder");
+                ThemedMessageDialog.Info(this, $"A theme named '{folderName}' already exists.", "Theme Manager");
                 return;
             }
 
             Directory.CreateDirectory(dir);
+
+            // "Based on" a theme: copy its images/fonts (everything but theme.json) so the
+            // new theme keeps its logo/background/tray icons/fonts.
+            if (!string.IsNullOrEmpty(copyAssetsFrom) && Directory.Exists(copyAssetsFrom))
+                foreach (var f in Directory.GetFiles(copyAssetsFrom))
+                    if (!Path.GetFileName(f).Equals("theme.json", StringComparison.OrdinalIgnoreCase))
+                        try { File.Copy(f, Path.Combine(dir, Path.GetFileName(f)), overwrite: true); } catch { }
 
             // Optional: ship a single seeding image as the theme's window background (root level)
             if (!string.IsNullOrEmpty(bgImageSource))
@@ -1502,10 +1638,7 @@ namespace MasselGUARD.Views
             _editingName = "";
             EditorPanel.Visibility     = Visibility.Collapsed;
             EmptyStateLabel.Visibility = Visibility.Visible;
-            DeleteThemeBtn.IsEnabled   = false;
             SaveBtn.IsEnabled          = false;
-            DuplicateBtn.IsEnabled     = false;
-            ExportBtn.IsEnabled        = false;
             LiveIndicator.Visibility   = Visibility.Collapsed;
             StatusLabel.Text           = "";
             _dirty = false;
@@ -1513,14 +1646,49 @@ namespace MasselGUARD.Views
             PopulateThemeList();
         }
 
-        // ── Save (= save + activate; the builder stays open) ──────────────────
+        // ── Apply (make the selected theme the active app theme) ──────────────
+        private void Apply_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_editingName)) return;
+
+            // Resolve unsaved edits first (save/discard) so we apply the on-disk theme.
+            if (_dirty && !_readOnly)
+                ResolveDirtyDraft($"Save changes to '{ThemeName.Text}' before applying?");
+
+            var name = _editingName is "__system__" or "system" ? "__system__" : _editingName;
+            _main.ConfigSvc.Config.ActiveTheme = name;
+            _main.ConfigSvc.Save();
+            _main.ApplyThemeFromConfig();   // commit-apply the now-active theme
+
+            PopulateThemeList();            // refresh the ● active marker
+            StatusLabel.Text = "Applied ✓";
+        }
+
+        // ── Download (open the Theme Browser to install from the repository) ──
+        private void DownloadThemes_Click(object sender, RoutedEventArgs e)
+        {
+            var url = (_main.ConfigSvc.Config.SharedThemesRepoUrl ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(url))
+                url = AppConfig.DefaultSharedThemesRepoUrl;
+
+            var browser = new ThemeBrowserWindow(_main, url) { Owner = this };
+            browser.ShowDialog();
+            if (browser.AnyInstalled)
+                PopulateThemeList();   // surface newly installed themes
+        }
+
+        /// <summary>Lets other windows (e.g. the Settings "Download themes…" shortcut)
+        /// jump straight to the community theme browser after opening the manager.</summary>
+        public void OpenCommunityThemes() => DownloadThemes_Click(this, new RoutedEventArgs());
+
+        // ── Save (= save + activate; the manager stays open) ──────────────────
         private void Save_Click(object sender, RoutedEventArgs e) => TrySaveDraft();
 
         private bool TrySaveDraft()
         {
             if (_readOnly || string.IsNullOrEmpty(_editingName))
             {
-                ThemedMessageDialog.Info(this, "System and shared themes can't be saved. Use Duplicate to create an editable copy.",
+                ThemedMessageDialog.Info(this, "The System theme can't be saved. Use Duplicate to create an editable copy.",
                     "Theme Builder");
                 return false;
             }
@@ -1539,8 +1707,7 @@ namespace MasselGUARD.Views
             var dir = EditingThemeDir;
             Directory.CreateDirectory(dir);
             WriteUnifiedThemeJson(dir, draft, _darkVals, _lightVals,
-                _perVariantAssets ? VariantAssetMap(dark: true)  : null,
-                _perVariantAssets ? VariantAssetMap(dark: false) : null);
+                VariantAssetMap(dark: true), VariantAssetMap(dark: false));
 
             // Reload from disk and activate
             ThemeManager.Instance.Load(_editingName, ThemeManager.GetSystemIsDark());
@@ -1567,16 +1734,16 @@ namespace MasselGUARD.Views
         /// <summary>Per-variant asset filenames keyed by their theme.json field name.</summary>
         private Dictionary<string, string> VariantAssetMap(bool dark) => new()
         {
-            ["logo"]                 = dark ? _darkLogo  : _lightLogo,
-            ["backgroundImage"]      = dark ? _darkBgImg : _lightBgImg,
-            ["trayIconConnected"]    = dark ? _darkTrayC : _lightTrayC,
-            ["trayIconDisconnected"] = dark ? _darkTrayD : _lightTrayD,
+            ["logo"]                 = dark ? _darkLogo    : _lightLogo,
+            ["appIcon"]               = dark ? _darkAppIcon : _lightAppIcon,
+            ["backgroundImage"]      = dark ? _darkBgImg   : _lightBgImg,
+            ["trayIconConnected"]    = dark ? _darkTrayC   : _lightTrayC,
+            ["trayIconDisconnected"] = dark ? _darkTrayD   : _lightTrayD,
         };
 
         private static void WriteUnifiedThemeJson(string dir, ThemeDefinition root,
             Dictionary<string, string> dark, Dictionary<string, string> light,
-            Dictionary<string, string>? darkAssets = null,
-            Dictionary<string, string>? lightAssets = null)
+            Dictionary<string, string> darkAssets, Dictionary<string, string> lightAssets)
         {
             var opts = new JsonSerializerOptions
             {
@@ -1592,28 +1759,23 @@ namespace MasselGUARD.Views
             node.Remove("dark");
             node.Remove("light");
 
-            // In per-variant mode the image assets live in the variant sections;
+            // Image assets are always dual now — they live in the variant sections;
             // the root copies (active variant, via CollectDraft) would shadow them.
-            bool perVariantAssets = darkAssets != null || lightAssets != null;
-            if (perVariantAssets)
-            {
-                node.Remove("logo");
-                node.Remove("backgroundImage");
-                node.Remove("trayIconConnected");
-                node.Remove("trayIconDisconnected");
-            }
+            node.Remove("logo");
+            node.Remove("appIcon");
+            node.Remove("backgroundImage");
+            node.Remove("trayIconConnected");
+            node.Remove("trayIconDisconnected");
 
-            static JsonObject? Section(Dictionary<string, string> vals,
-                Dictionary<string, string>? assets)
+            static JsonObject? Section(Dictionary<string, string> vals, Dictionary<string, string> assets)
             {
                 var o = new JsonObject();
                 foreach (var (k, v) in vals)
                     if (!string.IsNullOrWhiteSpace(v))
                         o[JsonNamingPolicy.CamelCase.ConvertName(k)] = v;
-                if (assets != null)
-                    foreach (var (k, v) in assets)
-                        if (!string.IsNullOrWhiteSpace(v))
-                            o[k] = v;
+                foreach (var (k, v) in assets)
+                    if (!string.IsNullOrWhiteSpace(v))
+                        o[k] = v;
                 return o.Count > 0 ? o : null;
             }
 
@@ -1785,18 +1947,15 @@ namespace MasselGUARD.Views
     }
 
     // ── Themed dialog base ────────────────────────────────────────────────────
-    // Shared chrome for the builder's pop-ups: the "System (Windows colors)" palette
-    // (ThemeManager.ApplySystemTo) + custom borderless chrome (AllowsTransparency,
-    // WindowBg/Accent outer border, a Surface title bar with ✕ + DragMove). The palette
-    // is the system one (NOT the live draft), so these dialogs stay readable even while a
-    // half-finished draft theme is applied to the app. Subclasses build a body element and
-    // call SetThemedContent; results are reported via properties, never DialogResult — that
-    // throws on AllowsTransparency windows.
+    // Shared chrome for the manager's pop-ups: borderless (AllowsTransparency), WindowBg/Accent
+    // outer border, a Surface title bar with ✕ + DragMove. Colours come from the ACTIVE theme
+    // (FindResource → application resources) like every other window. Subclasses build a body
+    // element and call SetThemedContent; results are reported via properties, never
+    // DialogResult — that throws on AllowsTransparency windows.
     internal abstract class ThemedDialog : Window
     {
         protected ThemedDialog()
         {
-            ThemeManager.ApplySystemTo(Resources);
             SizeToContent         = SizeToContent.WidthAndHeight;
             ResizeMode            = ResizeMode.NoResize;
             WindowStyle           = WindowStyle.None;
@@ -1896,30 +2055,36 @@ namespace MasselGUARD.Views
         private void Accept() { Confirmed = true; Close(); }
     }
 
-    // ── New-theme dialog: folder name + seeding choice (current theme / image) ──
-    // System-palette themed (see ThemedDialog).
-    internal class NewThemeDialog : ThemedDialog
-    {
-        private readonly TextBox     _nameBox;
-        private readonly RadioButton _fromCurrent;
-        private readonly RadioButton _fromImage;
-        private readonly TextBox     _lightImageBox;
-        private readonly Button      _lightBrowse;
-        private readonly TextBox     _darkImageBox;
-        private readonly Button      _darkBrowse;
-        private readonly CheckBox    _bgCheck;
+    internal enum AddThemeMode { None, Create, Download, Import }
 
-        public bool   Confirmed       { get; private set; }
+    // ── Add-theme dialog: create (based on a theme / images) · download · import ──
+    // Themed from the active theme (see ThemedDialog).
+    internal class AddThemeDialog : ThemedDialog
+    {
+        private sealed class BaseItem
+        {
+            public string Label = "", Kind = "", Id = "";   // Kind: current | theme | image
+            public override string ToString() => Label;
+        }
+
+        private readonly TextBox    _nameBox;
+        private readonly ComboBox   _baseBox;
+        private readonly StackPanel _imagePanel;
+        private readonly TextBox    _lightImageBox, _darkImageBox;
+        private readonly CheckBox   _bgCheck;
+
+        public AddThemeMode Mode { get; private set; } = AddThemeMode.None;
         public string FolderName      => _nameBox.Text;
-        public bool   FromImage       => _fromImage.IsChecked == true;
+        public bool   FromImage       => (_baseBox.SelectedItem as BaseItem)?.Kind == "image";
+        public string BasedOnThemeId  => (_baseBox.SelectedItem as BaseItem)?.Kind == "theme"
+                                             ? (_baseBox.SelectedItem as BaseItem)!.Id : "";
         public string LightImagePath  => _lightImageBox.Text;
         public string DarkImagePath   => _darkImageBox.Text;
         public bool   UseAsBackground => _bgCheck.IsChecked == true;
 
-        public NewThemeDialog()
+        public AddThemeDialog(System.Collections.Generic.IEnumerable<(string id, string display)> themes)
         {
-            // ApplySystemTo only fills brushes, not implicit control styles, so every
-            // TextBlock / TextBox / RadioButton / CheckBox is coloured explicitly here.
+            // Controls are coloured explicitly from the active theme's brushes (B(...)).
             TextBlock Caption(string text, double size, Thickness margin) => new()
             {
                 Text = text, FontSize = size, FontFamily = ThemeFont(),
@@ -1931,111 +2096,127 @@ namespace MasselGUARD.Views
                 BorderBrush = B("BorderColor"), CaretBrush = B("TextPrimary"),
                 FontFamily = ThemeFont(), FontSize = size, Padding = new Thickness(6, 4, 6, 4),
             };
-            RadioButton Radio(string text) => new()
-            {
-                Content = text, FontSize = 12, FontFamily = ThemeFont(),
-                Foreground = B("TextPrimary"), Margin = new Thickness(0, 0, 0, 4),
-            };
 
-            var stack = new StackPanel { Margin = new Thickness(18), Width = 420 };
+            var stack = new StackPanel { Margin = new Thickness(18), Width = 440 };
 
-            stack.Children.Add(Caption("Folder name (lowercase, no spaces — e.g. my-theme):", 12, new Thickness(0, 0, 0, 4)));
+            // ── Create ──
+            stack.Children.Add(Caption("CREATE A NEW THEME", 10, new Thickness(0, 0, 0, 6)));
+
+            stack.Children.Add(Caption("Folder name (lowercase, no spaces — e.g. my-theme):", 11, new Thickness(0, 0, 0, 3)));
             _nameBox = Field(12);
-            _nameBox.Margin = new Thickness(0, 0, 0, 14);
+            _nameBox.Margin = new Thickness(0, 0, 0, 10);
             stack.Children.Add(_nameBox);
 
-            stack.Children.Add(Caption("Start from:", 12, new Thickness(0, 0, 0, 4)));
-            _fromCurrent = Radio("Current theme — tweak what you see now");
-            _fromCurrent.IsChecked = true;
-            _fromImage = Radio("Light & dark images — extract a palette from each picture");
-            _fromImage.Margin = new Thickness(0, 0, 0, 6);
-            stack.Children.Add(_fromCurrent);
-            stack.Children.Add(_fromImage);
-
-            // Two image rows (enabled only when "from images" is selected): one per variant.
-            (TextBox box, Button browse) MakeImageRow(string caption)
+            stack.Children.Add(Caption("Based on:", 11, new Thickness(0, 0, 0, 3)));
+            _baseBox = new ComboBox
             {
-                stack.Children.Add(Caption(caption, 11, new Thickness(18, 2, 0, 2)));
-                var grid = new Grid { Margin = new Thickness(18, 0, 0, 6) };
+                FontFamily = ThemeFont(), FontSize = 12, Padding = new Thickness(6, 4, 6, 4),
+                Foreground = B("TextPrimary"), Margin = new Thickness(0, 0, 0, 8),
+            };
+            _baseBox.Items.Add(new BaseItem { Label = "Current theme (what you see now)", Kind = "current" });
+            _baseBox.Items.Add(new BaseItem { Label = "Two images (extract a palette)",   Kind = "image"   });
+            foreach (var (id, display) in themes)
+                _baseBox.Items.Add(new BaseItem { Label = $"Copy of “{display}”", Kind = "theme", Id = id });
+            _baseBox.SelectedIndex = 0;
+            _baseBox.SelectionChanged += (_, _) => SyncImageRows();
+            stack.Children.Add(_baseBox);
+
+            // Image rows (shown only for the "Two images" option)
+            _imagePanel = new StackPanel { Visibility = Visibility.Collapsed };
+            (TextBox, Button) MakeImageRow(string caption)
+            {
+                _imagePanel.Children.Add(Caption(caption, 11, new Thickness(0, 2, 0, 2)));
+                var grid = new Grid { Margin = new Thickness(0, 0, 0, 6) };
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                var box = Field(11);
-                box.IsReadOnly = true; box.IsEnabled = false;
+                var box = Field(11); box.IsReadOnly = true;
                 Grid.SetColumn(box, 0);
                 var browse = new Button { Content = "Browse…", FontSize = 11, Padding = new Thickness(10, 4, 10, 4),
-                                          Margin = new Thickness(6, 0, 0, 0), IsEnabled = false, Style = (Style)FindResource("FlatBtn") };
+                                          Margin = new Thickness(6, 0, 0, 0), Style = (Style)FindResource("FlatBtn") };
                 browse.Click += (_, _) =>
                 {
                     var ofd = new Microsoft.Win32.OpenFileDialog { Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tiff" };
                     if (ofd.ShowDialog() == true) box.Text = ofd.FileName;
                 };
                 Grid.SetColumn(browse, 1);
-                grid.Children.Add(box);
-                grid.Children.Add(browse);
-                stack.Children.Add(grid);
+                grid.Children.Add(box); grid.Children.Add(browse);
+                _imagePanel.Children.Add(grid);
                 return (box, browse);
             }
-            (_lightImageBox, _lightBrowse) = MakeImageRow("Light-mode picture (seeds the Light variant):");
-            (_darkImageBox,  _darkBrowse)  = MakeImageRow("Dark-mode picture (seeds the Dark variant):");
-
+            (_lightImageBox, _) = MakeImageRow("Light-mode picture (seeds the Light variant):");
+            (_darkImageBox,  _) = MakeImageRow("Dark-mode picture (seeds the Dark variant):");
             _bgCheck = new CheckBox
             {
-                Content   = "Also use each picture as that variant's window background",
-                FontSize  = 11, FontFamily = ThemeFont(), Foreground = B("TextPrimary"),
-                Margin    = new Thickness(18, 2, 0, 12),
-                IsEnabled = false,
+                Content = "Also use each picture as that variant's window background",
+                FontSize = 11, FontFamily = ThemeFont(), Foreground = B("TextPrimary"),
+                Margin = new Thickness(0, 2, 0, 4),
             };
-            stack.Children.Add(_bgCheck);
+            _imagePanel.Children.Add(_bgCheck);
+            stack.Children.Add(_imagePanel);
 
-            void SyncImageRow()
+            var createBtn = new Button
             {
-                bool img = _fromImage.IsChecked == true;
-                _lightImageBox.IsEnabled = img; _lightBrowse.IsEnabled = img;
-                _darkImageBox.IsEnabled  = img; _darkBrowse.IsEnabled  = img;
-                _bgCheck.IsEnabled       = img;
-            }
-            _fromCurrent.Checked += (_, _) => SyncImageRow();
-            _fromImage.Checked   += (_, _) => SyncImageRow();
-
-            var ok = new Button
-            {
-                Content = "Create", IsDefault = true, MinWidth = 80,
-                Padding = new Thickness(20, 6, 20, 6), Style = (Style)FindResource("SuccessBtn"),
+                Content = "Create", IsDefault = true, MinWidth = 80, HorizontalAlignment = HorizontalAlignment.Right,
+                Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 6, 0, 0),
+                Style = (Style)FindResource("SuccessBtn"),
             };
-            ok.Click += (_, _) =>
+            createBtn.Click += (_, _) =>
             {
                 if (string.IsNullOrWhiteSpace(_nameBox.Text))
                 {
-                    ThemedMessageDialog.Info(this, "Folder name cannot be empty.", "New theme");
+                    ThemedMessageDialog.Info(this, "Folder name cannot be empty.", "Add theme");
                     return;
                 }
                 if (FromImage && (!File.Exists(_lightImageBox.Text) || !File.Exists(_darkImageBox.Text)))
                 {
-                    ThemedMessageDialog.Info(this, "Pick both a light-mode and a dark-mode picture.", "New theme");
+                    ThemedMessageDialog.Info(this, "Pick both a light-mode and a dark-mode picture.", "Add theme");
                     return;
                 }
-                Confirmed = true;
+                Mode = AddThemeMode.Create;
                 Close();
             };
+            stack.Children.Add(createBtn);
+
+            // ── Or get an existing theme ──
+            stack.Children.Add(new Border
+            {
+                Height = 1, Background = B("BorderColor"), Margin = new Thickness(0, 14, 0, 12),
+            });
+            stack.Children.Add(Caption("OR GET AN EXISTING THEME", 10, new Thickness(0, 0, 0, 6)));
+
+            var getRow = new StackPanel { Orientation = Orientation.Horizontal };
+            var downloadBtn = new Button
+            {
+                Content = "Download community themes…", Style = (Style)FindResource("FlatBtn"),
+                FontSize = 11, Padding = new Thickness(14, 6, 14, 6),
+            };
+            downloadBtn.Click += (_, _) => { Mode = AddThemeMode.Download; Close(); };
+            var importBtn = new Button
+            {
+                Content = "Import .zip…", Style = (Style)FindResource("FlatBtn"),
+                FontSize = 11, Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(8, 0, 0, 0),
+            };
+            importBtn.Click += (_, _) => { Mode = AddThemeMode.Import; Close(); };
+            getRow.Children.Add(downloadBtn);
+            getRow.Children.Add(importBtn);
+            stack.Children.Add(getRow);
+
+            // ── Cancel ──
             var cancel = new Button
             {
-                Content = "Cancel", IsCancel = true, MinWidth = 80,
-                Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(8, 0, 0, 0),
+                Content = "Cancel", IsCancel = true, MinWidth = 80, HorizontalAlignment = HorizontalAlignment.Right,
+                Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 14, 0, 0),
                 Style = (Style)FindResource("FlatBtn"),
             };
             cancel.Click += (_, _) => Close();
-            var btnRow = new StackPanel
-            {
-                Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(0, 4, 0, 0),
-            };
-            btnRow.Children.Add(ok);
-            btnRow.Children.Add(cancel);
-            stack.Children.Add(btnRow);
+            stack.Children.Add(cancel);
 
-            SetThemedContent("New theme", stack);
+            SetThemedContent("Add theme", stack);
             Loaded += (_, _) => _nameBox.Focus();
         }
+
+        private void SyncImageRows() =>
+            _imagePanel.Visibility = FromImage ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ── Screen eyedropper ──────────────────────────────────────────────────────
@@ -2157,20 +2338,26 @@ namespace MasselGUARD.Views
 
     // ── Custom HSV colour picker ─────────────────────────────────────────────────
     // A WPF replacement for the WinForms ColorDialog: saturation/value square + hue strip
-    // + live preview + editable hex. Styled with the "System (Windows colors)" palette
-    // (ThemeManager.ApplySystemTo) and custom chrome so it matches the Theme Builder —
-    // and, because that palette is the system one (not the live draft), it stays readable
-    // even while a broken draft theme is applied. Result is reported via Selected (NOT
-    // DialogResult — that throws on AllowsTransparency windows).
+    // + live preview + editable hex. Themed from the active theme (ThemedDialog chrome).
+    // Result is reported via Selected (NOT DialogResult — that throws on AllowsTransparency
+    // windows).
     internal sealed class ColorPickerDialog : ThemedDialog
     {
         public Color? Selected { get; private set; }
+
+        /// <summary>Fired on every colour change (drag or hex edit) while live preview is on.</summary>
+        public event Action<Color>? PreviewChanged;
+
+        // Remembered across dialog opens within the session (matches the builder's other
+        // session-only toggles — no AppConfig needed for a picker preference).
+        private static bool _livePreviewOn = true;
 
         private const double SvW = 210, SvH = 160, HueW = 22;
 
         private double _hue, _sat, _val;   // 0–360, 0–1, 0–1
         private bool   _updating;
         private bool   _fetchArmed, _isFetching;   // screen eyedropper on leaving the popup
+        private bool   _closed;   // guards against post-Close MouseLeave re-entrancy (crash fix)
 
         private readonly Rectangle _baseHue   = new() { Width = SvW, Height = SvH };
         private readonly Ellipse   _svMarker  = new() { Width = 12, Height = 12, Stroke = Brushes.White, StrokeThickness = 2, IsHitTestVisible = false };
@@ -2245,6 +2432,17 @@ namespace MasselGUARD.Views
             midRow.Children.Add(hexStack);
             midRow.Children.Add(_rgbLabel);
 
+            // ── Live preview toggle ──
+            var liveCheck = new CheckBox
+            {
+                Content = "Live preview", IsChecked = _livePreviewOn,
+                Foreground = B("TextPrimary"), FontFamily = Font(), FontSize = 11,
+                Margin = new Thickness(0, 12, 0, 0),
+                ToolTip = "Show the colour in the app as you drag, before clicking OK",
+            };
+            liveCheck.Checked   += (_, _) => _livePreviewOn = true;
+            liveCheck.Unchecked += (_, _) => _livePreviewOn = false;
+
             // ── OK / Cancel (same styles as the builder footer) ──
             var ok = new Button { Content = "OK", IsDefault = true, MinWidth = 80, Padding = new Thickness(16, 6, 16, 6),
                                   Style = (Style)FindResource("SuccessBtn") };
@@ -2259,15 +2457,25 @@ namespace MasselGUARD.Views
             var body = new StackPanel { Margin = new Thickness(16) };
             body.Children.Add(topRow);
             body.Children.Add(midRow);
+            body.Children.Add(liveCheck);
             body.Children.Add(btnRow);
 
             SetThemedContent("Pick a colour", body);
 
             // Move the cursor off the popup → grab a colour from the screen (inkpen).
             MouseEnter += (_, _) => _fetchArmed = true;
-            MouseLeave += (_, _) => { if (_fetchArmed && !_isFetching) FetchFromScreen(); };
+            MouseLeave += (_, _) => { if (_fetchArmed && !_isFetching && !_closed) FetchFromScreen(); };
 
             UpdateAll();
+        }
+
+        /// <summary>Closing must be flagged before any teardown-triggered mouse events fire,
+        /// otherwise a MouseLeave synthesised while the window is hiding can still reach
+        /// FetchFromScreen and try to open a new window Owner'd to this already-closed one.</summary>
+        protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+        {
+            _closed = true;
+            base.OnClosing(e);
         }
 
         /// <summary>Opens the screen eyedropper; a captured pixel becomes the picker's colour.</summary>
@@ -2329,6 +2537,8 @@ namespace MasselGUARD.Views
                 Canvas.SetLeft(_svMarker, _sat * SvW - 6);
                 Canvas.SetTop (_svMarker, (1 - _val) * SvH - 6);
                 Canvas.SetTop (_hueMarker, _hue / 360 * SvH - 1);
+
+                if (_livePreviewOn) PreviewChanged?.Invoke(c);
             }
             finally { _updating = false; }
         }
@@ -2367,11 +2577,9 @@ namespace MasselGUARD.Views
     }
 
     // ── Themed message / confirm dialog ──────────────────────────────────────────
-    // Replaces native MessageBox inside the builder so confirmations/errors match the
-    // System (Windows colors) palette + chrome (ThemeManager.ApplySystemTo), instead of
-    // the always-light native dialog clashing with the dark builder. Uses the system
-    // palette (not the live draft), so it stays readable. Result via Confirmed (no
-    // DialogResult — that throws on AllowsTransparency windows).
+    // Replaces native MessageBox inside the manager so confirmations/errors match the active
+    // theme (ThemedDialog chrome) instead of the always-light native dialog. Result via
+    // Confirmed (no DialogResult — that throws on AllowsTransparency windows).
     internal sealed class ThemedMessageDialog : ThemedDialog
     {
         public bool Confirmed { get; private set; }

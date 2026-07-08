@@ -989,9 +989,9 @@
                     </Grid>
                 </Border>
 
-                <ResizeGrip Grid.Row="6" HorizontalAlignment="Right"
-                            VerticalAlignment="Bottom" Margin="0,0,2,2" Opacity="0.4"
-                            Visibility="{DynamicResource Theme.ShowResizeGrip}"/>
+                <!-- No custom resize grip: WPF already draws its own for
+                     ResizeMode=CanResizeWithGrip (required since AllowsTransparency
+                     windows can't be edge-dragged); a second one duplicated it. -->
             </Grid>
         </Grid>
     </Border>

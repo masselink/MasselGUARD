@@ -423,7 +423,4 @@
   "SettingsDnsLeakReboot": "変更を反映するにはトンネルを再接続してください。再起動すれば確実です。これらは個々のトンネルではなく、Windows 全体の設定です。",
   "SettingsDnsLeakAppliedMsg": "DNS 設定を更新しました。完全に反映するにはトンネルを再接続（または再起動）してください。",
   "SettingsDnsLeakError": "設定を変更できませんでした: {0}",
-  "ThemeBuilderTitle": "テーマビルダー",
-  "ThemeBuilderDesc": "専用のウィンドウでカスタムテーマを作成・編集・適用します。",
-  "ThemeBuilderOpenBtn": "テーマビルダーを開く"
 }

@@ -63,78 +63,53 @@ namespace MasselGUARD
         public ThemeDefinition Current          { get; private set; } = ThemeDefinition.Default;
 
         // ── Paths ─────────────────────────────────────────────────────────────
+        private static string AppDataDir =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MasselGUARD");
+
         /// <summary>
-        /// Shipped / downloaded themes that live next to the exe (the install dir, i.e.
-        /// %ProgramFiles%\MasselGUARD\shared_themes\). Read-only in the builder. The only
+        /// ALL non-System themes — downloaded (Theme Browser) and user-created (Theme Builder)
+        /// alike — live together per-user under %APPDATA%\MasselGUARD\themes\. Per-user so
+        /// downloads need no elevation and everything survives app updates/reinstalls. The only
         /// theme built into the binary is the virtual System (Windows colours) theme.
         /// </summary>
-        private static string ThemeRoot =>
-            Path.Combine(
-                Path.GetDirectoryName(
-                    System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
-                    ?? AppContext.BaseDirectory)
-                ?? AppContext.BaseDirectory,
-                "shared_themes");
+        private static string ThemeRoot => Path.Combine(AppDataDir, "themes");
 
-        /// <summary>Public path to the shipped/downloaded shared-themes folder next to the
-        /// exe — used by the "Download shared themes" feature to install fetched themes.</summary>
+        /// <summary>Where the Theme Browser installs downloaded themes — the unified themes folder.</summary>
         public static string SharedThemeRoot => ThemeRoot;
 
-        /// <summary>
-        /// User-created themes live here so they survive app reinstalls.
-        /// %APPDATA%\MasselGUARD\custom_themes\
-        /// </summary>
-        public static string UserThemeRoot =>
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "MasselGUARD", "custom_themes");
-
-        /// <summary>Pre-3.7 location of user themes (%APPDATA%\MasselGUARD\themes\), kept
-        /// only so <see cref="MigrateLegacyUserThemes"/> can move them to the new folder.</summary>
-        private static string LegacyUserThemeRoot =>
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "MasselGUARD", "themes");
+        /// <summary>Where the Theme Builder writes user themes — the unified themes folder.</summary>
+        public static string UserThemeRoot => ThemeRoot;
 
         /// <summary>
-        /// One-time move of user themes from the old <c>themes\</c> folder to
-        /// <c>custom_themes\</c>. Moves the whole folder when the new one doesn't exist
-        /// yet; otherwise merges per-theme (skipping names that already exist in the new
-        /// location) and removes the old folder once empty. Safe to call on every startup.
+        /// Consolidates themes from the earlier per-type folders (<c>custom_themes\</c>,
+        /// <c>shared-themes\</c>, <c>shared_themes\</c>) into the single <c>themes\</c> folder,
+        /// keeping the existing one on a name collision, and removes each old folder once empty.
+        /// Best-effort; safe to call on every startup.
         /// </summary>
-        public static void MigrateLegacyUserThemes()
+        public static void ConsolidateThemeFolders()
         {
-            try
+            var target = ThemeRoot;
+            foreach (var legacy in new[] { "custom_themes", "shared-themes", "shared_themes" })
             {
-                var legacy = LegacyUserThemeRoot;
-                var target = UserThemeRoot;
-                if (!Directory.Exists(legacy)) return;
-
-                if (!Directory.Exists(target))
+                try
                 {
-                    Directory.Move(legacy, target);
-                    return;
+                    var src = Path.Combine(AppDataDir, legacy);
+                    if (!Directory.Exists(src)) continue;
+                    Directory.CreateDirectory(target);
+                    foreach (var dir in Directory.GetDirectories(src))
+                    {
+                        var dest = Path.Combine(target, Path.GetFileName(dir));
+                        if (!Directory.Exists(dest)) Directory.Move(dir, dest);   // keep existing on collision
+                    }
+                    if (!Directory.EnumerateFileSystemEntries(src).Any())
+                        Directory.Delete(src);
                 }
-
-                foreach (var dir in Directory.GetDirectories(legacy))
-                {
-                    var dest = Path.Combine(target, Path.GetFileName(dir));
-                    if (!Directory.Exists(dest)) Directory.Move(dir, dest);
-                }
-                // Drop the old folder if nothing is left behind (collisions stay put).
-                if (!Directory.EnumerateFileSystemEntries(legacy).Any())
-                    Directory.Delete(legacy);
+                catch { /* best-effort — never block startup */ }
             }
-            catch { /* best-effort migration — never block startup over it */ }
         }
 
-        /// <summary>
-        /// Folder names of the shared themes that live in the install's
-        /// <c>shared_themes\</c> folder (shipped + downloaded), discovered from disk. The
-        /// app embeds NO theme names — adding/removing a shared theme is just a folder
-        /// there. Shared themes are editable/deletable in the builder.
-        /// </summary>
-        public static List<string> SharedThemeNames()
+        /// <summary>All theme folder names (each containing a theme.json) in the themes folder.</summary>
+        public static List<string> ThemeNames()
         {
             var root = ThemeRoot;
             if (!Directory.Exists(root)) return new List<string>();
@@ -146,14 +121,14 @@ namespace MasselGUARD
         }
 
         /// <summary>True only for the virtual System (Windows colours) theme — the single
-        /// theme embedded in code, which is read-only (cannot be edited or deleted). Shared
-        /// and custom themes are editable.</summary>
+        /// embedded, read-only theme. Every theme in the themes\ folder is editable.</summary>
         public static bool IsBuiltinTheme(string name) =>
             name is "__system__" or "system";
 
-        /// <summary>True when a theme lives in the install's <c>shared_themes\</c> folder.</summary>
-        public static bool IsSharedTheme(string name) =>
-            !string.IsNullOrEmpty(name) &&
+        /// <summary>True when a theme folder with that name already exists — used to block
+        /// overwriting an existing theme when creating or duplicating.</summary>
+        public static bool ThemeExists(string name) =>
+            !string.IsNullOrWhiteSpace(name) &&
             File.Exists(Path.Combine(ThemeRoot, name, "theme.json"));
 
         /// <summary>
@@ -316,13 +291,14 @@ namespace MasselGUARD
                 FontFamily        = root.FontFamily,
                 FontSize          = root.FontSize,
                 CornerRadius      = root.CornerRadius,
-                // Assets: a variant may carry its own logo / background image
-                // (e.g. a light logo for the light variant); root is the shared
-                // fallback. Stretch/opacity/size stay shared.
+                // Assets: a variant may carry its own logo / app icon / background image /
+                // tray icons (e.g. a light logo for the light variant); root is the shared
+                // fallback for legacy single-image themes. Stretch/opacity/size stay shared —
+                // they're layout numbers, not per-variant images.
                 BackgroundImage   = O(variant.BackgroundImage, root.BackgroundImage),
                 BackgroundStretch = root.BackgroundStretch,
                 BackgroundOpacity = root.BackgroundOpacity,
-                AppIcon           = root.AppIcon,
+                AppIcon           = O(variant.AppIcon, root.AppIcon),
                 Logo              = O(variant.Logo, root.Logo),
                 LogoWidth         = root.LogoWidth,
                 LogoHeight        = root.LogoHeight,
@@ -331,7 +307,6 @@ namespace MasselGUARD
                 TitleBarHeight      = root.TitleBarHeight,
                 ShowTitleBarIcon    = root.ShowTitleBarIcon,
                 ShowTitleBarAppName = root.ShowTitleBarAppName,
-                ShowResizeGrip      = root.ShowResizeGrip,
                 WindowOpacity       = root.WindowOpacity,
                 PanelOpacity        = root.PanelOpacity,
                 ShowStatusBar    = root.ShowStatusBar,
@@ -437,7 +412,6 @@ namespace MasselGUARD
                 TitleBarHeight    = src.TitleBarHeight,
                 ShowTitleBarIcon    = src.ShowTitleBarIcon,
                 ShowTitleBarAppName = src.ShowTitleBarAppName,
-                ShowResizeGrip    = src.ShowResizeGrip,
                 WindowOpacity     = src.WindowOpacity,
                 PanelOpacity      = src.PanelOpacity,
                 ShowStatusBar     = src.ShowStatusBar,
@@ -551,10 +525,10 @@ namespace MasselGUARD
             => Apply(d, folder, isDark, Application.Current.Resources);
 
         /// <summary>
-        /// Fills <paramref name="target"/> with the plain Windows system palette.
-        /// Used by the Theme Builder to pin its own window (and dialogs) to System
-        /// (Windows colors): local resources shadow the application resources, so
-        /// live theme edits never restyle the builder itself.
+        /// Fills <paramref name="target"/> with the plain Windows system palette. Used by the
+        /// Theme Manager's hold-Shift preview to temporarily restyle its own window in Windows
+        /// colours (local resources shadow the application ones); clearing the dictionary
+        /// restores the active theme.
         /// </summary>
         public static void ApplySystemTo(ResourceDictionary target)
         {
@@ -643,7 +617,6 @@ namespace MasselGUARD
             res["Theme.TitleBarHeight"]      = new GridLength(Math.Max(32, d.TitleBarHeight));
             res["Theme.ShowTitleBarIcon"]    = d.ShowTitleBarIcon    ? Visibility.Visible : Visibility.Collapsed;
             res["Theme.ShowTitleBarAppName"] = d.ShowTitleBarAppName ? Visibility.Visible : Visibility.Collapsed;
-            res["Theme.ShowResizeGrip"]      = d.ShowResizeGrip      ? Visibility.Visible : Visibility.Collapsed;
             res["Theme.WindowOpacity"]       = Math.Clamp(d.WindowOpacity, 0.1, 1.0);
 
             // ── Status bar ────────────────────────────────────────────────────
@@ -1280,8 +1253,6 @@ namespace MasselGUARD
         public bool   ShowTitleBarIcon    { get; set; } = true;
         /// <summary>Show the app name text in the title bar.</summary>
         public bool   ShowTitleBarAppName { get; set; } = true;
-        /// <summary>Show the resize grip in the bottom-right corner.</summary>
-        public bool   ShowResizeGrip      { get; set; } = true;
         /// <summary>Overall window opacity (0.0 fully transparent – 1.0 fully opaque).</summary>
         public double WindowOpacity       { get; set; } = 1.0;
 

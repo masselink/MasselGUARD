@@ -8,6 +8,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using System.Runtime.InteropServices;
 using MasselGUARD.Infrastructure;
@@ -240,9 +241,11 @@ namespace MasselGUARD
                 UpdateFooterLabel();
                 UpdateAdminLabel();
                 UpdateShieldChevron();
+                UpdateTaskbarIcon();
                 NotifyAllBadges();
                 ApplyGroupFilter();
                 RebuildLog();   // re-resolve brush colours after accent/theme change
+                RefreshInfoSection();   // re-derive timeline colours from the new theme
             });
 
             // Theme: apply on startup based on UseCustomTheme + SystemThemeMode
@@ -1079,22 +1082,17 @@ namespace MasselGUARD
 
         private void OnQuickConnect() => QuickConnect_Click(this, new RoutedEventArgs());
 
-        private void OnOpenSettings()
+        private void OnOpenSettings() => OpenSettings("General");
+
+        private void UpdateAvailableBtn_Click(object sender, RoutedEventArgs e) => OpenSettings("About");
+
+        /// <summary>Opens Settings on the given tab and refreshes app state once it closes.
+        /// Public so other windows (e.g. the Theme Manager) can return focus here.</summary>
+        public void OpenSettings(string initialTab)
         {
-            var win = new Views.SettingsWindow(this) { Owner = this };
+            var win = new Views.SettingsWindow(this) { Owner = this, InitialTab = initialTab };
             win.ShowDialog();
             // Refresh after settings close
-            LogSvc.IsExtended = ConfigSvc.Config.LogLevelSetting == "extended";
-            _vm.RebuildTunnelList();
-            RebuildTunnelGroups();
-            UpdateFooterLabel();
-            RefreshUpdateBadge();
-        }
-
-        private void UpdateAvailableBtn_Click(object sender, RoutedEventArgs e)
-        {
-            var win = new Views.SettingsWindow(this) { Owner = this, InitialTab = "About" };
-            win.ShowDialog();
             LogSvc.IsExtended = ConfigSvc.Config.LogLevelSetting == "extended";
             _vm.RebuildTunnelList();
             RebuildTunnelGroups();
@@ -1267,6 +1265,39 @@ namespace MasselGUARD
             bool anyActive = _vm.TunnelList.Any(t => t.IsActive);
             Application.Current.Resources["ShieldChevronBrush"] =
                 anyActive ? FindResource("Accent") : FindResource("TextMuted");
+        }
+
+        // ── Taskbar icon (Window.Icon — taskbar button + Alt-Tab) ──────────────
+        // Mirrors the tray icon: a theme's appIcon drives both (ThemeManager.ApplyAppIcon
+        // sets Theme.AppIcon for this and Theme.TrayIcon for the tray), but only Theme.AppIcon
+        // was ever consumed until now. Falls back to the compiled exe icon when unset.
+        private ImageSource? _defaultTaskbarIcon;
+
+        private void UpdateTaskbarIcon()
+        {
+            if (Application.Current.Resources["Theme.AppIcon"] is BitmapSource bmp)
+            {
+                Icon = bmp;
+                return;
+            }
+            _defaultTaskbarIcon ??= LoadDefaultExeIcon();
+            Icon = _defaultTaskbarIcon;
+        }
+
+        private static ImageSource? LoadDefaultExeIcon()
+        {
+            try
+            {
+                var path = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+                if (string.IsNullOrEmpty(path)) return null;
+                using var ico = System.Drawing.Icon.ExtractAssociatedIcon(path);
+                if (ico == null) return null;
+                var src = Imaging.CreateBitmapSourceFromHIcon(
+                    ico.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                src.Freeze();
+                return src;
+            }
+            catch { return null; }
         }
 
         private void UpdateFooterLabel()
@@ -2152,8 +2183,14 @@ namespace MasselGUARD
             var wifiStar  = new GridLength(2, GridUnitType.Star);   // 40 %
             var auto      = GridLength.Auto;
             if (WifiRulesHeaderRow != null) WifiRulesHeaderRow.Height = showPanel ? auto     : zero;
-            if (WifiRulesPanelRow  != null) WifiRulesPanelRow.Height  = showPanel ? wifiStar : zero;
             if (WifiRulesBtnsRow   != null) WifiRulesBtnsRow.Height   = showPanel ? auto     : zero;
+            if (WifiRulesPanelRow  != null)
+            {
+                // Drop MinHeight when hidden too — otherwise the row keeps its 152 px and
+                // leaves a gap, so the tunnel list can't grow to fill the freed space.
+                WifiRulesPanelRow.MinHeight = showPanel ? 152 : 0;
+                WifiRulesPanelRow.Height    = showPanel ? wifiStar : zero;
+            }
 
             if (!showPanel) { _activeRuleFilter = null; return; }
 
@@ -3042,26 +3079,74 @@ namespace MasselGUARD
             new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, System.Windows.Media.Color> _wifiColors =
             new(StringComparer.OrdinalIgnoreCase);
-        private static readonly System.Windows.Media.Color[] _wifiPalette =
-        {
-            System.Windows.Media.Color.FromRgb(0xFF, 0xB3, 0x47),  // amber
-            System.Windows.Media.Color.FromRgb(0xFF, 0x6B, 0x6B),  // coral
-            System.Windows.Media.Color.FromRgb(0x4E, 0xCB, 0xC8),  // mint
-            System.Windows.Media.Color.FromRgb(0xBD, 0x8F, 0xFF),  // lavender
-            System.Windows.Media.Color.FromRgb(0xFF, 0x9F, 0xE5),  // pink
-            System.Windows.Media.Color.FromRgb(0x98, 0xE4, 0x7A),  // lime
-        };
 
-        // Fixed colour palette (cycles for more than N tunnels)
-        private static readonly System.Windows.Media.Color[] _chartPalette =
+        // Stable per-name colour INDEX (only ever grows) so each tunnel / SSID keeps the
+        // same slot across renders. The actual colour is derived from the active THEME at
+        // draw time (TimelinePaletteColor), so the timeline matches whatever theme is
+        // selected — no manual colour picking, and it scales to any number of tunnels/SSIDs.
+        private readonly Dictionary<string, int> _chartColorIndex = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> _wifiColorIndex  = new(StringComparer.OrdinalIgnoreCase);
+
+        private static int ColorIndexFor(Dictionary<string, int> map, string name)
         {
-            System.Windows.Media.Color.FromRgb(0x4C, 0x9B, 0xE8),  // blue
-            System.Windows.Media.Color.FromRgb(0x4C, 0xD9, 0x7A),  // green
-            System.Windows.Media.Color.FromRgb(0xF0, 0xA3, 0x3A),  // orange
-            System.Windows.Media.Color.FromRgb(0xD9, 0x4C, 0x7A),  // rose
-            System.Windows.Media.Color.FromRgb(0xAA, 0x6E, 0xE8),  // purple
-            System.Windows.Media.Color.FromRgb(0x4C, 0xD9, 0xD9),  // teal
-        };
+            if (!map.TryGetValue(name, out var idx)) { idx = map.Count; map[name] = idx; }
+            return idx;
+        }
+
+        /// <summary>
+        /// Timeline segment colour for the Nth tunnel/SSID, derived from the theme's Accent.
+        /// Hues fan out from the accent by the golden angle (evenly spread + distinct for any
+        /// count); the WiFi band is phase-shifted 180° so it reads differently from the
+        /// tunnel bar. Saturation/brightness adapt to a dark vs light theme.
+        /// </summary>
+        private System.Windows.Media.Color TimelinePaletteColor(int index, bool wifi)
+        {
+            double baseHue = 210;   // fallback if Accent can't be read
+            if (FindResource("Accent") is SolidColorBrush ab)
+                RgbToHsv(ab.Color, out baseHue, out _, out _);
+
+            bool dark = true;
+            if (FindResource("WindowBg") is SolidColorBrush wb)
+                dark = (wb.Color.R * 0.299 + wb.Color.G * 0.587 + wb.Color.B * 0.114) < 128;
+
+            double hue = baseHue + (wifi ? 180.0 : 0.0) + index * 137.50776;
+            double sat = wifi ? 0.50 : 0.62;
+            double val = dark ? 0.85 : 0.68;
+            return HsvToColor(hue, sat, val);
+        }
+
+        private static void RgbToHsv(System.Windows.Media.Color c, out double h, out double s, out double v)
+        {
+            double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
+            double max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b)), d = max - min;
+            h = 0;
+            if (d != 0)
+            {
+                if      (max == r) h = 60 * (((g - b) / d) % 6);
+                else if (max == g) h = 60 * (((b - r) / d) + 2);
+                else               h = 60 * (((r - g) / d) + 4);
+            }
+            if (h < 0) h += 360;
+            s = max == 0 ? 0 : d / max;
+            v = max;
+        }
+
+        private static System.Windows.Media.Color HsvToColor(double h, double s, double v)
+        {
+            h = ((h % 360) + 360) % 360;
+            double c = v * s, x = c * (1 - Math.Abs((h / 60.0 % 2) - 1)), m = v - c;
+            double r = 0, g = 0, b = 0;
+            if      (h <  60) { r = c; g = x; }
+            else if (h < 120) { r = x; g = c; }
+            else if (h < 180) { g = c; b = x; }
+            else if (h < 240) { g = x; b = c; }
+            else if (h < 300) { r = x; b = c; }
+            else              { r = c; b = x; }
+            return System.Windows.Media.Color.FromRgb(
+                (byte)Math.Round((r + m) * 255),
+                (byte)Math.Round((g + m) * 255),
+                (byte)Math.Round((b + m) * 255));
+        }
 
         /// <summary>Apply the configured InfoSectionMode — called on load and after settings save.</summary>
         public void ApplyInfoSectionMode()
@@ -3176,7 +3261,7 @@ namespace MasselGUARD
             for (int i = 0; i < tunnelNames.Count; i++)
             {
                 string name   = tunnelNames[i];
-                var    color  = _chartPalette[i % _chartPalette.Length];
+                var    color  = TimelinePaletteColor(ColorIndexFor(_chartColorIndex, name), wifi: false);
                 _chartColors[name] = color;
 
                 var tunnelEntries = allEntries
@@ -3433,11 +3518,11 @@ namespace MasselGUARD
                 StrokeThickness = 1,
             });
 
-            // Assign colours to new SSIDs (stable: only add, never clear)
-            int nextIdx = _wifiColors.Count;
+            // Re-derive every SSID colour from the theme each render (so theme switches
+            // apply), keyed by a stable per-SSID index so each SSID keeps its colour.
+            _wifiColors.Clear();
             foreach (var ssid in orderedSsids)
-                if (!_wifiColors.ContainsKey(ssid))
-                    _wifiColors[ssid] = _wifiPalette[nextIdx++ % _wifiPalette.Length];
+                _wifiColors[ssid] = TimelinePaletteColor(ColorIndexFor(_wifiColorIndex, ssid), wifi: true);
 
             // Single row background for the whole WiFi band
             var bgRect = new System.Windows.Shapes.Rectangle

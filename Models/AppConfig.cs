@@ -82,9 +82,13 @@ namespace MasselGUARD.Models
         public string ActiveTheme { get; set; } = "__system__";
         /// <summary>"auto" (follow Windows) | "light" | "dark"</summary>
         public string SystemThemeMode  { get; set; } = "auto";
+        /// <summary>The official shared-themes repository — the default value and the
+        /// target of the Settings "Default" button.</summary>
+        public const string DefaultSharedThemesRepoUrl = "https://github.com/masselink/MasselGUARD-themes";
+
         /// <summary>Git/HTTPS repo URL the "Download shared themes" button fetches from
-        /// (a GitHub repo URL or a direct .zip archive URL). Empty = not configured.</summary>
-        public string SharedThemesRepoUrl { get; set; } = "";
+        /// (a GitHub repo URL or a direct .zip archive URL). Defaults to the official repo.</summary>
+        public string SharedThemesRepoUrl { get; set; } = DefaultSharedThemesRepoUrl;
         /// <summary>When true (default) clicking ✕ shows a confirm dialog before closing.</summary>
         public bool   ConfirmOnClose   { get; set; } = true;
 

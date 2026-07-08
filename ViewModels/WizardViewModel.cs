@@ -18,7 +18,7 @@ namespace MasselGUARD.ViewModels
         private readonly ConfigService _config;
         private readonly LogService    _log;
 
-        public const int TotalSteps = 7;
+        public const int TotalSteps = 8;
 
         private int _step;
         public int Step
@@ -126,7 +126,18 @@ namespace MasselGUARD.ViewModels
 
         // ── Navigation ────────────────────────────────────────────────────────
 
-        private void GoBack() { if (_step > 0) Step--; }
+        // Step 5 (WiFi Automation) has nothing left to configure once WiFi rules are
+        // disabled (from the Step 2 "Manual" preset or the Step 5 toggle itself) — skip
+        // over it in both directions rather than showing an empty/redundant step.
+        private const int WifiAutomationStep = 5;
+
+        private void GoBack()
+        {
+            if (_step <= 0) return;
+            int prev = _step - 1;
+            if (prev == WifiAutomationStep && _disableWifiRules) prev--;
+            Step = Math.Max(prev, 0);
+        }
 
         private void GoNext()
         {
@@ -135,7 +146,9 @@ namespace MasselGUARD.ViewModels
                 ApplyAndFinish();
                 return;
             }
-            Step++;
+            int next = _step + 1;
+            if (next == WifiAutomationStep && _disableWifiRules) next++;
+            Step = next;
         }
 
         private void ApplyAndFinish()

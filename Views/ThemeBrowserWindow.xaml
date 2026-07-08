@@ -1,0 +1,185 @@
+<Window x:Class="MasselGUARD.Views.ThemeBrowserWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Theme browser"
+        Width="920" Height="640"
+        WindowStyle="None" AllowsTransparency="True"
+        Background="Transparent" ResizeMode="CanResizeWithGrip"
+        ShowInTaskbar="False"
+        Opacity="{DynamicResource Theme.WindowOpacity}"
+        WindowStartupLocation="CenterOwner">
+
+    <Window.Resources>
+        <!-- Filter tag chip (toggle) -->
+        <Style x:Key="TagChip" TargetType="ToggleButton">
+            <Setter Property="FontFamily" Value="{DynamicResource Theme.FontFamily}"/>
+            <Setter Property="FontSize"   Value="10"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+            <Setter Property="Cursor"     Value="Hand"/>
+            <Setter Property="Margin"     Value="0,0,6,6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="b" Background="{DynamicResource CardBg}"
+                                BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                                CornerRadius="10" Padding="10,3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="b" Property="Background"  Value="{DynamicResource Accent}"/>
+                                <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource WindowBg}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border Background="{DynamicResource WindowBg}"
+            BorderBrush="{DynamicResource Accent}"
+            BorderThickness="1" CornerRadius="{DynamicResource Theme.CornerRadius}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="44"/>   <!-- title bar -->
+                <RowDefinition Height="Auto"/> <!-- search + variant toggle -->
+                <RowDefinition Height="Auto"/> <!-- tag chips -->
+                <RowDefinition Height="*"/>    <!-- cards -->
+                <RowDefinition Height="40"/>   <!-- footer -->
+            </Grid.RowDefinitions>
+
+            <!-- Title bar -->
+            <Border Grid.Row="0" Background="{DynamicResource Surface}"
+                    CornerRadius="{DynamicResource Theme.CornerRadiusTop}"
+                    MouseLeftButtonDown="TitleBar_MouseDown">
+                <Grid>
+                    <TextBlock Text="Theme browser"
+                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="13" FontWeight="Bold"
+                               Foreground="{DynamicResource Accent}"
+                               VerticalAlignment="Center" Margin="16,0"/>
+                    <Button Content="&#x2715;" Style="{StaticResource FlatBtn}"
+                            HorizontalAlignment="Right" Padding="10,4" Margin="0,0,8,0"
+                            BorderThickness="0" Background="Transparent"
+                            Foreground="{DynamicResource TextMuted}"
+                            Click="CloseBtn_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Search + Dark/Light preview toggle -->
+            <Grid Grid.Row="1" Margin="16,12,16,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox Grid.Column="0" x:Name="SearchBox"
+                         FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                         Background="{DynamicResource CardBg}" Foreground="{DynamicResource TextPrimary}"
+                         BorderBrush="{DynamicResource BorderColor}" CaretBrush="{DynamicResource TextPrimary}"
+                         Padding="6,4" VerticalContentAlignment="Center"
+                         TextChanged="Filter_Changed"
+                         ToolTip="Search by name, description or tag"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
+                    <TextBlock Text="Preview:" FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                               Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <RadioButton x:Name="PreviewDarkBtn" Content="Dark" GroupName="PreviewVariant"
+                                 IsChecked="True" Style="{StaticResource PillRadio}"
+                                 Checked="PreviewVariant_Changed"/>
+                    <RadioButton x:Name="PreviewLightBtn" Content="Light" GroupName="PreviewVariant"
+                                 Style="{StaticResource PillRadio}" Margin="6,0,0,0"
+                                 Checked="PreviewVariant_Changed"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- Tag chips (built in code) -->
+            <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Disabled"
+                          HorizontalScrollBarVisibility="Auto" Margin="16,2,16,6">
+                <WrapPanel x:Name="TagPanel" Orientation="Horizontal"/>
+            </ScrollViewer>
+
+            <!-- Theme cards -->
+            <Grid Grid.Row="3">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8,0,8,0">
+                    <ItemsControl x:Name="ItemsHost">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Width="272" Margin="8"
+                                        Background="{DynamicResource CardBg}"
+                                        BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                                        CornerRadius="6">
+                                    <StackPanel>
+                                        <!-- Preview -->
+                                        <Border Height="158" Background="{DynamicResource Surface}"
+                                                CornerRadius="6,6,0,0" ClipToBounds="True">
+                                            <Grid>
+                                                <TextBlock Text="no preview"
+                                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                <Image Source="{Binding Preview}" Stretch="UniformToFill"/>
+                                            </Grid>
+                                        </Border>
+                                        <StackPanel Margin="12,10,12,12">
+                                            <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="12"
+                                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                                       Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding Author}" FontSize="9"
+                                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                                       Foreground="{DynamicResource TextMuted}" Margin="0,1,0,0"/>
+                                            <TextBlock Text="{Binding Description}" FontSize="10" TextWrapping="Wrap"
+                                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                                       Foreground="{DynamicResource TextPrimary}" Height="44"
+                                                       TextTrimming="CharacterEllipsis" Margin="0,6,0,0"/>
+                                            <TextBlock Text="{Binding TagsDisplay}" FontSize="9"
+                                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                                       Foreground="{DynamicResource Accent}" TextTrimming="CharacterEllipsis"
+                                                       Margin="0,6,0,8"/>
+                                            <Button Content="{Binding InstallLabel}"
+                                                    Style="{StaticResource SuccessBtn}" FontSize="10" Padding="10,5"
+                                                    HorizontalAlignment="Stretch"
+                                                    IsEnabled="{Binding CanInstall}"
+                                                    Click="Install_Click"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <!-- Centered status overlay (loading / empty / error) -->
+                <TextBlock x:Name="CenterStatus" Text="Loading themes…"
+                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12"
+                           Foreground="{DynamicResource TextMuted}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           TextWrapping="Wrap" MaxWidth="520" TextAlignment="Center"/>
+            </Grid>
+
+            <!-- Footer -->
+            <Border Grid.Row="4" Background="{DynamicResource Surface}"
+                    CornerRadius="{DynamicResource Theme.CornerRadiusBottom}">
+                <Grid Margin="16,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="StatusText" FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                   Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                        <TextBlock Text="  ·  Hold Shift to fall back to Windows colours if the previews are unreadable."
+                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                   Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <Button Content="Close" Style="{StaticResource FlatBtn}" FontSize="10" Padding="14,5"
+                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Click="CloseBtn_Click"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

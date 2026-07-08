@@ -6,6 +6,7 @@
         Width="700" Height="560"
         WindowStyle="None" AllowsTransparency="True"
         Background="Transparent" ResizeMode="NoResize"
+        Opacity="{DynamicResource Theme.WindowOpacity}"
         WindowStartupLocation="CenterOwner">
 
     <Border Background="{DynamicResource WindowBg}"
@@ -117,6 +118,27 @@
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
                                 </Grid>
+                            </Border>
+
+                            <!-- View preset -->
+                            <TextBlock Text="View preset" Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Re-apply a bundle of panel-visibility settings (timeline, activity log, WiFi rules panel/column) — each one stays individually editable below and in Tunnels/WiFi/History."
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="Simple" Style="{StaticResource FlatBtn}"
+                                                FontSize="10" Padding="12,5" Click="PresetSimple_Click"
+                                                ToolTip="Tunnels and WiFi rules only — no timeline, no activity log"/>
+                                        <Button Content="Manual" Style="{StaticResource FlatBtn}"
+                                                FontSize="10" Padding="12,5" Margin="6,0,0,0" Click="PresetManual_Click"
+                                                ToolTip="Tunnels and activity log — no timeline; turns off WiFi automation, so the rules panel/column are hidden"/>
+                                        <Button Content="Expert" Style="{StaticResource FlatBtn}"
+                                                FontSize="10" Padding="12,5" Margin="6,0,0,0" Click="PresetExpert_Click"
+                                                ToolTip="Everything visible"/>
+                                    </StackPanel>
+                                </StackPanel>
                             </Border>
 
                             <!-- ── APPEARANCE moved to its own tab ── -->
@@ -693,17 +715,36 @@
                             <!-- Theme -->
                             <TextBlock Text="{Binding [SettingsThemeSectionTitle], Source={x:Static local:Lang.Instance}}" Style="{StaticResource SettingsSectionHeader}"/>
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
-                                <ComboBox x:Name="ThemePicker" Padding="8,4"
-                                          SelectionChanged="ThemePicker_SelectionChanged">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding DisplayName}"
-                                                       FontFamily="{DynamicResource Theme.FontFamily}"
-                                                       FontSize="11" Foreground="{DynamicResource TextPrimary}"
-                                                       Margin="0,2"/>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox Grid.Column="0" x:Name="ThemePicker" Padding="8,4"
+                                              SelectionChanged="ThemePicker_SelectionChanged">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           FontFamily="{DynamicResource Theme.FontFamily}"
+                                                           FontSize="11" Foreground="{DynamicResource TextPrimary}"
+                                                           Margin="0,2"/>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Button Grid.Column="1" x:Name="ManageThemesBtn"
+                                            Content="Manage themes…" Style="{StaticResource FlatBtn}"
+                                            FontSize="10" Padding="12,5" Margin="8,0,0,0"
+                                            VerticalAlignment="Stretch"
+                                            Click="OpenThemeBuilder_Click"
+                                            ToolTip="Open the Theme Manager — create, edit, duplicate, import/export, download and delete themes"/>
+                                    <Button Grid.Column="2" x:Name="DownloadThemesBtn"
+                                            Content="Download themes…" Style="{StaticResource FlatBtn}"
+                                            FontSize="10" Padding="12,5" Margin="6,0,0,0"
+                                            VerticalAlignment="Stretch"
+                                            Click="DownloadThemes_Click"
+                                            ToolTip="Open the Theme Manager's community theme browser directly"/>
+                                </Grid>
                             </Border>
                             <!-- Theme preview: test dark and light variant -->
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
@@ -733,62 +774,6 @@
                                             Click="LightThemePreview_Click"
                                             ToolTip="{Binding [SettingsThemePreviewLightTip], Source={x:Static local:Lang.Instance}}"/>
                                 </Grid>
-                            </Border>
-
-                            <!-- Theme Builder launcher -->
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{Binding [ThemeBuilderTitle], Source={x:Static local:Lang.Instance}}"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                                                   Foreground="{DynamicResource TextPrimary}"/>
-                                        <TextBlock Text="{Binding [ThemeBuilderDesc], Source={x:Static local:Lang.Instance}}"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
-                                                   Margin="0,2,0,0"/>
-                                    </StackPanel>
-                                    <Button Grid.Column="1"
-                                            Content="{Binding [ThemeBuilderOpenBtn], Source={x:Static local:Lang.Instance}}"
-                                            Style="{StaticResource FlatBtn}" FontSize="10" Padding="12,5"
-                                            Margin="12,0,0,0" VerticalAlignment="Center"
-                                            Click="OpenThemeBuilder_Click"/>
-                                </Grid>
-                            </Border>
-
-                            <!-- Shared-theme repository: download / update shared themes -->
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
-                                <StackPanel>
-                                    <TextBlock Text="Shared theme repository"
-                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                                               Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock Text="Download or update shared themes from a git repository (a GitHub repo URL or a direct .zip). They install into the read-only shared_themes folder; same-named themes are overwritten, your own themes are untouched."
-                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
-                                               Margin="0,2,0,8"/>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0" x:Name="SharedThemesRepoBox"
-                                                 FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
-                                                 Padding="6,4" VerticalContentAlignment="Center"
-                                                 TextChanged="SharedThemesRepo_Changed"/>
-                                        <Button Grid.Column="1" x:Name="DownloadThemesBtn"
-                                                Content="Download" Style="{StaticResource FlatBtn}"
-                                                FontSize="10" Padding="12,5" Margin="8,0,0,0"
-                                                VerticalAlignment="Center"
-                                                Click="DownloadThemes_Click"/>
-                                    </Grid>
-                                    <TextBlock x:Name="DownloadThemesStatus"
-                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
-                                               Margin="0,6,0,0" Visibility="Collapsed"/>
-                                </StackPanel>
                             </Border>
 
                             <!-- ── Font override ─────────────────────────────── -->
@@ -972,6 +957,34 @@
 
                         <!-- ══ ADVANCED PAGE (moved below History in sidebar) ══ -->
                         <StackPanel x:Name="PageAdvanced" Visibility="Collapsed">
+
+                            <!-- Theme repository -->
+                            <TextBlock Text="Theme repository"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,20">
+                                <StackPanel>
+                                    <TextBlock Text="GitHub repository the theme browser (Appearance → Browse themes…) downloads from. Leave blank to use the official MasselGUARD themes repository. Themes install per-user into %APPDATA%\MasselGUARD\themes."
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,0,0,8"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" x:Name="SharedThemesRepoBox"
+                                                 FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                 Padding="6,4" VerticalContentAlignment="Center"
+                                                 TextChanged="SharedThemesRepo_Changed"/>
+                                        <Button Grid.Column="1" x:Name="ResetThemesRepoBtn"
+                                                Content="Default" Style="{StaticResource FlatBtn}"
+                                                FontSize="10" Padding="12,5" Margin="8,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Click="ResetThemesRepo_Click"
+                                                ToolTip="Reset to the official MasselGUARD themes repository"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
 
                             <!-- Import / Export -->
                             <TextBlock Text="{Binding [SettingsImportExportSection], Source={x:Static local:Lang.Instance}}"

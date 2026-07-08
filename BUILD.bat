@@ -140,9 +140,10 @@ if exist "%~dp0install-dotnet.bat" (
 )
 echo.
 
-rem ── Step 3b: copy lang + shared_themes folders into dist ──────────────────────
+rem ── Step 3b: copy lang folder into dist ───────────────────────────────────────
+rem  (No themes are bundled — shared themes are downloaded from the shared-themes repo.)
 echo  -------------------------------------------------------
-echo   Copying lang + shared_themes folders...
+echo   Copying lang folder...
 echo  -------------------------------------------------------
 if exist "%~dp0lang" (
     if exist "!DIST!\lang" rmdir /s /q "!DIST!\lang"
@@ -150,13 +151,6 @@ if exist "%~dp0lang" (
     echo  lang folder copied to dist\lang\
 ) else (
     echo  WARNING: lang folder not found -- skipped.
-)
-if exist "%~dp0shared_themes" (
-    if exist "!DIST!\shared_themes" rmdir /s /q "!DIST!\shared_themes"
-    xcopy /e /i /q "%~dp0shared_themes" "!DIST!\shared_themes" >nul
-    echo  shared_themes folder copied to dist\shared_themes\
-) else (
-    echo  WARNING: shared_themes folder not found -- skipped.
 )
 echo.
 
@@ -193,7 +187,6 @@ echo   dist\MasselGUARD.exe        (GUI application)
 echo   dist\MasselGUARDcli.exe     (command-line interface)
 echo   dist\install-dotnet.bat     (.NET 10 install helper)
 echo   dist\lang\
-echo   dist\shared_themes\
 if "!DLL_OK!"=="1" (
     echo   dist\tunnel.dll
     echo   dist\wireguard.dll
