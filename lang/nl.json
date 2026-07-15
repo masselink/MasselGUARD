@@ -41,6 +41,7 @@
   "TrayNoTunnels": "Geen tunnels gevonden",
   "TrayUngrouped": "Niet ingedeeld",
   "TrayActive": "{0} actief",
+  "TrayIdleSubtitle": "WireGuard VPN-client",
   "LogAppStarted": "Applicatie gestart.",
   "AlreadyRunningTitle": "Al actief",
   "AlreadyRunningMessage": "MasselGUARD is al actief.\n\nOm het te sluiten: klik rechts op het schildicoon in het systeemvak en kies Afsluiten, of sluit het hoofdvenster.\n\nProbeer MasselGUARD opnieuw te starten na het sluiten.",

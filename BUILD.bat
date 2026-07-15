@@ -4,7 +4,7 @@ setlocal enabledelayedexpansion
 
 rem ── Build number: YYMMDDHHMM ────────────────────────────────────────────────
 for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyMMddHHmm"') do set BUILD_NUM=%%a
-set VERSION=3.7.0
+set VERSION=3.7.1
 rem Update CODENAME here AND in UpdateChecker.cs when bumping VERSION.
 set CODENAME=Chromatic Chameleon
 

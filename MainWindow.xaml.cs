@@ -109,6 +109,22 @@ namespace MasselGUARD
         [DllImport("user32.dll")] private static extern int  SetWindowLong(IntPtr h, int i, int v);
         [DllImport("user32.dll")] private static extern bool DestroyIcon(IntPtr hIcon);
 
+        // ── Taskbar icon refresh ────────────────────────────────────────────────
+        // Window.Icon alone updates the title bar / Alt-Tab thumbnail, but the taskbar
+        // button's icon is cached from window creation and doesn't reliably re-fetch it.
+        // WM_SETICON only sets the per-instance icon; Explorer's taskband re-registration
+        // (triggered by the ShowInTaskbar toggle in RefreshTaskbarButtonIcon) reads the
+        // WINDOW CLASS's own icon slot instead, which WM_SETICON never touches — so both
+        // have to be updated for the taskbar button to actually pick up the new icon.
+        private const int WM_SETICON   = 0x0080;
+        private const int ICON_SMALL   = 0;
+        private const int ICON_BIG     = 1;
+        private const int GCLP_HICON   = -14;
+        private const int GCLP_HICONSM = -34;
+        [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+        [DllImport("user32.dll", EntryPoint = "SetClassLongPtrW", CharSet = CharSet.Unicode)]
+        private static extern IntPtr SetClassLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
         public MainWindow()
         {
             // ── Bootstrap services ────────────────────────────────────────────
@@ -1269,35 +1285,76 @@ namespace MasselGUARD
 
         // ── Taskbar icon (Window.Icon — taskbar button + Alt-Tab) ──────────────
         // Mirrors the tray icon: a theme's appIcon drives both (ThemeManager.ApplyAppIcon
-        // sets Theme.AppIcon for this and Theme.TrayIcon for the tray), but only Theme.AppIcon
-        // was ever consumed until now. Falls back to the compiled exe icon when unset.
+        // sets Theme.AppIcon for this and Theme.TrayIcon for the tray). Window.Icon alone
+        // updates the title bar / Alt-Tab thumbnail fine, but the taskbar button's icon is
+        // cached from window creation and doesn't reliably re-fetch a live Icon change —
+        // an explicit WM_SETICON is needed to force that specific refresh (see
+        // RefreshTaskbarButtonIcon). Falls back to the compiled exe icon when unset.
         private ImageSource? _defaultTaskbarIcon;
+        private System.Drawing.Icon? _defaultTaskbarWinIcon;
 
         private void UpdateTaskbarIcon()
         {
-            if (Application.Current.Resources["Theme.AppIcon"] is BitmapSource bmp)
+            BitmapSource? bmp;
+            System.Drawing.Icon? winIcon;
+
+            if (Application.Current.Resources["Theme.AppIcon"] is BitmapSource themedBmp)
             {
-                Icon = bmp;
-                return;
+                bmp     = themedBmp;
+                winIcon = Application.Current.Resources["Theme.TrayIcon"] as System.Drawing.Icon;
             }
-            _defaultTaskbarIcon ??= LoadDefaultExeIcon();
-            Icon = _defaultTaskbarIcon;
+            else
+            {
+                if (_defaultTaskbarIcon == null)
+                    (_defaultTaskbarIcon, _defaultTaskbarWinIcon) = LoadDefaultExeIcon();
+                bmp     = _defaultTaskbarIcon as BitmapSource;
+                winIcon = _defaultTaskbarWinIcon;
+            }
+
+            Icon = bmp;
+            RefreshTaskbarButtonIcon(winIcon);
         }
 
-        private static ImageSource? LoadDefaultExeIcon()
+        /// <summary>Forces the OS taskbar button to re-fetch the window icon — Window.Icon
+        /// and even an explicit WM_SETICON don't reliably reach the Windows 11 taskbar
+        /// button once it already exists (its icon is cached at registration). Toggling
+        /// ShowInTaskbar makes Explorer drop and recreate the button, which re-reads the
+        /// icon fresh; ForceTaskbarButton() re-asserts the button-visibility style
+        /// afterward since WPF's ShowInTaskbar setter touches the same extended style.</summary>
+        private void RefreshTaskbarButtonIcon(System.Drawing.Icon? winIcon)
+        {
+            if (winIcon == null) return;
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return;
+            SendMessage(hwnd, WM_SETICON, (IntPtr)ICON_BIG,   winIcon.Handle);
+            SendMessage(hwnd, WM_SETICON, (IntPtr)ICON_SMALL, winIcon.Handle);
+            SetClassLongPtr(hwnd, GCLP_HICON,   winIcon.Handle);
+            SetClassLongPtr(hwnd, GCLP_HICONSM, winIcon.Handle);
+
+            if (IsLoaded && ShowInTaskbar)
+            {
+                ShowInTaskbar = false;
+                ShowInTaskbar = true;
+                ForceTaskbarButton();
+            }
+        }
+
+        private static (ImageSource?, System.Drawing.Icon?) LoadDefaultExeIcon()
         {
             try
             {
                 var path = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
-                if (string.IsNullOrEmpty(path)) return null;
-                using var ico = System.Drawing.Icon.ExtractAssociatedIcon(path);
-                if (ico == null) return null;
+                if (string.IsNullOrEmpty(path)) return (null, null);
+                // Not disposed — its Handle is reused by RefreshTaskbarButtonIcon for the
+                // lifetime of the app, same as the theme-derived Theme.TrayIcon resource.
+                var ico = System.Drawing.Icon.ExtractAssociatedIcon(path);
+                if (ico == null) return (null, null);
                 var src = Imaging.CreateBitmapSourceFromHIcon(
                     ico.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
                 src.Freeze();
-                return src;
+                return (src, ico);
             }
-            catch { return null; }
+            catch { return (null, null); }
         }
 
         private void UpdateFooterLabel()

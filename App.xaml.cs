@@ -505,7 +505,9 @@ namespace MasselGUARD
             if (_trayIcon == null) return;
             _lastActiveCount = activeCount;   // remember for theme-change redraws
             var appName = ThemeManager.Instance.Current.AppName;
-            _trayIcon.Text = activeCount > 0 ? Lang.T("TrayActive", tunnelName) : appName;
+            _trayIcon.Text = activeCount > 0
+                ? Lang.T("TrayActive", tunnelName)
+                : $"{appName} - {Lang.T("TrayIdleSubtitle")}";
             _trayIcon.Icon = GetTrayIcon(activeCount);
 
             // Update tunnel header shield to reflect active state

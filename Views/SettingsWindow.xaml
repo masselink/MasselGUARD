@@ -1677,35 +1677,56 @@
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
                                 <StackPanel>
 
-                                    <!-- Version + status badge row -->
+                                    <!-- Version, build stamp, status badge, last-checked -->
                                     <Grid Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock x:Name="VersionLabel"
-                                                       FontFamily="{DynamicResource Theme.FontFamily}"
-                                                       FontSize="15" FontWeight="Bold"
-                                                       Foreground="{DynamicResource TextPrimary}"/>
-                                            <TextBlock x:Name="BuildLabel"
-                                                       FontFamily="{DynamicResource Theme.FontFamily}"
-                                                       FontSize="10" Foreground="{DynamicResource TextMuted}"
-                                                       Margin="0,1,0,0"/>
-                                            <TextBlock x:Name="LastCheckedLabel"
-                                                       FontFamily="{DynamicResource Theme.FontFamily}"
-                                                       FontSize="10" Foreground="{DynamicResource TextMuted}"
-                                                       Margin="0,3,0,0"/>
-                                        </StackPanel>
-                                        <!-- Status badge pill -->
-                                        <Border Grid.Column="1" x:Name="UpdateStatusBadge"
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                                                   x:Name="VersionLabel"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="15" FontWeight="Bold"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                                   x:Name="BuildLabel"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="10" Foreground="{DynamicResource TextMuted}"
+                                                   Margin="0,1,0,0"/>
+                                        <!-- Status badge pill — its own row, right-aligned -->
+                                        <Border Grid.Row="2" Grid.Column="1" x:Name="UpdateStatusBadge"
                                                 CornerRadius="10" Padding="10,4"
-                                                VerticalAlignment="Center" Margin="12,0,0,0">
+                                                HorizontalAlignment="Right" Margin="0,4,0,4">
                                             <TextBlock x:Name="UpdateStatusLabel"
                                                        FontFamily="{DynamicResource Theme.FontFamily}"
                                                        FontSize="10" FontWeight="SemiBold"/>
                                         </Border>
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
+                                                   x:Name="LastCheckedLabel"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="10" Foreground="{DynamicResource TextMuted}"/>
                                     </Grid>
+
+                                    <!-- Theme update indicator — passive result of the last check; click opens Community themes -->
+                                    <Border x:Name="AboutThemeUpdatesRow"
+                                            Background="{DynamicResource Surface}"
+                                            BorderBrush="{DynamicResource Accent}" BorderThickness="1"
+                                            CornerRadius="4" Padding="10,6" Margin="0,0,0,10"
+                                            Cursor="Hand" Visibility="Collapsed"
+                                            MouseLeftButtonUp="DownloadThemes_Click"
+                                            ToolTip="Click to open Community themes and update">
+                                        <TextBlock x:Name="AboutThemeUpdatesLabel"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource Accent}"
+                                                   TextWrapping="Wrap"/>
+                                    </Border>
 
                                     <!-- Separator -->
                                     <Border Height="1" Background="{DynamicResource BorderColor}" Margin="0,0,0,10"/>

@@ -884,7 +884,12 @@ namespace MasselGUARD.Views
                 Item("Delete", DeleteTheme_Click);
             }
 
+            // Anchor to the clicked row itself rather than the default MousePoint placement —
+            // MousePoint resolves the cursor position through the wrong window's transform
+            // when the click lands in this (AllowsTransparency) child window, making the menu
+            // pop up shifted toward the main window instead of under the theme it was for.
             menu.PlacementTarget = lbi;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
             menu.IsOpen = true;
             e.Handled = true;
         }
@@ -1689,19 +1694,43 @@ namespace MasselGUARD.Views
                 return;
 
             var dir = EditingThemeDir;
-            try { Directory.Delete(dir, recursive: true); }
-            catch (Exception ex)
-            {
-                ThemedMessageDialog.Info(this, $"Could not delete theme folder:\n{ex.Message}", "Delete theme");
-                return;
-            }
 
-            // Switch away if this was the active theme
-            if (ThemeManager.Instance.CurrentThemeName == _editingName)
+            // Selecting a theme to right-click it already live-previewed it (ApplyDraftLive →
+            // ApplyPreview), which can leave Theme.FontFamily pointing at a private font file
+            // (e.g. a bundled .ttf) inside the folder we're about to delete. WPF's font cache
+            // doesn't release that file until something else is applied, so Directory.Delete
+            // can fail with "file in use" — switch resources away from this folder first: to
+            // System if it's also the committed active theme (nothing to restore it to), or
+            // back to whatever actually is committed otherwise. GC + one retry as a fallback
+            // for WPF's font cache being slow to let go.
+            bool wasActive = _main.ConfigSvc.Config.ActiveTheme == _editingName;
+            if (wasActive)
             {
                 _main.ConfigSvc.Config.ActiveTheme = "__system__";
                 ThemeManager.Instance.LoadSystem(ThemeManager.GetSystemIsDark());
                 _main.ConfigSvc.Save();
+            }
+            else
+            {
+                _main.ApplyThemeFromConfig();
+            }
+
+            try { Directory.Delete(dir, recursive: true); }
+            catch (IOException)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                try { Directory.Delete(dir, recursive: true); }
+                catch (Exception ex2)
+                {
+                    ThemedMessageDialog.Info(this, $"Could not delete theme folder:\n{ex2.Message}", "Delete theme");
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                ThemedMessageDialog.Info(this, $"Could not delete theme folder:\n{ex.Message}", "Delete theme");
+                return;
             }
 
             _editingName = "";

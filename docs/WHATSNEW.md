@@ -1,3 +1,15 @@
+## v3.7.1 — Chromatic Chameleon
+
+- **Settings → About** now surfaces theme updates too, not just app updates — "Check for update" also checks installed themes, and a click-through banner appears here (in addition to the existing Appearance-tab badge) pointing you at Community themes when one is available.
+- **Fixed** — the Theme Manager's right-click menu (Apply / Duplicate / Export / Delete) could pop up shifted away from the theme it was opened for, overlapping the main window. It's now anchored directly under the clicked theme.
+- **Fixed** — deleting a theme that ships its own font file (e.g. UniFi's bundled Lato) could fail with a "file in use" error, because selecting the theme to right-click it had already loaded that font live. The app now releases it first.
+- **Fixed** — updating/reinstalling a theme from Community themes while it was the active theme could later crash with an unhandled `FileNotFoundException` from WPF's text renderer, for the same reason (a stale font reference to files that had just been overwritten). The app now reloads the theme fresh immediately after the update completes.
+- **Fixed** — a theme's custom app icon (`appIcon`) showed correctly in the system tray and momentarily in flyouts, but the taskbar button kept showing the default icon after startup. The taskbar button now gets an explicit icon refresh whenever the theme changes.
+- **Fixed** — Settings → About showed the "Running ahead of / Update available" pill beside the version title, truncating it for longer codenames. It now sits on its own row, right-aligned, between the build stamp and "Last checked" lines.
+- Tray icon tooltip now reads "*&lt;app name&gt;* — WireGuard VPN Client" instead of just the theme's app name, when idle.
+
+---
+
 ## v3.7.0 — Chromatic Chameleon
 
 Theming is the headline of this release: the old Theme Builder is now a full **Theme Manager** with a community theme browser, every image asset (not just colours) is dark/light aware, and individual colours can carry their own transparency. Alongside it, the first-run wizard gained a "Choose your view" step so new users aren't dropped into a full-featured UI they didn't ask for.

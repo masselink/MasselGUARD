@@ -41,6 +41,7 @@
   "TrayNoTunnels": "（トンネルなし）",
   "TrayUngrouped": "（グループなし）",
   "TrayActive": "{0} 件アクティブ",
+  "TrayIdleSubtitle": "WireGuard VPN クライアント",
   "LogAppStarted": "MasselGUARD を起動しました",
   "AlreadyRunningTitle": "MasselGUARD は既に実行中です",
   "AlreadyRunningMessage": "別の MasselGUARD インスタンスが既に実行中です。",
