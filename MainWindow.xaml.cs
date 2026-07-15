@@ -548,11 +548,11 @@ namespace MasselGUARD
                     Tag             = tag,
                     Style           = (Style)FindResource("FlatBtn"),
                     BorderThickness = new Thickness(0, 0, 0, active ? 2 : 0),
-                    FontSize        = 9,
                     Padding         = new Thickness(8, 2, 8, 2),
                     FontWeight      = active ? FontWeights.Bold : FontWeights.Normal,
                     Margin          = new Thickness(0, 0, 2, 0),
                 };
+                btn.SetResourceReference(FontSizeProperty, "Theme.FontSize.Tiny");
 
                 // Theme-derived colours use dynamic resource references so the tabs
                 // (including the selected one) restyle with theme switches and live
@@ -1674,8 +1674,8 @@ namespace MasselGUARD
                     Text       = label,
                     Foreground = iconBrush,
                     FontFamily = fontFam,
-                    FontSize   = 12,
                 };
+                tb.SetResourceReference(FontSizeProperty, "Theme.FontSize");
                 row.Child = tb;
 
                 var capturedAction = action;
@@ -1920,12 +1920,14 @@ namespace MasselGUARD
                 BorderBrush   = border,
                 BorderThickness = new Thickness(0,0,0,1),
             };
-            hdr.Child = new System.Windows.Controls.TextBlock
+            var hdrTb = new System.Windows.Controls.TextBlock
             {
                 Text = "Defaults", FontFamily = fontFam,
-                FontSize = 12, FontWeight = FontWeights.SemiBold,
+                FontWeight = FontWeights.SemiBold,
                 Foreground = accent,
             };
+            hdrTb.SetResourceReference(FontSizeProperty, "Theme.FontSize");
+            hdr.Child = hdrTb;
             panel.Children.Add(hdr);
 
             // Helper to make a picker row
@@ -1940,16 +1942,18 @@ namespace MasselGUARD
 
                 var lbl = new System.Windows.Controls.TextBlock
                 {
-                    Text = $"{emoji}  {label}", FontFamily = fontFam, FontSize = 11,
+                    Text = $"{emoji}  {label}", FontFamily = fontFam,
                     Foreground = textPri, VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(0,0,12,0),
                 };
+                lbl.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
                 Grid.SetColumn(lbl, 0);
 
                 var cb = new System.Windows.Controls.ComboBox
                 {
-                    FontFamily = fontFam, FontSize = 11, VerticalAlignment = VerticalAlignment.Center,
+                    FontFamily = fontFam, VerticalAlignment = VerticalAlignment.Center,
                 };
+                cb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
                 if (addClearOption) cb.Items.Add("— clear —");
                 foreach (var t in tunnelNames) cb.Items.Add(t);
                 cb.SelectedItem = tunnelNames.Contains(currentValue) ? currentValue
@@ -1984,16 +1988,18 @@ namespace MasselGUARD
 
             var btnCancel = new System.Windows.Controls.Button
             {
-                Content = "Cancel", FontFamily = fontFam, FontSize = 11,
+                Content = "Cancel", FontFamily = fontFam,
                 Style = (Style)Application.Current.Resources["FlatBtn"],
                 Padding = new Thickness(14,5,14,5), Margin = new Thickness(0,0,8,0),
             };
+            btnCancel.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
             var btnSave = new System.Windows.Controls.Button
             {
-                Content = "Save", FontFamily = fontFam, FontSize = 11,
+                Content = "Save", FontFamily = fontFam,
                 Style = (Style)Application.Current.Resources["PrimaryBtn"],
                 Padding = new Thickness(14,5,14,5),
             };
+            btnSave.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
             Grid.SetColumn(btnCancel, 1);
             Grid.SetColumn(btnSave,   2);
             btnGrid.Children.Add(btnCancel);
@@ -2362,21 +2368,24 @@ namespace MasselGUARD
 
             var panel = new System.Windows.Controls.StackPanel();
 
-            panel.Children.Add(new System.Windows.Controls.TextBlock
+            var yesNoTitleTb = new System.Windows.Controls.TextBlock
             {
                 Text       = title,
-                FontSize   = 12, FontWeight = FontWeights.Bold,
+                FontWeight = FontWeights.Bold,
                 Foreground = (System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
                 Margin     = new Thickness(0, 0, 0, 10),
-            });
-            panel.Children.Add(new System.Windows.Controls.TextBlock
+            };
+            yesNoTitleTb.SetResourceReference(FontSizeProperty, "Theme.FontSize");
+            panel.Children.Add(yesNoTitleTb);
+            var yesNoMsgTb = new System.Windows.Controls.TextBlock
             {
                 Text         = message,
-                FontSize     = 11,
                 Foreground   = (System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
                 TextWrapping = TextWrapping.Wrap,
                 Margin       = new Thickness(0, 0, 0, 16),
-            });
+            };
+            yesNoMsgTb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
+            panel.Children.Add(yesNoMsgTb);
 
             var btns = new System.Windows.Controls.StackPanel
             {
@@ -2422,21 +2431,24 @@ namespace MasselGUARD
 
             var panel = new System.Windows.Controls.StackPanel();
 
-            panel.Children.Add(new System.Windows.Controls.TextBlock
+            var infoTitleTb = new System.Windows.Controls.TextBlock
             {
                 Text       = title,
-                FontSize   = 12, FontWeight = FontWeights.Bold,
+                FontWeight = FontWeights.Bold,
                 Foreground = (System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
                 Margin     = new Thickness(0, 0, 0, 10),
-            });
-            panel.Children.Add(new System.Windows.Controls.TextBlock
+            };
+            infoTitleTb.SetResourceReference(FontSizeProperty, "Theme.FontSize");
+            panel.Children.Add(infoTitleTb);
+            var infoMsgTb = new System.Windows.Controls.TextBlock
             {
                 Text         = message,
-                FontSize     = 11,
                 Foreground   = (System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
                 TextWrapping = TextWrapping.Wrap,
                 Margin       = new Thickness(0, 0, 0, 16),
-            });
+            };
+            infoMsgTb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
+            panel.Children.Add(infoMsgTb);
 
             var btns = new System.Windows.Controls.StackPanel
             {
@@ -2489,25 +2501,26 @@ namespace MasselGUARD
             var title = new System.Windows.Controls.TextBlock
             {
                 Text       = Lang.T("InstallPortableTitle"),
-                FontSize   = 13, FontWeight = FontWeights.Bold,
+                FontWeight = FontWeights.Bold,
                 Foreground = (System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
                 Margin     = new Thickness(0, 0, 0, 10),
             };
+            title.SetResourceReference(FontSizeProperty, "Theme.FontSize.Header");
             var body = new System.Windows.Controls.TextBlock
             {
                 Text        = Lang.T("InstallPortablePrompt"),
-                FontSize    = 11,
                 Foreground  = (System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
                 TextWrapping= TextWrapping.Wrap,
                 Margin      = new Thickness(0, 0, 0, 10),
             };
+            body.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
             var chk = new System.Windows.Controls.CheckBox
             {
                 Content    = Lang.T("InstallPortableDoNotAsk"),
-                FontSize   = 10,
                 Foreground = (System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
                 Margin     = new Thickness(0, 0, 0, 14),
             };
+            chk.SetResourceReference(FontSizeProperty, "Theme.FontSize.Tiny");
             chk.Checked   += (_, _) => suppress = true;
             chk.Unchecked += (_, _) => suppress = false;
 
@@ -2567,6 +2580,10 @@ namespace MasselGUARD
                 // Always refresh the badge — even when no update is found (clears a stale badge).
                 Dispatcher.Invoke(RefreshUpdateBadge);
 
+                // Theme updates piggyback on the same check (same frequency/trigger) —
+                // a passive badge only, no prompt, so it doesn't compete with the app update.
+                _ = CheckForThemeUpdatesAsync();
+
                 if (latest == null) return;
                 if (!UpdateChecker.IsNewerVersion(latest.TagName)) return;
 
@@ -2589,6 +2606,24 @@ namespace MasselGUARD
                         onShutdown: () => Dispatcher.Invoke(
                             () => ((App)System.Windows.Application.Current).ShutdownApp()));
                 }
+            }
+            catch { /* silent — network may not be available */ }
+        }
+
+        /// <summary>Checks installed community themes against the repo manifest for updates —
+        /// called alongside the app update check (same frequency/trigger). Purely a passive
+        /// result (ConfigSvc.Config.ThemeUpdatesAvailable) for Settings to badge; unlike the
+        /// app update, it never prompts on its own.</summary>
+        public async System.Threading.Tasks.Task CheckForThemeUpdatesAsync()
+        {
+            try
+            {
+                var url = (ConfigSvc.Config.SharedThemesRepoUrl ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(url)) url = AppConfig.DefaultSharedThemesRepoUrl;
+
+                var updated = await ThemeDownloadService.CheckForThemeUpdatesAsync(url, ThemeManager.SharedThemeRoot);
+                ConfigSvc.Config.ThemeUpdatesAvailable = updated;
+                ConfigSvc.Save();
             }
             catch { /* silent — network may not be available */ }
         }
@@ -2806,18 +2841,22 @@ namespace MasselGUARD
             };
             var panel = new System.Windows.Controls.StackPanel();
 
-            panel.Children.Add(new System.Windows.Controls.TextBlock
+            var installTitleTb = new System.Windows.Controls.TextBlock
             {
-                Text=Lang.T("InstallTitle"), FontSize=12, FontWeight=FontWeights.Bold,
+                Text=Lang.T("InstallTitle"), FontWeight=FontWeights.Bold,
                 Foreground=(System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
                 Margin=new Thickness(0,0,0,12),
-            });
-            panel.Children.Add(new System.Windows.Controls.TextBlock
+            };
+            installTitleTb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Header");
+            panel.Children.Add(installTitleTb);
+            var installSelectFolderTb = new System.Windows.Controls.TextBlock
             {
-                Text=Lang.T("InstallSelectFolder"), FontSize=10,
+                Text=Lang.T("InstallSelectFolder"),
                 Foreground=(System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
                 Margin=new Thickness(0,0,0,4),
-            });
+            };
+            installSelectFolderTb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Tiny");
+            panel.Children.Add(installSelectFolderTb);
 
             var folderRow = new System.Windows.Controls.Grid { Margin=new Thickness(0,0,0,8) };
             folderRow.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width=new GridLength(1,GridUnitType.Star) });
@@ -2827,13 +2866,13 @@ namespace MasselGUARD
             {
                 Text=defaultParent,
                 FontFamily=(System.Windows.Media.FontFamily)Application.Current.Resources["Theme.FontFamily"],
-                FontSize=11,
                 Background=(System.Windows.Media.Brush)Application.Current.Resources["CardBg"],
                 Foreground=(System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
                 BorderBrush=(System.Windows.Media.Brush)Application.Current.Resources["BorderColor"],
                 BorderThickness=new Thickness(1), Padding=new Thickness(6,4,6,4),
                 VerticalContentAlignment=VerticalAlignment.Center,
             };
+            folderBox.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
             var browseBtn = new System.Windows.Controls.Button
             {
                 Content="…", Style=(Style)Application.Current.Resources["FlatBtn"],
@@ -2845,19 +2884,22 @@ namespace MasselGUARD
             folderRow.Children.Add(folderBox); folderRow.Children.Add(browseBtn);
             panel.Children.Add(folderRow);
 
-            panel.Children.Add(new System.Windows.Controls.TextBlock
+            var willInstallToTb = new System.Windows.Controls.TextBlock
             {
-                Text="Will install to:", FontSize=10,
+                Text="Will install to:",
                 Foreground=(System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
                 Margin=new Thickness(0,0,0,2),
-            });
+            };
+            willInstallToTb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Tiny");
+            panel.Children.Add(willInstallToTb);
             var resolvedLabel = new System.Windows.Controls.TextBlock
             {
                 FontFamily=(System.Windows.Media.FontFamily)Application.Current.Resources["Theme.FontFamily"],
-                FontSize=11, FontWeight=FontWeights.Bold,
+                FontWeight=FontWeights.Bold,
                 Foreground=(System.Windows.Media.Brush)Application.Current.Resources["Accent"],
                 TextWrapping=TextWrapping.Wrap, Margin=new Thickness(0,0,0,16),
             };
+            resolvedLabel.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
 
             void UpdateResolved()
             {

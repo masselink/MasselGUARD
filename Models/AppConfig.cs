@@ -183,6 +183,11 @@ namespace MasselGUARD.Models
         public DateTime LastUpdateCheck    { get; set; } = DateTime.MinValue;
         public string?  LatestKnownVersion { get; set; } = null;
 
+        /// <summary>Ids of installed themes whose repo "version" was newer than the installed
+        /// one, as of the last check. Checked at the same time as the app update (same
+        /// frequency setting) — see MainWindow.CheckForUpdatesAsync.</summary>
+        public List<string> ThemeUpdatesAvailable { get; set; } = new();
+
         // ── Computed (not serialised) ────────────────────────────────────────
         [JsonIgnore]
         public string ConfDirectory => string.IsNullOrWhiteSpace(WireGuardInstallDirectory)

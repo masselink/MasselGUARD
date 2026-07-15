@@ -593,6 +593,7 @@ namespace MasselGUARD.Views
             {
                 latest = await UpdateChecker.CheckNowAsync(
                     _main.ConfigSvc.Config, _main.ConfigSvc.Save);
+                _ = _main.CheckForThemeUpdatesAsync();   // piggyback theme-update check on the same trigger
             }
             catch { /* network unavailable */ }
 

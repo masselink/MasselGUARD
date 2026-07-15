@@ -614,7 +614,8 @@ All themes — downloaded and self-made — live together in `%APPDATA%\MasselGU
 
 Custom themes can override `AppName` to change the name shown in toast notifications.
 
-See `docs/THEME_INFO.md` (and `docs/THEME_EXAMPLE.md`) for the full key reference.
+For the full `theme.json` field reference, a copy-paste template, and the community theme
+catalogue, see the [MasselGUARD-themes](https://github.com/masselink/MasselGUARD-themes) repo.
 
 ### Theme Manager
 

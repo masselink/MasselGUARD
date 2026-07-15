@@ -46,7 +46,7 @@
         <!-- ── Flat button ── -->
         <Style x:Key="FlatBtn" TargetType="Button">
             <Setter Property="FontFamily"         Value="{DynamicResource Theme.FontFamily}"/>
-            <Setter Property="FontSize"           Value="11"/>
+            <Setter Property="FontSize"           Value="{DynamicResource Theme.FontSize.Small}"/>
             <Setter Property="Foreground"         Value="{DynamicResource Accent}"/>
             <Setter Property="Background"         Value="{DynamicResource CardBg}"/>
             <Setter Property="BorderThickness"    Value="1"/>
@@ -97,7 +97,7 @@
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Foreground"      Value="{DynamicResource TextMuted}"/>
             <Setter Property="FontFamily"      Value="{DynamicResource Theme.FontFamily}"/>
-            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="FontSize"        Value="{DynamicResource Theme.FontSize.Small}"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -132,7 +132,7 @@
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Foreground"      Value="{DynamicResource TextMuted}"/>
             <Setter Property="FontFamily"      Value="{DynamicResource Theme.FontFamily}"/>
-            <Setter Property="FontSize"        Value="11"/>
+            <Setter Property="FontSize"        Value="{DynamicResource Theme.FontSize.Small}"/>
             <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -203,7 +203,7 @@
         <!-- ── TextBox ── -->
         <Style TargetType="TextBox">
             <Setter Property="FontFamily"      Value="{DynamicResource Theme.FontFamily}"/>
-            <Setter Property="FontSize"        Value="12"/>
+            <Setter Property="FontSize"        Value="{DynamicResource Theme.FontSize}"/>
             <Setter Property="Background"      Value="{DynamicResource CardBg}"/>
             <Setter Property="Foreground"      Value="{DynamicResource TextPrimary}"/>
             <Setter Property="CaretBrush"      Value="{DynamicResource Accent}"/>
@@ -221,7 +221,7 @@
         <!-- ── ComboBox — full template, handles both editable and non-editable modes ── -->
         <Style TargetType="ComboBox">
             <Setter Property="FontFamily"      Value="{DynamicResource Theme.FontFamily}"/>
-            <Setter Property="FontSize"        Value="12"/>
+            <Setter Property="FontSize"        Value="{DynamicResource Theme.FontSize}"/>
             <Setter Property="Foreground"      Value="{DynamicResource TextPrimary}"/>
             <Setter Property="Background"      Value="{DynamicResource CardBg}"/>
             <Setter Property="BorderBrush"     Value="{DynamicResource BorderColor}"/>
@@ -233,7 +233,7 @@
                         <Setter Property="Background"  Value="{DynamicResource CardBg}"/>
                         <Setter Property="Foreground"  Value="{DynamicResource TextPrimary}"/>
                         <Setter Property="FontFamily"  Value="{DynamicResource Theme.FontFamily}"/>
-                        <Setter Property="FontSize"    Value="12"/>
+                        <Setter Property="FontSize"    Value="{DynamicResource Theme.FontSize}"/>
                         <Setter Property="Padding"     Value="8,5"/>
                         <Style.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
@@ -273,7 +273,7 @@
                                     IsHitTestVisible="False"
                                     TextBlock.Foreground="{DynamicResource TextPrimary}"
                                     TextBlock.FontFamily="{DynamicResource Theme.FontFamily}"
-                                    TextBlock.FontSize="12"
+                                    TextBlock.FontSize="{DynamicResource Theme.FontSize}"
                                     Visibility="Visible"/>
 
                                 <!-- Editable text input — dark themed -->
@@ -286,7 +286,7 @@
                                     SelectionBrush="{DynamicResource Accent}"
                                     BorderThickness="0"
                                     FontFamily="{DynamicResource Theme.FontFamily}"
-                                    FontSize="12"
+                                    FontSize="{DynamicResource Theme.FontSize}"
                                     VerticalAlignment="Center"
                                     Focusable="True"
                                     Visibility="Hidden"
@@ -365,7 +365,7 @@
         <!-- ── RadioButton — explicit template so the dot is visible on dark backgrounds ── -->
         <Style TargetType="RadioButton">
             <Setter Property="FontFamily"  Value="{DynamicResource Theme.FontFamily}"/>
-            <Setter Property="FontSize"    Value="11"/>
+            <Setter Property="FontSize"    Value="{DynamicResource Theme.FontSize.Small}"/>
             <Setter Property="Foreground"  Value="{DynamicResource TextPrimary}"/>
             <Setter Property="Background"  Value="Transparent"/>
             <Setter Property="Margin"      Value="0,4"/>
@@ -504,7 +504,7 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Foreground"      Value="{DynamicResource TextPrimary}"/>
             <Setter Property="FontFamily"      Value="{DynamicResource Theme.FontFamily}"/>
-            <Setter Property="FontSize"        Value="12"/>
+            <Setter Property="FontSize"        Value="{DynamicResource Theme.FontSize}"/>
             <Setter Property="Padding"         Value="0"/>
             <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
         </Style>
@@ -513,7 +513,7 @@
             <Setter Property="Background"  Value="{DynamicResource Surface}"/>
             <Setter Property="Foreground"  Value="{DynamicResource Accent}"/>
             <Setter Property="FontFamily"  Value="{DynamicResource Theme.FontFamily}"/>
-            <Setter Property="FontSize"    Value="11"/>
+            <Setter Property="FontSize"    Value="{DynamicResource Theme.FontSize.Small}"/>
             <Setter Property="FontWeight"  Value="Bold"/>
             <Setter Property="Padding"     Value="6,5"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderColor}"/>
@@ -580,7 +580,7 @@
             <Setter Property="BorderBrush"  Value="{DynamicResource BorderColor}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="FontFamily"   Value="{DynamicResource Theme.FontFamily}"/>
-            <Setter Property="FontSize"     Value="11"/>
+            <Setter Property="FontSize"     Value="{DynamicResource Theme.FontSize.Small}"/>
             <Setter Property="Padding"      Value="8,5"/>
             <Setter Property="HasDropShadow" Value="False"/>
             <Setter Property="Template">
@@ -601,8 +601,8 @@
         <!-- Shared label styles used across windows -->
         <Style x:Key="SectionLabel" TargetType="TextBlock">
             <Setter Property="Foreground"  Value="{DynamicResource TextMuted}"/>
-            <Setter Property="FontFamily"  Value="{DynamicResource Theme.FontFamily}"/>
-            <Setter Property="FontSize"    Value="10"/>
+            <Setter Property="FontFamily"  Value="{DynamicResource Theme.HeaderFontFamily}"/>
+            <Setter Property="FontSize"    Value="{DynamicResource Theme.FontSize.Tiny}"/>
             <Setter Property="FontWeight"  Value="Bold"/>
             <Setter Property="Margin"      Value="0,0,0,6"/>
         </Style>
@@ -610,7 +610,7 @@
         <Style x:Key="FormLabel" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
             <Setter Property="FontFamily" Value="{DynamicResource Theme.FontFamily}"/>
-            <Setter Property="FontSize"   Value="10"/>
+            <Setter Property="FontSize"   Value="{DynamicResource Theme.FontSize.Tiny}"/>
             <Setter Property="Margin"     Value="0,0,0,4"/>
         </Style>
 
@@ -622,7 +622,7 @@
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Foreground"   Value="{DynamicResource TextMuted}"/>
             <Setter Property="FontFamily"   Value="{DynamicResource Theme.FontFamily}"/>
-            <Setter Property="FontSize"     Value="11"/>
+            <Setter Property="FontSize"     Value="{DynamicResource Theme.FontSize.Small}"/>
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
             <Setter Property="Padding"      Value="16,10"/>
             <Setter Property="Cursor"       Value="Hand"/>
@@ -668,7 +668,7 @@
             <Setter Property="BorderBrush"       Value="{DynamicResource BorderColor}"/>
             <Setter Property="BorderThickness"   Value="1"/>
             <Setter Property="FontFamily"        Value="{DynamicResource Theme.FontFamily}"/>
-            <Setter Property="FontSize"          Value="10"/>
+            <Setter Property="FontSize"          Value="{DynamicResource Theme.FontSize.Tiny}"/>
             <Setter Property="Padding"           Value="10,4"/>
             <Setter Property="Cursor"            Value="Hand"/>
             <Setter Property="Template">
@@ -701,8 +701,8 @@
 
         <!-- Settings section header label -->
         <Style x:Key="SettingsSectionHeader" TargetType="TextBlock">
-            <Setter Property="FontFamily"   Value="{DynamicResource Theme.FontFamily}"/>
-            <Setter Property="FontSize"     Value="9"/>
+            <Setter Property="FontFamily"   Value="{DynamicResource Theme.HeaderFontFamily}"/>
+            <Setter Property="FontSize"     Value="{DynamicResource Theme.FontSize.Tiny}"/>
             <Setter Property="FontWeight"   Value="Bold"/>
             <Setter Property="Foreground"   Value="{DynamicResource TextMuted}"/>
             <Setter Property="Margin"       Value="0,0,0,6"/>

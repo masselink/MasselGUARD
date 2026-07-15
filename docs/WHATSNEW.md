@@ -11,6 +11,7 @@ Theming is the headline of this release: the old Theme Builder is now a full **T
 - **Community themes** — a dedicated **"Download themes…"** shortcut in Settings → Appearance jumps straight to the browser (or reach it via Manage themes… → Community themes). Cards show name, author, description, tags, and a search box + tag-filter chips.
   - **Click a preview to zoom it** — enlarges to a full-size overlay; a magnifying-glass hint appears on hover. Closable via the ✕, the backdrop, or Escape. The Dark/Light preview toggle keeps working while zoomed, and the zoomed image stays in sync with it.
   - **Reinstall / overwrite** — previously-installed themes can now be redownloaded to pick up upstream changes, with a confirmation that local edits will be lost.
+  - **Update detection** — the repo tags each theme with a version timestamp; an installed theme whose repo copy has since changed shows an **"Update"** button (instead of plain "Reinstall") the next time you open the browser. Installed themes are also checked automatically alongside the regular app-update check, surfacing a small badge in Settings → Appearance when one or more have updates waiting.
   - **Hold Shift** to fall back to plain Windows colours if a theme's preview (or the Manager's own live-edited state) becomes unreadable.
 - **Unified theme storage** — all themes, downloaded or hand-made, now live together in one `%APPDATA%\MasselGUARD\themes\` folder. Older split `custom_themes\` / `shared-themes\` folders are merged in automatically on first launch.
 - Closing the Theme Manager (or the community browser) now returns focus to **Settings → Appearance** instead of leaving you at the main window.
@@ -28,6 +29,13 @@ Logo, app icon, background image, and both tray icons (connected/disconnected) e
 ### Per-colour transparency
 
 Three colours that are meant to be translucent overlays — **List row hover**, **Tray menu hover**, and **Highlight** — get their own transparency sliders in a new **Transparency** section (split out from the old combined "Window" section, which now covers header + status-bar layout only). Dragging a slider rewrites that colour's alpha byte (`#AARRGGBB`) through the same live-preview pipeline as everything else, so it previews instantly and survives Undo/Redo.
+
+---
+
+### Typography — header font + a font size that actually reaches the app
+
+- **New "Header font" field** in the Theme Manager's Typography section — a separate typeface for the title bar app name and section/column headers, independent of the body font. Leave it blank to keep using the body font (the default for every existing theme).
+- **The Font size override now actually affects the whole app.** Previously it only reached the tunnel list and WiFi-rule rows; every button, column header, footer label, and dialog elsewhere in the app hardcoded its own literal size and ignored the setting. All of these now scale off the theme's font size (or the override, when one is set) through four consistent tiers — Tiny / Small / body / Header. Window-chrome glyphs (minimize/maximize/close, the settings gear, scroll chevrons) intentionally stay fixed-size, since they're icons rather than text.
 
 ---
 

@@ -720,6 +720,7 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <ComboBox Grid.Column="0" x:Name="ThemePicker" Padding="8,4"
                                               SelectionChanged="ThemePicker_SelectionChanged">
@@ -744,6 +745,12 @@
                                             VerticalAlignment="Stretch"
                                             Click="DownloadThemes_Click"
                                             ToolTip="Open the Theme Manager's community theme browser directly"/>
+                                    <TextBlock Grid.Column="3" x:Name="ThemeUpdatesBadge"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9" FontWeight="Bold"
+                                               Foreground="{DynamicResource Accent}"
+                                               VerticalAlignment="Center" Margin="6,0,0,0"
+                                               Visibility="Collapsed" Cursor="Hand"
+                                               MouseLeftButtonUp="DownloadThemes_Click"/>
                                 </Grid>
                             </Border>
                             <!-- Theme preview: test dark and light variant -->

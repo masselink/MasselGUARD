@@ -6,10 +6,11 @@
 
 MasselGUARD sits in the system tray and watches your WiFi connection. When you join a known network it activates the right WireGuard tunnel automatically. When you leave, or land on an unknown network, a configurable fallback fires. It also works as a clean manual WireGuard front-end.
 
-> **User manual** → [`docs/MANUAL.md`](docs/MANUAL.md)
+> **User manual** → [`docs/Manual.md`](docs/Manual.md)
 > **CLI manual** → [`docs/CLIManual.md`](docs/CLIManual.md)
-> **Technical reference** → [`docs/MasselGUARD.md`](docs/MasselGUARD.md)
+> **Technical reference** → [`docs/Reference.md`](docs/Reference.md)
 > **Release notes (all versions)** → [`docs/WHATSNEW.md`](docs/WHATSNEW.md)
+> **Themes** (browse, install, or make your own) → [MasselGUARD-themes](https://github.com/masselink/MasselGUARD-themes)
 
 ---
 
@@ -88,6 +89,7 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 - **Community theme browser** — search, tag filters, zoomable dark/light previews, and one-click install (or reinstall to pick up updates) via **Download themes…** in Settings → Appearance
 - **Taskbar/Alt-Tab icon** follows the active theme's app icon, same as the tray icon
 - All themes — built-in, downloaded, and hand-made — live together in `%APPDATA%\MasselGUARD\themes\`
+- Themes are published in the separate [MasselGUARD-themes](https://github.com/masselink/MasselGUARD-themes) repo, along with the full `theme.json` format reference for making your own
 
 ### Settings
 - **Organized in 7 tabs** — General / Tunnels / WiFi / Appearance / History / Advanced / About

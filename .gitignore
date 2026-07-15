@@ -12,3 +12,4 @@ obj/
 # DLLs placed next to the project for local dev
 tunnel.dll
 wireguard.dll
+MasselGUARD-themes.lnk

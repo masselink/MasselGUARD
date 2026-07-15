@@ -49,13 +49,19 @@ namespace MasselGUARD.Views
             catch (Exception ex) { SetCenter($"Could not load themes.\n\n{ex.Message}"); return; }
 
             _items.Clear();
-            var sharedRoot = ThemeManager.SharedThemeRoot;
+            var sharedRoot        = ThemeManager.SharedThemeRoot;
+            var installedVersions = ThemeDownloadService.LoadInstalledVersions(sharedRoot);
             foreach (var e in manifest.Themes)
             {
                 if (string.IsNullOrWhiteSpace(e.Id)) continue;
+                bool isInstalled = Directory.Exists(Path.Combine(sharedRoot, e.Id));
+                bool updateAvailable = isInstalled && !string.IsNullOrWhiteSpace(e.Version) &&
+                    installedVersions.TryGetValue(e.Id, out var installedVer) &&
+                    string.CompareOrdinal(e.Version, installedVer) > 0;
                 _items.Add(new ThemeBrowserItem(e, manifest.RawBase)
                 {
-                    IsInstalled = Directory.Exists(Path.Combine(sharedRoot, e.Id)),
+                    IsInstalled      = isInstalled,
+                    UpdateAvailable  = updateAvailable,
                 });
             }
 
@@ -206,19 +212,25 @@ namespace MasselGUARD.Views
             if (sender is not Button btn || btn.DataContext is not ThemeBrowserItem it) return;
             if (!it.CanInstall) return;
 
-            if (it.IsInstalled && !ThemedMessageDialog.Confirm(this,
-                    $"'{it.Name}' is already installed. Redownloading will overwrite your local copy — " +
-                    "any changes you made to it will be lost.\n\nContinue?",
-                    "Redownload theme"))
-                return;
+            if (it.IsInstalled)
+            {
+                var message = it.UpdateAvailable
+                    ? $"A newer version of '{it.Name}' is available. Updating will overwrite your local copy — " +
+                      "any changes you made to it will be lost.\n\nContinue?"
+                    : $"'{it.Name}' is already installed. Redownloading will overwrite your local copy — " +
+                      "any changes you made to it will be lost.\n\nContinue?";
+                var title = it.UpdateAvailable ? "Update theme" : "Redownload theme";
+                if (!ThemedMessageDialog.Confirm(this, message, title)) return;
+            }
 
             it.Busy = true;
             StatusText.Text = $"Installing {it.Name}…";
             try
             {
                 var n = await ThemeDownloadService.InstallThemeAsync(it.RawBase, it.Entry, ThemeManager.SharedThemeRoot);
-                it.IsInstalled = true;
-                AnyInstalled   = true;
+                it.IsInstalled     = true;
+                it.UpdateAvailable = false;   // just installed the latest version
+                AnyInstalled       = true;
                 StatusText.Text = $"Installed {it.Name} ({n} file(s)).";
             }
             catch (Exception ex)
@@ -315,6 +327,15 @@ namespace MasselGUARD.Views
             set { _installed = value; OnPC(nameof(IsInstalled)); OnPC(nameof(CanInstall)); OnPC(nameof(InstallLabel)); }
         }
 
+        /// <summary>True when this theme is installed and the manifest's "version" is newer
+        /// than what was recorded at install time — see ThemeDownloadService.CheckForThemeUpdatesAsync.</summary>
+        private bool _updateAvailable;
+        public bool UpdateAvailable
+        {
+            get => _updateAvailable;
+            set { _updateAvailable = value; OnPC(nameof(UpdateAvailable)); OnPC(nameof(InstallLabel)); }
+        }
+
         private bool _busy;
         public bool Busy
         {
@@ -323,7 +344,10 @@ namespace MasselGUARD.Views
         }
 
         public bool   CanInstall  => !_busy;
-        public string InstallLabel => _busy ? "Installing…" : (_installed ? "Reinstall" : "Install");
+        public string InstallLabel => _busy ? "Installing…"
+            : !_installed        ? "Install"
+            : _updateAvailable   ? "Update"
+            : "Reinstall";
 
         public event PropertyChangedEventHandler? PropertyChanged;
         private void OnPC(string n) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));

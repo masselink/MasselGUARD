@@ -541,6 +541,22 @@ namespace MasselGUARD.Views
                     ThemePicker.SelectedIndex = 0;
             }
 
+            // Theme update badge — passive result of the last app-update check (same
+            // frequency/trigger; see MainWindow.CheckForThemeUpdatesAsync). Never re-checks
+            // itself here — that would mean a network call every time this tab is opened.
+            if (ThemeUpdatesBadge != null)
+            {
+                var themeUpdates = _main.ConfigSvc.Config.ThemeUpdatesAvailable ?? new System.Collections.Generic.List<string>();
+                int n = themeUpdates.Count;
+                ThemeUpdatesBadge.Visibility = n > 0 ? Visibility.Visible : Visibility.Collapsed;
+                if (n > 0)
+                {
+                    ThemeUpdatesBadge.Text    = n == 1 ? "● 1 update" : $"● {n} updates";
+                    ThemeUpdatesBadge.ToolTip = "Theme update" + (n == 1 ? "" : "s") + " available: " +
+                        string.Join(", ", themeUpdates) + ". Click to open Community themes.";
+                }
+            }
+
             // System mode pills
             _loading = true;
             var sysMode = _draft.SystemThemeMode ?? "auto";
@@ -1533,6 +1549,7 @@ namespace MasselGUARD.Views
             }
             var latest = await UpdateChecker.CheckNowAsync(
                 _main.ConfigSvc.Config, _main.ConfigSvc.Save);
+            _ = _main.CheckForThemeUpdatesAsync();   // piggyback theme-update check on the same trigger
             if (CheckUpdateBtn != null)
             {
                 CheckUpdateBtn.IsEnabled = true;

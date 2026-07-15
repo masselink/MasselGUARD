@@ -113,7 +113,10 @@ namespace MasselGUARD.Views
             foreach (var ff in Fonts.SystemFontFamilies
                          .Where(f => !IsUnusableFontFamily(f.Source))
                          .OrderBy(f => f.Source))
+            {
                 FontFamilyBox.Items.Add(ff);
+                HeaderFontFamilyBox.Items.Add(ff);
+            }
 
             _applyTimer = new System.Windows.Threading.DispatcherTimer
             {
@@ -129,15 +132,23 @@ namespace MasselGUARD.Views
         private void SelectActiveTheme()
         {
             var active = ThemeManager.Instance.CurrentThemeName;
-            if (active is not ("__system__" or "system"))
-                foreach (ListBoxItem item in CustomList.Items)
-                    if (string.Equals(item.Tag as string, active, StringComparison.OrdinalIgnoreCase))
+            if (active is ("__system__" or "system") || !SelectThemeInList(active))
+                // System theme, or the active theme is missing → fall back to System (first built-in).
+                if (BuiltinList.Items.Count > 0) BuiltinList.SelectedIndex = 0;
+        }
+
+        /// <summary>Selects a theme by folder name in whichever of THEMES / CUSTOM THEMES it's
+        /// in. Returns false if it isn't in either (nothing selected).</summary>
+        private bool SelectThemeInList(string name)
+        {
+            foreach (var list in new[] { CustomList, CustomNamedList })
+                foreach (ListBoxItem item in list.Items)
+                    if (string.Equals(item.Tag as string, name, StringComparison.OrdinalIgnoreCase))
                     {
-                        CustomList.SelectedItem = item;
-                        return;
+                        list.SelectedItem = item;
+                        return true;
                     }
-            // System theme, or the active theme is missing → fall back to System (first built-in).
-            if (BuiltinList.Items.Count > 0) BuiltinList.SelectedIndex = 0;
+            return false;
         }
 
         /// <summary>Font families WPF cannot use as a normal typeface (Win11 variable-font collections).</summary>
@@ -766,6 +777,7 @@ namespace MasselGUARD.Views
         {
             BuiltinList.Items.Clear();
             CustomList.Items.Clear();
+            CustomNamedList.Items.Clear();
 
             var active = ThemeManager.Instance.CurrentThemeName;
 
@@ -775,14 +787,20 @@ namespace MasselGUARD.Views
                 isBuiltin: true, isActive: active is "__system__" or "system"));
 
             // THEMES — every theme in %APPDATA%\MasselGUARD\themes\ (downloaded + user-made),
-            // all editable.
+            // all editable. Anything using "<name>-theme.json" instead of the app's own
+            // "theme.json" (the community repo's distribution filename, or copied in by
+            // hand) goes in CUSTOM THEMES instead, so it doesn't look like it belongs
+            // there just because Save/New/Duplicate never wrote it.
             var names = ThemeManager.ThemeNames();
             foreach (var name in names)
             {
                 var display = ThemeManager.GetThemeDisplayName(name);
-                CustomList.Items.Add(BuildListItem(name, display, isBuiltin: false, isActive: name == active));
+                var item = BuildListItem(name, display, isBuiltin: false, isActive: name == active);
+                (ThemeManager.IsCustomNamedTheme(name) ? CustomNamedList : CustomList).Items.Add(item);
             }
 
+            CustomNamedHeader.Visibility = CustomNamedList.Items.Count == 0
+                ? Visibility.Collapsed : Visibility.Visible;
             NoCustomLabel.Visibility = names.Count == 0
                 ? Visibility.Visible : Visibility.Collapsed;
         }
@@ -826,8 +844,9 @@ namespace MasselGUARD.Views
             // Single selection across the three lists — clear the other two
             if ((sender as ListBox)?.SelectedItem != null)
             {
-                if (sender != BuiltinList) BuiltinList.SelectedItem = null;
-                if (sender != CustomList)  CustomList.SelectedItem  = null;
+                if (sender != BuiltinList)     BuiltinList.SelectedItem     = null;
+                if (sender != CustomList)      CustomList.SelectedItem      = null;
+                if (sender != CustomNamedList) CustomNamedList.SelectedItem = null;
             }
 
             var selected = (sender as ListBox)?.SelectedItem as ListBoxItem;
@@ -981,6 +1000,7 @@ namespace MasselGUARD.Views
 
             // Typography
             FontFamilyBox.Text          = d.FontFamily;
+            HeaderFontFamilyBox.Text    = d.HeaderFontFamily;
             FontSizeSlider.Value        = d.FontSize;
             CornerRadiusSlider.Value    = d.CornerRadius;
 
@@ -1047,6 +1067,7 @@ namespace MasselGUARD.Views
 
             // Other controls
             FontFamilyBox.IsEnabled  = !readOnly;
+            HeaderFontFamilyBox.IsEnabled = !readOnly;
             FontSizeSlider.IsEnabled = !readOnly;
             CornerRadiusSlider.IsEnabled = !readOnly;
             OpacitySlider.IsEnabled  = !readOnly;
@@ -1172,6 +1193,18 @@ namespace MasselGUARD.Views
         }
 
         private void FontFamily_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            OnEditorChanged();   // catches free-typed family names
+        }
+
+        private void HeaderFontFamily_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_loading) return;
+            OnEditorChanged();
+        }
+
+        private void HeaderFontFamily_LostFocus(object sender, RoutedEventArgs e)
         {
             if (_loading) return;
             OnEditorChanged();   // catches free-typed family names
@@ -1408,7 +1441,8 @@ namespace MasselGUARD.Views
                 // always shows the variant currently being edited
                 Type        = _editingDark ? "dark" : "light",
 
-                FontFamily    = FontFamilyBox.Text.Trim(),
+                FontFamily       = FontFamilyBox.Text.Trim(),
+                HeaderFontFamily = HeaderFontFamilyBox.Text.Trim(),
                 FontSize      = FontSizeSlider.Value,
                 CornerRadius  = (int)CornerRadiusSlider.Value,
 
@@ -1587,7 +1621,7 @@ namespace MasselGUARD.Views
                     var dst = Path.Combine(ThemeManager.UserThemeRoot, folderName);
                     if (Directory.Exists(src) && Directory.Exists(dst))
                         foreach (var f in Directory.GetFiles(src))
-                            if (!Path.GetFileName(f).Equals("theme.json", StringComparison.OrdinalIgnoreCase))
+                            if (!Path.GetFileName(f).EndsWith("theme.json", StringComparison.OrdinalIgnoreCase))
                                 File.Copy(f, Path.Combine(dst, Path.GetFileName(f)), overwrite: true);
                 }
                 catch { /* copy still usable without assets */ }
@@ -1611,7 +1645,7 @@ namespace MasselGUARD.Views
             // new theme keeps its logo/background/tray icons/fonts.
             if (!string.IsNullOrEmpty(copyAssetsFrom) && Directory.Exists(copyAssetsFrom))
                 foreach (var f in Directory.GetFiles(copyAssetsFrom))
-                    if (!Path.GetFileName(f).Equals("theme.json", StringComparison.OrdinalIgnoreCase))
+                    if (!Path.GetFileName(f).EndsWith("theme.json", StringComparison.OrdinalIgnoreCase))
                         try { File.Copy(f, Path.Combine(dir, Path.GetFileName(f)), overwrite: true); } catch { }
 
             // Optional: ship a single seeding image as the theme's window background (root level)
@@ -1741,7 +1775,7 @@ namespace MasselGUARD.Views
 
             var dir = EditingThemeDir;
             Directory.CreateDirectory(dir);
-            WriteUnifiedThemeJson(dir, draft, _darkVals, _lightVals,
+            WriteUnifiedThemeJson(ThemeManager.ThemeJsonPath(_editingName), draft, _darkVals, _lightVals,
                 VariantAssetMap(dark: true), VariantAssetMap(dark: false));
 
             // Reload from disk and activate
@@ -1776,7 +1810,11 @@ namespace MasselGUARD.Views
             ["trayIconDisconnected"] = dark ? _darkTrayD   : _lightTrayD,
         };
 
-        private static void WriteUnifiedThemeJson(string dir, ThemeDefinition root,
+        /// <summary>Writes to <paramref name="jsonPath"/> directly — the caller resolves it via
+        /// <see cref="ThemeManager.ThemeJsonPath"/> so saving an existing "&lt;name&gt;-theme.json"
+        /// theme (community-repo distribution, or copied in by hand) doesn't leave a stray
+        /// duplicate "theme.json" behind.</summary>
+        private static void WriteUnifiedThemeJson(string jsonPath, ThemeDefinition root,
             Dictionary<string, string> dark, Dictionary<string, string> light,
             Dictionary<string, string> darkAssets, Dictionary<string, string> lightAssets)
         {
@@ -1817,8 +1855,7 @@ namespace MasselGUARD.Views
             if (Section(dark,  darkAssets)  is { } d) node["dark"]  = d;
             if (Section(light, lightAssets) is { } l) node["light"] = l;
 
-            File.WriteAllText(Path.Combine(dir, "theme.json"),
-                node.ToJsonString(opts), System.Text.Encoding.UTF8);
+            File.WriteAllText(jsonPath, node.ToJsonString(opts), System.Text.Encoding.UTF8);
         }
 
         // ── Export / Import (zip) ─────────────────────────────────────────────
@@ -1926,7 +1963,11 @@ namespace MasselGUARD.Views
             try
             {
                 ZipFile.ExtractToDirectory(dlg.FileName, dir);
-                if (!File.Exists(Path.Combine(dir, "theme.json")))
+                // Accepts "theme.json" or "<name>-theme.json" at the root — the latter is how
+                // the community repo (and Export, for a theme loaded that way) names it.
+                bool hasThemeFile = Directory.GetFiles(dir)
+                    .Any(f => Path.GetFileName(f).EndsWith("theme.json", StringComparison.OrdinalIgnoreCase));
+                if (!hasThemeFile)
                 {
                     Directory.Delete(dir, recursive: true);
                     ThemedMessageDialog.Info(this, "The zip does not contain a theme.json at its root.", "Theme Builder");
@@ -1934,12 +1975,7 @@ namespace MasselGUARD.Views
                 }
 
                 PopulateThemeList();
-                foreach (ListBoxItem item in CustomList.Items)
-                    if (item.Tag as string == folderName)
-                    {
-                        CustomList.SelectedItem = item;
-                        break;
-                    }
+                SelectThemeInList(folderName);
                 StatusLabel.Text = "Imported ✓";
             }
             catch (Exception ex)

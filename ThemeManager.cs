@@ -108,14 +108,15 @@ namespace MasselGUARD
             }
         }
 
-        /// <summary>All theme folder names (each containing a theme.json) in the themes folder.</summary>
+        /// <summary>All theme folder names (each containing a theme.json — see
+        /// <see cref="HasThemeJson"/>) in the themes folder.</summary>
         public static List<string> ThemeNames()
         {
             var root = ThemeRoot;
             if (!Directory.Exists(root)) return new List<string>();
             return Directory.GetDirectories(root)
+                .Where(HasThemeJson)
                 .Select(d => Path.GetFileName(d)!)
-                .Where(n => File.Exists(Path.Combine(root, n, "theme.json")))
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
@@ -128,8 +129,25 @@ namespace MasselGUARD
         /// <summary>True when a theme folder with that name already exists — used to block
         /// overwriting an existing theme when creating or duplicating.</summary>
         public static bool ThemeExists(string name) =>
-            !string.IsNullOrWhiteSpace(name) &&
-            File.Exists(Path.Combine(ThemeRoot, name, "theme.json"));
+            !string.IsNullOrWhiteSpace(name) && HasThemeJson(Path.Combine(ThemeRoot, name));
+
+        /// <summary>
+        /// A theme folder's JSON file is normally "theme.json" — what Save/New/Duplicate always
+        /// write. The community theme repo instead distributes "&lt;id&gt;-theme.json" (its files
+        /// are named to match the theme id), and a theme copied in by hand often keeps that same
+        /// naming. Recognise both so nothing dropped into the folder is silently invisible.
+        /// </summary>
+        private static bool HasThemeJson(string folderPath) =>
+            File.Exists(Path.Combine(folderPath, "theme.json")) ||
+            File.Exists(Path.Combine(folderPath, $"{Path.GetFileName(folderPath)}-theme.json"));
+
+        /// <summary>True when this theme's JSON file uses the "&lt;foldername&gt;-theme.json"
+        /// naming instead of the app's own "theme.json" — i.e. it came from the community repo's
+        /// distribution format or was copied in by hand, not created/saved by this app. Used by
+        /// the Theme Manager to group these under "Custom themes".</summary>
+        public static bool IsCustomNamedTheme(string name) =>
+            !File.Exists(Path.Combine(ThemeFolder(name), "theme.json")) &&
+            File.Exists(Path.Combine(ThemeFolder(name), $"{name}-theme.json"));
 
         /// <summary>
         /// Returns the folder for a theme, checking user themes first so custom themes
@@ -142,7 +160,18 @@ namespace MasselGUARD
             return Path.Combine(ThemeRoot, name);
         }
 
-        private static string ThemeJson(string name) => Path.Combine(ThemeFolder(name), "theme.json");
+        /// <summary>Resolves the actual JSON file path for a theme: prefers "theme.json"
+        /// (the app's own convention) but falls back to "&lt;name&gt;-theme.json" — see
+        /// <see cref="HasThemeJson"/>. Saving reuses whichever file already exists, so it
+        /// never leaves an orphaned duplicate behind.</summary>
+        public static string ThemeJsonPath(string name)
+        {
+            var folder   = ThemeFolder(name);
+            var standard = Path.Combine(folder, "theme.json");
+            if (File.Exists(standard)) return standard;
+            var alt = Path.Combine(folder, $"{name}-theme.json");
+            return File.Exists(alt) ? alt : standard;
+        }
 
         // ── Public API ────────────────────────────────────────────────────────
 
@@ -158,8 +187,8 @@ namespace MasselGUARD
             var root = ThemeRoot;
             if (Directory.Exists(root))
                 themes.AddRange(Directory.GetDirectories(root)
+                    .Where(HasThemeJson)
                     .Select(d => Path.GetFileName(d)!)
-                    .Where(n => File.Exists(Path.Combine(root, n, "theme.json")))
                     .OrderBy(n => n));
 
             // User-created themes from AppData (skip duplicates)
@@ -168,8 +197,7 @@ namespace MasselGUARD
                 foreach (var dir in Directory.GetDirectories(userRoot).OrderBy(d => d))
                 {
                     var name = Path.GetFileName(dir)!;
-                    if (!themes.Contains(name) &&
-                        File.Exists(Path.Combine(userRoot, name, "theme.json")))
+                    if (!themes.Contains(name) && HasThemeJson(dir))
                         themes.Add(name);
                 }
 
@@ -186,7 +214,7 @@ namespace MasselGUARD
                 return "System (Windows colors)";
             try
             {
-                var json = ThemeJson(folderName);
+                var json = ThemeJsonPath(folderName);
                 if (!File.Exists(json)) return folderName;
                 var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 var def  = JsonSerializer.Deserialize<ThemeDefinition>(File.ReadAllText(json), opts);
@@ -226,7 +254,7 @@ namespace MasselGUARD
 
         private static ThemeDefinition? ReadTheme(string themeName)
         {
-            var jsonPath = ThemeJson(themeName);
+            var jsonPath = ThemeJsonPath(themeName);
             if (File.Exists(jsonPath))
             {
                 try
@@ -289,6 +317,7 @@ namespace MasselGUARD
                 Creator           = root.Creator,
                 Description       = root.Description,
                 FontFamily        = root.FontFamily,
+                HeaderFontFamily  = root.HeaderFontFamily,
                 FontSize          = root.FontSize,
                 CornerRadius      = root.CornerRadius,
                 // Assets: a variant may carry its own logo / app icon / background image /
@@ -398,6 +427,7 @@ namespace MasselGUARD
                 Creator           = src.Creator,
                 Description       = src.Description,
                 FontFamily        = src.FontFamily,
+                HeaderFontFamily  = src.HeaderFontFamily,
                 FontSize          = src.FontSize,
                 CornerRadius      = src.CornerRadius,
                 BackgroundImage   = src.BackgroundImage,
@@ -603,9 +633,13 @@ namespace MasselGUARD
 
             // Typography
             res["Theme.FontFamily"]          = ResolveFontFamily(d.FontFamily, folder);
+            res["Theme.HeaderFontFamily"]    = string.IsNullOrWhiteSpace(d.HeaderFontFamily)
+                ? res["Theme.FontFamily"]
+                : ResolveFontFamily(d.HeaderFontFamily, folder);
             res["Theme.FontSize"]            = d.FontSize;
             res["Theme.FontSize.Small"]      = Math.Max(8.0, d.FontSize - 1.0);
             res["Theme.FontSize.Tiny"]       = Math.Max(7.0, d.FontSize - 2.0);
+            res["Theme.FontSize.Header"]     = Math.Max(10.0, d.FontSize + 2.0);
             res["Theme.CornerRadius"]        = new CornerRadius(d.CornerRadius);
             res["Theme.CornerRadiusTop"]    = new CornerRadius(d.CornerRadius, d.CornerRadius, 0, 0);
             res["Theme.CornerRadiusBottom"] = new CornerRadius(0, 0, d.CornerRadius, d.CornerRadius);
@@ -1008,15 +1042,21 @@ namespace MasselGUARD
             string fontName = string.IsNullOrWhiteSpace(family)
                 ? (SystemFonts.MessageFontFamily?.Source ?? "Segoe UI")
                 : family;
-            try { res["Theme.FontFamily"] = new FontFamily(fontName); }
+            try
+            {
+                var overrideFont = new FontFamily(fontName);
+                res["Theme.FontFamily"]       = overrideFont;
+                res["Theme.HeaderFontFamily"] = overrideFont;
+            }
             catch { /* invalid font name — leave the current font in place */ }
 
             // Font size (only when explicitly set; 0 = keep theme default)
             if (size > 0.0)
             {
-                res["Theme.FontSize"]       = size;
-                res["Theme.FontSize.Small"] = Math.Max(8.0, size - 1.0);
-                res["Theme.FontSize.Tiny"]  = Math.Max(7.0, size - 2.0);
+                res["Theme.FontSize"]        = size;
+                res["Theme.FontSize.Small"]  = Math.Max(8.0, size - 1.0);
+                res["Theme.FontSize.Tiny"]   = Math.Max(7.0, size - 2.0);
+                res["Theme.FontSize.Header"] = Math.Max(10.0, size + 2.0);
             }
         }
 
@@ -1055,7 +1095,7 @@ namespace MasselGUARD
         {
             try
             {
-                var json = ThemeJson(folderName);
+                var json = ThemeJsonPath(folderName);
                 if (!File.Exists(json)) return null;
                 var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 return JsonSerializer.Deserialize<ThemeDefinition>(File.ReadAllText(json), opts);
@@ -1195,6 +1235,10 @@ namespace MasselGUARD
         public string FontFamily   { get; set; } = "Segoe UI";
         public double FontSize     { get; set; } = 12;
         public double CornerRadius { get; set; } = 6;
+
+        /// <summary>Font used for the title bar app name and section/column headers.
+        /// Empty string means "inherit FontFamily" (no distinct header font).</summary>
+        public string HeaderFontFamily { get; set; } = "";
 
         // ── Colours — named by where/how each appears in the UI ───────────────
         // All values accept #RRGGBB (opaque) or #AARRGGBB (with transparency).

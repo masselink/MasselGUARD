@@ -21,6 +21,10 @@ namespace MasselGUARD.Services
         public List<string> Files { get; set; } = new(); // files relative to Path
         public string PreviewDark  { get; set; } = "";   // repo-root-relative image path
         public string PreviewLight { get; set; } = "";
+        /// <summary>ISO 8601 UTC timestamp — a change marker, not a semantic version.
+        /// Bumped by the repo whenever the theme's files change. Compares correctly as a
+        /// plain string (same fixed format, so lexicographic order == chronological order).</summary>
+        public string Version { get; set; } = "";
     }
 
     /// <summary>Parsed manifest plus the raw base URL its files resolve against.</summary>
@@ -125,7 +129,66 @@ namespace MasselGUARD.Services
                 n++;
             }
             if (n == 0) throw new Exception("Nothing was installed (the theme listed no valid files).");
+            SaveInstalledVersion(targetDir, id, entry.Version);
             return n;
+        }
+
+        // ── Installed-version tracking (for update detection) ───────────────────
+        // A small sidecar file next to the theme folders — kept separate from each theme's
+        // own .json so editing/saving a theme in the Theme Manager never touches it.
+        private static string InstalledVersionsPath(string themesRoot) =>
+            System.IO.Path.Combine(themesRoot, "installed-versions.json");
+
+        /// <summary>Theme id → installed manifest "version" (ISO 8601 UTC timestamp).</summary>
+        public static Dictionary<string, string> LoadInstalledVersions(string themesRoot)
+        {
+            try
+            {
+                var path = InstalledVersionsPath(themesRoot);
+                if (!File.Exists(path)) return new(StringComparer.OrdinalIgnoreCase);
+                return JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path), JsonOpts)
+                    ?? new(StringComparer.OrdinalIgnoreCase);
+            }
+            catch { return new(StringComparer.OrdinalIgnoreCase); }
+        }
+
+        private static void SaveInstalledVersion(string themesRoot, string id, string version)
+        {
+            if (string.IsNullOrWhiteSpace(version)) return;   // repo entry didn't set one — nothing to compare later
+            try
+            {
+                var dict = LoadInstalledVersions(themesRoot);
+                dict[id] = version;
+                Directory.CreateDirectory(themesRoot);
+                File.WriteAllText(InstalledVersionsPath(themesRoot),
+                    JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true }));
+            }
+            catch { /* best-effort — a missed record just means no update prompt next time */ }
+        }
+
+        /// <summary>
+        /// Checks every currently-installed theme against the repo manifest and returns the
+        /// ids of any whose manifest "version" is newer than what was recorded at install time.
+        /// Silent on any failure (offline, bad repo URL, etc.) — returns an empty list.
+        /// </summary>
+        public static async Task<List<string>> CheckForThemeUpdatesAsync(string repoUrl, string themesRoot)
+        {
+            var updated = new List<string>();
+            try
+            {
+                var manifest  = await FetchManifestAsync(repoUrl);
+                var installed = LoadInstalledVersions(themesRoot);
+                foreach (var entry in manifest.Themes)
+                {
+                    if (string.IsNullOrWhiteSpace(entry.Id) || string.IsNullOrWhiteSpace(entry.Version)) continue;
+                    if (!Directory.Exists(System.IO.Path.Combine(themesRoot, entry.Id))) continue;   // not installed
+                    if (installed.TryGetValue(entry.Id, out var installedVersion) &&
+                        string.CompareOrdinal(entry.Version, installedVersion) > 0)
+                        updated.Add(entry.Id);
+                }
+            }
+            catch { /* offline / repo unreachable — treat as "no updates known" */ }
+            return updated;
         }
 
         /// <summary>A safe single folder name (no separators, no traversal); null if unsafe.</summary>
