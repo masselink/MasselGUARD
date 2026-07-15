@@ -1,6 +1,81 @@
 ## v3.7.0 — Chromatic Chameleon
 
-*In development — theming is the main topic of this release.*
+Theming is the headline of this release: the old Theme Builder is now a full **Theme Manager** with a community theme browser, every image asset (not just colours) is dark/light aware, and individual colours can carry their own transparency. Alongside it, the first-run wizard gained a "Choose your view" step so new users aren't dropped into a full-featured UI they didn't ask for.
+
+---
+
+### Theme Manager (formerly Theme Builder)
+
+- **Renamed and reorganized.** The old scattered New / Duplicate / Export / Delete buttons moved to a right-click context menu on the theme list; the footer is now just Undo/Redo · Live indicator · Cancel · Save.
+- **"+ Add theme" dialog** — one entry point for Create (from the current theme, from two images, or as a copy of any existing theme), Import from a `.zip`, and browsing Community themes.
+- **Community themes** — a dedicated **"Download themes…"** shortcut in Settings → Appearance jumps straight to the browser (or reach it via Manage themes… → Community themes). Cards show name, author, description, tags, and a search box + tag-filter chips.
+  - **Click a preview to zoom it** — enlarges to a full-size overlay; a magnifying-glass hint appears on hover. Closable via the ✕, the backdrop, or Escape. The Dark/Light preview toggle keeps working while zoomed, and the zoomed image stays in sync with it.
+  - **Reinstall / overwrite** — previously-installed themes can now be redownloaded to pick up upstream changes, with a confirmation that local edits will be lost.
+  - **Hold Shift** to fall back to plain Windows colours if a theme's preview (or the Manager's own live-edited state) becomes unreadable.
+- **Unified theme storage** — all themes, downloaded or hand-made, now live together in one `%APPDATA%\MasselGUARD\themes\` folder. Older split `custom_themes\` / `shared-themes\` folders are merged in automatically on first launch.
+- Closing the Theme Manager (or the community browser) now returns focus to **Settings → Appearance** instead of leaving you at the main window.
+
+---
+
+### Every image asset is now dark/light sensitive
+
+Logo, app icon, background image, and both tray icons (connected/disconnected) each get **two independent pickers** — Light and Dark — instead of one shared image. A legacy theme with only a single shared image still works: it seeds both sides on load, and saving migrates it to the dual format automatically. `logoWidth`/`logoHeight`, background stretch, and background opacity stay shared, since those are layout numbers rather than images.
+
+- **App icon now drives the taskbar/Alt-Tab icon**, not just the tray — previously only the tray icon updated when a theme changed; the taskbar button now follows it too, falling back to the compiled default icon when a theme doesn't set one.
+
+---
+
+### Per-colour transparency
+
+Three colours that are meant to be translucent overlays — **List row hover**, **Tray menu hover**, and **Highlight** — get their own transparency sliders in a new **Transparency** section (split out from the old combined "Window" section, which now covers header + status-bar layout only). Dragging a slider rewrites that colour's alpha byte (`#AARRGGBB`) through the same live-preview pipeline as everything else, so it previews instantly and survives Undo/Redo.
+
+---
+
+### Setup wizard — "Choose your view"
+
+A new step lets you pick how much of the interface you want on first run, instead of discovering the History/Tunnels/WiFi visibility toggles later:
+
+| Preset | Shows |
+|---|---|
+| **Simple** | Tunnels + WiFi rules (panel and column). No timeline, no activity log. |
+| **Manual** | Tunnels + activity log. No timeline, no WiFi rules — and turns off WiFi automation, since rules don't apply without it. |
+| **Expert** | Everything. |
+| **Custom** | Advances to its own dedicated step with the same four toggles shown individually and full-size, instead of a hard-to-notice panel you had to scroll to. |
+
+- The **WiFi Automation** step is now skipped entirely (in both Next and Back) once WiFi rules are disabled — nothing left to configure there.
+- The Custom-details step is likewise only reachable by explicitly picking "Custom" — every other preset skips straight past it.
+- Every value stays freely editable afterward, either individually in Settings or by re-applying a preset from the same **Simple / Manual / Expert** buttons now available at the top of **Settings → General**.
+- Step 1 (Language & Appearance) gained a full **theme picker** — every installed theme, including anything just downloaded — plus its own "Download more themes…" shortcut, so a theme you grab mid-wizard is immediately selectable.
+- Fixed the wizard's footer buttons (Skip/Back/Next) rendering visibly different from the rest of the app — they were stretched to fill the footer bar with no vertical padding; now sized and centred like every other button.
+
+---
+
+### Settings — appearance quality-of-life
+
+- **Dark/Light/Follow-system now applies immediately** in Settings → Appearance instead of waiting for Save. If you close the window with it still unsaved, a prompt asks whether to keep the change or discard it.
+- The **timeline range** (24h / 7d / 31d) and the individual History-tab visibility toggles now persist immediately when changed, instead of only on the next full Save.
+- The Theme Manager's global **Invert** checkbox moved next to the "Copy all → Dark/Light" buttons it modifies (was oddly placed next to the Dark/Light pill) and is now labelled **"Copy inverted colour."**
+
+---
+
+### Fixes
+
+- **Double resize grip** — the main window showed two overlapping resize-grip glyphs in the corner; removed the redundant custom one (WPF already draws its own for this window style) and retired the now-dead "Resize grip" theme toggle.
+- Timeline segment colours are derived from the active theme's Accent colour (golden-angle hue rotation), so any number of tunnels/SSIDs get distinct, theme-matching colours automatically, and they recolour live on theme switch.
+- The WiFi-rules panel now reclaims its space immediately when hidden, instead of leaving an empty gap.
+
+---
+
+### Language
+
+- **Japanese** added — six languages total (English, Dutch, German, French, Spanish, Japanese), including its own flag in the picker.
+
+---
+
+### Security
+
+- Theme asset paths (background image, app icon, tray icons, logo) in `theme.json` are now constrained to the theme's own folder — a downloaded/untrusted theme can no longer point the app at files elsewhere on disk via a rooted path or `..` traversal.
+- `FlushDns` now launches `ipconfig.exe` by its full `System32` path instead of a bare command name, closing off a PATH-hijack route for the elevated process.
 
 ---
 

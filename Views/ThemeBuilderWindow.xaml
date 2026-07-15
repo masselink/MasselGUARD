@@ -880,8 +880,9 @@
                                    FontSize="10" FontWeight="Bold"
                                    Foreground="{DynamicResource Accent}"
                                    VerticalAlignment="Center" Margin="0,0,10,0"
-                                   Visibility="Collapsed"
-                                   ToolTip="Changes are applied to the app while you edit. Close without saving to revert."/>
+                                   Visibility="Collapsed" Cursor="Hand"
+                                   MouseLeftButtonUp="LiveIndicator_Click"
+                                   ToolTip="Changes (including switching themes) are applied to the app immediately. Click to pause. Close without saving to revert."/>
                         <TextBlock x:Name="StatusLabel"
                                    FontFamily="{DynamicResource Theme.FontFamily}"
                                    FontSize="10"

@@ -180,7 +180,6 @@ Leave any of these empty to inherit the corresponding semantic colour.
 | `titleBarHeight` | int | `48` | Title bar row height in px. Minimum 32 |
 | `showTitleBarIcon` | bool | `true` | Show / hide the logo or shield icon group |
 | `showTitleBarAppName` | bool | `true` | Show / hide the application name text |
-| `showResizeGrip` | bool | `true` | Show / hide the bottom-right resize handle |
 | `windowOpacity` | number | `1.0` | Overall window opacity. `1.0` = fully opaque, `0.1` = nearly transparent |
 
 ### Status bar *(root level)*

@@ -77,18 +77,21 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 - **Confirm on close** — optional confirmation dialog before disconnecting active tunnels on exit
 
 ### Appearance
-- **Unified dual-variant theme system** — one theme file contains both dark and light colour sets
-- **Single theme picker** in Settings → Appearance — choose a theme once; dark or light colours are applied automatically based on the current mode
+- **Unified dual-variant theme system** — one theme file contains both dark and light colour sets, and now dark/light *assets* too (logo, app icon, background, tray icons) — each gets its own Light and Dark picker
+- **Single theme picker** in Settings → Appearance — choose a theme once; dark or light colours are applied automatically based on the current mode. Dark/Light/Follow-system applies immediately, with a save-or-discard prompt if you close Settings before saving
 - **System mode pill** — Auto (follows Windows) / Light / Dark
 - **System (Windows colors)** available as a theme option — uses the live Windows 11 accent palette
 - **Auto colour generation** — define only dark or only light colours; the other variant is computed at load time from HSL lightness inversion, never stored
 - **Theme preview** — apply the selected theme for 10 seconds before committing; auto-reverts
 - **Font override** — pick any installed font; per-typeface rendering in the dropdown; size slider 8–18 pt
-- **Theme Builder** *(coming soon)* — create and edit custom dual-variant themes with live preview
-- Built-in **System (Windows colors)** theme; download more via **Browse shared themes…**. All themes live in `%APPDATA%\MasselGUARD\themes\`
+- **Theme Manager** *(formerly Theme Builder)* — create and edit custom dual-variant themes with live preview, per-colour transparency sliders (list hover, tray hover, highlight), Undo/Redo, and a right-click menu for Apply/Duplicate/Export/Delete
+- **Community theme browser** — search, tag filters, zoomable dark/light previews, and one-click install (or reinstall to pick up updates) via **Download themes…** in Settings → Appearance
+- **Taskbar/Alt-Tab icon** follows the active theme's app icon, same as the tray icon
+- All themes — built-in, downloaded, and hand-made — live together in `%APPDATA%\MasselGUARD\themes\`
 
 ### Settings
 - **Organized in 7 tabs** — General / Tunnels / WiFi / Appearance / History / Advanced / About
+- **View preset selector** (General tab) — re-apply the Simple / Manual / Expert interface bundle (timeline, activity log, WiFi rules panel/column) picked during setup, anytime
 - **Fully deferred save** — all changes staged until Save; Cancel reverts everything including previews
 - **Tunnels tab** — groups, auto-reconnect, kill switch, config validation, and display options in one place
 - **WiFi tab** — rules, default action, and open network protection in evaluation order
@@ -96,7 +99,7 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 - Start with Windows toggle (Scheduled Task, no UAC on subsequent launches)
 - Notification duration picker (3 / 5 / 10 / 15 / 30 s)
 - **Update check frequency** — On start / Daily / Weekly / Manual
-- Five languages: English, Dutch, German, French, Spanish — with country flags in the picker
+- Six languages: English, Dutch, German, French, Spanish, Japanese — with country flags in the picker
 
 ---
 
@@ -129,8 +132,8 @@ MasselGUARD includes a full CLI for scripting and automation. Requires Administr
 MasselGUARD version
 ```
 ```
-MasselGUARD v3.6.0  |  Dangerous Donkey
-build:   2606040000
+MasselGUARD v3.7.0  |  Chromatic Chameleon
+build:   2607080000
 Harold Masselink  |  https://masselink.net
 Update:  up to date
 ```
@@ -172,7 +175,7 @@ Requires .NET 10 SDK. Generates a `YYMMDDHHMM` build stamp, compiles with `dotne
 Banner:
 ```
   --------------------------------------------------
-  MasselGUARD  v3.6.0  |  Dangerous Donkey
+  MasselGUARD  v3.7.0  |  Chromatic Chameleon
   Harold Masselink  |  https://masselink.net
   --------------------------------------------------
 ```

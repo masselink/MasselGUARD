@@ -28,6 +28,7 @@ namespace MasselGUARD.Views
         private bool                  _shiftPeek   = false;  // hold-Shift Windows-colours preview active
         private bool                  _loading      = false;
         private bool                  _dirty        = false; // unsaved edits exist
+        private bool                  _livePaused   = false; // "● LIVE" clicked — auto-preview suspended
         // Debounces live apply so slider drags / hex typing don't restyle per keystroke
         private readonly System.Windows.Threading.DispatcherTimer _applyTimer;
 
@@ -158,13 +159,42 @@ namespace MasselGUARD.Views
 
         /// <summary>Applies the current draft to the running app (live preview). Runs even
         /// for read-only themes so the Dark/Light pill can preview both variants — edits
-        /// are blocked upstream (OnEditorChanged), so this only fires here via the pill.</summary>
+        /// are blocked upstream (OnEditorChanged), so this only fires here via the pill.
+        /// No-ops while paused (see LiveIndicator_Click) — Save/Apply commit through their
+        /// own explicit ThemeManager.Instance.Load() call regardless, so pausing never blocks
+        /// those, only the auto-preview-while-browsing/editing behaviour.</summary>
         private void ApplyDraftLive()
         {
+            if (_livePaused) return;
             if (string.IsNullOrEmpty(_editingName)) return;
             var draft  = CollectDraft();
             var folder = ThemeManager.ThemeFolder(_editingName);
             ThemeManager.Instance.ApplyPreview(draft, folder);
+        }
+
+        /// <summary>Toggles whether switching themes / editing previews live. Resuming
+        /// immediately re-applies the current draft so the app catches up right away.</summary>
+        private void LiveIndicator_Click(object sender, MouseButtonEventArgs e)
+        {
+            _livePaused = !_livePaused;
+            UpdateLiveIndicator();
+            if (!_livePaused) ApplyDraftLive();
+        }
+
+        private void UpdateLiveIndicator()
+        {
+            if (_livePaused)
+            {
+                LiveIndicator.Text       = "⏸ PAUSED";
+                LiveIndicator.Foreground = (Brush)FindResource("TextMuted");
+                LiveIndicator.ToolTip    = "Live preview is paused — switching themes or editing won't restyle the app. Click to resume.";
+            }
+            else
+            {
+                LiveIndicator.Text       = "● LIVE";
+                LiveIndicator.Foreground = (Brush)FindResource("Accent");
+                LiveIndicator.ToolTip    = "Changes (including switching themes) are applied to the app immediately. Click to pause. Close without saving to revert.";
+            }
         }
 
         // ── Undo / redo ───────────────────────────────────────────────────────
@@ -919,6 +949,7 @@ namespace MasselGUARD.Views
 
             // Editable theme → edits apply live
             LiveIndicator.Visibility = _readOnly ? Visibility.Collapsed : Visibility.Visible;
+            UpdateLiveIndicator();
             StatusLabel.Text = "";
 
             // Reset undo history to this freshly-loaded (last-saved) state.
@@ -927,6 +958,10 @@ namespace MasselGUARD.Views
             _baseline = _readOnly ? null : Snapshot();
             UpdateUndoRedoButtons();
             if (CancelBtn != null) CancelBtn.IsEnabled = false;
+
+            // Preview the newly selected theme immediately — just clicking through the
+            // list used to do nothing until you edited a value or hit Apply.
+            ApplyDraftLive();
         }
 
         private void PopulateEditor()

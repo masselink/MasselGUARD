@@ -17,7 +17,7 @@ namespace MasselGUARD.Views
 
         private bool _settingControls;
 
-        private const int TotalSteps = 8; // steps 0-7
+        private const int TotalSteps = 9; // steps 0-8
 
         public WizardWindow(MainWindow main, bool isUpgrade = false)
         {
@@ -52,7 +52,7 @@ namespace MasselGUARD.Views
         // ── Step visibility ───────────────────────────────────────────────────
         private void UpdateStepVisibility()
         {
-            var steps = new[] { Step0, Step1, Step2, Step3, Step4, Step5, Step6, Step7 };
+            var steps = new[] { Step0, Step1, Step2, Step3, Step4, Step5, Step6, Step7, Step8 };
             for (int i = 0; i < steps.Length; i++)
                 if (steps[i] != null)
                     steps[i].Visibility = i == _vm.Step ? Visibility.Visible : Visibility.Collapsed;
@@ -86,8 +86,20 @@ namespace MasselGUARD.Views
             if (_vm.Step == 2)
                 HighlightMatchingPreset();
 
-            // ── Step 3: Mode ─────────────────────────────────────────────────
+            // ── Step 3: Custom view details (only reachable via "Custom") ────
             if (_vm.Step == 3)
+            {
+                var cfg = _main.ConfigSvc.Config;
+                _settingControls = true;
+                WizCustomTimelineToggle.IsChecked    = cfg.ShowTimeline;
+                WizCustomActivityLogToggle.IsChecked = cfg.ShowActivityLog;
+                WizCustomWifiRulesToggle.IsChecked   = cfg.ShowWifiRulesOnMainWindow;
+                WizCustomManualToggle.IsChecked      = _vm.DisableWifiRules;
+                _settingControls = false;
+            }
+
+            // ── Step 4: Mode ─────────────────────────────────────────────────
+            if (_vm.Step == 4)
             {
                 _settingControls = true;
                 WizModeStandalone.IsChecked = _vm.Mode == AppMode.Standalone;
@@ -96,8 +108,8 @@ namespace MasselGUARD.Views
                 _settingControls = false;
             }
 
-            // ── Step 4: Startup & Installation ───────────────────────────────
-            if (_vm.Step == 4)
+            // ── Step 5: Startup & Installation ───────────────────────────────
+            if (_vm.Step == 5)
             {
                 if (WizInstallChoice != null)
                     WizInstallChoice.Visibility =
@@ -113,8 +125,8 @@ namespace MasselGUARD.Views
                 _settingControls = false;
             }
 
-            // ── Step 5: WiFi Automation ──────────────────────────────────────
-            if (_vm.Step == 5)
+            // ── Step 6: WiFi Automation ──────────────────────────────────────
+            if (_vm.Step == 6)
             {
                 _settingControls = true;
                 if (WizManualToggle != null)
@@ -129,8 +141,8 @@ namespace MasselGUARD.Views
                         ? Visibility.Collapsed : Visibility.Visible;
             }
 
-            // ── Step 6: Behavior ─────────────────────────────────────────────
-            if (_vm.Step == 6)
+            // ── Step 7: Behavior ─────────────────────────────────────────────
+            if (_vm.Step == 7)
             {
                 _settingControls = true;
                 var cfg = _main.ConfigSvc.Config;
@@ -151,8 +163,8 @@ namespace MasselGUARD.Views
                 _settingControls = false;
             }
 
-            // ── Step 7: Done ─────────────────────────────────────────────────
-            if (_vm.Step == 7)
+            // ── Step 8: Done ─────────────────────────────────────────────────
+            if (_vm.Step == 8)
             {
                 if (WizVersionLabel != null)
                     WizVersionLabel.Text = $"MasselGUARD v{UpdateChecker.CurrentVersionString}";
@@ -225,7 +237,7 @@ namespace MasselGUARD.Views
         // ── Dot indicators ────────────────────────────────────────────────────
         private void UpdateDots()
         {
-            var dots   = new[] { Dot0, Dot1, Dot2, Dot3, Dot4, Dot5, Dot6, Dot7 };
+            var dots   = new[] { Dot0, Dot1, Dot2, Dot3, Dot4, Dot5, Dot6, Dot7, Dot8 };
             var accent = (Brush)FindResource("Accent");
             var dim    = (Brush)FindResource("BorderColor");
             for (int i = 0; i < dots.Length; i++)
@@ -337,8 +349,9 @@ namespace MasselGUARD.Views
         // Simple/Manual/Expert just pre-fill the same panel-visibility toggles that
         // live individually in Settings — nothing new to persist, and every value
         // stays freely editable afterward (in Settings, or by re-picking a preset
-        // there via the reusable selector). Custom reveals the same toggles inline
-        // instead of a fixed bundle.
+        // there via the reusable selector). Custom instead advances to Step 3, which
+        // shows the same four toggles individually (WizardViewModel skips Step 3 for
+        // any other card, so it's only ever reachable this way).
         private void WizPresetSimple_Click(object sender, MouseButtonEventArgs e) =>
             ApplyViewPreset(showTimeline: false, showActivityLog: false, showWifiRules: true, manualMode: false, WizPresetSimple);
 
@@ -350,7 +363,7 @@ namespace MasselGUARD.Views
 
         private void ApplyViewPreset(bool showTimeline, bool showActivityLog, bool showWifiRules, bool manualMode, Border selectedCard)
         {
-            WizCustomPanel.Visibility = Visibility.Collapsed;   // a fixed preset replaces any custom picks
+            _vm.CustomView = false;   // a fixed preset replaces any custom picks — Step 3 is skipped again
 
             var cfg = _main.ConfigSvc.Config;
             cfg.ShowTimeline              = showTimeline;
@@ -370,17 +383,8 @@ namespace MasselGUARD.Views
 
         private void WizPresetCustom_Click(object sender, MouseButtonEventArgs e)
         {
+            _vm.CustomView = true;   // makes Step 3 reachable on Next
             HighlightPresetCard(WizPresetCustom);
-
-            var cfg = _main.ConfigSvc.Config;
-            _settingControls = true;
-            WizCustomTimelineToggle.IsChecked   = cfg.ShowTimeline;
-            WizCustomActivityLogToggle.IsChecked = cfg.ShowActivityLog;
-            WizCustomWifiRulesToggle.IsChecked   = cfg.ShowWifiRulesOnMainWindow;
-            WizCustomManualToggle.IsChecked      = _vm.DisableWifiRules;
-            _settingControls = false;
-
-            WizCustomPanel.Visibility = Visibility.Visible;
         }
 
         private void WizCustomToggle_Changed(object sender, RoutedEventArgs e)

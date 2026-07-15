@@ -1,6 +1,6 @@
 # MasselGUARD — How it works
 
-Technical reference for v3.6.0 — Dangerous Donkey. For end-user instructions see [`MANUAL.md`](MANUAL.md).
+Technical reference for v3.7.0 — Chromatic Chameleon. For end-user instructions see [`MANUAL.md`](MANUAL.md).
 
 ---
 

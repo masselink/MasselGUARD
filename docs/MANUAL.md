@@ -1,6 +1,6 @@
 # MasselGUARD — User Manual
 
-**Version 3.6.0 — Dangerous Donkey**
+**Version 3.7.0 — Chromatic Chameleon**
 
 ---
 
@@ -76,17 +76,19 @@ Runs on first launch and when starting a newer version than the last wizard run.
 
 **Step 1 — Language & Appearance:** Language picker (with country flags), Dark/Light/Auto colour-scheme mode, and a theme picker (every installed theme, including downloaded ones). Changes apply immediately as a preview. "Download more themes…" opens the community theme browser directly and refreshes the picker with anything newly installed.
 
-**Step 2 — Choose your view:** Simple / Manual / Expert preset cards pre-fill the timeline, activity log, and WiFi rules panel/column visibility toggles in one click (also hides the timeline's WiFi-only strip, not just the tunnel bars). Manual also turns off WiFi automation, since rules don't apply without it. A fourth **Custom** card reveals the same four toggles individually instead of a fixed bundle. Every value stays freely editable afterward — in Settings, or by re-picking a preset from the reusable selector at the top of Settings → General.
+**Step 2 — Choose your view:** Simple / Manual / Expert preset cards pre-fill the timeline, activity log, and WiFi rules panel/column visibility toggles in one click (also hides the timeline's WiFi-only strip, not just the tunnel bars). Manual also turns off WiFi automation, since rules don't apply without it. Every value stays freely editable afterward — in Settings, or by re-picking a preset from the reusable selector at the top of Settings → General.
 
-**Step 3 — Operating mode:** Standalone / Companion / Mixed.
+**Step 3 — Custom view:** Only reached by picking the **Custom** card in Step 2 — the same four toggles individually, on their own step instead of buried below the preset cards. **Skipped entirely** (both Next and Back) for Simple/Manual/Expert, since those already applied a fixed bundle.
 
-**Step 4 — Startup:** How MasselGUARD is installed, whether it starts automatically with Windows, and confirm disconnect on exit.
+**Step 4 — Operating mode:** Standalone / Companion / Mixed.
 
-**Step 5 — WiFi:** Explains how WiFi rules, the default action, and open network protection work together (rules themselves are created after the wizard, in Settings → WiFi). Disable WiFi rules toggle. Show WiFi rules panel toggle. **Skipped entirely** (both Next and Back) if WiFi rules were already disabled in Step 2 — nothing left to configure there.
+**Step 5 — Startup:** How MasselGUARD is installed, whether it starts automatically with Windows, and confirm disconnect on exit.
 
-**Step 6 — Behavior:** Auto-reconnect mode (Off / Per tunnel / Always), DNS leak indicator, history capture (connections / WiFi), tray notifications.
+**Step 6 — WiFi:** Explains how WiFi rules, the default action, and open network protection work together (rules themselves are created after the wizard, in Settings → WiFi). Disable WiFi rules toggle. Show WiFi rules panel toggle. **Skipped entirely** (both Next and Back) if WiFi rules were already disabled in Step 2/3 — nothing left to configure there.
 
-**Step 7 — Done:** Summary of every chosen setting, version label, and Check for updates.
+**Step 7 — Behavior:** Auto-reconnect mode (Off / Per tunnel / Always), DNS leak indicator, history capture (connections / WiFi), tray notifications.
+
+**Step 8 — Done:** Summary of every chosen setting, version label, and Check for updates.
 
 ---
 
@@ -220,7 +222,7 @@ Adding, editing, or deleting a rule immediately refreshes both the WiFi Rules pa
 
 ### Language
 
-Language picker — changes take effect immediately. Five languages: English, Dutch, German, French, Spanish.
+Language picker — changes take effect immediately. Six languages: English, Dutch, German, French, Spanish, Japanese.
 
 ### App mode
 
@@ -233,7 +235,11 @@ Language picker — changes take effect immediately. Five languages: English, Du
 - **Start with Windows** — registers a Scheduled Task at `RunLevel=Highest`, so MasselGUARD starts elevated without a UAC prompt
 - **Confirm disconnect on exit** — when active tunnels are running, ask before disconnecting them on exit. When off, tunnels are disconnected silently (default: on)
 
-All changes deferred until Save.
+### View preset
+
+**Simple / Manual / Expert** buttons re-apply the same interface bundle offered in the first-run wizard's "Choose your view" step (timeline, activity log, WiFi rules panel/column visibility — Manual also turns WiFi automation off). Applies and saves immediately; each toggle stays individually editable in Tunnels/WiFi/History afterward.
+
+All other changes on this tab are deferred until Save.
 
 ---
 
@@ -305,6 +311,8 @@ A pill strip sets whether dark or light mode is used:
 ### Theme
 
 A **single theme picker** selects the theme. Every theme contains both a dark and a light colour variant — the System mode pill decides which variant is shown. **System (Windows colors)** is a first-class entry in the picker and uses the Windows 11 accent palette instead of a theme file.
+
+Next to the picker: **Manage themes…** opens the Theme Manager (create, edit, duplicate, import/export, delete), and **Download themes…** jumps straight to the Community themes browser. See [24. Themes](#24-themes) for details on both.
 
 ### Theme preview
 
@@ -596,21 +604,39 @@ When global mode is **Off**, the toggle is hidden entirely.
 
 ## 24. Themes
 
-### Built-in themes
+### Built-in theme
 
-Two built-in themes — **Grey** and **High Contrast** — plus **System (Windows colors)**, which uses the Windows 11 accent palette and is the default. Each theme contains both a dark and a light colour variant; the Appearance System mode (Light / Dark / Auto) decides which one is shown.
+Only **System (Windows colors)** is built into the app — it uses the live Windows 11 accent palette and is the default. Every other theme is downloaded or hand-made; the app ships with none pre-installed. Each theme contains both a dark and a light colour variant; the Appearance System mode (Light / Dark / Auto) decides which one is shown.
 
 ### Custom theme files
 
-Drop a `<folder>/theme.json` into `%APPDATA%\MasselGUARD\themes\` (your own, editable; survives app updates). Themes installed via the Theme Browser land in the same folder. The app bundles no themes itself; only the System (Windows colours) theme is built in. The root level holds structural settings (font, corner radius, chrome); colours live in `"dark"` and `"light"` sections. Either section may be omitted — the missing variant is auto-generated at load time by HSL lightness inversion.
+All themes — downloaded and self-made — live together in `%APPDATA%\MasselGUARD\themes\<theme-id>\theme.json`, per-user and surviving app updates. The root level holds structural settings (font, corner radius, chrome); colours live in `"dark"` and `"light"` sections. Either section may be omitted — the missing variant is auto-generated at load time by HSL lightness inversion. Image assets (logo, app icon, background, tray icons) can also be set per dark/light variant, with a shared value as a legacy fallback.
 
 Custom themes can override `AppName` to change the name shown in toast notifications.
+
+See `docs/THEME_INFO.md` (and `docs/THEME_EXAMPLE.md`) for the full key reference.
+
+### Theme Manager
+
+**Settings → Appearance → Manage themes…** opens the Theme Manager, where every theme (System excepted) is fully editable and deletable:
+
+- **+ Add theme** — create a new theme (from the current theme, from a pair of light/dark images, or as a copy of any existing theme), browse **Community themes**, or **Import…** a `.zip`.
+- **Editor** — Identity, Colors (Light/Dark side by side with copy arrows and a global "Copy inverted colour" mode), Typography, Transparency (app/panel opacity plus dedicated sliders for the list-hover, tray-hover, and highlight colours), Window (title bar + status bar layout), and Assets (a separate Light and Dark picker for the logo, app icon, background image, and both tray icons).
+- Edits **apply live** to the running app as you make them (debounced ~180 ms) — the **● LIVE** indicator confirms it. Closing without saving reverts to the last saved state; **Undo/Redo** (Ctrl+Z/Ctrl+Y) step back through the session's edits.
+- Right-click a theme in the list for **Apply / Duplicate / Export / Delete**.
+- **Hold Shift** to temporarily fall back to plain Windows colours if a draft edit makes the Manager itself unreadable.
+
+### Community themes
+
+**Settings → Appearance → Download themes…** (or Manage themes… → Community themes) opens a searchable, tag-filterable gallery of themes from the shared repository, each with dark/light preview cards.
+
+- **Click a preview to zoom it** to full size; hover shows a 🔍 hint. Close with the ✕, by clicking outside the image, or Escape. The Dark/Light toggle still works, and the zoomed image updates with it.
+- **Install** downloads a theme into `%APPDATA%\MasselGUARD\themes\`. An already-installed theme shows **Reinstall** instead — redownloading confirms first, since it overwrites any local edits.
+- The repository URL is configurable in Settings → Advanced (blank uses the default MasselGUARD-themes repository).
 
 ### Live preview
 
 Use the **▶ Dark** / **▶ Light** buttons in Settings → Appearance to see a colour variant for 10 seconds before committing. Cancel Settings to revert to the last saved theme.
-
-See `docs/THEME_INFO.md` (and `docs/THEME_EXAMPLE.md`) for the full key reference.
 
 ---
 
@@ -629,7 +655,7 @@ To return to the theme's own font: toggle **Override font** off.
 
 ## 26. Multiple languages
 
-English, Dutch, German, French, Spanish. Change in Settings → General — the picker shows a country flag next to each language. Add a language: copy `lang\en.json`, translate, set the `_code`, `_language`, and `_flag` keys, and drop a matching 20×15 `<flag>.png` into `lang\flags\`.
+English, Dutch, German, French, Spanish, Japanese. Change in Settings → General — the picker shows a country flag next to each language. Add a language: copy `lang\en.json`, translate, set the `_code`, `_language`, and `_flag` keys, and drop a matching 20×15 `<flag>.png` into `lang\flags\`.
 
 ---
 

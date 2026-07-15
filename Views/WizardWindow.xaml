@@ -29,7 +29,7 @@
                            VerticalAlignment="Center" Margin="16,0"/>
             </Border>
 
-            <!-- Step dots: 8 steps (0-7) -->
+            <!-- Step dots: 9 steps (0-8) -->
             <StackPanel Grid.Row="1" Orientation="Horizontal"
                         HorizontalAlignment="Center" Margin="0,14,0,0">
                 <Ellipse x:Name="Dot0" Width="10" Height="10" Margin="4,0" Fill="{DynamicResource Accent}"/>
@@ -40,6 +40,7 @@
                 <Ellipse x:Name="Dot5" Width="10" Height="10" Margin="4,0" Fill="{DynamicResource BorderColor}"/>
                 <Ellipse x:Name="Dot6" Width="10" Height="10" Margin="4,0" Fill="{DynamicResource BorderColor}"/>
                 <Ellipse x:Name="Dot7" Width="10" Height="10" Margin="4,0" Fill="{DynamicResource BorderColor}"/>
+                <Ellipse x:Name="Dot8" Width="10" Height="10" Margin="4,0" Fill="{DynamicResource BorderColor}"/>
             </StackPanel>
 
             <!-- Step pages -->
@@ -237,81 +238,88 @@
                             <TextBlock Text="Custom"
                                        FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" FontWeight="Bold"
                                        Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="Pick each panel yourself."
+                            <TextBlock Text="Pick each panel yourself on the next step."
                                        FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                        Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,2,0,0"/>
                         </StackPanel>
                     </Border>
-
-                    <!-- Custom questions — shown only when "Custom" is selected -->
-                    <StackPanel x:Name="WizCustomPanel" Visibility="Collapsed" Margin="0,10,0,0">
-                        <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderColor}"
-                                BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,6">
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Show timeline"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                                           Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
-                                <ToggleButton Grid.Column="1" x:Name="WizCustomTimelineToggle"
-                                              Width="44" Height="22" Style="{StaticResource ToggleSwitch}"
-                                              Margin="12,0,0,0"
-                                              Checked="WizCustomToggle_Changed" Unchecked="WizCustomToggle_Changed"/>
-                            </Grid>
-                        </Border>
-                        <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderColor}"
-                                BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,6">
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="Show activity log"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                                           Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
-                                <ToggleButton Grid.Column="1" x:Name="WizCustomActivityLogToggle"
-                                              Width="44" Height="22" Style="{StaticResource ToggleSwitch}"
-                                              Margin="12,0,0,0"
-                                              Checked="WizCustomToggle_Changed" Unchecked="WizCustomToggle_Changed"/>
-                            </Grid>
-                        </Border>
-                        <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderColor}"
-                                BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,6">
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock Text="Show WiFi rules"
-                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                                               Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock Text="Rules panel and the per-tunnel rules column."
-                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,2,0,0"/>
-                                </StackPanel>
-                                <ToggleButton Grid.Column="1" x:Name="WizCustomWifiRulesToggle"
-                                              Width="44" Height="22" Style="{StaticResource ToggleSwitch}"
-                                              Margin="12,0,0,0" VerticalAlignment="Center"
-                                              Checked="WizCustomToggle_Changed" Unchecked="WizCustomToggle_Changed"/>
-                            </Grid>
-                        </Border>
-                        <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderColor}"
-                                BorderThickness="1" CornerRadius="4" Padding="12,10">
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
-                                    <TextBlock Text="Disable WiFi automation"
-                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                                               Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock Text="Connect tunnels yourself instead of by WiFi network."
-                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,2,0,0"/>
-                                </StackPanel>
-                                <ToggleButton Grid.Column="1" x:Name="WizCustomManualToggle"
-                                              Width="44" Height="22" Style="{StaticResource ToggleSwitch}"
-                                              Margin="12,0,0,0" VerticalAlignment="Center"
-                                              Checked="WizCustomToggle_Changed" Unchecked="WizCustomToggle_Changed"/>
-                            </Grid>
-                        </Border>
-                    </StackPanel>
                 </StackPanel>
 
-                <!-- ── Step 3: Operating mode ──────────────────────────────── -->
+                <!-- ── Step 3: Custom view details (only reachable via "Custom") ──── -->
                 <StackPanel x:Name="Step3" Visibility="Collapsed">
+                    <TextBlock Text="Custom view"
+                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="16" FontWeight="Bold"
+                               Foreground="{DynamicResource Accent}" Margin="0,0,0,10"/>
+                    <TextBlock Text="Pick each panel individually. You can change any of these later in Settings too."
+                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,16"/>
+
+                    <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderColor}"
+                            BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,6">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Show timeline"
+                                       FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                       Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                            <ToggleButton Grid.Column="1" x:Name="WizCustomTimelineToggle"
+                                          Width="44" Height="22" Style="{StaticResource ToggleSwitch}"
+                                          Margin="12,0,0,0"
+                                          Checked="WizCustomToggle_Changed" Unchecked="WizCustomToggle_Changed"/>
+                        </Grid>
+                    </Border>
+                    <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderColor}"
+                            BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,6">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Show activity log"
+                                       FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                       Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                            <ToggleButton Grid.Column="1" x:Name="WizCustomActivityLogToggle"
+                                          Width="44" Height="22" Style="{StaticResource ToggleSwitch}"
+                                          Margin="12,0,0,0"
+                                          Checked="WizCustomToggle_Changed" Unchecked="WizCustomToggle_Changed"/>
+                        </Grid>
+                    </Border>
+                    <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderColor}"
+                            BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,6">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Show WiFi rules"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                           Foreground="{DynamicResource TextPrimary}"/>
+                                <TextBlock Text="Rules panel and the per-tunnel rules column."
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" x:Name="WizCustomWifiRulesToggle"
+                                          Width="44" Height="22" Style="{StaticResource ToggleSwitch}"
+                                          Margin="12,0,0,0" VerticalAlignment="Center"
+                                          Checked="WizCustomToggle_Changed" Unchecked="WizCustomToggle_Changed"/>
+                        </Grid>
+                    </Border>
+                    <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderColor}"
+                            BorderThickness="1" CornerRadius="4" Padding="12,10">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Disable WiFi automation"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                           Foreground="{DynamicResource TextPrimary}"/>
+                                <TextBlock Text="Connect tunnels yourself instead of by WiFi network."
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" x:Name="WizCustomManualToggle"
+                                          Width="44" Height="22" Style="{StaticResource ToggleSwitch}"
+                                          Margin="12,0,0,0" VerticalAlignment="Center"
+                                          Checked="WizCustomToggle_Changed" Unchecked="WizCustomToggle_Changed"/>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!-- ── Step 4: Operating mode ──────────────────────────────── -->
+                <StackPanel x:Name="Step4" Visibility="Collapsed">
                     <TextBlock Text="{Binding [WizardModeTitle], Source={x:Static local:Lang.Instance}}"
                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="16" FontWeight="Bold"
                                Foreground="{DynamicResource Accent}" Margin="0,0,0,10"/>
@@ -369,8 +377,8 @@
                     </Border>
                 </StackPanel>
 
-                <!-- ── Step 4: Startup & Installation ─────────────────────── -->
-                <StackPanel x:Name="Step4" Visibility="Collapsed">
+                <!-- ── Step 5: Startup & Installation ─────────────────────── -->
+                <StackPanel x:Name="Step5" Visibility="Collapsed">
                     <TextBlock Text="Startup"
                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="16" FontWeight="Bold"
                                Foreground="{DynamicResource Accent}" Margin="0,0,0,10"/>
@@ -441,8 +449,8 @@
                     </Border>
                 </StackPanel>
 
-                <!-- ── Step 5: WiFi Automation ─────────────────────────────── -->
-                <StackPanel x:Name="Step5" Visibility="Collapsed">
+                <!-- ── Step 6: WiFi Automation ─────────────────────────────── -->
+                <StackPanel x:Name="Step6" Visibility="Collapsed">
                     <TextBlock Text="{Binding [SettingsTabWifi], Source={x:Static local:Lang.Instance}}"
                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="16" FontWeight="Bold"
                                Foreground="{DynamicResource Accent}" Margin="0,0,0,10"/>
@@ -551,8 +559,8 @@
                     </Border>
                 </StackPanel>
 
-                <!-- ── Step 6: Behavior ────────────────────────────────────── -->
-                <StackPanel x:Name="Step6" Visibility="Collapsed">
+                <!-- ── Step 7: Behavior ────────────────────────────────────── -->
+                <StackPanel x:Name="Step7" Visibility="Collapsed">
                     <TextBlock Text="Behavior"
                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="16" FontWeight="Bold"
                                Foreground="{DynamicResource Accent}" Margin="0,0,0,10"/>
@@ -676,8 +684,8 @@
                     </Border>
                 </StackPanel>
 
-                <!-- ── Step 7: Done ────────────────────────────────────────── -->
-                <StackPanel x:Name="Step7" Visibility="Collapsed">
+                <!-- ── Step 8: Done ────────────────────────────────────────── -->
+                <StackPanel x:Name="Step8" Visibility="Collapsed">
                     <TextBlock Text="{Binding [WizardDoneTitle], Source={x:Static local:Lang.Instance}}"
                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="16" FontWeight="Bold"
                                Foreground="{DynamicResource Accent}" Margin="0,0,0,10"/>

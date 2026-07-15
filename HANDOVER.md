@@ -1,9 +1,9 @@
 # MasselGUARD — Session Handover
 
 **Project:** MasselGUARD — WireGuard tunnel manager for Windows
-**Current version:** 3.7.0 — Chromatic Chameleon (dev cycle, theming-focused release)
-**Last updated:** 2026-06-15
-**Branch:** `dev` — 3.6.0 work committed (6 commits) and pushed; version bump commit `7d6d40a` may still need pushing. Lots of Theme Builder work + the SDK-10.0.301 build fix are implemented but **uncommitted**. **All recent changes are build-verified (0/0) but NOT GUI-tested — user runs BUILD.bat and manual-tests.**
+**Current version:** 3.7.0 — Chromatic Chameleon (theming-focused release; release notes drafted in `docs/WHATSNEW.md`)
+**Last updated:** 2026-07-13
+**Branch:** `dev` — theme system unification, Theme Manager UX overhaul, dual dark/light asset pickers, per-colour transparency sliders, community theme browser (zoom + reinstall), wizard "Choose your view" preset step (+ Custom on its own step, WiFi Automation auto-skip), taskbar-icon theming, and the double-resize-grip fix are all implemented. **Build-verified (0/0) after every change but NOT GUI-tested — user runs BUILD.bat and manual-tests.**
 
 ---
 
