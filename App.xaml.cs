@@ -95,6 +95,10 @@ namespace MasselGUARD
                 var bootCfg = new Services.ConfigService();
                 bootCfg.Load();
 
+                // Consolidate any custom_themes\ / shared-themes\ / shared_themes\ folders
+                // into the single themes\ folder before any load.
+                ThemeManager.ConsolidateThemeFolders();
+
                 // ── Emergency reset (Shift held at startup) ──────────────────────
                 // Useful if a bad font choice (e.g. Wingdings) or custom theme makes
                 // the UI unreadable.  Detect the key press immediately (before any
@@ -512,8 +516,14 @@ namespace MasselGUARD
 
         private static System.Drawing.Icon GetTrayIcon(int activeCount)
         {
-            // Custom theme icon takes precedence; fall back to built-in shield with badge
-            if (Application.Current.Resources["Theme.TrayIcon"] is System.Drawing.Icon custom)
+            var res = Application.Current.Resources;
+            // State-specific theme icons (connected/disconnected, resolved per
+            // dark/light variant by ThemeManager) take precedence, then the single
+            // custom AppIcon, then the built-in shield with badge.
+            var stateKey = activeCount > 0 ? "Theme.TrayIconConnected" : "Theme.TrayIconDisconnected";
+            if (res[stateKey] is System.Drawing.Icon stateIcon)
+                return stateIcon;
+            if (res["Theme.TrayIcon"] is System.Drawing.Icon custom)
                 return custom;
             return TrayIconHelper.CreateIcon(activeCount);
         }

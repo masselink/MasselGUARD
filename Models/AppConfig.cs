@@ -82,6 +82,13 @@ namespace MasselGUARD.Models
         public string ActiveTheme { get; set; } = "__system__";
         /// <summary>"auto" (follow Windows) | "light" | "dark"</summary>
         public string SystemThemeMode  { get; set; } = "auto";
+        /// <summary>The official shared-themes repository — the default value and the
+        /// target of the Settings "Default" button.</summary>
+        public const string DefaultSharedThemesRepoUrl = "https://github.com/masselink/MasselGUARD-themes";
+
+        /// <summary>Git/HTTPS repo URL the "Download shared themes" button fetches from
+        /// (a GitHub repo URL or a direct .zip archive URL). Defaults to the official repo.</summary>
+        public string SharedThemesRepoUrl { get; set; } = DefaultSharedThemesRepoUrl;
         /// <summary>When true (default) clicking ✕ shows a confirm dialog before closing.</summary>
         public bool   ConfirmOnClose   { get; set; } = true;
 
@@ -104,6 +111,19 @@ namespace MasselGUARD.Models
         /// inline next to each active tunnel's status.
         /// </summary>
         public bool ShowDnsIndicator { get; set; } = true;
+
+        // ── Possible-DNS-leak alerts ──────────────────────────────────────────
+        // Three independent delivery channels for "this active tunnel may be leaking
+        // DNS". The icon (ShowDnsIndicator above) is an always-on status badge; the
+        // log + toast warnings are edge-triggered (once per leak episode) and only
+        // fire while the leak is UNMITIGATED — i.e. smart name resolution is still
+        // enabled. Turn all three off to disable DNS-leak surfacing entirely.
+
+        /// <summary>Write a warning line to the activity log on a possible (unmitigated) DNS leak.</summary>
+        public bool DnsLeakWarnLog { get; set; } = true;
+
+        /// <summary>Show a tray toast on a possible (unmitigated) DNS leak.</summary>
+        public bool DnsLeakWarnToast { get; set; } = true;
 
         // ── Info / statistics section ─────────────────────────────────────────
         /// <summary>Show the timeline/statistics panel above the footer.</summary>
@@ -162,6 +182,11 @@ namespace MasselGUARD.Models
         // ── Update checker ───────────────────────────────────────────────────
         public DateTime LastUpdateCheck    { get; set; } = DateTime.MinValue;
         public string?  LatestKnownVersion { get; set; } = null;
+
+        /// <summary>Ids of installed themes whose repo "version" was newer than the installed
+        /// one, as of the last check. Checked at the same time as the app update (same
+        /// frequency setting) — see MainWindow.CheckForUpdatesAsync.</summary>
+        public List<string> ThemeUpdatesAvailable { get; set; } = new();
 
         // ── Computed (not serialised) ────────────────────────────────────────
         [JsonIgnore]

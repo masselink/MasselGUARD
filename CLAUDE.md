@@ -14,13 +14,14 @@ BUILD.bat          # requires .NET 10 SDK; output → dist\
 
 Produces both `dist\MasselGUARD.exe` and `dist\MasselGUARDcli.exe`.
 
-Current version: **3.6.0 — Dangerous Donkey**
+Current version: **3.7.0 — Chromatic Chameleon**
 When bumping version, update **both** `UpdateChecker.cs` (`CurrentVersion` + `_codenames`) **and** `BUILD.bat` (`VERSION` + `CODENAME`).
 
 ## Key design decisions
 
 - **Two exe split** — `MasselGUARD.exe` is `WinExe` so Windows never allocates a console (no flash). `MasselGUARDcli.exe` is `Exe` so terminals wait for it. Source is shared via `<Compile Include>` links from `MasselGUARDcli/MasselGUARDcli.csproj`.
-- **`GenerateAssemblyInfo=false` + `GenerateTargetFrameworkAttribute=false`** on `MasselGUARD.csproj` — suppresses duplicate attributes caused by WPF's wpftmp compile step when `OutputType=WinExe`. Version info is still embedded via the wpftmp project's own generated attributes using `-p:` overrides from BUILD.bat.
+- **AssemblyInfo uses normal SDK generation** (`GenerateAssemblyInfo` left at its default ON). `BUILD.bat`'s `-p:Version`/`-p:AssemblyVersion`/`-p:InformationalVersion=<ver>.<build>` flow into the assembly; `UpdateChecker.BuildStamp` reads the managed `AssemblyInformationalVersionAttribute` at runtime, and WPF's resource pack-URIs match the real `AssemblyVersion`. `IncludeSourceRevisionInInformationalVersion=false` keeps `+<git-sha>` out of the About-page build stamp.
+- **The GUI `.csproj` must exclude the `MasselGUARDcli\**` sub-project from its globs** (`Compile`/`Content`/`EmbeddedResource`/`None` Remove), alongside `deps\**`. Both folders sit under the GUI project directory, so the SDK's `**/*.cs` compile glob reaches into them. For `MasselGUARDcli\` this is doubly important: the CLI shares the GUI's source via one-way `<Compile Include>` *links*, so the GUI must never compile the CLI's own files — and the glob would otherwise pull in `MasselGUARDcli\obj\…\MasselGUARDcli.AssemblyInfo.cs`, whose assembly attributes collide with the GUI's SDK-generated ones and fail a clean build with CS0579 *duplicate attribute*. This only surfaces once the CLI has been built and its `obj\` is populated, so it presents as an intermittent/"sometimes builds" failure — if you see CS0579 on `AssemblyCompany`/`AssemblyVersion`/etc., check the exclusion first. (Do **not** work around it by disabling `GenerateAssemblyInfo`; that ships a 0.0.0.0 assembly and WPF then throws `FileNotFoundException` for its own pack-URIs at startup.) BUILD.bat deletes `obj\`/`bin\` before publishing so stale intermediates can never produce a mixed-version exe.
 - **`requireAdministrator` manifest** — UAC always elevates. Non-admin terminals get an isolated console (new window). `IsIsolatedConsole()` via `GetConsoleProcessList` detects this and pauses before exit.
 - **`TearDownAdapter`** — after `EnsureStopped`, calls `WireGuardOpenAdapter` + `WireGuardCloseAdapter` to release any lingering kernel adapter. Needed because the WireGuardTunnelService exits but the adapter can outlive it.
 - **`IsRunning()`** — checks `ServiceController.Status == Running` first (primary), then the WireGuard pipe as fallback.
@@ -99,7 +100,7 @@ Exit codes: `0` success · `1` error · `2` already in desired state
 | Tunnel history | `%APPDATA%\MasselGUARD\tunnel_history.json` (migrated from `history.json`) |
 | WiFi history | `%APPDATA%\MasselGUARD\wifi_history.json` (migrated from `ssid_history.json`) |
 | Tunnel configs | `%APPDATA%\MasselGUARD\tunnels\*.conf.dpapi` (DPAPI encrypted, one file per tunnel) |
-| Themes | `<exedir>\theme\<folder>\theme.json` (built-in: grey, highcontrast) + `%APPDATA%\MasselGUARD\themes\` (user) |
+| Themes | **All non-System themes live together** in `%APPDATA%\MasselGUARD\themes\<folder>\theme.json` — both downloaded (Theme Browser, from the shared-themes repo `AppConfig.DefaultSharedThemesRepoUrl` = github.com/masselink/MasselGUARD-themes) and user-made (Theme Builder). No themes are bundled with the app. `ThemeManager.{ThemeRoot, SharedThemeRoot, UserThemeRoot}` all point at this one folder; discovered by `ThemeManager.ThemeNames()`. `ThemeManager.ConsolidateThemeFolders` merges any old `custom_themes\` / `shared-themes\` / `shared_themes\` into `themes\` at startup (keeps existing on name collision). Create/Duplicate/Import block overwriting an existing name (`ThemeManager.ThemeExists`). Only the virtual `__system__` (Windows colours) theme is embedded in code and read-only (`IsBuiltinTheme`); **every theme in `themes\` is editable + deletable**. Builder lists: Built-in (System) + THEMES (all, editable). Theme engine mechanics (discovery, load/resolution, HSL auto-invert): `docs/Reference.md` §16. Theme *format* — full field/manifest reference and copy-paste template — lives entirely in the [MasselGUARD-themes repo](https://github.com/masselink/MasselGUARD-themes)'s `THEME_EXAMPLE.md` (sibling checkout at `../MasselGUARD-themes`); nothing theme-authoring-related is duplicated here. |
 | Languages | `<exedir>\lang\*.json` |
 
 ## Tunnel sources

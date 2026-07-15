@@ -6,6 +6,7 @@
         Width="700" Height="560"
         WindowStyle="None" AllowsTransparency="True"
         Background="Transparent" ResizeMode="NoResize"
+        Opacity="{DynamicResource Theme.WindowOpacity}"
         WindowStartupLocation="CenterOwner">
 
     <Border Background="{DynamicResource WindowBg}"
@@ -117,6 +118,27 @@
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
                                 </Grid>
+                            </Border>
+
+                            <!-- View preset -->
+                            <TextBlock Text="View preset" Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Re-apply a bundle of panel-visibility settings (timeline, activity log, WiFi rules panel/column) — each one stays individually editable below and in Tunnels/WiFi/History."
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="Simple" Style="{StaticResource FlatBtn}"
+                                                FontSize="10" Padding="12,5" Click="PresetSimple_Click"
+                                                ToolTip="Tunnels and WiFi rules only — no timeline, no activity log"/>
+                                        <Button Content="Manual" Style="{StaticResource FlatBtn}"
+                                                FontSize="10" Padding="12,5" Margin="6,0,0,0" Click="PresetManual_Click"
+                                                ToolTip="Tunnels and activity log — no timeline; turns off WiFi automation, so the rules panel/column are hidden"/>
+                                        <Button Content="Expert" Style="{StaticResource FlatBtn}"
+                                                FontSize="10" Padding="12,5" Margin="6,0,0,0" Click="PresetExpert_Click"
+                                                ToolTip="Everything visible"/>
+                                    </StackPanel>
+                                </StackPanel>
                             </Border>
 
                             <!-- ── APPEARANCE moved to its own tab ── -->
@@ -253,25 +275,25 @@
                             </Border>
 
                             <!-- Auto-reconnect mode -->
-                            <TextBlock Text="Auto-reconnect"
+                            <TextBlock Text="{Binding [SettingsAutoReconnectModeTitle], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource SettingsSectionHeader}"/>
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
                                 <StackPanel>
-                                    <TextBlock Text="Choose when auto-reconnect is active. Per tunnel = each tunnel controls its own setting. Always = every tunnel reconnects regardless of the per-tunnel toggle."
+                                    <TextBlock Text="{Binding [SettingsAutoReconnectModeDesc], Source={x:Static local:Lang.Instance}}"
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
                                                Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
                                                Margin="0,0,0,8"/>
                                     <StackPanel Orientation="Horizontal">
                                         <RadioButton x:Name="ArModeOff" GroupName="ArMode" Tag="off"
-                                                     Content="Off"
+                                                     Content="{Binding [SettingsModeOff], Source={x:Static local:Lang.Instance}}"
                                                      Style="{StaticResource PillRadio}"
                                                      Checked="ArMode_Changed"/>
                                         <RadioButton x:Name="ArModePerTunnel" GroupName="ArMode" Tag="per-tunnel"
-                                                     Content="Per tunnel"
+                                                     Content="{Binding [SettingsModePerTunnel], Source={x:Static local:Lang.Instance}}"
                                                      Style="{StaticResource PillRadio}" Margin="6,0,0,0"
                                                      Checked="ArMode_Changed"/>
                                         <RadioButton x:Name="ArModeAlways" GroupName="ArMode" Tag="always"
-                                                     Content="Always"
+                                                     Content="{Binding [SettingsModeAlways], Source={x:Static local:Lang.Instance}}"
                                                      Style="{StaticResource PillRadio}" Margin="6,0,0,0"
                                                      Checked="ArMode_Changed"/>
                                     </StackPanel>
@@ -279,21 +301,21 @@
                             </Border>
 
                             <!-- Kill switch mode -->
-                            <TextBlock Text="Kill switch"
+                            <TextBlock Text="{Binding [SettingsKillSwitchModeTitle], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource SettingsSectionHeader}"/>
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
                                 <StackPanel>
-                                    <TextBlock Text="Choose when the kill switch is active. Per tunnel = each tunnel controls its own setting. Always = kill switch is on for every tunnel, ignoring the per-tunnel toggle."
+                                    <TextBlock Text="{Binding [SettingsKillSwitchModeDesc], Source={x:Static local:Lang.Instance}}"
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
                                                Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
                                                Margin="0,0,0,8"/>
                                     <StackPanel Orientation="Horizontal">
                                         <RadioButton x:Name="KsModePerTunnel" GroupName="KsMode" Tag="per-tunnel"
-                                                     Content="Per tunnel"
+                                                     Content="{Binding [SettingsModePerTunnel], Source={x:Static local:Lang.Instance}}"
                                                      Style="{StaticResource PillRadio}"
                                                      Checked="KsMode_Changed"/>
                                         <RadioButton x:Name="KsModeAlways" GroupName="KsMode" Tag="always"
-                                                     Content="Always"
+                                                     Content="{Binding [SettingsModeAlways], Source={x:Static local:Lang.Instance}}"
                                                      Style="{StaticResource PillRadio}" Margin="6,0,0,0"
                                                      Checked="KsMode_Changed"/>
                                     </StackPanel>
@@ -301,11 +323,11 @@
                             </Border>
 
                             <!-- Config validation -->
-                            <TextBlock Text="Config validation"
+                            <TextBlock Text="{Binding [SettingsConfigValidationTitle], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource SettingsSectionHeader}"/>
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
                                 <StackPanel>
-                                    <TextBlock Text="Pre-flight validation checks WireGuard config files for errors (invalid IPs, missing keys, bad CIDRs) before connecting. Disable globally only as a last resort — invalid configs will still fail, just with a less clear error."
+                                    <TextBlock Text="{Binding [SettingsConfigValidationDesc], Source={x:Static local:Lang.Instance}}"
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
                                                Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
                                                Margin="0,0,0,8"/>
@@ -315,7 +337,7 @@
                                                       Margin="0,0,8,0"
                                                       Checked="SkipTunnelValidation_Changed"
                                                       Unchecked="SkipTunnelValidation_Changed"/>
-                                        <TextBlock Text="⚠️ Skip config validation globally (override)"
+                                        <TextBlock Text="{Binding [SettingsSkipValidationLabel], Source={x:Static local:Lang.Instance}}"
                                                    FontFamily="{DynamicResource Theme.FontFamily}"
                                                    FontSize="10" Foreground="{DynamicResource TextMuted}"
                                                    VerticalAlignment="Center"/>
@@ -375,29 +397,6 @@
                                 </Grid>
                             </Border>
 
-                            <!-- Show DNS leak indicator toggle -->
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,4,0,0">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{Binding [ShowDnsIndicatorLabel], Source={x:Static local:Lang.Instance}}"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                                                   Foreground="{DynamicResource TextPrimary}"/>
-                                        <TextBlock Text="{Binding [ShowDnsIndicatorDesc], Source={x:Static local:Lang.Instance}}"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
-                                                   Margin="0,2,0,0"/>
-                                    </StackPanel>
-                                    <ToggleButton Grid.Column="1" x:Name="ShowDnsIndicatorToggle"
-                                                  Style="{StaticResource ToggleSwitch}"
-                                                  Checked="ShowDnsIndicator_Changed"
-                                                  Unchecked="ShowDnsIndicator_Changed"
-                                                  VerticalAlignment="Center"/>
-                                </Grid>
-                            </Border>
 
                         </StackPanel>
 
@@ -698,15 +697,15 @@
                                                TextWrapping="Wrap" Margin="0,2,0,10"/>
                                     <StackPanel Orientation="Horizontal">
                                         <RadioButton x:Name="SysModeLight" GroupName="SysMode" Tag="light"
-                                                     Content="Light"
+                                                     Content="{Binding [WizardThemeLight], Source={x:Static local:Lang.Instance}}"
                                                      Style="{StaticResource PillRadio}"
                                                      Checked="SystemMode_Changed"/>
                                         <RadioButton x:Name="SysModeDark" GroupName="SysMode" Tag="dark"
-                                                     Content="Dark"
+                                                     Content="{Binding [WizardThemeDark], Source={x:Static local:Lang.Instance}}"
                                                      Style="{StaticResource PillRadio}" Margin="6,0,0,0"
                                                      Checked="SystemMode_Changed"/>
                                         <RadioButton x:Name="SysModeAuto" GroupName="SysMode" Tag="auto"
-                                                     Content="Auto"
+                                                     Content="{Binding [WizardThemeAuto], Source={x:Static local:Lang.Instance}}"
                                                      Style="{StaticResource PillRadio}" Margin="6,0,0,0"
                                                      Checked="SystemMode_Changed"/>
                                     </StackPanel>
@@ -714,22 +713,48 @@
                             </Border>
 
                             <!-- Theme -->
-                            <TextBlock Text="Theme" Style="{StaticResource SettingsSectionHeader}"/>
+                            <TextBlock Text="{Binding [SettingsThemeSectionTitle], Source={x:Static local:Lang.Instance}}" Style="{StaticResource SettingsSectionHeader}"/>
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
-                                <ComboBox x:Name="ThemePicker" Padding="8,4"
-                                          SelectionChanged="ThemePicker_SelectionChanged">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding DisplayName}"
-                                                       FontFamily="{DynamicResource Theme.FontFamily}"
-                                                       FontSize="11" Foreground="{DynamicResource TextPrimary}"
-                                                       Margin="0,2"/>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox Grid.Column="0" x:Name="ThemePicker" Padding="8,4"
+                                              SelectionChanged="ThemePicker_SelectionChanged">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding DisplayName}"
+                                                           FontFamily="{DynamicResource Theme.FontFamily}"
+                                                           FontSize="11" Foreground="{DynamicResource TextPrimary}"
+                                                           Margin="0,2"/>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Button Grid.Column="1" x:Name="ManageThemesBtn"
+                                            Content="Manage themes…" Style="{StaticResource FlatBtn}"
+                                            FontSize="10" Padding="12,5" Margin="8,0,0,0"
+                                            VerticalAlignment="Stretch"
+                                            Click="OpenThemeBuilder_Click"
+                                            ToolTip="Open the Theme Manager — create, edit, duplicate, import/export, download and delete themes"/>
+                                    <Button Grid.Column="2" x:Name="DownloadThemesBtn"
+                                            Content="Download themes…" Style="{StaticResource FlatBtn}"
+                                            FontSize="10" Padding="12,5" Margin="6,0,0,0"
+                                            VerticalAlignment="Stretch"
+                                            Click="DownloadThemes_Click"
+                                            ToolTip="Open the Theme Manager's community theme browser directly"/>
+                                    <TextBlock Grid.Column="3" x:Name="ThemeUpdatesBadge"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9" FontWeight="Bold"
+                                               Foreground="{DynamicResource Accent}"
+                                               VerticalAlignment="Center" Margin="6,0,0,0"
+                                               Visibility="Collapsed" Cursor="Hand"
+                                               MouseLeftButtonUp="DownloadThemes_Click"/>
+                                </Grid>
                             </Border>
                             <!-- Theme preview: test dark and light variant -->
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -737,29 +762,29 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0"
-                                               Text="Preview the selected theme in dark or light mode for 10 seconds."
+                                               Text="{Binding [SettingsThemePreviewDesc], Source={x:Static local:Lang.Instance}}"
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
                                                Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"
                                                TextWrapping="Wrap"/>
                                     <Button Grid.Column="1" x:Name="DarkThemePreviewBtn"
-                                            Content="▶  Dark" FontSize="9" Padding="8,3" Width="72"
+                                            Content="{Binding [SettingsThemePreviewDarkBtn], Source={x:Static local:Lang.Instance}}" FontSize="9" Padding="8,3" Width="72"
                                             Style="{StaticResource FlatBtn}"
                                             Foreground="{DynamicResource TextMuted}"
                                             VerticalAlignment="Center" Margin="10,0,0,0"
                                             Click="DarkThemePreview_Click"
-                                            ToolTip="Preview the dark variant for 10 s"/>
+                                            ToolTip="{Binding [SettingsThemePreviewDarkTip], Source={x:Static local:Lang.Instance}}"/>
                                     <Button Grid.Column="2" x:Name="LightThemePreviewBtn"
-                                            Content="▶  Light" FontSize="9" Padding="8,3" Width="72"
+                                            Content="{Binding [SettingsThemePreviewLightBtn], Source={x:Static local:Lang.Instance}}" FontSize="9" Padding="8,3" Width="72"
                                             Style="{StaticResource FlatBtn}"
                                             Foreground="{DynamicResource TextMuted}"
                                             VerticalAlignment="Center" Margin="6,0,0,0"
                                             Click="LightThemePreview_Click"
-                                            ToolTip="Preview the light variant for 10 s"/>
+                                            ToolTip="{Binding [SettingsThemePreviewLightTip], Source={x:Static local:Lang.Instance}}"/>
                                 </Grid>
                             </Border>
 
                             <!-- ── Font override ─────────────────────────────── -->
-                            <TextBlock Text="Font"
+                            <TextBlock Text="{Binding [SettingsFontSection], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource SettingsSectionHeader}"/>
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
                                 <Grid>
@@ -768,10 +793,10 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Override font"
+                                        <TextBlock Text="{Binding [SettingsFontOverrideLabel], Source={x:Static local:Lang.Instance}}"
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
                                                    Foreground="{DynamicResource TextPrimary}"/>
-                                        <TextBlock Text="Replace the theme font with a custom typeface."
+                                        <TextBlock Text="{Binding [SettingsFontOverrideDesc], Source={x:Static local:Lang.Instance}}"
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
                                                    Foreground="{DynamicResource TextMuted}"
                                                    TextWrapping="Wrap" Margin="0,2,0,0"/>
@@ -789,7 +814,7 @@
                                 <!-- Font family picker -->
                                 <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
                                     <StackPanel>
-                                        <TextBlock Text="Font family"
+                                        <TextBlock Text="{Binding [SettingsFontFamilyLabel], Source={x:Static local:Lang.Instance}}"
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                    Foreground="{DynamicResource TextMuted}" Margin="0,0,0,6"/>
                                         <ComboBox x:Name="FontFamilyPicker"
@@ -808,7 +833,7 @@
                                                 </DataTemplate>
                                             </ComboBox.ItemTemplate>
                                         </ComboBox>
-                                        <TextBlock Text="Leave blank to use the Windows system UI font."
+                                        <TextBlock Text="{Binding [SettingsFontFamilyHint], Source={x:Static local:Lang.Instance}}"
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
                                                    Foreground="{DynamicResource TextMuted}" Margin="0,4,0,0"/>
                                     </StackPanel>
@@ -816,11 +841,11 @@
                                 <!-- Live preview — between picker and slider so you see the font before sizing -->
                                 <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
                                     <StackPanel>
-                                        <TextBlock Text="Preview"
+                                        <TextBlock Text="{Binding [SettingsFontPreviewSection], Source={x:Static local:Lang.Instance}}"
                                                    FontSize="9" Foreground="{DynamicResource TextMuted}"
                                                    Margin="0,0,0,4"/>
                                         <TextBlock x:Name="FontPreviewLabel"
-                                                   Text="MasselGUARD — 1.MasselinkVPN-Split-AG — Connected 3m 55s"
+                                                   Text="{Binding [SettingsFontPreviewSample], Source={x:Static local:Lang.Instance}}"
                                                    FontSize="11" Foreground="{DynamicResource TextPrimary}"
                                                    TextWrapping="Wrap"/>
                                     </StackPanel>
@@ -833,7 +858,7 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="Font size"
+                                            <TextBlock Grid.Column="0" Text="{Binding [SettingsFontSizeLabel], Source={x:Static local:Lang.Instance}}"
                                                        FontFamily="{DynamicResource Theme.FontFamily}"
                                                        FontSize="10" Foreground="{DynamicResource TextMuted}"
                                                        VerticalAlignment="Center"/>
@@ -855,7 +880,7 @@
                                                     VerticalAlignment="Center"
                                                     ValueChanged="FontSizeSlider_Changed"/>
                                             <Button Grid.Column="1" x:Name="FontPreviewBtn"
-                                                    Content="▶  Preview" FontSize="9" Padding="8,3"
+                                                    Content="{Binding [SettingsFontPreviewBtn], Source={x:Static local:Lang.Instance}}" FontSize="9" Padding="8,3"
                                                     Width="76"
                                                     Style="{StaticResource FlatBtn}"
                                                     Foreground="{DynamicResource TextMuted}"
@@ -909,7 +934,7 @@
                             </Border>
 
                             <!-- Interface -->
-                            <TextBlock Text="Interface"
+                            <TextBlock Text="{Binding [SettingsInterfaceSection], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource SettingsSectionHeader}"
                                        Margin="0,16,0,4"/>
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
@@ -919,10 +944,10 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Show activity log"
+                                        <TextBlock Text="{Binding [SettingsShowActivityLogLabel], Source={x:Static local:Lang.Instance}}"
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
                                                    Foreground="{DynamicResource TextPrimary}"/>
-                                        <TextBlock Text="Display the activity log panel on the right side of the main window."
+                                        <TextBlock Text="{Binding [SettingsShowActivityLogDesc], Source={x:Static local:Lang.Instance}}"
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
                                                    Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
                                                    Margin="0,2,0,0"/>
@@ -939,6 +964,34 @@
 
                         <!-- ══ ADVANCED PAGE (moved below History in sidebar) ══ -->
                         <StackPanel x:Name="PageAdvanced" Visibility="Collapsed">
+
+                            <!-- Theme repository -->
+                            <TextBlock Text="Theme repository"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,20">
+                                <StackPanel>
+                                    <TextBlock Text="GitHub repository the theme browser (Appearance → Browse themes…) downloads from. Leave blank to use the official MasselGUARD themes repository. Themes install per-user into %APPDATA%\MasselGUARD\themes."
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,0,0,8"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" x:Name="SharedThemesRepoBox"
+                                                 FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                 Padding="6,4" VerticalContentAlignment="Center"
+                                                 TextChanged="SharedThemesRepo_Changed"/>
+                                        <Button Grid.Column="1" x:Name="ResetThemesRepoBtn"
+                                                Content="Default" Style="{StaticResource FlatBtn}"
+                                                FontSize="10" Padding="12,5" Margin="8,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Click="ResetThemesRepo_Click"
+                                                ToolTip="Reset to the official MasselGUARD themes repository"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
 
                             <!-- Import / Export -->
                             <TextBlock Text="{Binding [SettingsImportExportSection], Source={x:Static local:Lang.Instance}}"
@@ -977,6 +1030,156 @@
                                               MinWidth="110" FontSize="11" Padding="8,4"
                                               SelectionChanged="LogLevel_Changed"/>
                                 </Grid>
+                            </Border>
+
+                            <!-- DNS leak protection (smart multi-homed name resolution) -->
+                            <TextBlock Text="{Binding [SettingsSectionDnsLeak], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Background="{DynamicResource Surface}"
+                                    BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                                    CornerRadius="{DynamicResource Theme.CornerRadius}"
+                                    Padding="10,8" Margin="0,0,0,6">
+                                <TextBlock Text="{Binding [SettingsDnsLeakInfo], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <StackPanel>
+
+                                    <!-- Option 1: smart multi-homed name resolution -->
+                                    <TextBlock Text="{Binding [SettingsDnsLeakSmartLabel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                               FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Text="{Binding [SettingsDnsLeakSmartDesc], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,2,0,6"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" x:Name="DnsLeakStatusLabel"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="8,0,0,0">
+                                            <Button x:Name="DnsLeakDisableBtn"
+                                                    Content="{Binding [BtnDnsLeakDisable], Source={x:Static local:Lang.Instance}}"
+                                                    Style="{StaticResource SuccessBtn}" FontSize="10" Padding="12,5"
+                                                    Click="DnsLeakDisable_Click"/>
+                                            <Button x:Name="DnsLeakEnableBtn"
+                                                    Content="{Binding [BtnDnsLeakEnable], Source={x:Static local:Lang.Instance}}"
+                                                    Style="{StaticResource FlatBtn}" FontSize="10" Padding="12,5"
+                                                    Margin="6,0,0,0" Click="DnsLeakEnable_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Divider -->
+                                    <Border Height="1" Background="{DynamicResource BorderColor}"
+                                            Margin="0,12,0,12"/>
+
+                                    <!-- Option 2: parallel A / AAAA queries -->
+                                    <TextBlock Text="{Binding [SettingsDnsLeakParallelLabel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                               FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Text="{Binding [SettingsDnsLeakParallelDesc], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,2,0,6"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" x:Name="DnsParallelStatusLabel"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="8,0,0,0">
+                                            <Button x:Name="DnsParallelDisableBtn"
+                                                    Content="{Binding [BtnDnsLeakDisable], Source={x:Static local:Lang.Instance}}"
+                                                    Style="{StaticResource SuccessBtn}" FontSize="10" Padding="12,5"
+                                                    Click="DnsParallelDisable_Click"/>
+                                            <Button x:Name="DnsParallelEnableBtn"
+                                                    Content="{Binding [BtnDnsLeakEnable], Source={x:Static local:Lang.Instance}}"
+                                                    Style="{StaticResource FlatBtn}" FontSize="10" Padding="12,5"
+                                                    Margin="6,0,0,0" Click="DnsParallelEnable_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Divider -->
+                                    <Border Height="1" Background="{DynamicResource BorderColor}"
+                                            Margin="0,12,0,12"/>
+
+                                    <!-- Possible-leak alerts: independent delivery channels (all off = disabled) -->
+                                    <TextBlock Text="{Binding [SettingsDnsLeakWarnLabel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                               FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Text="{Binding [SettingsDnsLeakWarnDesc], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,2,0,8"/>
+
+                                    <!-- Channel: inline status icon (next to bandwidth) -->
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding [SettingsDnsLeakAlertIcon], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <ToggleButton Grid.Column="1" x:Name="ShowDnsIndicatorToggle"
+                                                      Style="{StaticResource ToggleSwitch}"
+                                                      VerticalAlignment="Center" Margin="8,0,0,0"
+                                                      Checked="ShowDnsIndicator_Changed"
+                                                      Unchecked="ShowDnsIndicator_Changed"/>
+                                    </Grid>
+
+                                    <!-- Channel: activity-log warning -->
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding [SettingsDnsLeakAlertLog], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <ToggleButton Grid.Column="1" x:Name="DnsLeakWarnLogToggle"
+                                                      Style="{StaticResource ToggleSwitch}"
+                                                      VerticalAlignment="Center" Margin="8,0,0,0"
+                                                      Checked="DnsLeakWarnLog_Changed"
+                                                      Unchecked="DnsLeakWarnLog_Changed"/>
+                                    </Grid>
+
+                                    <!-- Channel: tray toast -->
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding [SettingsDnsLeakAlertToast], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" TextWrapping="Wrap"/>
+                                        <ToggleButton Grid.Column="1" x:Name="DnsLeakWarnToastToggle"
+                                                      Style="{StaticResource ToggleSwitch}"
+                                                      VerticalAlignment="Center" Margin="8,0,0,0"
+                                                      Checked="DnsLeakWarnToast_Changed"
+                                                      Unchecked="DnsLeakWarnToast_Changed"/>
+                                    </Grid>
+
+                                    <TextBlock Text="{Binding [SettingsDnsLeakReboot], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,12,0,0"/>
+                                </StackPanel>
                             </Border>
 
                             <!-- Installation -->
@@ -1106,7 +1309,7 @@
 
                                     <!-- ── Capture column ── -->
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Capture"
+                                        <TextBlock Text="{Binding [HistoryCaptureLabel], Source={x:Static local:Lang.Instance}}"
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
                                                    FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"
                                                    Margin="0,0,0,10"/>
@@ -1117,10 +1320,10 @@
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0">
-                                                <TextBlock Text="Tunnel connections"
+                                                <TextBlock Text="{Binding [HistoryCaptureConnectionsLabel], Source={x:Static local:Lang.Instance}}"
                                                            FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                            Foreground="{DynamicResource TextPrimary}"/>
-                                                <TextBlock Text="Record tunnel uptime and traffic."
+                                                <TextBlock Text="{Binding [HistoryCaptureConnectionsDesc], Source={x:Static local:Lang.Instance}}"
                                                            FontFamily="{DynamicResource Theme.FontFamily}" FontSize="8"
                                                            Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"
                                                            TextWrapping="Wrap"/>
@@ -1138,10 +1341,10 @@
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0">
-                                                <TextBlock Text="WiFi (SSID)"
+                                                <TextBlock Text="{Binding [HistoryCaptureWifiLabel], Source={x:Static local:Lang.Instance}}"
                                                            FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                            Foreground="{DynamicResource TextPrimary}"/>
-                                                <TextBlock Text="Save WiFi SSID timings to history."
+                                                <TextBlock Text="{Binding [HistoryCaptureWifiDesc], Source={x:Static local:Lang.Instance}}"
                                                            FontFamily="{DynamicResource Theme.FontFamily}" FontSize="8"
                                                            Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"
                                                            TextWrapping="Wrap"/>
@@ -1160,7 +1363,7 @@
 
                                     <!-- ── Show column ── -->
                                     <StackPanel Grid.Column="2">
-                                        <TextBlock Text="Show"
+                                        <TextBlock Text="{Binding [HistoryShowLabel], Source={x:Static local:Lang.Instance}}"
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
                                                    FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"
                                                    Margin="0,0,0,10"/>
@@ -1171,10 +1374,10 @@
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0">
-                                                <TextBlock Text="Tunnel connections"
+                                                <TextBlock Text="{Binding [HistoryShowConnectionsLabel], Source={x:Static local:Lang.Instance}}"
                                                            FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                            Foreground="{DynamicResource TextPrimary}"/>
-                                                <TextBlock Text="Display connections in the timeline area."
+                                                <TextBlock Text="{Binding [HistoryShowConnectionsDesc], Source={x:Static local:Lang.Instance}}"
                                                            FontFamily="{DynamicResource Theme.FontFamily}" FontSize="8"
                                                            Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"
                                                            TextWrapping="Wrap"/>
@@ -1192,10 +1395,10 @@
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0">
-                                                <TextBlock Text="WiFi (SSID)"
+                                                <TextBlock Text="{Binding [HistoryShowWifiLabel], Source={x:Static local:Lang.Instance}}"
                                                            FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                            Foreground="{DynamicResource TextPrimary}"/>
-                                                <TextBlock Text="Display WiFi rows in the timeline area."
+                                                <TextBlock Text="{Binding [HistoryShowWifiDesc], Source={x:Static local:Lang.Instance}}"
                                                            FontFamily="{DynamicResource Theme.FontFamily}" FontSize="8"
                                                            Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"
                                                            TextWrapping="Wrap"/>
@@ -1211,32 +1414,32 @@
                             </Border>
 
                             <!-- Activity chart options -->
-                            <TextBlock Text="Activity chart"
+                            <TextBlock Text="{Binding [HistoryActivityChartTitle], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource SettingsSectionHeader}"/>
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
                                 <StackPanel>
-                                    <TextBlock Text="Time range"
+                                    <TextBlock Text="{Binding [HistoryTimeRangeLabel], Source={x:Static local:Lang.Instance}}"
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"
                                                Margin="0,0,0,6"/>
                                     <WrapPanel>
                                         <RadioButton x:Name="ChartRange24h"
                                                      GroupName="InfoTimeRange"
-                                                     Content="Last 24 hours"
+                                                     Content="{Binding [HistoryRange24h], Source={x:Static local:Lang.Instance}}"
                                                      FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                      Foreground="{DynamicResource TextPrimary}"
                                                      Margin="0,0,16,0"
                                                      Checked="InfoTimeRange_Changed"/>
                                         <RadioButton x:Name="ChartRange7d"
                                                      GroupName="InfoTimeRange"
-                                                     Content="Last 7 days"
+                                                     Content="{Binding [HistoryRange7d], Source={x:Static local:Lang.Instance}}"
                                                      FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                      Foreground="{DynamicResource TextPrimary}"
                                                      Margin="0,0,16,0"
                                                      Checked="InfoTimeRange_Changed"/>
                                         <RadioButton x:Name="ChartRange31d"
                                                      GroupName="InfoTimeRange"
-                                                     Content="Last 31 days"
+                                                     Content="{Binding [HistoryRange31d], Source={x:Static local:Lang.Instance}}"
                                                      FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                      Foreground="{DynamicResource TextPrimary}"
                                                      Checked="InfoTimeRange_Changed"/>
@@ -1274,7 +1477,7 @@
                                                        Text="{Binding [HistoryColDuration], Source={x:Static local:Lang.Instance}}"
                                                        FontFamily="{DynamicResource Theme.FontFamily}"
                                                        FontSize="10" Foreground="{DynamicResource TextMuted}"/>
-                                            <TextBlock Grid.Column="2" Text="Via"
+                                            <TextBlock Grid.Column="2" Text="{Binding [HistoryColSource], Source={x:Static local:Lang.Instance}}"
                                                        FontFamily="{DynamicResource Theme.FontFamily}"
                                                        FontSize="10" Foreground="{DynamicResource TextMuted}"/>
                                         </Grid>
@@ -1337,7 +1540,7 @@
                                                                             <ColumnDefinition Width="68"/>
                                                                             <ColumnDefinition Width="*"/>
                                                                         </Grid.ColumnDefinitions>
-                                                                        <TextBlock Grid.Column="0" Text="Connected"
+                                                                        <TextBlock Grid.Column="0" Text="{Binding [HistoryPopupConnected], Source={x:Static local:Lang.Instance}}"
                                                                                    FontFamily="{DynamicResource Theme.FontFamily}"
                                                                                    FontSize="10" Foreground="{DynamicResource TextMuted}"/>
                                                                         <TextBlock Grid.Column="1"
@@ -1351,7 +1554,7 @@
                                                                             <ColumnDefinition Width="68"/>
                                                                             <ColumnDefinition Width="*"/>
                                                                         </Grid.ColumnDefinitions>
-                                                                        <TextBlock Grid.Column="0" Text="Period"
+                                                                        <TextBlock Grid.Column="0" Text="{Binding [HistoryPopupPeriod], Source={x:Static local:Lang.Instance}}"
                                                                                    FontFamily="{DynamicResource Theme.FontFamily}"
                                                                                    FontSize="10" Foreground="{DynamicResource TextMuted}"/>
                                                                         <TextBlock Grid.Column="1"
@@ -1365,7 +1568,7 @@
                                                                             <ColumnDefinition Width="68"/>
                                                                             <ColumnDefinition Width="*"/>
                                                                         </Grid.ColumnDefinitions>
-                                                                        <TextBlock Grid.Column="0" Text="Duration"
+                                                                        <TextBlock Grid.Column="0" Text="{Binding [HistoryPopupDuration], Source={x:Static local:Lang.Instance}}"
                                                                                    FontFamily="{DynamicResource Theme.FontFamily}"
                                                                                    FontSize="10" Foreground="{DynamicResource TextMuted}"/>
                                                                         <TextBlock Grid.Column="1"
@@ -1379,7 +1582,7 @@
                                                                             <ColumnDefinition Width="68"/>
                                                                             <ColumnDefinition Width="*"/>
                                                                         </Grid.ColumnDefinitions>
-                                                                        <TextBlock Grid.Column="0" Text="Traffic"
+                                                                        <TextBlock Grid.Column="0" Text="{Binding [HistoryPopupTraffic], Source={x:Static local:Lang.Instance}}"
                                                                                    FontFamily="{DynamicResource Theme.FontFamily}"
                                                                                    FontSize="10" Foreground="{DynamicResource TextMuted}"/>
                                                                         <TextBlock Grid.Column="1"
@@ -1393,7 +1596,7 @@
                                                                             <ColumnDefinition Width="68"/>
                                                                             <ColumnDefinition Width="*"/>
                                                                         </Grid.ColumnDefinitions>
-                                                                        <TextBlock Grid.Column="0" Text="Via"
+                                                                        <TextBlock Grid.Column="0" Text="{Binding [HistoryColSource], Source={x:Static local:Lang.Instance}}"
                                                                                    FontFamily="{DynamicResource Theme.FontFamily}"
                                                                                    FontSize="10" Foreground="{DynamicResource TextMuted}"/>
                                                                         <TextBlock Grid.Column="1"

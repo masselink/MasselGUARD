@@ -54,6 +54,14 @@ namespace MasselGUARD.Services
                 Config = new AppConfig();
             }
 
+            // The shipped "grey" theme folder was renamed to "blueongrey" in 3.7 — keep
+            // users who had it selected pointed at the right theme.
+            if (string.Equals(Config.ActiveTheme, "grey", StringComparison.OrdinalIgnoreCase))
+            {
+                Config.ActiveTheme = "blueongrey";
+                try { Save(); } catch { /* best-effort */ }
+            }
+
             MigrateInlineConfigsToFiles();
         }
 

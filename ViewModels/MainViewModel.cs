@@ -225,6 +225,47 @@ namespace MasselGUARD.ViewModels
             _                  => true,
         };
 
+        // ── DNS leak warning ──────────────────────────────────────────────────
+
+        /// <summary>Tunnels currently in a warned PotentialLeak episode (re-armed on recovery/disconnect).</summary>
+        private readonly HashSet<string> _dnsLeakWarned = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Edge-triggered "possible DNS leak" warning. Fires a one-time tray toast + log
+        /// line when a tunnel's DNS status first becomes PotentialLeak — but only while the
+        /// leak is unmitigated (smart name resolution still enabled). It stays silent once
+        /// the machine policy contains the leak, on Secure/NotConfigured/Unknown, and after
+        /// the first warning until the status recovers (tracked in <see cref="_dnsLeakWarned"/>).
+        /// </summary>
+        private void MaybeWarnDnsLeak(TunnelEntryViewModel t, TunnelDll.DnsLeakStatus dns)
+        {
+            if (dns != TunnelDll.DnsLeakStatus.PotentialLeak)
+            {
+                _dnsLeakWarned.Remove(t.Name);   // episode over — re-arm for next time
+                return;
+            }
+            bool wantLog   = _config.Config.DnsLeakWarnLog;
+            bool wantToast = _config.Config.DnsLeakWarnToast;
+            if (!wantLog && !wantToast)          return;   // both warning channels off
+            if (_dnsLeakWarned.Contains(t.Name)) return;   // already warned this episode
+            if (Services.DnsLeakService.IsSmartNameResolutionDisabled()) return;  // contained → no message
+
+            _dnsLeakWarned.Add(t.Name);
+            if (wantLog)
+                _log.Warn($"Possible DNS leak on {t.Name}: another network adapter has DNS servers. " +
+                          "Enable DNS leak protection in Settings → Advanced.");
+            if (wantToast)
+                (Application.Current as App)?.ShowTrayNotification(
+                    new Views.ToastNotification
+                    {
+                        Category   = "DNS leak warning",
+                        Primary    = $"Possible DNS leak: {t.Name}",
+                        Secondary  = "Enable DNS leak protection in Settings → Advanced.",
+                        StripColor = "Warning",
+                        DurationMs = _config.Config.NotificationDurationSeconds * 1000,
+                    });
+        }
+
         // ── Status refresh ────────────────────────────────────────────────────
 
         public void RefreshTunnelStatus()
@@ -238,11 +279,15 @@ namespace MasselGUARD.ViewModels
                 t.RefreshStatus();
                 bool nowActive = t.IsActive;
 
+                if (!nowActive) _dnsLeakWarned.Remove(t.Name);   // re-arm the DNS-leak warning
+
                 if (doStatsPoll && nowActive)
                 {
                     var stats = TunnelDll.GetTrafficStats(t.Name);
                     t.UpdateStats(stats);
-                    t.UpdateDnsStatus(TunnelDll.CheckDnsLeak(t.Name));
+                    var dns = TunnelDll.CheckDnsLeak(t.Name);
+                    t.UpdateDnsStatus(dns);
+                    MaybeWarnDnsLeak(t, dns);
 
                     // Local tunnel: if the kernel adapter is gone but we still think
                     // it's connected (IsRunning checks in-memory HashSet only),

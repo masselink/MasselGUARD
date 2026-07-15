@@ -63,32 +63,91 @@ namespace MasselGUARD
         public ThemeDefinition Current          { get; private set; } = ThemeDefinition.Default;
 
         // ── Paths ─────────────────────────────────────────────────────────────
-        private static string ThemeRoot =>
-            Path.Combine(
-                Path.GetDirectoryName(
-                    System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
-                    ?? AppContext.BaseDirectory)
-                ?? AppContext.BaseDirectory,
-                "theme");
+        private static string AppDataDir =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MasselGUARD");
 
         /// <summary>
-        /// User-created themes live here so they survive app reinstalls.
-        /// %APPDATA%\MasselGUARD\themes\
+        /// ALL non-System themes — downloaded (Theme Browser) and user-created (Theme Builder)
+        /// alike — live together per-user under %APPDATA%\MasselGUARD\themes\. Per-user so
+        /// downloads need no elevation and everything survives app updates/reinstalls. The only
+        /// theme built into the binary is the virtual System (Windows colours) theme.
         /// </summary>
-        public static string UserThemeRoot =>
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "MasselGUARD", "themes");
+        private static string ThemeRoot => Path.Combine(AppDataDir, "themes");
 
-        /// <summary>Folder names of themes that ship with the app (read-only in the builder).</summary>
-        public static readonly HashSet<string> BuiltinThemeNames = new(StringComparer.OrdinalIgnoreCase)
+        /// <summary>Where the Theme Browser installs downloaded themes — the unified themes folder.</summary>
+        public static string SharedThemeRoot => ThemeRoot;
+
+        /// <summary>Where the Theme Builder writes user themes — the unified themes folder.</summary>
+        public static string UserThemeRoot => ThemeRoot;
+
+        /// <summary>
+        /// Consolidates themes from the earlier per-type folders (<c>custom_themes\</c>,
+        /// <c>shared-themes\</c>, <c>shared_themes\</c>) into the single <c>themes\</c> folder,
+        /// keeping the existing one on a name collision, and removes each old folder once empty.
+        /// Best-effort; safe to call on every startup.
+        /// </summary>
+        public static void ConsolidateThemeFolders()
         {
-            "grey", "highcontrast"
-        };
+            var target = ThemeRoot;
+            foreach (var legacy in new[] { "custom_themes", "shared-themes", "shared_themes" })
+            {
+                try
+                {
+                    var src = Path.Combine(AppDataDir, legacy);
+                    if (!Directory.Exists(src)) continue;
+                    Directory.CreateDirectory(target);
+                    foreach (var dir in Directory.GetDirectories(src))
+                    {
+                        var dest = Path.Combine(target, Path.GetFileName(dir));
+                        if (!Directory.Exists(dest)) Directory.Move(dir, dest);   // keep existing on collision
+                    }
+                    if (!Directory.EnumerateFileSystemEntries(src).Any())
+                        Directory.Delete(src);
+                }
+                catch { /* best-effort — never block startup */ }
+            }
+        }
 
-        /// <summary>Returns true for the virtual system theme and all bundled built-in themes.</summary>
+        /// <summary>All theme folder names (each containing a theme.json — see
+        /// <see cref="HasThemeJson"/>) in the themes folder.</summary>
+        public static List<string> ThemeNames()
+        {
+            var root = ThemeRoot;
+            if (!Directory.Exists(root)) return new List<string>();
+            return Directory.GetDirectories(root)
+                .Where(HasThemeJson)
+                .Select(d => Path.GetFileName(d)!)
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        /// <summary>True only for the virtual System (Windows colours) theme — the single
+        /// embedded, read-only theme. Every theme in the themes\ folder is editable.</summary>
         public static bool IsBuiltinTheme(string name) =>
-            name is "__system__" or "system" || BuiltinThemeNames.Contains(name);
+            name is "__system__" or "system";
+
+        /// <summary>True when a theme folder with that name already exists — used to block
+        /// overwriting an existing theme when creating or duplicating.</summary>
+        public static bool ThemeExists(string name) =>
+            !string.IsNullOrWhiteSpace(name) && HasThemeJson(Path.Combine(ThemeRoot, name));
+
+        /// <summary>
+        /// A theme folder's JSON file is normally "theme.json" — what Save/New/Duplicate always
+        /// write. The community theme repo instead distributes "&lt;id&gt;-theme.json" (its files
+        /// are named to match the theme id), and a theme copied in by hand often keeps that same
+        /// naming. Recognise both so nothing dropped into the folder is silently invisible.
+        /// </summary>
+        private static bool HasThemeJson(string folderPath) =>
+            File.Exists(Path.Combine(folderPath, "theme.json")) ||
+            File.Exists(Path.Combine(folderPath, $"{Path.GetFileName(folderPath)}-theme.json"));
+
+        /// <summary>True when this theme's JSON file uses the "&lt;foldername&gt;-theme.json"
+        /// naming instead of the app's own "theme.json" — i.e. it came from the community repo's
+        /// distribution format or was copied in by hand, not created/saved by this app. Used by
+        /// the Theme Manager to group these under "Custom themes".</summary>
+        public static bool IsCustomNamedTheme(string name) =>
+            !File.Exists(Path.Combine(ThemeFolder(name), "theme.json")) &&
+            File.Exists(Path.Combine(ThemeFolder(name), $"{name}-theme.json"));
 
         /// <summary>
         /// Returns the folder for a theme, checking user themes first so custom themes
@@ -101,7 +160,18 @@ namespace MasselGUARD
             return Path.Combine(ThemeRoot, name);
         }
 
-        private static string ThemeJson(string name) => Path.Combine(ThemeFolder(name), "theme.json");
+        /// <summary>Resolves the actual JSON file path for a theme: prefers "theme.json"
+        /// (the app's own convention) but falls back to "&lt;name&gt;-theme.json" — see
+        /// <see cref="HasThemeJson"/>. Saving reuses whichever file already exists, so it
+        /// never leaves an orphaned duplicate behind.</summary>
+        public static string ThemeJsonPath(string name)
+        {
+            var folder   = ThemeFolder(name);
+            var standard = Path.Combine(folder, "theme.json");
+            if (File.Exists(standard)) return standard;
+            var alt = Path.Combine(folder, $"{name}-theme.json");
+            return File.Exists(alt) ? alt : standard;
+        }
 
         // ── Public API ────────────────────────────────────────────────────────
 
@@ -117,8 +187,8 @@ namespace MasselGUARD
             var root = ThemeRoot;
             if (Directory.Exists(root))
                 themes.AddRange(Directory.GetDirectories(root)
+                    .Where(HasThemeJson)
                     .Select(d => Path.GetFileName(d)!)
-                    .Where(n => File.Exists(Path.Combine(root, n, "theme.json")))
                     .OrderBy(n => n));
 
             // User-created themes from AppData (skip duplicates)
@@ -127,8 +197,7 @@ namespace MasselGUARD
                 foreach (var dir in Directory.GetDirectories(userRoot).OrderBy(d => d))
                 {
                     var name = Path.GetFileName(dir)!;
-                    if (!themes.Contains(name) &&
-                        File.Exists(Path.Combine(userRoot, name, "theme.json")))
+                    if (!themes.Contains(name) && HasThemeJson(dir))
                         themes.Add(name);
                 }
 
@@ -145,7 +214,7 @@ namespace MasselGUARD
                 return "System (Windows colors)";
             try
             {
-                var json = ThemeJson(folderName);
+                var json = ThemeJsonPath(folderName);
                 if (!File.Exists(json)) return folderName;
                 var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 var def  = JsonSerializer.Deserialize<ThemeDefinition>(File.ReadAllText(json), opts);
@@ -185,7 +254,7 @@ namespace MasselGUARD
 
         private static ThemeDefinition? ReadTheme(string themeName)
         {
-            var jsonPath = ThemeJson(themeName);
+            var jsonPath = ThemeJsonPath(themeName);
             if (File.Exists(jsonPath))
             {
                 try
@@ -248,20 +317,27 @@ namespace MasselGUARD
                 Creator           = root.Creator,
                 Description       = root.Description,
                 FontFamily        = root.FontFamily,
+                HeaderFontFamily  = root.HeaderFontFamily,
                 FontSize          = root.FontSize,
                 CornerRadius      = root.CornerRadius,
-                BackgroundImage   = root.BackgroundImage,
+                // Assets: a variant may carry its own logo / app icon / background image /
+                // tray icons (e.g. a light logo for the light variant); root is the shared
+                // fallback for legacy single-image themes. Stretch/opacity/size stay shared —
+                // they're layout numbers, not per-variant images.
+                BackgroundImage   = O(variant.BackgroundImage, root.BackgroundImage),
                 BackgroundStretch = root.BackgroundStretch,
                 BackgroundOpacity = root.BackgroundOpacity,
-                AppIcon           = root.AppIcon,
-                Logo              = root.Logo,
+                AppIcon           = O(variant.AppIcon, root.AppIcon),
+                Logo              = O(variant.Logo, root.Logo),
                 LogoWidth         = root.LogoWidth,
                 LogoHeight        = root.LogoHeight,
+                TrayIconConnected    = O(variant.TrayIconConnected,    root.TrayIconConnected),
+                TrayIconDisconnected = O(variant.TrayIconDisconnected, root.TrayIconDisconnected),
                 TitleBarHeight      = root.TitleBarHeight,
                 ShowTitleBarIcon    = root.ShowTitleBarIcon,
                 ShowTitleBarAppName = root.ShowTitleBarAppName,
-                ShowResizeGrip      = root.ShowResizeGrip,
                 WindowOpacity       = root.WindowOpacity,
+                PanelOpacity        = root.PanelOpacity,
                 ShowStatusBar    = root.ShowStatusBar,
                 StatusBarHeight  = root.StatusBarHeight,
                 ShowStatusWifi   = root.ShowStatusWifi,
@@ -304,7 +380,7 @@ namespace MasselGUARD
         ///     stays usable (dark backgrounds keep bright accents, light backgrounds keep
         ///     saturated but readable tones).
         /// </summary>
-        private static ThemeDefinition AutoInvertVariant(ThemeDefinition src)
+        internal static ThemeDefinition AutoInvertVariant(ThemeDefinition src)
         {
             static string Inv(string hex, bool isBackground = false)
             {
@@ -351,6 +427,7 @@ namespace MasselGUARD
                 Creator           = src.Creator,
                 Description       = src.Description,
                 FontFamily        = src.FontFamily,
+                HeaderFontFamily  = src.HeaderFontFamily,
                 FontSize          = src.FontSize,
                 CornerRadius      = src.CornerRadius,
                 BackgroundImage   = src.BackgroundImage,
@@ -360,11 +437,13 @@ namespace MasselGUARD
                 Logo              = src.Logo,
                 LogoWidth         = src.LogoWidth,
                 LogoHeight        = src.LogoHeight,
+                TrayIconConnected    = src.TrayIconConnected,
+                TrayIconDisconnected = src.TrayIconDisconnected,
                 TitleBarHeight    = src.TitleBarHeight,
                 ShowTitleBarIcon    = src.ShowTitleBarIcon,
                 ShowTitleBarAppName = src.ShowTitleBarAppName,
-                ShowResizeGrip    = src.ShowResizeGrip,
                 WindowOpacity     = src.WindowOpacity,
+                PanelOpacity      = src.PanelOpacity,
                 ShowStatusBar     = src.ShowStatusBar,
                 StatusBarHeight   = src.StatusBarHeight,
                 ShowStatusWifi    = src.ShowStatusWifi,
@@ -473,8 +552,22 @@ namespace MasselGUARD
 
         // ── Apply all theme values to Application.Resources ───────────────────
         private static void Apply(ThemeDefinition d, string folder, bool isDark)
+            => Apply(d, folder, isDark, Application.Current.Resources);
+
+        /// <summary>
+        /// Fills <paramref name="target"/> with the plain Windows system palette. Used by the
+        /// Theme Manager's hold-Shift preview to temporarily restyle its own window in Windows
+        /// colours (local resources shadow the application ones); clearing the dictionary
+        /// restores the active theme.
+        /// </summary>
+        public static void ApplySystemTo(ResourceDictionary target)
         {
-            var res = Application.Current.Resources;
+            bool isDark = GetSystemIsDark();
+            Apply(BuildSystemTheme(isDark), folder: "", isDark, target);
+        }
+
+        private static void Apply(ThemeDefinition d, string folder, bool isDark, ResourceDictionary res)
+        {
 
             // ── Resolve colours: system palette as base, theme JSON as overrides ──
             // Any colour left as "" in the theme JSON (or absent from the file) falls
@@ -514,10 +607,12 @@ namespace MasselGUARD
             SetColor(res, "C.TextMuted",   txtMut);
             SetColor(res, "C.Highlight",   hl);
 
-            // Brush resources
+            // Brush resources. Surface/Card honour PanelOpacity so a background
+            // image can shine through the panels.
+            var panelOp = Math.Clamp(d.PanelOpacity, 0.2, 1.0);
             SetBrush(res, "WindowBg",     bg);
-            SetBrush(res, "Surface",      surface);
-            SetBrush(res, "CardBg",       card);
+            SetBrush(res, "Surface",      surface, panelOp);
+            SetBrush(res, "CardBg",       card,    panelOp);
             SetBrush(res, "BorderColor",  border);
             SetBrush(res, "Accent",       accent);
             SetBrush(res, "Success",      success);
@@ -537,10 +632,14 @@ namespace MasselGUARD
             res["Theme.LogTimestampColor"] = ParseColor(tsHex, Colors.Gray);
 
             // Typography
-            res["Theme.FontFamily"]          = new FontFamily(d.FontFamily);
+            res["Theme.FontFamily"]          = ResolveFontFamily(d.FontFamily, folder);
+            res["Theme.HeaderFontFamily"]    = string.IsNullOrWhiteSpace(d.HeaderFontFamily)
+                ? res["Theme.FontFamily"]
+                : ResolveFontFamily(d.HeaderFontFamily, folder);
             res["Theme.FontSize"]            = d.FontSize;
             res["Theme.FontSize.Small"]      = Math.Max(8.0, d.FontSize - 1.0);
             res["Theme.FontSize.Tiny"]       = Math.Max(7.0, d.FontSize - 2.0);
+            res["Theme.FontSize.Header"]     = Math.Max(10.0, d.FontSize + 2.0);
             res["Theme.CornerRadius"]        = new CornerRadius(d.CornerRadius);
             res["Theme.CornerRadiusTop"]    = new CornerRadius(d.CornerRadius, d.CornerRadius, 0, 0);
             res["Theme.CornerRadiusBottom"] = new CornerRadius(0, 0, d.CornerRadius, d.CornerRadius);
@@ -552,7 +651,6 @@ namespace MasselGUARD
             res["Theme.TitleBarHeight"]      = new GridLength(Math.Max(32, d.TitleBarHeight));
             res["Theme.ShowTitleBarIcon"]    = d.ShowTitleBarIcon    ? Visibility.Visible : Visibility.Collapsed;
             res["Theme.ShowTitleBarAppName"] = d.ShowTitleBarAppName ? Visibility.Visible : Visibility.Collapsed;
-            res["Theme.ShowResizeGrip"]      = d.ShowResizeGrip      ? Visibility.Visible : Visibility.Collapsed;
             res["Theme.WindowOpacity"]       = Math.Clamp(d.WindowOpacity, 0.1, 1.0);
 
             // ── Status bar ────────────────────────────────────────────────────
@@ -585,6 +683,9 @@ namespace MasselGUARD
             // App icon (tray + title bar)
             ApplyAppIcon(res, d, folder);
 
+            // State-specific tray icons (connected / disconnected)
+            ApplyTrayStateIcons(res, d, folder);
+
             // Logo (title bar only)
             ApplyLogo(res, d, folder);
 
@@ -603,8 +704,8 @@ namespace MasselGUARD
                 return;
             }
 
-            var imgPath = Path.Combine(folder, d.BackgroundImage);
-            if (!File.Exists(imgPath))
+            var imgPath = ResolveThemeAsset(folder, d.BackgroundImage);
+            if (imgPath == null || !File.Exists(imgPath))
             {
                 res["Theme.BackgroundBrush"] = new SolidColorBrush(Colors.Transparent);
                 res["Theme.HasBackground"]   = Visibility.Collapsed;
@@ -613,7 +714,7 @@ namespace MasselGUARD
 
             try
             {
-                var bmp = new BitmapImage(new Uri(imgPath, UriKind.Absolute));
+                var bmp = LoadImageUncached(imgPath);
 
                 // Map backgroundStretch string to WPF Stretch + AlignmentX/Y
                 var (stretch, alignX, alignY, tile) = ParseStretchMode(d.BackgroundStretch);
@@ -652,14 +753,14 @@ namespace MasselGUARD
         {
             // appIcon = tray icon + Window.Icon (taskbar) only.
             // The title bar uses 'logo' or the built-in shield — never appIcon.
-            if (!string.IsNullOrWhiteSpace(d.AppIcon))
+            var iconPath = ResolveThemeAsset(folder, d.AppIcon);
+            if (iconPath != null)
             {
-                var iconPath = Path.Combine(folder, d.AppIcon);
                 if (File.Exists(iconPath))
                 {
                     try
                     {
-                        var bmp = new BitmapImage(new Uri(iconPath, UriKind.Absolute));
+                        var bmp = LoadImageUncached(iconPath);
                         res["Theme.AppIcon"]  = bmp;
                         res["Theme.TrayIcon"] = BitmapToWinFormsIcon(bmp);
                         return;
@@ -672,16 +773,99 @@ namespace MasselGUARD
             res["Theme.TrayIcon"] = null;
         }
 
+        /// <summary>
+        /// Loads the optional connected/disconnected tray icons. Resolved per
+        /// dark/light variant by MergeVariant before this runs, so a theme can ship
+        /// all four variations (state × variant). Empty/missing → null, and the
+        /// tray falls back to the single AppIcon or the built-in shield.
+        /// </summary>
+        private static void ApplyTrayStateIcons(ResourceDictionary res, ThemeDefinition d, string folder)
+        {
+            res["Theme.TrayIconConnected"]    = LoadStateIcon(d.TrayIconConnected);
+            res["Theme.TrayIconDisconnected"] = LoadStateIcon(d.TrayIconDisconnected);
+
+            object? LoadStateIcon(string file)
+            {
+                var path = ResolveThemeAsset(folder, file);
+                if (path == null || !File.Exists(path)) return null;
+                try { return BitmapToWinFormsIcon(LoadImageUncached(path)); }
+                catch { return null; }
+            }
+        }
+
+        /// <summary>
+        /// Resolves the theme font. When the theme folder ships font files
+        /// (*.ttf / *.otf — added by the Theme Builder's export), they are used as
+        /// WPF private fonts — no installation needed on the client machine — with
+        /// the installed system font of the same name as fallback.
+        /// </summary>
+        private static FontFamily ResolveFontFamily(string name, string folder)
+        {
+            if (string.IsNullOrWhiteSpace(name)) name = "Segoe UI";
+            try
+            {
+                if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder) &&
+                    Directory.EnumerateFiles(folder).Any(f =>
+                        f.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) ||
+                        f.EndsWith(".otf", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var baseUri = new Uri(folder.TrimEnd('\\', '/') + "\\", UriKind.Absolute);
+                    return new FontFamily(baseUri, $"./#{name}, {name}");
+                }
+            }
+            catch { }
+            return new FontFamily(name);
+        }
+
+        /// <summary>
+        /// Loads an image fully into memory, bypassing WPF's URI cache. Keeps the
+        /// file unlocked (so the Theme Builder can overwrite logo.png/bg.png in
+        /// place) and guarantees a re-saved file under the same name shows its new
+        /// content instead of a stale cached bitmap.
+        /// </summary>
+        /// <summary>
+        /// Resolves a theme asset (logo / background / icon) named in theme.json to an
+        /// absolute path, but ONLY if it stays inside the theme's own folder. Rejects
+        /// rooted/UNC paths and "../" traversal so a theme — including one downloaded from
+        /// a shared-theme repo — can't point the app at files outside its folder. Returns
+        /// null when the value is empty or escapes the folder (treated as "no asset").
+        /// </summary>
+        private static string? ResolveThemeAsset(string folder, string? fileName)
+        {
+            if (string.IsNullOrWhiteSpace(folder) || string.IsNullOrWhiteSpace(fileName)) return null;
+            if (Path.IsPathRooted(fileName)) return null;   // must be a relative name
+            try
+            {
+                var root = Path.GetFullPath(folder.TrimEnd('\\', '/')) + Path.DirectorySeparatorChar;
+                var full = Path.GetFullPath(Path.Combine(folder, fileName));
+                if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase)) return null;
+                return full;
+            }
+            catch { return null; }
+        }
+
+        internal static BitmapImage LoadImageUncached(string path)
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.UriSource     = new Uri(path, UriKind.Absolute);
+            bmp.CacheOption   = BitmapCacheOption.OnLoad;
+            bmp.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+            bmp.EndInit();
+            bmp.Freeze();
+            return bmp;
+        }
+
         private static void ApplyLogo(ResourceDictionary res, ThemeDefinition d, string folder)
         {
-            if (!string.IsNullOrWhiteSpace(d.Logo))
+            var logoPath = ResolveThemeAsset(folder, d.Logo);
+            if (logoPath != null)
             {
-                var logoPath = Path.Combine(folder, d.Logo);
                 if (File.Exists(logoPath))
                 {
                     try
                     {
-                        res["Theme.Logo"]           = new BitmapImage(new Uri(logoPath, UriKind.Absolute));
+                        res["Theme.Logo"]           = LoadImageUncached(logoPath);
                         res["Theme.LogoWidth"]      = (double)d.LogoWidth;
                         res["Theme.LogoHeight"]     = (double)d.LogoHeight;
                         res["Theme.HasLogo"]        = Visibility.Visible;
@@ -858,15 +1042,21 @@ namespace MasselGUARD
             string fontName = string.IsNullOrWhiteSpace(family)
                 ? (SystemFonts.MessageFontFamily?.Source ?? "Segoe UI")
                 : family;
-            try { res["Theme.FontFamily"] = new FontFamily(fontName); }
+            try
+            {
+                var overrideFont = new FontFamily(fontName);
+                res["Theme.FontFamily"]       = overrideFont;
+                res["Theme.HeaderFontFamily"] = overrideFont;
+            }
             catch { /* invalid font name — leave the current font in place */ }
 
             // Font size (only when explicitly set; 0 = keep theme default)
             if (size > 0.0)
             {
-                res["Theme.FontSize"]       = size;
-                res["Theme.FontSize.Small"] = Math.Max(8.0, size - 1.0);
-                res["Theme.FontSize.Tiny"]  = Math.Max(7.0, size - 2.0);
+                res["Theme.FontSize"]        = size;
+                res["Theme.FontSize.Small"]  = Math.Max(8.0, size - 1.0);
+                res["Theme.FontSize.Tiny"]   = Math.Max(7.0, size - 2.0);
+                res["Theme.FontSize.Header"] = Math.Max(10.0, size + 2.0);
             }
         }
 
@@ -905,7 +1095,7 @@ namespace MasselGUARD
         {
             try
             {
-                var json = ThemeJson(folderName);
+                var json = ThemeJsonPath(folderName);
                 if (!File.Exists(json)) return null;
                 var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 return JsonSerializer.Deserialize<ThemeDefinition>(File.ReadAllText(json), opts);
@@ -1013,6 +1203,15 @@ namespace MasselGUARD
             res[key] = new SolidColorBrush(ParseColor(hex, Colors.Transparent));
         }
 
+        /// <summary>SetBrush with an opacity multiplied into the colour's alpha channel.</summary>
+        private static void SetBrush(ResourceDictionary res, string key, string hex, double opacity)
+        {
+            var c = ParseColor(hex, Colors.Transparent);
+            if (opacity < 1.0)
+                c.A = (byte)Math.Round(c.A * Math.Clamp(opacity, 0.0, 1.0));
+            res[key] = new SolidColorBrush(c);
+        }
+
         private static string Fallback(string value, string fallback)
             => string.IsNullOrWhiteSpace(value) ? fallback : value;
 
@@ -1036,6 +1235,10 @@ namespace MasselGUARD
         public string FontFamily   { get; set; } = "Segoe UI";
         public double FontSize     { get; set; } = 12;
         public double CornerRadius { get; set; } = 6;
+
+        /// <summary>Font used for the title bar app name and section/column headers.
+        /// Empty string means "inherit FontFamily" (no distinct header font).</summary>
+        public string HeaderFontFamily { get; set; } = "";
 
         // ── Colours — named by where/how each appears in the UI ───────────────
         // All values accept #RRGGBB (opaque) or #AARRGGBB (with transparency).
@@ -1069,6 +1272,12 @@ namespace MasselGUARD
         // ── App icon (.ico / .png / .bmp / .jpg) — tray + title bar ──────────
         public string AppIcon           { get; set; } = "";
 
+        // ── Tray icons per connection state (optional; empty → AppIcon/shield) ──
+        /// <summary>Tray icon while at least one tunnel is connected. Per-variant via dark/light sections.</summary>
+        public string TrayIconConnected    { get; set; } = "";
+        /// <summary>Tray icon while no tunnel is connected. Per-variant via dark/light sections.</summary>
+        public string TrayIconDisconnected { get; set; } = "";
+
         // ── Logo (title bar display only) ─────────────────────────────────────
         public string Logo              { get; set; } = "";
         public int    LogoWidth         { get; set; } = 28;
@@ -1088,10 +1297,14 @@ namespace MasselGUARD
         public bool   ShowTitleBarIcon    { get; set; } = true;
         /// <summary>Show the app name text in the title bar.</summary>
         public bool   ShowTitleBarAppName { get; set; } = true;
-        /// <summary>Show the resize grip in the bottom-right corner.</summary>
-        public bool   ShowResizeGrip      { get; set; } = true;
         /// <summary>Overall window opacity (0.0 fully transparent – 1.0 fully opaque).</summary>
         public double WindowOpacity       { get; set; } = 1.0;
+
+        /// <summary>
+        /// Opacity of the Surface and Card panel brushes (0.2–1.0). Below 1.0 the
+        /// window background image shows through the panels.
+        /// </summary>
+        public double PanelOpacity        { get; set; } = 1.0;
 
         // ── Status bar ────────────────────────────────────────────────────────
         /// <summary>Show the status bar below the title bar.</summary>

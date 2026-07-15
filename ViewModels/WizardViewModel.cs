@@ -18,7 +18,7 @@ namespace MasselGUARD.ViewModels
         private readonly ConfigService _config;
         private readonly LogService    _log;
 
-        public const int TotalSteps = 7;
+        public const int TotalSteps = 9;
 
         private int _step;
         public int Step
@@ -59,7 +59,17 @@ namespace MasselGUARD.ViewModels
             }
         }
 
-        // ── Step 2: Mode ──────────────────────────────────────────────────────
+        // ── Step 2: Choose your view — was "Custom" picked? ─────────────────────
+        // Drives whether Step 3 (Custom view details) is reachable at all; Simple/
+        // Manual/Expert apply their fixed bundle directly and skip past it.
+        private bool _customView;
+        public bool CustomView
+        {
+            get => _customView;
+            set => SetField(ref _customView, value);
+        }
+
+        // ── Step 4: Mode ──────────────────────────────────────────────────────
         private AppMode _mode = AppMode.Standalone;
         public AppMode Mode
         {
@@ -67,7 +77,7 @@ namespace MasselGUARD.ViewModels
             set => SetField(ref _mode, value);
         }
 
-        // ── Step 3: Disable WiFi rules ────────────────────────────────────────
+        // ── Step 6: Disable WiFi rules ────────────────────────────────────────
         private bool _disableWifiRules;
         public bool DisableWifiRules
         {
@@ -75,7 +85,7 @@ namespace MasselGUARD.ViewModels
             set => SetField(ref _disableWifiRules, value);
         }
 
-        // ── Step 5: About card ────────────────────────────────────────────────
+        // ── Step 8: About card ────────────────────────────────────────────────
         public string AppVersion         => UpdateChecker.CurrentVersionString;
         public string PreviousAppVersion => _config.Config.LastRunVersion ?? "unknown";
         public string UpdateStatus { get; private set; } = "Not checked";
@@ -126,7 +136,28 @@ namespace MasselGUARD.ViewModels
 
         // ── Navigation ────────────────────────────────────────────────────────
 
-        private void GoBack() { if (_step > 0) Step--; }
+        // Step 3 (Custom view details) is only reachable via the Step 2 "Custom" card —
+        // Simple/Manual/Expert apply their fixed bundle directly, nothing to configure there.
+        private const int CustomViewStep = 3;
+        // Step 6 (WiFi Automation) has nothing left to configure once WiFi rules are
+        // disabled (from the Step 2 "Manual" preset or the step's own toggle) — skip
+        // over it too rather than showing an empty/redundant step.
+        private const int WifiAutomationStep = 6;
+
+        private bool IsStepSkipped(int step) => step switch
+        {
+            CustomViewStep     => !_customView,
+            WifiAutomationStep => _disableWifiRules,
+            _                  => false,
+        };
+
+        private void GoBack()
+        {
+            if (_step <= 0) return;
+            int prev = _step - 1;
+            while (prev > 0 && IsStepSkipped(prev)) prev--;
+            Step = Math.Max(prev, 0);
+        }
 
         private void GoNext()
         {
@@ -135,7 +166,9 @@ namespace MasselGUARD.ViewModels
                 ApplyAndFinish();
                 return;
             }
-            Step++;
+            int next = _step + 1;
+            while (next < TotalSteps - 1 && IsStepSkipped(next)) next++;
+            Step = next;
         }
 
         private void ApplyAndFinish()

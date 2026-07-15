@@ -8,6 +8,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using System.Runtime.InteropServices;
 using MasselGUARD.Infrastructure;
@@ -240,9 +241,11 @@ namespace MasselGUARD
                 UpdateFooterLabel();
                 UpdateAdminLabel();
                 UpdateShieldChevron();
+                UpdateTaskbarIcon();
                 NotifyAllBadges();
                 ApplyGroupFilter();
                 RebuildLog();   // re-resolve brush colours after accent/theme change
+                RefreshInfoSection();   // re-derive timeline colours from the new theme
             });
 
             // Theme: apply on startup based on UseCustomTheme + SystemThemeMode
@@ -544,21 +547,27 @@ namespace MasselGUARD
                     Content         = hideCount ? label : $"{label}  {count}",
                     Tag             = tag,
                     Style           = (Style)FindResource("FlatBtn"),
-                    Background      = active && tabBg != null ? tabBg :
-                                      active ? (Brush)FindResource("Surface") :
-                                      tabBg ?? Brushes.Transparent,
                     BorderThickness = new Thickness(0, 0, 0, active ? 2 : 0),
-                    BorderBrush     = active
-                        ? (tabBg != null ? tabBg : (Brush)FindResource("Accent"))
-                        : Brushes.Transparent,
-                    Foreground      = tabFg ??
-                                      (active ? (Brush)FindResource("Accent")
-                                               : (Brush)FindResource("TextMuted")),
-                    FontSize        = 9,
                     Padding         = new Thickness(8, 2, 8, 2),
                     FontWeight      = active ? FontWeights.Bold : FontWeights.Normal,
                     Margin          = new Thickness(0, 0, 2, 0),
                 };
+                btn.SetResourceReference(FontSizeProperty, "Theme.FontSize.Tiny");
+
+                // Theme-derived colours use dynamic resource references so the tabs
+                // (including the selected one) restyle with theme switches and live
+                // Theme Builder edits — FindResource would freeze a snapshot of the
+                // brush at build time. Group-specific colours stay literal.
+                if (active && tabBg != null)  btn.Background = tabBg;
+                else if (active)              btn.SetResourceReference(BackgroundProperty, "Surface");
+                else                          btn.Background = tabBg ?? Brushes.Transparent;
+
+                if (!active)                  btn.BorderBrush = Brushes.Transparent;
+                else if (tabBg != null)       btn.BorderBrush = tabBg;
+                else                          btn.SetResourceReference(BorderBrushProperty, "Accent");
+
+                if (tabFg != null)            btn.Foreground = tabFg;
+                else                          btn.SetResourceReference(ForegroundProperty, active ? "Accent" : "TextMuted");
                 btn.Click += TunnelTab_Click;
                 btn.AllowDrop = true;
                 btn.DragOver  += TunnelTabDragOver;
@@ -1073,22 +1082,17 @@ namespace MasselGUARD
 
         private void OnQuickConnect() => QuickConnect_Click(this, new RoutedEventArgs());
 
-        private void OnOpenSettings()
+        private void OnOpenSettings() => OpenSettings("General");
+
+        private void UpdateAvailableBtn_Click(object sender, RoutedEventArgs e) => OpenSettings("About");
+
+        /// <summary>Opens Settings on the given tab and refreshes app state once it closes.
+        /// Public so other windows (e.g. the Theme Manager) can return focus here.</summary>
+        public void OpenSettings(string initialTab)
         {
-            var win = new Views.SettingsWindow(this) { Owner = this };
+            var win = new Views.SettingsWindow(this) { Owner = this, InitialTab = initialTab };
             win.ShowDialog();
             // Refresh after settings close
-            LogSvc.IsExtended = ConfigSvc.Config.LogLevelSetting == "extended";
-            _vm.RebuildTunnelList();
-            RebuildTunnelGroups();
-            UpdateFooterLabel();
-            RefreshUpdateBadge();
-        }
-
-        private void UpdateAvailableBtn_Click(object sender, RoutedEventArgs e)
-        {
-            var win = new Views.SettingsWindow(this) { Owner = this, InitialTab = "About" };
-            win.ShowDialog();
             LogSvc.IsExtended = ConfigSvc.Config.LogLevelSetting == "extended";
             _vm.RebuildTunnelList();
             RebuildTunnelGroups();
@@ -1263,6 +1267,39 @@ namespace MasselGUARD
                 anyActive ? FindResource("Accent") : FindResource("TextMuted");
         }
 
+        // ── Taskbar icon (Window.Icon — taskbar button + Alt-Tab) ──────────────
+        // Mirrors the tray icon: a theme's appIcon drives both (ThemeManager.ApplyAppIcon
+        // sets Theme.AppIcon for this and Theme.TrayIcon for the tray), but only Theme.AppIcon
+        // was ever consumed until now. Falls back to the compiled exe icon when unset.
+        private ImageSource? _defaultTaskbarIcon;
+
+        private void UpdateTaskbarIcon()
+        {
+            if (Application.Current.Resources["Theme.AppIcon"] is BitmapSource bmp)
+            {
+                Icon = bmp;
+                return;
+            }
+            _defaultTaskbarIcon ??= LoadDefaultExeIcon();
+            Icon = _defaultTaskbarIcon;
+        }
+
+        private static ImageSource? LoadDefaultExeIcon()
+        {
+            try
+            {
+                var path = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+                if (string.IsNullOrEmpty(path)) return null;
+                using var ico = System.Drawing.Icon.ExtractAssociatedIcon(path);
+                if (ico == null) return null;
+                var src = Imaging.CreateBitmapSourceFromHIcon(
+                    ico.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                src.Freeze();
+                return src;
+            }
+            catch { return null; }
+        }
+
         private void UpdateFooterLabel()
         {
             string modeText = AppRunMode switch
@@ -1391,6 +1428,7 @@ namespace MasselGUARD
             if (dlg.ShowDialog() != true) return;
             var rule = new TunnelRule { Ssid = dlg.ResultSsid, Tunnel = dlg.ResultTunnel };
             ConfigSvc.Config.Rules.Add(rule);
+            OnRulesChanged();
         }
         public void EditRulePublic(TunnelRule rule)
         {
@@ -1408,10 +1446,12 @@ namespace MasselGUARD
             if (dlg.ResultNewCounterValue >= 0) rule.ExecutionCount = dlg.ResultNewCounterValue;
             if (dlg.ResultNewCounterValue >= 0)
                 LogSvc.Info($"  Counter: {oldCount} → {dlg.ResultNewCounterValue}");
+            OnRulesChanged();
         }
         public void DeleteRulePublic(TunnelRule rule)
         {
             ConfigSvc.Config.Rules.Remove(rule);
+            OnRulesChanged();
         }
 
         private string? GetCurrentSsid() => WifiSvc.CurrentSsid;
@@ -1444,16 +1484,27 @@ namespace MasselGUARD
 
                     presentInScm.Add(svc.ServiceName);
 
-                    // Running services are actively in use — not orphans.
+                    // Running/starting services are actively in use — not orphans.
                     // Both WireGuard for Windows and MasselGUARD delete the SCM entry
                     // when a tunnel is deactivated, so any stopped service is leftover debris.
-                    if (svc.Status == System.ServiceProcess.ServiceControllerStatus.Running)
+                    if (svc.Status is System.ServiceProcess.ServiceControllerStatus.Running
+                                   or System.ServiceProcess.ServiceControllerStatus.StartPending)
                         continue;
 
                     // Already queued for deletion — hide until SCM confirms it is gone.
                     if (_pendingOrphanDeletion.Contains(svc.ServiceName)) continue;
 
                     var name = svc.ServiceName[prefix.Length..];
+
+                    // A tunnel MasselGUARD is mid-connect on (service created but not yet
+                    // started), active, or mid-disconnect is not an orphan. Without this,
+                    // the startup orphan check races an auto-connect and flags the
+                    // brand-new service in its brief Stopped window.
+                    var vm = _vm.TunnelList.FirstOrDefault(t =>
+                        t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                    if (vm != null && (vm.IsConnecting || vm.IsActive || vm.IsDisconnecting))
+                        continue;
+
                     result.Add(new OrphanedService(svc.ServiceName, name));
                 }
 
@@ -1623,8 +1674,8 @@ namespace MasselGUARD
                     Text       = label,
                     Foreground = iconBrush,
                     FontFamily = fontFam,
-                    FontSize   = 12,
                 };
+                tb.SetResourceReference(FontSizeProperty, "Theme.FontSize");
                 row.Child = tb;
 
                 var capturedAction = action;
@@ -1746,6 +1797,23 @@ namespace MasselGUARD
             if (WifiRuleDeleteBtn != null) WifiRuleDeleteBtn.IsEnabled = hasSelection;
         }
 
+        /// <summary>
+        /// Call after ANY change to <c>ConfigSvc.Config.Rules</c>. Persists the change,
+        /// refreshes the WiFi rules panel, and rebuilds BOTH the tunnel VMs and the
+        /// grouped list view so the per-tunnel rule-count column reflects it.
+        /// <c>RebuildTunnelList</c> alone is not enough: <c>TunnelsListView</c> is bound to
+        /// a <c>.ToList()</c> snapshot produced by <c>ApplyGroupFilter</c> (via
+        /// <c>RebuildTunnelGroups</c>), not to the live <c>_vm.TunnelList</c> collection, so
+        /// without the group rebuild the column keeps showing the pre-change VMs.
+        /// </summary>
+        public void OnRulesChanged()
+        {
+            ConfigSvc.Save();
+            RefreshWifiRulesPanel();
+            _vm.RebuildTunnelList();
+            RebuildTunnelGroups();
+        }
+
         private void WifiRuleAdd_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new Views.RuleDialog(
@@ -1756,10 +1824,8 @@ namespace MasselGUARD
             var rule = new Models.TunnelRule
                 { Name = dlg.ResultName, Ssid = dlg.ResultSsid, Tunnel = dlg.ResultTunnel };
             ConfigSvc.Config.Rules.Add(rule);
-            ConfigSvc.Save();
             LogSvc.Ok($"Rule added: {rule.Ssid}");
-            RefreshWifiRulesPanel();
-            _vm.RebuildTunnelList();
+            OnRulesChanged();
         }
 
         private void WifiRuleEdit_Click(object sender, RoutedEventArgs e)
@@ -1783,12 +1849,10 @@ namespace MasselGUARD
             rule.Ssid   = dlg.ResultSsid;
             rule.Tunnel = dlg.ResultTunnel;
             if (dlg.ResultNewCounterValue >= 0) rule.ExecutionCount = dlg.ResultNewCounterValue;
-            ConfigSvc.Save();
             LogSvc.Ok($"Rule updated: {rule.Ssid}");
             if (dlg.ResultNewCounterValue >= 0)
                 LogSvc.Info($"  Counter: {oldCount} → {dlg.ResultNewCounterValue}");
-            RefreshWifiRulesPanel();
-            _vm.RebuildTunnelList();
+            OnRulesChanged();
         }
 
         private void WifiRuleDelete_Click(object sender, RoutedEventArgs e)
@@ -1799,10 +1863,8 @@ namespace MasselGUARD
             if (rule == null) return;
             if (!ShowThemedYesNo($"Delete rule for \"{rule.Ssid}\"?", "Delete rule")) return;
             ConfigSvc.Config.Rules.Remove(rule);
-            ConfigSvc.Save();
             LogSvc.Ok($"Rule deleted: {rule.Ssid}");
-            RefreshWifiRulesPanel();
-            _vm.RebuildTunnelList();
+            OnRulesChanged();
         }
 
         // ── Defaults popup ────────────────────────────────────────────────────
@@ -1858,12 +1920,14 @@ namespace MasselGUARD
                 BorderBrush   = border,
                 BorderThickness = new Thickness(0,0,0,1),
             };
-            hdr.Child = new System.Windows.Controls.TextBlock
+            var hdrTb = new System.Windows.Controls.TextBlock
             {
                 Text = "Defaults", FontFamily = fontFam,
-                FontSize = 12, FontWeight = FontWeights.SemiBold,
+                FontWeight = FontWeights.SemiBold,
                 Foreground = accent,
             };
+            hdrTb.SetResourceReference(FontSizeProperty, "Theme.FontSize");
+            hdr.Child = hdrTb;
             panel.Children.Add(hdr);
 
             // Helper to make a picker row
@@ -1878,16 +1942,18 @@ namespace MasselGUARD
 
                 var lbl = new System.Windows.Controls.TextBlock
                 {
-                    Text = $"{emoji}  {label}", FontFamily = fontFam, FontSize = 11,
+                    Text = $"{emoji}  {label}", FontFamily = fontFam,
                     Foreground = textPri, VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(0,0,12,0),
                 };
+                lbl.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
                 Grid.SetColumn(lbl, 0);
 
                 var cb = new System.Windows.Controls.ComboBox
                 {
-                    FontFamily = fontFam, FontSize = 11, VerticalAlignment = VerticalAlignment.Center,
+                    FontFamily = fontFam, VerticalAlignment = VerticalAlignment.Center,
                 };
+                cb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
                 if (addClearOption) cb.Items.Add("— clear —");
                 foreach (var t in tunnelNames) cb.Items.Add(t);
                 cb.SelectedItem = tunnelNames.Contains(currentValue) ? currentValue
@@ -1922,16 +1988,18 @@ namespace MasselGUARD
 
             var btnCancel = new System.Windows.Controls.Button
             {
-                Content = "Cancel", FontFamily = fontFam, FontSize = 11,
+                Content = "Cancel", FontFamily = fontFam,
                 Style = (Style)Application.Current.Resources["FlatBtn"],
                 Padding = new Thickness(14,5,14,5), Margin = new Thickness(0,0,8,0),
             };
+            btnCancel.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
             var btnSave = new System.Windows.Controls.Button
             {
-                Content = "Save", FontFamily = fontFam, FontSize = 11,
+                Content = "Save", FontFamily = fontFam,
                 Style = (Style)Application.Current.Resources["PrimaryBtn"],
                 Padding = new Thickness(14,5,14,5),
             };
+            btnSave.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
             Grid.SetColumn(btnCancel, 1);
             Grid.SetColumn(btnSave,   2);
             btnGrid.Children.Add(btnCancel);
@@ -2121,8 +2189,14 @@ namespace MasselGUARD
             var wifiStar  = new GridLength(2, GridUnitType.Star);   // 40 %
             var auto      = GridLength.Auto;
             if (WifiRulesHeaderRow != null) WifiRulesHeaderRow.Height = showPanel ? auto     : zero;
-            if (WifiRulesPanelRow  != null) WifiRulesPanelRow.Height  = showPanel ? wifiStar : zero;
             if (WifiRulesBtnsRow   != null) WifiRulesBtnsRow.Height   = showPanel ? auto     : zero;
+            if (WifiRulesPanelRow  != null)
+            {
+                // Drop MinHeight when hidden too — otherwise the row keeps its 152 px and
+                // leaves a gap, so the tunnel list can't grow to fill the freed space.
+                WifiRulesPanelRow.MinHeight = showPanel ? 152 : 0;
+                WifiRulesPanelRow.Height    = showPanel ? wifiStar : zero;
+            }
 
             if (!showPanel) { _activeRuleFilter = null; return; }
 
@@ -2294,21 +2368,24 @@ namespace MasselGUARD
 
             var panel = new System.Windows.Controls.StackPanel();
 
-            panel.Children.Add(new System.Windows.Controls.TextBlock
+            var yesNoTitleTb = new System.Windows.Controls.TextBlock
             {
                 Text       = title,
-                FontSize   = 12, FontWeight = FontWeights.Bold,
+                FontWeight = FontWeights.Bold,
                 Foreground = (System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
                 Margin     = new Thickness(0, 0, 0, 10),
-            });
-            panel.Children.Add(new System.Windows.Controls.TextBlock
+            };
+            yesNoTitleTb.SetResourceReference(FontSizeProperty, "Theme.FontSize");
+            panel.Children.Add(yesNoTitleTb);
+            var yesNoMsgTb = new System.Windows.Controls.TextBlock
             {
                 Text         = message,
-                FontSize     = 11,
                 Foreground   = (System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
                 TextWrapping = TextWrapping.Wrap,
                 Margin       = new Thickness(0, 0, 0, 16),
-            });
+            };
+            yesNoMsgTb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
+            panel.Children.Add(yesNoMsgTb);
 
             var btns = new System.Windows.Controls.StackPanel
             {
@@ -2354,21 +2431,24 @@ namespace MasselGUARD
 
             var panel = new System.Windows.Controls.StackPanel();
 
-            panel.Children.Add(new System.Windows.Controls.TextBlock
+            var infoTitleTb = new System.Windows.Controls.TextBlock
             {
                 Text       = title,
-                FontSize   = 12, FontWeight = FontWeights.Bold,
+                FontWeight = FontWeights.Bold,
                 Foreground = (System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
                 Margin     = new Thickness(0, 0, 0, 10),
-            });
-            panel.Children.Add(new System.Windows.Controls.TextBlock
+            };
+            infoTitleTb.SetResourceReference(FontSizeProperty, "Theme.FontSize");
+            panel.Children.Add(infoTitleTb);
+            var infoMsgTb = new System.Windows.Controls.TextBlock
             {
                 Text         = message,
-                FontSize     = 11,
                 Foreground   = (System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
                 TextWrapping = TextWrapping.Wrap,
                 Margin       = new Thickness(0, 0, 0, 16),
-            });
+            };
+            infoMsgTb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
+            panel.Children.Add(infoMsgTb);
 
             var btns = new System.Windows.Controls.StackPanel
             {
@@ -2421,25 +2501,26 @@ namespace MasselGUARD
             var title = new System.Windows.Controls.TextBlock
             {
                 Text       = Lang.T("InstallPortableTitle"),
-                FontSize   = 13, FontWeight = FontWeights.Bold,
+                FontWeight = FontWeights.Bold,
                 Foreground = (System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
                 Margin     = new Thickness(0, 0, 0, 10),
             };
+            title.SetResourceReference(FontSizeProperty, "Theme.FontSize.Header");
             var body = new System.Windows.Controls.TextBlock
             {
                 Text        = Lang.T("InstallPortablePrompt"),
-                FontSize    = 11,
                 Foreground  = (System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
                 TextWrapping= TextWrapping.Wrap,
                 Margin      = new Thickness(0, 0, 0, 10),
             };
+            body.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
             var chk = new System.Windows.Controls.CheckBox
             {
                 Content    = Lang.T("InstallPortableDoNotAsk"),
-                FontSize   = 10,
                 Foreground = (System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
                 Margin     = new Thickness(0, 0, 0, 14),
             };
+            chk.SetResourceReference(FontSizeProperty, "Theme.FontSize.Tiny");
             chk.Checked   += (_, _) => suppress = true;
             chk.Unchecked += (_, _) => suppress = false;
 
@@ -2499,6 +2580,10 @@ namespace MasselGUARD
                 // Always refresh the badge — even when no update is found (clears a stale badge).
                 Dispatcher.Invoke(RefreshUpdateBadge);
 
+                // Theme updates piggyback on the same check (same frequency/trigger) —
+                // a passive badge only, no prompt, so it doesn't compete with the app update.
+                _ = CheckForThemeUpdatesAsync();
+
                 if (latest == null) return;
                 if (!UpdateChecker.IsNewerVersion(latest.TagName)) return;
 
@@ -2521,6 +2606,24 @@ namespace MasselGUARD
                         onShutdown: () => Dispatcher.Invoke(
                             () => ((App)System.Windows.Application.Current).ShutdownApp()));
                 }
+            }
+            catch { /* silent — network may not be available */ }
+        }
+
+        /// <summary>Checks installed community themes against the repo manifest for updates —
+        /// called alongside the app update check (same frequency/trigger). Purely a passive
+        /// result (ConfigSvc.Config.ThemeUpdatesAvailable) for Settings to badge; unlike the
+        /// app update, it never prompts on its own.</summary>
+        public async System.Threading.Tasks.Task CheckForThemeUpdatesAsync()
+        {
+            try
+            {
+                var url = (ConfigSvc.Config.SharedThemesRepoUrl ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(url)) url = AppConfig.DefaultSharedThemesRepoUrl;
+
+                var updated = await ThemeDownloadService.CheckForThemeUpdatesAsync(url, ThemeManager.SharedThemeRoot);
+                ConfigSvc.Config.ThemeUpdatesAvailable = updated;
+                ConfigSvc.Save();
             }
             catch { /* silent — network may not be available */ }
         }
@@ -2738,18 +2841,22 @@ namespace MasselGUARD
             };
             var panel = new System.Windows.Controls.StackPanel();
 
-            panel.Children.Add(new System.Windows.Controls.TextBlock
+            var installTitleTb = new System.Windows.Controls.TextBlock
             {
-                Text=Lang.T("InstallTitle"), FontSize=12, FontWeight=FontWeights.Bold,
+                Text=Lang.T("InstallTitle"), FontWeight=FontWeights.Bold,
                 Foreground=(System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
                 Margin=new Thickness(0,0,0,12),
-            });
-            panel.Children.Add(new System.Windows.Controls.TextBlock
+            };
+            installTitleTb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Header");
+            panel.Children.Add(installTitleTb);
+            var installSelectFolderTb = new System.Windows.Controls.TextBlock
             {
-                Text=Lang.T("InstallSelectFolder"), FontSize=10,
+                Text=Lang.T("InstallSelectFolder"),
                 Foreground=(System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
                 Margin=new Thickness(0,0,0,4),
-            });
+            };
+            installSelectFolderTb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Tiny");
+            panel.Children.Add(installSelectFolderTb);
 
             var folderRow = new System.Windows.Controls.Grid { Margin=new Thickness(0,0,0,8) };
             folderRow.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width=new GridLength(1,GridUnitType.Star) });
@@ -2759,13 +2866,13 @@ namespace MasselGUARD
             {
                 Text=defaultParent,
                 FontFamily=(System.Windows.Media.FontFamily)Application.Current.Resources["Theme.FontFamily"],
-                FontSize=11,
                 Background=(System.Windows.Media.Brush)Application.Current.Resources["CardBg"],
                 Foreground=(System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
                 BorderBrush=(System.Windows.Media.Brush)Application.Current.Resources["BorderColor"],
                 BorderThickness=new Thickness(1), Padding=new Thickness(6,4,6,4),
                 VerticalContentAlignment=VerticalAlignment.Center,
             };
+            folderBox.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
             var browseBtn = new System.Windows.Controls.Button
             {
                 Content="…", Style=(Style)Application.Current.Resources["FlatBtn"],
@@ -2777,19 +2884,22 @@ namespace MasselGUARD
             folderRow.Children.Add(folderBox); folderRow.Children.Add(browseBtn);
             panel.Children.Add(folderRow);
 
-            panel.Children.Add(new System.Windows.Controls.TextBlock
+            var willInstallToTb = new System.Windows.Controls.TextBlock
             {
-                Text="Will install to:", FontSize=10,
+                Text="Will install to:",
                 Foreground=(System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
                 Margin=new Thickness(0,0,0,2),
-            });
+            };
+            willInstallToTb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Tiny");
+            panel.Children.Add(willInstallToTb);
             var resolvedLabel = new System.Windows.Controls.TextBlock
             {
                 FontFamily=(System.Windows.Media.FontFamily)Application.Current.Resources["Theme.FontFamily"],
-                FontSize=11, FontWeight=FontWeights.Bold,
+                FontWeight=FontWeights.Bold,
                 Foreground=(System.Windows.Media.Brush)Application.Current.Resources["Accent"],
                 TextWrapping=TextWrapping.Wrap, Margin=new Thickness(0,0,0,16),
             };
+            resolvedLabel.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
 
             void UpdateResolved()
             {
@@ -3011,26 +3121,74 @@ namespace MasselGUARD
             new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, System.Windows.Media.Color> _wifiColors =
             new(StringComparer.OrdinalIgnoreCase);
-        private static readonly System.Windows.Media.Color[] _wifiPalette =
-        {
-            System.Windows.Media.Color.FromRgb(0xFF, 0xB3, 0x47),  // amber
-            System.Windows.Media.Color.FromRgb(0xFF, 0x6B, 0x6B),  // coral
-            System.Windows.Media.Color.FromRgb(0x4E, 0xCB, 0xC8),  // mint
-            System.Windows.Media.Color.FromRgb(0xBD, 0x8F, 0xFF),  // lavender
-            System.Windows.Media.Color.FromRgb(0xFF, 0x9F, 0xE5),  // pink
-            System.Windows.Media.Color.FromRgb(0x98, 0xE4, 0x7A),  // lime
-        };
 
-        // Fixed colour palette (cycles for more than N tunnels)
-        private static readonly System.Windows.Media.Color[] _chartPalette =
+        // Stable per-name colour INDEX (only ever grows) so each tunnel / SSID keeps the
+        // same slot across renders. The actual colour is derived from the active THEME at
+        // draw time (TimelinePaletteColor), so the timeline matches whatever theme is
+        // selected — no manual colour picking, and it scales to any number of tunnels/SSIDs.
+        private readonly Dictionary<string, int> _chartColorIndex = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> _wifiColorIndex  = new(StringComparer.OrdinalIgnoreCase);
+
+        private static int ColorIndexFor(Dictionary<string, int> map, string name)
         {
-            System.Windows.Media.Color.FromRgb(0x4C, 0x9B, 0xE8),  // blue
-            System.Windows.Media.Color.FromRgb(0x4C, 0xD9, 0x7A),  // green
-            System.Windows.Media.Color.FromRgb(0xF0, 0xA3, 0x3A),  // orange
-            System.Windows.Media.Color.FromRgb(0xD9, 0x4C, 0x7A),  // rose
-            System.Windows.Media.Color.FromRgb(0xAA, 0x6E, 0xE8),  // purple
-            System.Windows.Media.Color.FromRgb(0x4C, 0xD9, 0xD9),  // teal
-        };
+            if (!map.TryGetValue(name, out var idx)) { idx = map.Count; map[name] = idx; }
+            return idx;
+        }
+
+        /// <summary>
+        /// Timeline segment colour for the Nth tunnel/SSID, derived from the theme's Accent.
+        /// Hues fan out from the accent by the golden angle (evenly spread + distinct for any
+        /// count); the WiFi band is phase-shifted 180° so it reads differently from the
+        /// tunnel bar. Saturation/brightness adapt to a dark vs light theme.
+        /// </summary>
+        private System.Windows.Media.Color TimelinePaletteColor(int index, bool wifi)
+        {
+            double baseHue = 210;   // fallback if Accent can't be read
+            if (FindResource("Accent") is SolidColorBrush ab)
+                RgbToHsv(ab.Color, out baseHue, out _, out _);
+
+            bool dark = true;
+            if (FindResource("WindowBg") is SolidColorBrush wb)
+                dark = (wb.Color.R * 0.299 + wb.Color.G * 0.587 + wb.Color.B * 0.114) < 128;
+
+            double hue = baseHue + (wifi ? 180.0 : 0.0) + index * 137.50776;
+            double sat = wifi ? 0.50 : 0.62;
+            double val = dark ? 0.85 : 0.68;
+            return HsvToColor(hue, sat, val);
+        }
+
+        private static void RgbToHsv(System.Windows.Media.Color c, out double h, out double s, out double v)
+        {
+            double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
+            double max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b)), d = max - min;
+            h = 0;
+            if (d != 0)
+            {
+                if      (max == r) h = 60 * (((g - b) / d) % 6);
+                else if (max == g) h = 60 * (((b - r) / d) + 2);
+                else               h = 60 * (((r - g) / d) + 4);
+            }
+            if (h < 0) h += 360;
+            s = max == 0 ? 0 : d / max;
+            v = max;
+        }
+
+        private static System.Windows.Media.Color HsvToColor(double h, double s, double v)
+        {
+            h = ((h % 360) + 360) % 360;
+            double c = v * s, x = c * (1 - Math.Abs((h / 60.0 % 2) - 1)), m = v - c;
+            double r = 0, g = 0, b = 0;
+            if      (h <  60) { r = c; g = x; }
+            else if (h < 120) { r = x; g = c; }
+            else if (h < 180) { g = c; b = x; }
+            else if (h < 240) { g = x; b = c; }
+            else if (h < 300) { r = x; b = c; }
+            else              { r = c; b = x; }
+            return System.Windows.Media.Color.FromRgb(
+                (byte)Math.Round((r + m) * 255),
+                (byte)Math.Round((g + m) * 255),
+                (byte)Math.Round((b + m) * 255));
+        }
 
         /// <summary>Apply the configured InfoSectionMode — called on load and after settings save.</summary>
         public void ApplyInfoSectionMode()
@@ -3145,7 +3303,7 @@ namespace MasselGUARD
             for (int i = 0; i < tunnelNames.Count; i++)
             {
                 string name   = tunnelNames[i];
-                var    color  = _chartPalette[i % _chartPalette.Length];
+                var    color  = TimelinePaletteColor(ColorIndexFor(_chartColorIndex, name), wifi: false);
                 _chartColors[name] = color;
 
                 var tunnelEntries = allEntries
@@ -3402,11 +3560,11 @@ namespace MasselGUARD
                 StrokeThickness = 1,
             });
 
-            // Assign colours to new SSIDs (stable: only add, never clear)
-            int nextIdx = _wifiColors.Count;
+            // Re-derive every SSID colour from the theme each render (so theme switches
+            // apply), keyed by a stable per-SSID index so each SSID keeps its colour.
+            _wifiColors.Clear();
             foreach (var ssid in orderedSsids)
-                if (!_wifiColors.ContainsKey(ssid))
-                    _wifiColors[ssid] = _wifiPalette[nextIdx++ % _wifiPalette.Length];
+                _wifiColors[ssid] = TimelinePaletteColor(ColorIndexFor(_wifiColorIndex, ssid), wifi: true);
 
             // Single row background for the whole WiFi band
             var bgRect = new System.Windows.Shapes.Rectangle

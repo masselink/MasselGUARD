@@ -1,6 +1,6 @@
-# MasselGUARD — How it works
+# MasselGUARD — Technical reference
 
-Technical reference for v3.6.0 — Dangerous Donkey. For end-user instructions see [`MANUAL.md`](MANUAL.md).
+Developer/technical reference for v3.7.0 — Chromatic Chameleon. For end-user instructions see [`Manual.md`](Manual.md).
 
 ---
 
@@ -28,7 +28,25 @@ Technical reference for v3.6.0 — Dangerous Donkey. For end-user instructions s
 20. [Import / Export settings](#20-import--export-settings)
 21. [Build and deployment](#21-build-and-deployment)
 22. [Troubleshooting](#22-troubleshooting)
-23. [Command-line interface (CLI)](#22-command-line-interface-cli)
+23. [Run modes and installation](#23-run-modes-and-installation)
+24. [Tray icon rendering](#24-tray-icon-rendering)
+25. [WiFi Rules panel (main window)](#25-wifi-rules-panel-main-window)
+26. [Tunnel uptime](#26-tunnel-uptime)
+27. [Deferred-save pattern (SettingsWindow)](#27-deferred-save-pattern-settingswindow)
+28. [WiFi rule name and execution counter](#28-wifi-rule-name-and-execution-counter)
+29. [WiFi rules drag-to-reorder](#29-wifi-rules-drag-to-reorder)
+30. [Double-fire prevention](#30-double-fire-prevention)
+31. [Build number](#31-build-number)
+32. [Tray menu icons](#32-tray-menu-icons)
+33. [Notification duration](#33-notification-duration)
+34. [Defaults button popup](#34-defaults-button-popup)
+35. [Drag tunnels into groups](#35-drag-tunnels-into-groups)
+36. [Settings tab routing](#36-settings-tab-routing)
+37. [Toast notification model](#37-toast-notification-model)
+38. [Rule edit → tunnel list refresh](#38-rule-edit--tunnel-list-refresh)
+39. [Command-line interface (CLI)](#39-command-line-interface-cli)
+40. [Release codenames](#40-release-codenames)
+41. [Managed Portable version check](#41-managed-portable-version-check)
 
 ---
 
@@ -404,28 +422,16 @@ ACL: `SYSTEM + Administrators + owning user` only. Deleted within ~200 ms.
 
 ## 16. Theme system
 
-Themes are **unified dual-variant** files: one `theme.json` per theme containing both colour variants. See `theme/THEME_INFO.md` for the full key reference.
+Themes are **unified dual-variant** files: one `theme.json` per theme containing both colour
+variants (plus per-variant assets). The full field reference, JSON schema, and copy-paste
+template live in the [MasselGUARD-themes](https://github.com/masselink/MasselGUARD-themes) repo
+— this section covers only how the **app itself** discovers, loads, and resolves them.
 
 | Location | Purpose |
 |---|---|
-| `<exedir>\theme\<folder>\theme.json` | Bundled built-in themes (`grey`, `highcontrast`) |
-| `%APPDATA%\MasselGUARD\themes\<folder>\theme.json` | User themes — survive app updates, checked first |
+| `%APPDATA%\MasselGUARD\themes\<folder>\theme.json` | All non-System themes — downloaded (Theme Browser) and user-made (Theme Builder) — live here per-user; survive app updates. The app bundles none |
 
-`ThemeManager.BuiltinThemeNames` = `{ "grey", "highcontrast" }`; the virtual `__system__` theme (Windows accent palette) is also treated as built-in.
-
-### File format
-
-Root level holds **structural settings only** (font, corner radius, chrome, `AppName`); colour fields live in `"dark"` and `"light"` sections:
-
-```json
-{
-  "name": "My Theme",
-  "fontFamily": "Segoe UI",
-  "cornerRadius": 6,
-  "dark":  { "colorWindowBg": "#0E1117", "colorAccent": "#58A6FF" },
-  "light": { "colorWindowBg": "#F6F8FA", "colorAccent": "#0969DA" }
-}
-```
+`ThemeManager.ThemeNames()` discovers themes **from disk** — every folder under `%APPDATA%\MasselGUARD\themes\` with a `theme.json` (or `<folder>-theme.json`, the naming convention the community repo uses). **The app bundles no themes**; they are either installed by the Theme Browser (from the shared-themes repo) or created by the Theme Builder — both into the same per-user folder, so everything is editable and survives app updates. `ConsolidateThemeFolders` merges any old `custom_themes\`/`shared-themes\`/`shared_themes\` into `themes\` at startup; Create/Duplicate/Import refuse to overwrite an existing name (`ThemeExists`). Only the virtual `__system__` theme (Windows accent palette) is built in code, read-only and non-deletable (`IsBuiltinTheme`); every theme in `themes\` is editable and deletable. The builder lists **Built-in** (System) and **THEMES** (all the rest). The Dark/Light pill previews live for read-only themes too.
 
 ### Load and resolution
 
@@ -451,6 +457,10 @@ else                    → def                                            ← l
 ### Theme preview (Settings)
 
 Picker and mode changes **do not apply** the theme live — they only update `_draft`. The **▶ Dark** / **▶ Light** buttons apply the selected theme's variant for 10 seconds via a `DispatcherTimer`; `CancelThemePreview()` then calls `_main.ApplyThemeFromConfig()`, which re-reads the committed config.
+
+### Font-size resource tiers
+
+`ThemeManager.Apply()` sets four scaled resources from the theme's base `FontSize` — `Theme.FontSize.Tiny` (base−2), `Theme.FontSize.Small` (base−1), `Theme.FontSize` (base), `Theme.FontSize.Header` (base+2) — bound throughout the chrome so both a theme's own size and the Settings font-size override reach every label, not just the tunnel list. `Theme.HeaderFontFamily` resolves to the theme's `headerFontFamily` when set, else falls back to `Theme.FontFamily`.
 
 ---
 
@@ -495,7 +505,7 @@ Changing the font picker or size slider while preview is active calls `CancelFon
 
 ---
 
-## 17. Logging
+## 18. Logging
 
 | Level | Shown in Normal | Shown in Extended |
 |---|---|---|
@@ -512,7 +522,7 @@ Continuation lines (detail sub-entries) render with a `↳` prefix in the timest
 
 ---
 
-## 18. Settings panel
+## 19. Settings panel
 
 | Tab | Key settings |
 |---|---|
@@ -528,7 +538,7 @@ Continuation lines (detail sub-entries) render with a `↳` prefix in the timest
 
 ---
 
-## 19. Import / Export settings
+## 20. Import / Export settings
 
 **Export** (Settings → Advanced → Export settings):
 - Shows a warning that tunnel configs are excluded and future-version compatibility is not guaranteed
@@ -543,13 +553,13 @@ Continuation lines (detail sub-entries) render with a `↳` prefix in the timest
 
 ---
 
-## 20. Build and deployment
+## 21. Build and deployment
 
 ### BUILD.bat
 
 ```bat
-set VERSION=3.3.0
-set CODENAME=Camouflaged Koala
+set VERSION=3.7.0
+set CODENAME=Chromatic Chameleon
 set DOTNET_CLI_TELEMETRY_OPTOUT=1
 set DOTNET_NOLOGO=1
 dotnet publish -p:Version=%VERSION% -p:InformationalVersion=%VERSION%.%BUILD_NUM% → dist\
@@ -560,7 +570,7 @@ copy wireguard-deps\*.dll → dist\
 Banner printed during build:
 ```
   --------------------------------------------------
-  MasselGUARD  v3.3.0  |  Camouflaged Koala
+  MasselGUARD  v3.7.0  |  Chromatic Chameleon
   Harold Masselink  |  https://masselink.net
   --------------------------------------------------
 ```
@@ -589,7 +599,7 @@ Builds `tunnel.dll` from source (requires Go 1.21+ and gcc/MinGW). Downloads `wi
 
 ---
 
-## 21. Troubleshooting
+## 22. Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
@@ -603,7 +613,7 @@ Builds `tunnel.dll` from source (requires Go 1.21+ and gcc/MinGW). Downloads `wi
 
 ---
 
-## 22. Run modes and installation
+## 23. Run modes and installation
 
 `MainWindow.AppRunModeKind` enum:
 
@@ -628,7 +638,7 @@ The `MasselGUARD` Scheduled Task is created at `RunLevel=Highest` during install
 
 ---
 
-## 23. Tray icon rendering
+## 24. Tray icon rendering
 
 `App.TrayIconHelper.RenderIcon(int S, int activeCount)` produces a 32-bit ARGB bitmap at size S (typically 16 or 32 px) using GDI+ (`System.Drawing`).
 
@@ -645,7 +655,7 @@ The icon is only redrawn when `_lastTrayActiveCount` changes — not on the 1-se
 
 ---
 
-## 24. WiFi Rules panel (main window)
+## 25. WiFi Rules panel (main window)
 
 A read-only summary of `AppConfig.Rules` displayed below the tunnel management buttons in `Grid.Row="3"` (header) and `Grid.Row="4"` (content) of the left column.
 
@@ -658,7 +668,7 @@ The right column (Activity Log) uses `Grid.RowSpan="5"` so it always fills the f
 
 ---
 
-## 25. Tunnel uptime
+## 26. Tunnel uptime
 
 `TunnelEntryViewModel._connectedAt` (nullable `DateTime`) is set to `DateTime.UtcNow` when `IsActive` transitions `false → true`. It is cleared on disconnect.
 
@@ -672,7 +682,7 @@ The right column (Activity Log) uses `Grid.RowSpan="5"` so it always fills the f
 
 ---
 
-## 26. Deferred-save pattern (SettingsWindow)
+## 27. Deferred-save pattern (SettingsWindow)
 
 `SettingsWindow` creates `_draft = _main.ConfigSvc.Config.DeepClone()` on `Loaded`. All handler mutations target `_draft`. `_vm` (SettingsViewModel) is populated from `_draft` and stages additional fields (rules, language, mode, log level, themes).
 
@@ -692,7 +702,7 @@ On **Cancel / close without Save** (`OnClosing`):
 
 ---
 
-## 27. WiFi rule name and execution counter
+## 28. WiFi rule name and execution counter
 
 `TunnelRule` model fields added:
 ```csharp
@@ -712,7 +722,7 @@ RuleName = string.IsNullOrEmpty(r.Name) ? autoName : r.Name;
 
 ---
 
-## 28. WiFi rules drag-to-reorder
+## 29. WiFi rules drag-to-reorder
 
 `WifiRulesListView` has `AllowDrop="True"`. Three handlers:
 - `PreviewMouseDown` — captures `WifiRuleRow` and start position
@@ -721,7 +731,7 @@ RuleName = string.IsNullOrEmpty(r.Name) ? autoName : r.Name;
 
 ---
 
-## 29. Double-fire prevention
+## 30. Double-fire prevention
 
 Two guards prevent rules firing twice on a network switch:
 
@@ -748,7 +758,7 @@ Sequence on network switch (MasselTHINGS → MasselNET):
 
 ---
 
-## 30. Build number
+## 31. Build number
 
 `BUILD.bat` generates the build stamp and passes it to MSBuild — no source file is modified:
 
@@ -762,14 +772,14 @@ dotnet publish -p:Version=%VERSION% -p:InformationalVersion=%VERSION%.%BUILD_NUM
 Assembly.GetEntryAssembly()
     ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
     ?.InformationalVersion;
-// → "3.3.0.2506011430"  (last 10 chars = build stamp)
+// → "3.7.0.2607080000"  (last 10 chars = build stamp)
 ```
 
 `Version.TryParse` handles 4-part versions for comparison. The version component (`Major.Minor.Patch`) is always static; only the build stamp changes between builds.
 
 ---
 
-## 31. Tray menu icons
+## 32. Tray menu icons
 
 `DrawMenuIcon(MenuIconKind)` produces a 16×16 GDI+ bitmap using theme colours from `Application.Current.Resources`:
 
@@ -784,7 +794,7 @@ Assembly.GetEntryAssembly()
 
 ---
 
-## 32. Notification duration
+## 33. Notification duration
 
 `AppConfig.NotificationDurationSeconds` (default 5). Picker in Settings → Appearance: 3 / 5 / 10 / 15 / 30 seconds.
 
@@ -792,7 +802,7 @@ Assembly.GetEntryAssembly()
 
 ---
 
-## 33. Defaults button popup
+## 34. Defaults button popup
 
 `DefaultsBtn_Click` builds a code-only `Window` (no XAML) with two `ComboBox` pickers — default action tunnel and open network protection — each with a "— clear —" entry. Positioned at:
 
@@ -806,7 +816,7 @@ On Save: writes `DefaultAction`, `DefaultTunnel`, `OpenWifiTunnel` to config, th
 
 ---
 
-## 34. Drag tunnels into groups
+## 35. Drag tunnels into groups
 
 Each tab button created in `AddTab()` receives:
 ```csharp
@@ -819,7 +829,7 @@ btn.Drop      += TunnelTabDrop;
 
 ---
 
-## 35. Settings tab routing
+## 36. Settings tab routing
 
 `TabBtn_Click` maps button `Name` → page name via a `switch`:
 
@@ -844,7 +854,7 @@ Legacy tab names are mapped inside `ShowTab` for callers that still pass the pre
 
 ---
 
-## 36. Toast notification model
+## 37. Toast notification model
 
 `ToastNotification` (public record-like class):
 
@@ -862,7 +872,7 @@ The legacy `ShowTrayNotification(string title, string body, int durationMs)` ove
 
 ---
 
-## 37. Rule edit → tunnel list refresh
+## 38. Rule edit → tunnel list refresh
 
 `WifiRuleAdd_Click`, `WifiRuleEdit_Click`, and `WifiRuleDelete_Click` all call:
 1. `RefreshWifiRulesPanel()` — rebuilds the `WifiRuleRow` collection with updated `ExecutionCount` and names
@@ -872,7 +882,7 @@ This ensures the Rules column in the tunnel list stays in sync with any rule cha
 
 ---
 
-## 22. Command-line interface (CLI)
+## 39. Command-line interface (CLI)
 
 ### Entry point
 
@@ -936,8 +946,8 @@ string updateStatus =
 
 Plain output:
 ```
-MasselGUARD v3.3.0  |  Camouflaged Koala
-build:   2506011430
+MasselGUARD v3.7.0  |  Chromatic Chameleon
+build:   2607080000
 Harold Masselink  |  https://masselink.net
 Update:  up to date
 ```
@@ -965,7 +975,7 @@ JSON output adds `update_status` field alongside `version`, `codename`, `build`.
 
 ---
 
-## 39. Release codenames
+## 40. Release codenames
 
 `UpdateChecker._codenames` — static dictionary keyed by `"Major.Minor.Patch"`:
 
@@ -973,17 +983,17 @@ JSON output adds `update_status` field alongside `version`, `codename`, `build`.
 private static readonly Dictionary<string, string> _codenames =
     new(StringComparer.OrdinalIgnoreCase)
     {
-        { "3.3.0", "Camouflaged Koala" },
+        { "3.7.0", "Chromatic Chameleon" },
     };
 ```
 
-`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"3.3.0 — Camouflaged Koala"` or just `"3.3.0"`.
+`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"3.7.0 — Chromatic Chameleon"` or just `"3.7.0"`.
 
 Codenames are assigned per `Major.Minor.Patch` release only — not per build. Update the dictionary in `UpdateChecker.cs` **and** `BUILD.bat` when bumping `VERSION`.
 
 ---
 
-## 38. Managed Portable version check
+## 41. Managed Portable version check
 
 `NormaliseVersion(v)` strips leading `v`/`V` and whitespace. Comparison:
 

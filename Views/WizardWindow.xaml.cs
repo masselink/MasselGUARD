@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -16,7 +17,7 @@ namespace MasselGUARD.Views
 
         private bool _settingControls;
 
-        private const int TotalSteps = 7; // steps 0-6
+        private const int TotalSteps = 9; // steps 0-8
 
         public WizardWindow(MainWindow main, bool isUpgrade = false)
         {
@@ -51,7 +52,7 @@ namespace MasselGUARD.Views
         // ── Step visibility ───────────────────────────────────────────────────
         private void UpdateStepVisibility()
         {
-            var steps = new[] { Step0, Step1, Step2, Step3, Step4, Step5, Step6 };
+            var steps = new[] { Step0, Step1, Step2, Step3, Step4, Step5, Step6, Step7, Step8 };
             for (int i = 0; i < steps.Length; i++)
                 if (steps[i] != null)
                     steps[i].Visibility = i == _vm.Step ? Visibility.Visible : Visibility.Collapsed;
@@ -77,11 +78,28 @@ namespace MasselGUARD.Views
                 if (WizThemeAuto  != null) WizThemeAuto.IsChecked  = sysMode == "auto";
                 if (WizThemeDark  != null) WizThemeDark.IsChecked  = sysMode == "dark";
                 if (WizThemeLight != null) WizThemeLight.IsChecked = sysMode == "light";
+                PopulateWizThemePicker();
                 _settingControls = false;
             }
 
-            // ── Step 2: Mode ─────────────────────────────────────────────────
+            // ── Step 2: Choose your view ─────────────────────────────────────
             if (_vm.Step == 2)
+                HighlightMatchingPreset();
+
+            // ── Step 3: Custom view details (only reachable via "Custom") ────
+            if (_vm.Step == 3)
+            {
+                var cfg = _main.ConfigSvc.Config;
+                _settingControls = true;
+                WizCustomTimelineToggle.IsChecked    = cfg.ShowTimeline;
+                WizCustomActivityLogToggle.IsChecked = cfg.ShowActivityLog;
+                WizCustomWifiRulesToggle.IsChecked   = cfg.ShowWifiRulesOnMainWindow;
+                WizCustomManualToggle.IsChecked      = _vm.DisableWifiRules;
+                _settingControls = false;
+            }
+
+            // ── Step 4: Mode ─────────────────────────────────────────────────
+            if (_vm.Step == 4)
             {
                 _settingControls = true;
                 WizModeStandalone.IsChecked = _vm.Mode == AppMode.Standalone;
@@ -90,8 +108,8 @@ namespace MasselGUARD.Views
                 _settingControls = false;
             }
 
-            // ── Step 3: Startup & Installation ───────────────────────────────
-            if (_vm.Step == 3)
+            // ── Step 5: Startup & Installation ───────────────────────────────
+            if (_vm.Step == 5)
             {
                 if (WizInstallChoice != null)
                     WizInstallChoice.Visibility =
@@ -107,8 +125,8 @@ namespace MasselGUARD.Views
                 _settingControls = false;
             }
 
-            // ── Step 4: WiFi Automation ──────────────────────────────────────
-            if (_vm.Step == 4)
+            // ── Step 6: WiFi Automation ──────────────────────────────────────
+            if (_vm.Step == 6)
             {
                 _settingControls = true;
                 if (WizManualToggle != null)
@@ -123,8 +141,8 @@ namespace MasselGUARD.Views
                         ? Visibility.Collapsed : Visibility.Visible;
             }
 
-            // ── Step 5: Behavior ─────────────────────────────────────────────
-            if (_vm.Step == 5)
+            // ── Step 7: Behavior ─────────────────────────────────────────────
+            if (_vm.Step == 7)
             {
                 _settingControls = true;
                 var cfg = _main.ConfigSvc.Config;
@@ -145,8 +163,8 @@ namespace MasselGUARD.Views
                 _settingControls = false;
             }
 
-            // ── Step 6: Done ─────────────────────────────────────────────────
-            if (_vm.Step == 6)
+            // ── Step 8: Done ─────────────────────────────────────────────────
+            if (_vm.Step == 8)
             {
                 if (WizVersionLabel != null)
                     WizVersionLabel.Text = $"MasselGUARD v{UpdateChecker.CurrentVersionString}";
@@ -219,7 +237,7 @@ namespace MasselGUARD.Views
         // ── Dot indicators ────────────────────────────────────────────────────
         private void UpdateDots()
         {
-            var dots   = new[] { Dot0, Dot1, Dot2, Dot3, Dot4, Dot5, Dot6 };
+            var dots   = new[] { Dot0, Dot1, Dot2, Dot3, Dot4, Dot5, Dot6, Dot7, Dot8 };
             var accent = (Brush)FindResource("Accent");
             var dim    = (Brush)FindResource("BorderColor");
             for (int i = 0; i < dots.Length; i++)
@@ -281,6 +299,145 @@ namespace MasselGUARD.Views
                 cfg.SystemThemeMode = "light";
                 ThemeManager.Instance.Load(cfg.ActiveTheme ?? "__system__", false);
             }
+        }
+
+        private void WizDownloadThemes_Click(object sender, RoutedEventArgs e)
+        {
+            var url = (_main.ConfigSvc.Config.SharedThemesRepoUrl ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(url))
+                url = AppConfig.DefaultSharedThemesRepoUrl;
+
+            var browser = new ThemeBrowserWindow(_main, url) { Owner = this };
+            browser.ShowDialog();
+            if (browser.AnyInstalled)
+                PopulateWizThemePicker();   // surface newly downloaded themes right away
+        }
+
+        /// <summary>Fills the theme picker from every installed theme and selects the active one —
+        /// without this, a theme downloaded via "Download more themes…" has no way to be picked.</summary>
+        private void PopulateWizThemePicker()
+        {
+            if (WizThemePicker == null) return;
+            WizThemePicker.Items.Clear();
+            foreach (var f in ThemeManager.AvailableThemes())
+                WizThemePicker.Items.Add(new ThemePickerItem(f, ThemeManager.GetThemeDisplayName(f)));
+            var active = _main.ConfigSvc.Config.ActiveTheme;
+            WizThemePicker.SelectedItem = WizThemePicker.Items
+                .OfType<ThemePickerItem>()
+                .FirstOrDefault(i => i.FolderName == active);
+            if (WizThemePicker.SelectedItem == null && WizThemePicker.Items.Count > 0)
+                WizThemePicker.SelectedIndex = 0;
+        }
+
+        private void WizThemePicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_settingControls) return;
+            if (WizThemePicker.SelectedItem is not ThemePickerItem item) return;
+            var cfg = _main.ConfigSvc.Config;
+            cfg.ActiveTheme = item.FolderName;
+            ThemeManager.Instance.Load(item.FolderName, ResolveIsDark(cfg));
+        }
+
+        private static bool ResolveIsDark(AppConfig cfg) => cfg.SystemThemeMode switch
+        {
+            "dark"  => true,
+            "light" => false,
+            _       => ThemeManager.GetSystemIsDark(),
+        };
+
+        // ── View preset (Step 2) ────────────────────────────────────────────────
+        // Simple/Manual/Expert just pre-fill the same panel-visibility toggles that
+        // live individually in Settings — nothing new to persist, and every value
+        // stays freely editable afterward (in Settings, or by re-picking a preset
+        // there via the reusable selector). Custom instead advances to Step 3, which
+        // shows the same four toggles individually (WizardViewModel skips Step 3 for
+        // any other card, so it's only ever reachable this way).
+        private void WizPresetSimple_Click(object sender, MouseButtonEventArgs e) =>
+            ApplyViewPreset(showTimeline: false, showActivityLog: false, showWifiRules: true, manualMode: false, WizPresetSimple);
+
+        private void WizPresetManual_Click(object sender, MouseButtonEventArgs e) =>
+            ApplyViewPreset(showTimeline: false, showActivityLog: true, showWifiRules: false, manualMode: true, WizPresetManual);
+
+        private void WizPresetExpert_Click(object sender, MouseButtonEventArgs e) =>
+            ApplyViewPreset(showTimeline: true, showActivityLog: true, showWifiRules: true, manualMode: false, WizPresetExpert);
+
+        private void ApplyViewPreset(bool showTimeline, bool showActivityLog, bool showWifiRules, bool manualMode, Border selectedCard)
+        {
+            _vm.CustomView = false;   // a fixed preset replaces any custom picks — Step 3 is skipped again
+
+            var cfg = _main.ConfigSvc.Config;
+            cfg.ShowTimeline              = showTimeline;
+            cfg.ShowActivityLog           = showActivityLog;
+            cfg.ShowWifiRulesOnMainWindow = showWifiRules;
+            cfg.ShowTunnelRulesColumn     = showWifiRules;
+            // The timeline panel also stays visible from WiFi history alone
+            // (ApplyInfoSectionMode: ShowTimeline || ShowWifiInChart) — tie it to the
+            // same on/off so Simple/Manual genuinely hide it rather than leaving a
+            // WiFi-only strip behind.
+            cfg.ShowWifiInChart           = showTimeline;
+            _vm.DisableWifiRules          = manualMode;   // committed to ManualMode when the wizard finishes
+
+            ApplyViewLive(showActivityLog);
+            HighlightPresetCard(selectedCard);
+        }
+
+        private void WizPresetCustom_Click(object sender, MouseButtonEventArgs e)
+        {
+            _vm.CustomView = true;   // makes Step 3 reachable on Next
+            HighlightPresetCard(WizPresetCustom);
+        }
+
+        private void WizCustomToggle_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+
+            var cfg = _main.ConfigSvc.Config;
+            bool showTimeline    = WizCustomTimelineToggle.IsChecked == true;
+            bool showActivityLog = WizCustomActivityLogToggle.IsChecked == true;
+            bool showWifiRules   = WizCustomWifiRulesToggle.IsChecked == true;
+            bool manualMode      = WizCustomManualToggle.IsChecked == true;
+
+            cfg.ShowTimeline              = showTimeline;
+            cfg.ShowActivityLog           = showActivityLog;
+            cfg.ShowWifiRulesOnMainWindow = showWifiRules;
+            cfg.ShowTunnelRulesColumn     = showWifiRules;
+            cfg.ShowWifiInChart           = showTimeline;
+            _vm.DisableWifiRules          = manualMode;
+
+            ApplyViewLive(showActivityLog);
+        }
+
+        private void ApplyViewLive(bool showActivityLog)
+        {
+            _main.RefreshWifiRulesPanel();
+            _main._vm.NotifyRulesColumnChanged();
+            _main.ApplyInfoSectionMode();
+            _main.SetLogPanelVisible(showActivityLog);
+        }
+
+        /// <summary>Best-effort match of the current config against a known preset, for when
+        /// the user navigates back to this step after picking one.</summary>
+        private void HighlightMatchingPreset()
+        {
+            var cfg = _main.ConfigSvc.Config;
+            if (!cfg.ShowTimeline && !cfg.ShowActivityLog && cfg.ShowWifiRulesOnMainWindow && !_vm.DisableWifiRules)
+                HighlightPresetCard(WizPresetSimple);
+            else if (!cfg.ShowTimeline && cfg.ShowActivityLog && !cfg.ShowWifiRulesOnMainWindow && _vm.DisableWifiRules)
+                HighlightPresetCard(WizPresetManual);
+            else if (cfg.ShowTimeline && cfg.ShowActivityLog && cfg.ShowWifiRulesOnMainWindow && !_vm.DisableWifiRules)
+                HighlightPresetCard(WizPresetExpert);
+            // Otherwise leave whichever card (if any) the user already picked this
+            // session highlighted — re-guessing "Custom" on every back-navigation
+            // would fight a fixed preset that just doesn't match due to an unrelated
+            // config value.
+        }
+
+        private void HighlightPresetCard(Border? selected)
+        {
+            var accent = (Brush)FindResource("Accent");
+            var dim    = (Brush)FindResource("BorderColor");
+            foreach (var b in new[] { WizPresetSimple, WizPresetManual, WizPresetExpert, WizPresetCustom })
+                if (b != null) b.BorderBrush = b == selected ? accent : dim;
         }
 
         // ── Startup ───────────────────────────────────────────────────────────
@@ -436,6 +593,7 @@ namespace MasselGUARD.Views
             {
                 latest = await UpdateChecker.CheckNowAsync(
                     _main.ConfigSvc.Config, _main.ConfigSvc.Save);
+                _ = _main.CheckForThemeUpdatesAsync();   // piggyback theme-update check on the same trigger
             }
             catch { /* network unavailable */ }
 

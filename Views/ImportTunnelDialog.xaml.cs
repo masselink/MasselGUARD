@@ -7,7 +7,10 @@ using MasselGUARD.Models;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
 using Microsoft.Win32;
 using ZXing;
 using ZXing.Windows.Compatibility;
@@ -143,97 +146,27 @@ namespace MasselGUARD.Views
             return results;
         }
 
-        // ── QR scan ───────────────────────────────────────────────────────────
-        private CancellationTokenSource? _qrCts;
-
-        private async void ImportFromQR_Click(object sender, RoutedEventArgs e)
+        // ── QR scan (drag a box over an on-screen QR code) ────────────────────
+        private void ImportFromQR_Click(object sender, RoutedEventArgs e)
         {
-            _qrCts?.Cancel();
-            _qrCts = new CancellationTokenSource();
-            ShowStatus(Lang.T("ImportQRSearching"), isError: false);
+            var picker = new QrScreenCaptureWindow { Owner = this };
+            picker.ShowDialog();
+            if (string.IsNullOrWhiteSpace(picker.DecodedText))
+                return;
 
             try
             {
-                var result = await Task.Run(() => ScanQR(_qrCts.Token), _qrCts.Token);
-                if (result == null) return;
-
                 ShowStatus(Lang.T("ImportQRFound"), isError: false);
-
-                // The QR content is the raw WireGuard config text
+                // The QR content is the raw WireGuard config text.
                 var name = "QR-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
-                var storagePath = Services.TunnelService.SaveConfigToFile(name, result);
+                var storagePath = Services.TunnelService.SaveConfigToFile(name, picker.DecodedText!);
                 TunnelImported?.Invoke(name, "", "local", storagePath);
                 Close();
             }
-            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
                 ShowStatus(Lang.T("ImportQRError", ex.Message), isError: true);
             }
-        }
-
-        private static string? ScanQR(CancellationToken ct)
-        {
-            var reader = new BarcodeReader
-            {
-                AutoRotate = true,
-                Options    = new ZXing.Common.DecodingOptions
-                {
-                    TryHarder   = true,
-                    TryInverted = true,
-                    PossibleFormats = new[] { BarcodeFormat.QR_CODE }
-                }
-            };
-
-            // Try each camera index
-            for (int camIdx = 0; camIdx < 4; camIdx++)
-            {
-                ct.ThrowIfCancellationRequested();
-                try
-                {
-                    using var capture = new System.Drawing.Bitmap(1, 1); // probe
-                    // Use WinForms capture
-                    using var cam = new System.Windows.Forms.Timer();
-                    // Try to open camera via DirectShow / WMF via WinForms VideoCapture
-                    // ZXing Windows.Compatibility handles frame capture
-                    var deadline = DateTime.UtcNow.AddSeconds(30);
-                    while (DateTime.UtcNow < deadline)
-                    {
-                        ct.ThrowIfCancellationRequested();
-                        using var bmp = CaptureCameraFrame(camIdx);
-                        if (bmp == null) break;
-                        var res = reader.Decode(bmp);
-                        if (res != null) return res.Text;
-                        System.Threading.Thread.Sleep(150);
-                    }
-                }
-                catch { }
-            }
-            return null;
-        }
-
-        private static System.Drawing.Bitmap? CaptureCameraFrame(int index)
-        {
-            // Use Windows.Media.Capture is UWP-only; use DirectShow via AForge or
-            // screen capture as fallback. For broad compatibility we use a WinForms
-            // VideoCapture shim via ZXing's Windows.Compatibility binding.
-            try
-            {
-                // Attempt screen capture of full primary screen as a simple fallback
-                // (user holds phone with QR in front of screen/camera)
-                var screen = System.Windows.Forms.Screen.PrimaryScreen!.Bounds;
-                var bmp    = new System.Drawing.Bitmap(screen.Width, screen.Height);
-                using var g = System.Drawing.Graphics.FromImage(bmp);
-                g.CopyFromScreen(screen.Location, System.Drawing.Point.Empty, screen.Size);
-                return bmp;
-            }
-            catch { return null; }
-        }
-
-        protected override void OnClosed(EventArgs e)
-        {
-            _qrCts?.Cancel();
-            base.OnClosed(e);
         }
 
         private void ShowStatus(string text, bool isError)
@@ -252,6 +185,252 @@ namespace MasselGUARD.Views
         private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (e.LeftButton == MouseButtonState.Pressed) DragMove();
+        }
+    }
+
+    // ── Screen QR capture: a movable/resizable box + Scan ────────────────────────
+    // A full-screen, dimmed topmost overlay across all monitors. The user drags and
+    // resizes a translucent box over an on-screen QR code and presses Scan; the overlay
+    // hides itself, grabs just that screen region (DPI-correct via PointToScreen +
+    // GDI CopyFromScreen) and decodes it with ZXing. Inherently non-themed (raw colours
+    // only). On success DecodedText holds the QR payload (the raw WireGuard config text).
+    internal sealed class QrScreenCaptureWindow : Window
+    {
+        public string? DecodedText { get; private set; }
+
+        private static readonly SolidColorBrush Accent = new(Color.FromRgb(0x4F, 0xC3, 0xF7));
+
+        private readonly Canvas    _canvas = new();
+        private readonly Border    _box;
+        private readonly Border    _toolbar;
+        private readonly TextBlock _hint;
+        private readonly Thumb[]   _handles = new Thumb[4];
+
+        private bool   _moving;
+        private Point  _moveStart;
+        private double _boxL, _boxT;
+
+        public QrScreenCaptureWindow()
+        {
+            // Plain system styling — never themed (this is a theme-agnostic capture tool).
+            foreach (var ty in new[] { typeof(Button), typeof(TextBlock), typeof(Thumb),
+                                       typeof(StackPanel), typeof(Border) })
+                Resources[ty] = new Style(ty);
+
+            WindowStyle           = WindowStyle.None;
+            AllowsTransparency    = true;
+            Background            = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0));   // dim backdrop
+            Topmost               = true;
+            ShowInTaskbar         = false;
+            ResizeMode            = ResizeMode.NoResize;
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Cursor                = Cursors.Cross;
+            Left   = SystemParameters.VirtualScreenLeft;
+            Top    = SystemParameters.VirtualScreenTop;
+            Width  = SystemParameters.VirtualScreenWidth;
+            Height = SystemParameters.VirtualScreenHeight;
+            Content = _canvas;
+
+            _box = new Border
+            {
+                BorderBrush     = Accent,
+                BorderThickness = new Thickness(2),
+                Background      = new SolidColorBrush(Color.FromArgb(20, 255, 255, 255)),
+                Cursor          = Cursors.SizeAll,
+                Width = 320, Height = 320,
+            };
+            _box.MouseLeftButtonDown += Box_Down;
+            _box.MouseMove           += Box_Move;
+            _box.MouseLeftButtonUp   += Box_Up;
+            Canvas.SetLeft(_box, Math.Max(0, (SystemParameters.PrimaryScreenWidth  - 320) / 2));
+            Canvas.SetTop (_box, Math.Max(0, (SystemParameters.PrimaryScreenHeight - 320) / 2));
+            _canvas.Children.Add(_box);
+
+            for (int i = 0; i < 4; i++)
+            {
+                var t = new Thumb { Width = 14, Height = 14, Template = HandleTemplate(),
+                                    Cursor = (i == 0 || i == 3) ? Cursors.SizeNWSE : Cursors.SizeNESW, Tag = i };
+                t.DragDelta += Handle_DragDelta;
+                _handles[i] = t;
+                _canvas.Children.Add(t);
+            }
+
+            _hint = new TextBlock
+            {
+                Text = Lang.T("QrScanInstruction"),
+                Foreground = Brushes.White, FontFamily = new FontFamily("Segoe UI"), FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0),
+                TextWrapping = TextWrapping.Wrap, MaxWidth = 300,
+            };
+            var scan   = MakeButton(Lang.T("BtnScan"));
+            scan.Click  += async (_, _) => await ScanAsync();
+            var cancel = MakeButton(Lang.T("BtnCancel"));
+            cancel.Click += (_, _) => Close();   // DecodedText stays null → caller treats as cancel
+            var bar = new StackPanel { Orientation = Orientation.Horizontal };
+            bar.Children.Add(_hint); bar.Children.Add(scan); bar.Children.Add(cancel);
+            _toolbar = new Border
+            {
+                Background      = new SolidColorBrush(Color.FromArgb(235, 28, 28, 28)),
+                BorderBrush     = Brushes.Gray, BorderThickness = new Thickness(1),
+                CornerRadius    = new CornerRadius(6), Padding = new Thickness(12, 8, 12, 8),
+                Child = bar,
+            };
+            _canvas.Children.Add(_toolbar);
+
+            KeyDown     += (_, ev) => { if (ev.Key == Key.Escape) Close(); };
+            Loaded      += (_, _)  => { Focus(); LayoutChrome(); };
+            SizeChanged += (_, _)  => LayoutChrome();
+        }
+
+        private static Button MakeButton(string text) => new()
+        {
+            Content = text, Padding = new Thickness(16, 5, 16, 5), MinWidth = 70,
+            Margin = new Thickness(6, 0, 0, 0),
+        };
+
+        private static ControlTemplate HandleTemplate()
+        {
+            var b = new FrameworkElementFactory(typeof(Border));
+            b.SetValue(Border.BackgroundProperty, Accent);
+            b.SetValue(Border.BorderBrushProperty, Brushes.White);
+            b.SetValue(Border.BorderThicknessProperty, new Thickness(1));
+            b.SetValue(Border.CornerRadiusProperty, new CornerRadius(2));
+            return new ControlTemplate(typeof(Thumb)) { VisualTree = b };
+        }
+
+        // ── Move (drag the box body) ──
+        private void Box_Down(object sender, MouseButtonEventArgs e)
+        {
+            _moving = true;
+            _moveStart = e.GetPosition(_canvas);
+            _boxL = Canvas.GetLeft(_box);
+            _boxT = Canvas.GetTop(_box);
+            _box.CaptureMouse();
+            e.Handled = true;
+        }
+
+        private void Box_Move(object sender, MouseEventArgs e)
+        {
+            if (!_moving) return;
+            var p = e.GetPosition(_canvas);
+            Canvas.SetLeft(_box, _boxL + (p.X - _moveStart.X));
+            Canvas.SetTop (_box, _boxT + (p.Y - _moveStart.Y));
+            LayoutChrome();
+        }
+
+        private void Box_Up(object sender, MouseButtonEventArgs e)
+        {
+            _moving = false;
+            _box.ReleaseMouseCapture();
+        }
+
+        // ── Resize (corner handles) ──
+        private void Handle_DragDelta(object sender, DragDeltaEventArgs e)
+        {
+            if (sender is not Thumb th || th.Tag is not int idx) return;
+            const double min = 40;
+            double l = Canvas.GetLeft(_box), t = Canvas.GetTop(_box);
+            double right = l + _box.Width, bottom = t + _box.Height;
+
+            switch (idx)
+            {
+                case 0: l = Math.Min(l + e.HorizontalChange, right - min);  t = Math.Min(t + e.VerticalChange, bottom - min); break; // NW
+                case 1: right = Math.Max(l + min, right + e.HorizontalChange); t = Math.Min(t + e.VerticalChange, bottom - min); break; // NE
+                case 2: l = Math.Min(l + e.HorizontalChange, right - min);  bottom = Math.Max(t + min, bottom + e.VerticalChange); break; // SW
+                case 3: right = Math.Max(l + min, right + e.HorizontalChange); bottom = Math.Max(t + min, bottom + e.VerticalChange); break; // SE
+            }
+            Canvas.SetLeft(_box, l); Canvas.SetTop(_box, t);
+            _box.Width  = Math.Max(min, right - l);
+            _box.Height = Math.Max(min, bottom - t);
+            LayoutChrome();
+        }
+
+        private void LayoutChrome()
+        {
+            double l = Canvas.GetLeft(_box), t = Canvas.GetTop(_box), w = _box.Width, h = _box.Height;
+            PlaceHandle(_handles[0], l,     t);
+            PlaceHandle(_handles[1], l + w, t);
+            PlaceHandle(_handles[2], l,     t + h);
+            PlaceHandle(_handles[3], l + w, t + h);
+
+            _toolbar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            double tw = _toolbar.DesiredSize.Width, ttoolh = _toolbar.DesiredSize.Height;
+            double tx = l + (w - tw) / 2;
+            double ty = t + h + 10;
+            if (ty + ttoolh > ActualHeight) ty = t - ttoolh - 10;
+            tx = Math.Max(0, Math.Min(tx, Math.Max(0, ActualWidth - tw)));
+            ty = Math.Max(0, ty);
+            Canvas.SetLeft(_toolbar, tx);
+            Canvas.SetTop (_toolbar, ty);
+        }
+
+        private static void PlaceHandle(Thumb t, double cx, double cy)
+        {
+            Canvas.SetLeft(t, cx - t.Width  / 2);
+            Canvas.SetTop (t, cy - t.Height / 2);
+        }
+
+        private async System.Threading.Tasks.Task ScanAsync()
+        {
+            Point p0, p1;
+            try
+            {
+                p0 = _box.PointToScreen(new Point(0, 0));                         // physical px
+                p1 = _box.PointToScreen(new Point(_box.ActualWidth, _box.ActualHeight));
+            }
+            catch { return; }
+            int x = (int)Math.Round(p0.X), y = (int)Math.Round(p0.Y);
+            int w = Math.Max(1, (int)Math.Round(p1.X - p0.X));
+            int h = Math.Max(1, (int)Math.Round(p1.Y - p0.Y));
+
+            // Hide the overlay (and the owning import dialog) via Opacity — NOT Visibility,
+            // which would reset this window's "shown as dialog" state — so neither is
+            // captured if it sits over the QR, then grab the region.
+            var owner = Owner;
+            Opacity = 0;
+            if (owner != null) owner.Opacity = 0;
+            await System.Threading.Tasks.Task.Delay(120);
+            string? text = null;
+            try
+            {
+                using var bmp = new System.Drawing.Bitmap(w, h);
+                using (var g = System.Drawing.Graphics.FromImage(bmp))
+                    g.CopyFromScreen(x, y, 0, 0, new System.Drawing.Size(w, h));
+                text = Decode(bmp);
+            }
+            catch { }
+            finally
+            {
+                if (owner != null) owner.Opacity = 1;
+                Opacity = 1;
+                Focus();
+            }
+
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                DecodedText = text;   // reported via property, not DialogResult
+                Close();
+            }
+            else
+            {
+                _hint.Text       = Lang.T("QrScanNotFound");
+                _hint.Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x8A, 0x65));
+            }
+        }
+
+        private static string? Decode(System.Drawing.Bitmap bmp)
+        {
+            var reader = new BarcodeReader
+            {
+                AutoRotate = true,
+                Options = new ZXing.Common.DecodingOptions
+                {
+                    TryHarder       = true,
+                    TryInverted     = true,
+                    PossibleFormats = new[] { BarcodeFormat.QR_CODE },
+                },
+            };
+            return reader.Decode(bmp)?.Text;
         }
     }
 

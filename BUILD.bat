@@ -4,9 +4,9 @@ setlocal enabledelayedexpansion
 
 rem ── Build number: YYMMDDHHMM ────────────────────────────────────────────────
 for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyMMddHHmm"') do set BUILD_NUM=%%a
-set VERSION=3.6.0
+set VERSION=3.7.0
 rem Update CODENAME here AND in UpdateChecker.cs when bumping VERSION.
-set CODENAME=Dangerous Donkey
+set CODENAME=Chromatic Chameleon
 
 rem ── Opt out of .NET CLI telemetry ────────────────────────────────────────────
 set DOTNET_CLI_TELEMETRY_OPTOUT=1
@@ -75,6 +75,18 @@ if exist "!DIST!\MasselGUARDcli.exe" (
     ren "!DIST!\MasselGUARDcli.exe.__chk" "MasselGUARDcli.exe" >nul 2>&1
 )
 
+rem ── Step 2a2: clean intermediate outputs ─────────────────────────────────────
+rem WPF bakes the AssemblyVersion into compiled resource pack-URIs (App.g.cs).
+rem Stale obj\ artifacts from before a version bump produce an exe whose assembly
+rem identity and resource URIs disagree -> FileNotFoundException for its own
+rem assembly at startup. A clean rebuild is cheap insurance.
+echo  Cleaning obj/bin intermediates...
+if exist "%~dp0obj"               rmdir /s /q "%~dp0obj"
+if exist "%~dp0bin"               rmdir /s /q "%~dp0bin"
+if exist "%~dp0MasselGUARDcli\obj" rmdir /s /q "%~dp0MasselGUARDcli\obj"
+if exist "%~dp0MasselGUARDcli\bin" rmdir /s /q "%~dp0MasselGUARDcli\bin"
+echo.
+
 rem ── Step 2b: compile MasselGUARD (GUI) ───────────────────────────────────────
 echo  -------------------------------------------------------
 echo   Compiling MasselGUARD (GUI)...
@@ -128,9 +140,10 @@ if exist "%~dp0install-dotnet.bat" (
 )
 echo.
 
-rem ── Step 3b: copy lang + theme folders into dist ──────────────────────────────
+rem ── Step 3b: copy lang folder into dist ───────────────────────────────────────
+rem  (No themes are bundled — shared themes are downloaded from the shared-themes repo.)
 echo  -------------------------------------------------------
-echo   Copying lang + theme folders...
+echo   Copying lang folder...
 echo  -------------------------------------------------------
 if exist "%~dp0lang" (
     if exist "!DIST!\lang" rmdir /s /q "!DIST!\lang"
@@ -138,13 +151,6 @@ if exist "%~dp0lang" (
     echo  lang folder copied to dist\lang\
 ) else (
     echo  WARNING: lang folder not found -- skipped.
-)
-if exist "%~dp0theme" (
-    if exist "!DIST!\theme" rmdir /s /q "!DIST!\theme"
-    xcopy /e /i /q "%~dp0theme" "!DIST!\theme" >nul
-    echo  theme folder copied to dist\theme\
-) else (
-    echo  WARNING: theme folder not found -- skipped.
 )
 echo.
 
@@ -181,7 +187,6 @@ echo   dist\MasselGUARD.exe        (GUI application)
 echo   dist\MasselGUARDcli.exe     (command-line interface)
 echo   dist\install-dotnet.bat     (.NET 10 install helper)
 echo   dist\lang\
-echo   dist\theme\
 if "!DLL_OK!"=="1" (
     echo   dist\tunnel.dll
     echo   dist\wireguard.dll

@@ -48,9 +48,39 @@ namespace MasselGUARD.Views
                 _loading = false;
                 // Create a deep copy of the LIVE config — all edits go here until Save is pressed
                 _draft = _main.ConfigSvc.Config.DeepClone();
+                // Shared-theme repo URL lives on the Advanced page — seed it once here so it
+                // is populated regardless of which tab opens first.
+                if (SharedThemesRepoBox != null)
+                {
+                    _loading = true;
+                    SharedThemesRepoBox.Text = _draft.SharedThemesRepoUrl ?? "";
+                    _loading = false;
+                }
                 ShowTab(InitialTab);
                 RefreshUpdateState();
+                RefreshLocalizedStrings();
             };
+
+            Lang.Instance.LanguageChanged += OnLanguageChanged;
+            Closed += (_, _) => Lang.Instance.LanguageChanged -= OnLanguageChanged;
+        }
+
+        private void OnLanguageChanged(object? sender, EventArgs e) =>
+            RefreshLocalizedStrings();
+
+        /// <summary>Refresh labels set from code-behind (not WPF Lang bindings).</summary>
+        private void RefreshLocalizedStrings()
+        {
+            UpdateThemePreviewBtn();
+            UpdateFontPreviewBtn();
+            if (FontSizeSlider != null)
+                UpdateFontSizeLabel(FontSizeSlider.Value);
+        }
+
+        private void UpdateFontSizeLabel(double size)
+        {
+            if (FontSizeValueLabel != null)
+                FontSizeValueLabel.Text = string.Format(Lang.T("SettingsFontSizeUnit"), (int)Math.Round(size));
         }
 
         // ── Tab routing ───────────────────────────────────────────────────────
@@ -100,11 +130,11 @@ namespace MasselGUARD.Views
             TabBtnAbout.Tag      = tab == "About"      ? "Active" : null;
 
             if (tab == "General")    { RefreshGroupList(); RefreshModeStatusBox(); SyncStartWithWindows(); SyncConfirmOnClose(); }
-            if (tab == "Tunnels")    { RefreshGroupList(); SyncArMode(); SyncKsMode(); SyncSkipTunnelValidation(); SyncShowDnsIndicator(); }
+            if (tab == "Tunnels")    { RefreshGroupList(); SyncArMode(); SyncKsMode(); SyncSkipTunnelValidation(); }
             if (tab == "Wifi")       RefreshAutomationControls();
             if (tab == "Appearance") PopulateThemePicker();
             if (tab == "History")    RefreshHistoryTab();
-            if (tab == "Advanced")   { RefreshInstallState(); RefreshDllStatus(); RefreshWireGuardSection(); ScanOrphans(); PopulateLogLevelPicker(); }
+            if (tab == "Advanced")   { RefreshInstallState(); RefreshDllStatus(); RefreshWireGuardSection(); ScanOrphans(); PopulateLogLevelPicker(); RefreshDnsLeakSection(); }
             if (tab == "About")      RefreshUpdateState();
         }
 
@@ -119,6 +149,7 @@ namespace MasselGUARD.Views
             {
                 Lang.Instance.Load(item.Code);
                 _vm.Language = item.Code;
+                RefreshLocalizedStrings();
             }
         }
 
@@ -420,6 +451,7 @@ namespace MasselGUARD.Views
             if (_loading) return;
             _draft.ShowTimeline = ShowTimelineToggle?.IsChecked == true;
             _main.ConfigSvc.Config.ShowTimeline = _draft.ShowTimeline;
+            _main.ConfigSvc.Save();
             _main.ApplyInfoSectionMode();
         }
 
@@ -428,6 +460,7 @@ namespace MasselGUARD.Views
             if (_loading) return;
             _draft.StoreConnectionHistory = StoreConnectionHistoryToggle?.IsChecked == true;
             _main.ConfigSvc.Config.StoreConnectionHistory = _draft.StoreConnectionHistory;
+            _main.ConfigSvc.Save();
             UpdateTimelineShowEnabled();
             _main.ApplyInfoSectionMode();
         }
@@ -508,6 +541,22 @@ namespace MasselGUARD.Views
                     ThemePicker.SelectedIndex = 0;
             }
 
+            // Theme update badge — passive result of the last app-update check (same
+            // frequency/trigger; see MainWindow.CheckForThemeUpdatesAsync). Never re-checks
+            // itself here — that would mean a network call every time this tab is opened.
+            if (ThemeUpdatesBadge != null)
+            {
+                var themeUpdates = _main.ConfigSvc.Config.ThemeUpdatesAvailable ?? new System.Collections.Generic.List<string>();
+                int n = themeUpdates.Count;
+                ThemeUpdatesBadge.Visibility = n > 0 ? Visibility.Visible : Visibility.Collapsed;
+                if (n > 0)
+                {
+                    ThemeUpdatesBadge.Text    = n == 1 ? "● 1 update" : $"● {n} updates";
+                    ThemeUpdatesBadge.ToolTip = "Theme update" + (n == 1 ? "" : "s") + " available: " +
+                        string.Join(", ", themeUpdates) + ". Click to open Community themes.";
+                }
+            }
+
             // System mode pills
             _loading = true;
             var sysMode = _draft.SystemThemeMode ?? "auto";
@@ -560,6 +609,9 @@ namespace MasselGUARD.Views
             if (sender is not RadioButton rb || rb.Tag is not string tag) return;
             _draft.SystemThemeMode = tag;
             if (_themePreviewActive) CancelThemePreview();
+            // Apply immediately — no countdown, stays until Saved or the window closes
+            // (OnClosing prompts to keep or discard if it's still unsaved by then).
+            ApplySpecificTheme(forceLight: !IsDraftDark());
         }
 
         private void ThemePicker_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -634,11 +686,11 @@ namespace MasselGUARD.Views
 
         private void UpdateThemePreviewBtn()
         {
-            if (DarkThemePreviewBtn  != null) { DarkThemePreviewBtn.Content  = "▶  Dark";  DarkThemePreviewBtn.Foreground  = (System.Windows.Media.Brush)FindResource("TextMuted"); }
-            if (LightThemePreviewBtn != null) { LightThemePreviewBtn.Content = "▶  Light"; LightThemePreviewBtn.Foreground = (System.Windows.Media.Brush)FindResource("TextMuted"); }
+            if (DarkThemePreviewBtn  != null) { DarkThemePreviewBtn.Content  = Lang.T("SettingsThemePreviewDarkBtn");  DarkThemePreviewBtn.Foreground  = (System.Windows.Media.Brush)FindResource("TextMuted"); }
+            if (LightThemePreviewBtn != null) { LightThemePreviewBtn.Content = Lang.T("SettingsThemePreviewLightBtn"); LightThemePreviewBtn.Foreground = (System.Windows.Media.Brush)FindResource("TextMuted"); }
             if (_themePreviewActive && _themePreviewSourceBtn != null)
             {
-                _themePreviewSourceBtn.Content    = $"↩  {_themePreviewSecondsLeft}s";
+                _themePreviewSourceBtn.Content    = string.Format(Lang.T("SettingsFontPreviewActive"), _themePreviewSecondsLeft);
                 _themePreviewSourceBtn.Foreground = (System.Windows.Media.Brush)FindResource("Accent");
             }
         }
@@ -728,7 +780,7 @@ namespace MasselGUARD.Views
             if (FontSizeSlider != null)
                 FontSizeSlider.Value = Math.Clamp(sliderVal, 8.0, 18.0);
             if (FontSizeValueLabel != null)
-                FontSizeValueLabel.Text = $"{(int)sliderVal} pt";
+                UpdateFontSizeLabel(sliderVal);
 
             _loading = false;
 
@@ -801,7 +853,7 @@ namespace MasselGUARD.Views
             double size = Math.Round(e.NewValue);
             _draft.FontOverrideSize = size;
             if (FontSizeValueLabel != null)
-                FontSizeValueLabel.Text = $"{(int)size} pt";
+                UpdateFontSizeLabel(size);
             if (_fontPreviewActive) CancelFontPreview();
         }
 
@@ -872,13 +924,13 @@ namespace MasselGUARD.Views
             if (FontPreviewBtn == null) return;
             if (_fontPreviewActive)
             {
-                FontPreviewBtn.Content    = $"↩  {_fontPreviewSecondsLeft}s";
+                FontPreviewBtn.Content    = string.Format(Lang.T("SettingsFontPreviewActive"), _fontPreviewSecondsLeft);
                 FontPreviewBtn.Foreground =
                     (System.Windows.Media.Brush)FindResource("Accent");
             }
             else
             {
-                FontPreviewBtn.Content    = "▶  Preview";
+                FontPreviewBtn.Content    = Lang.T("SettingsFontPreviewBtn");
                 FontPreviewBtn.Foreground =
                     (System.Windows.Media.Brush)FindResource("TextMuted");
             }
@@ -1129,6 +1181,78 @@ namespace MasselGUARD.Views
             SetLabel("WgInstallLabel",
                 MainWindow.DetectWireGuardInstallDir() ?? Lang.T("SettingsWgNotFound"));
         }
+
+        // ── DNS leak protection (smart name resolution + parallel A/AAAA) ───────
+        private void RefreshDnsLeakSection()
+        {
+            UpdateDnsRow(Services.DnsLeakService.IsSmartNameResolutionDisabled(),
+                         DnsLeakStatusLabel, DnsLeakDisableBtn, DnsLeakEnableBtn);
+            UpdateDnsRow(Services.DnsLeakService.IsParallelQueriesDisabled(),
+                         DnsParallelStatusLabel, DnsParallelDisableBtn, DnsParallelEnableBtn);
+
+            // Possible-leak alert channels (icon / log / toast; all off = disabled).
+            _loading = true;
+            if (ShowDnsIndicatorToggle != null) ShowDnsIndicatorToggle.IsChecked = _draft.ShowDnsIndicator;
+            if (DnsLeakWarnLogToggle   != null) DnsLeakWarnLogToggle.IsChecked   = _draft.DnsLeakWarnLog;
+            if (DnsLeakWarnToastToggle != null) DnsLeakWarnToastToggle.IsChecked = _draft.DnsLeakWarnToast;
+            _loading = false;
+        }
+
+        private void DnsLeakWarnLog_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.DnsLeakWarnLog = DnsLeakWarnLogToggle?.IsChecked == true;
+        }
+
+        private void DnsLeakWarnToast_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.DnsLeakWarnToast = DnsLeakWarnToastToggle?.IsChecked == true;
+        }
+
+        private void UpdateDnsRow(bool disabled, System.Windows.Controls.TextBlock? status,
+                                  System.Windows.Controls.Button? disableBtn,
+                                  System.Windows.Controls.Button? enableBtn)
+        {
+            if (status != null)
+            {
+                status.Text = disabled
+                    ? Lang.T("SettingsDnsLeakStatusOn")
+                    : Lang.T("SettingsDnsLeakStatusOff");
+                status.Foreground = (System.Windows.Media.Brush)FindResource(
+                    disabled ? "Success" : "TextMuted");
+            }
+            // Grey out the button matching the current state.
+            if (disableBtn != null) disableBtn.IsEnabled = !disabled;
+            if (enableBtn  != null) enableBtn.IsEnabled  = disabled;
+        }
+
+        /// <summary>Runs a DNS-policy change, reports the result, and refreshes the section.</summary>
+        private void ApplyDnsPolicy(Action change)
+        {
+            try
+            {
+                change();
+                _main.ShowThemedInfo(Lang.T("SettingsDnsLeakAppliedMsg"), Lang.T("SettingsSectionDnsLeak"));
+            }
+            catch (Exception ex)
+            {
+                _main.ShowThemedInfo(Lang.T("SettingsDnsLeakError", ex.Message), Lang.T("SettingsSectionDnsLeak"));
+            }
+            RefreshDnsLeakSection();
+        }
+
+        private void DnsLeakDisable_Click(object sender, RoutedEventArgs e) =>
+            ApplyDnsPolicy(Services.DnsLeakService.DisableSmartNameResolution);
+
+        private void DnsLeakEnable_Click(object sender, RoutedEventArgs e) =>
+            ApplyDnsPolicy(Services.DnsLeakService.EnableSmartNameResolution);
+
+        private void DnsParallelDisable_Click(object sender, RoutedEventArgs e) =>
+            ApplyDnsPolicy(Services.DnsLeakService.DisableParallelQueries);
+
+        private void DnsParallelEnable_Click(object sender, RoutedEventArgs e) =>
+            ApplyDnsPolicy(Services.DnsLeakService.EnableParallelQueries);
 
         private void ScanOrphans()
         {
@@ -1425,6 +1549,7 @@ namespace MasselGUARD.Views
             }
             var latest = await UpdateChecker.CheckNowAsync(
                 _main.ConfigSvc.Config, _main.ConfigSvc.Save);
+            _ = _main.CheckForThemeUpdatesAsync();   // piggyback theme-update check on the same trigger
             if (CheckUpdateBtn != null)
             {
                 CheckUpdateBtn.IsEnabled = true;
@@ -1507,6 +1632,43 @@ namespace MasselGUARD.Views
             }
         }
 
+        private void OpenThemeBuilder_Click(object sender, RoutedEventArgs e)
+        {
+            // Close Settings first: the builder applies and saves themes directly,
+            // and a Settings save afterwards would overwrite ActiveTheme with the
+            // stale deferred draft. OnClosing also reverts any running preview, so
+            // the builder starts from the committed theme.
+            Close();
+            var builder = new ThemeBuilderWindow(_main) { Owner = _main };
+            // Return focus to Settings → Appearance once the manager closes.
+            builder.Closed += (_, _) => _main.OpenSettings("Appearance");
+            builder.Show();
+        }
+
+        /// <summary>Shortcut: opens the Theme Manager and immediately its community
+        /// theme browser, skipping the extra click through "Manage themes…".</summary>
+        private void DownloadThemes_Click(object sender, RoutedEventArgs e)
+        {
+            Close();
+            var builder = new ThemeBuilderWindow(_main) { Owner = _main };
+            builder.Closed += (_, _) => _main.OpenSettings("Appearance");
+            builder.Show();
+            builder.OpenCommunityThemes();
+        }
+
+        private void SharedThemesRepo_Changed(object sender, TextChangedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.SharedThemesRepoUrl = SharedThemesRepoBox.Text.Trim();
+        }
+
+        /// <summary>Reset the repo URL to the official MasselGUARD themes repository.</summary>
+        private void ResetThemesRepo_Click(object sender, RoutedEventArgs e)
+        {
+            SharedThemesRepoBox.Text = Models.AppConfig.DefaultSharedThemesRepoUrl;
+            SharedThemesRepoBox.CaretIndex = SharedThemesRepoBox.Text.Length;
+        }
+
         private void RunWizard_Click(object sender, RoutedEventArgs e)
         {
             var wiz = new WizardWindow(_main) { Owner = this };
@@ -1525,6 +1687,46 @@ namespace MasselGUARD.Views
         // ── Handlers required by XAML ─────────────────────────────────────────
         private void Mode_Changed(object sender, System.Windows.RoutedEventArgs e)
             => AppMode_Changed(sender, e);
+
+        // ── View preset — re-applies the same bundle of panel-visibility settings
+        // the first-run wizard offers. Applies immediately (like the individual
+        // toggles below) rather than waiting for the window's Save button.
+        private void PresetSimple_Click(object sender, System.Windows.RoutedEventArgs e) =>
+            ApplyViewPreset(showTimeline: false, showActivityLog: false, showWifiRules: true, manualMode: false);
+
+        private void PresetManual_Click(object sender, System.Windows.RoutedEventArgs e) =>
+            ApplyViewPreset(showTimeline: false, showActivityLog: true, showWifiRules: false, manualMode: true);
+
+        private void PresetExpert_Click(object sender, System.Windows.RoutedEventArgs e) =>
+            ApplyViewPreset(showTimeline: true, showActivityLog: true, showWifiRules: true, manualMode: false);
+
+        private void ApplyViewPreset(bool showTimeline, bool showActivityLog, bool showWifiRules, bool manualMode)
+        {
+            _draft.ShowTimeline              = showTimeline;
+            _draft.ShowActivityLog           = showActivityLog;
+            _draft.ShowWifiRulesOnMainWindow = showWifiRules;
+            _draft.ShowTunnelRulesColumn     = showWifiRules;
+            // The timeline panel also stays visible from WiFi history alone
+            // (ApplyInfoSectionMode: ShowTimeline || ShowWifiInChart) — tie it to the
+            // same on/off so Simple/Manual genuinely hide it, not just the tunnel bars.
+            _draft.ShowWifiInChart           = showTimeline;
+            _vm.DisableWifiRules             = manualMode;
+
+            var cfg = _main.ConfigSvc.Config;
+            cfg.ShowTimeline              = showTimeline;
+            cfg.ShowActivityLog           = showActivityLog;
+            cfg.ShowWifiRulesOnMainWindow = showWifiRules;
+            cfg.ShowTunnelRulesColumn     = showWifiRules;
+            cfg.ShowWifiInChart           = showTimeline;
+            cfg.ManualMode                = manualMode;
+            _main.ConfigSvc.Save();
+
+            _main.RefreshWifiRulesPanel();
+            _main._vm.NotifyRulesColumnChanged();
+            _main.ApplyInfoSectionMode();
+            _main.SetLogPanelVisible(showActivityLog);
+            RefreshCurrentTab();
+        }
 
         private void SuppressUpdatePrompt_Changed(object sender, System.Windows.RoutedEventArgs e)
         {
@@ -1577,14 +1779,6 @@ namespace MasselGUARD.Views
             if (_loading) return;
             if (sender is System.Windows.Controls.RadioButton rb && rb.Tag is string tag)
                 _draft.AutoReconnectMode = tag;
-        }
-
-        private void SyncShowDnsIndicator()
-        {
-            if (ShowDnsIndicatorToggle == null) return;
-            _loading = true;
-            ShowDnsIndicatorToggle.IsChecked = _draft.ShowDnsIndicator;
-            _loading = false;
         }
 
         private void ShowDnsIndicator_Changed(object sender, System.Windows.RoutedEventArgs e)
@@ -1731,6 +1925,14 @@ namespace MasselGUARD.Views
 
         private void SaveBtn_Click(object sender, System.Windows.RoutedEventArgs e)
         {
+            CommitDraft();
+            Close();
+        }
+
+        /// <summary>Writes the whole draft to config + applies side effects. Does not close
+        /// the window — used by both the Save button and the close-time "keep changes" prompt.</summary>
+        private void CommitDraft()
+        {
             _savedSuccessfully = true;
 
             // Snapshot BEFORE committing so diff is accurate
@@ -1756,6 +1958,8 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.ConfirmOnClose      = _draft.ConfirmOnClose;
             _main.ConfigSvc.Config.AutoReconnectMode   = _draft.AutoReconnectMode;
             _main.ConfigSvc.Config.ShowDnsIndicator    = _draft.ShowDnsIndicator;
+            _main.ConfigSvc.Config.DnsLeakWarnLog      = _draft.DnsLeakWarnLog;
+            _main.ConfigSvc.Config.DnsLeakWarnToast    = _draft.DnsLeakWarnToast;
             _main.ConfigSvc.Config.KillSwitchMode      = _draft.KillSwitchMode;
             _main.ConfigSvc.Config.SkipTunnelValidation = _draft.SkipTunnelValidation;
             _main.ConfigSvc.Config.FontOverrideEnabled    = _draft.FontOverrideEnabled;
@@ -1783,7 +1987,6 @@ namespace MasselGUARD.Views
             // Apply the correct theme based on the new settings (overrides DoSave preview)
             _main.ApplyThemeFromConfig();
             _main.ApplyInfoSectionMode();
-            Close();
         }
 
         private void LogChangedSettings(Models.AppConfig before, Models.AppConfig after)
@@ -1815,8 +2018,8 @@ namespace MasselGUARD.Views
             Check("Hide count badge",      before.AlwaysHideTunnelCount, after.AlwaysHideTunnelCount);
             Check("Default group",         before.DefaultGroup,          after.DefaultGroup);
             Check("Show DNS indicator",    before.ShowDnsIndicator,      after.ShowDnsIndicator);
-            Check("Kill switch mode",      before.KillSwitchMode,        after.KillSwitchMode);
-            Check("Auto-reconnect mode",   before.AutoReconnectMode,     after.AutoReconnectMode);
+            Check(Lang.T("SettingsKillSwitchModeTitle"),      before.KillSwitchMode,        after.KillSwitchMode);
+            Check(Lang.T("SettingsAutoReconnectModeTitle"),   before.AutoReconnectMode,     after.AutoReconnectMode);
             Check("Font override",         before.FontOverrideEnabled,   after.FontOverrideEnabled);
             Check("Font family",           before.FontOverrideFamily,    after.FontOverrideFamily);
             Check("Font size",             before.FontOverrideSize,      after.FontOverrideSize);
@@ -1871,6 +2074,7 @@ namespace MasselGUARD.Views
             if (_loading) return;
             _draft.StoreWifiHistory = StoreWifiHistoryToggle?.IsChecked == true;
             _main.ConfigSvc.Config.StoreWifiHistory = _draft.StoreWifiHistory;
+            _main.ConfigSvc.Save();
             UpdateTimelineShowEnabled();
             _main.ApplyInfoSectionMode();
         }
@@ -1882,6 +2086,7 @@ namespace MasselGUARD.Views
                 ChartRange31d?.IsChecked == true ? 31 :
                 ChartRange7d?.IsChecked  == true ?  7 : 1;
             _main.ConfigSvc.Config.InfoTimeRangeDays = _draft.InfoTimeRangeDays;
+            _main.ConfigSvc.Save();
             _main.ApplyInfoSectionMode();
         }
 
@@ -1890,6 +2095,7 @@ namespace MasselGUARD.Views
             if (_loading) return;
             _draft.ShowWifiInChart = ShowWifiInChartToggle?.IsChecked == true;
             _main.ConfigSvc.Config.ShowWifiInChart = _draft.ShowWifiInChart;
+            _main.ConfigSvc.Save();
             _main.ApplyInfoSectionMode();
         }
 
@@ -1913,6 +2119,18 @@ namespace MasselGUARD.Views
             // If closed without saving, revert any live previews.
             if (!_savedSuccessfully)
             {
+                // The System theme mode (Dark/Light/Follow system) applies live as soon as
+                // it's changed (see SystemMode_Changed) — if that's still unsaved when the
+                // window closes, ask whether to keep it instead of silently discarding it.
+                bool systemModeChanged = _draft.SystemThemeMode != _main.ConfigSvc.Config.SystemThemeMode;
+                if (systemModeChanged && ThemedMessageDialog.Confirm(this,
+                        "You changed the appearance mode (Dark/Light/Follow system) without saving.\n\n" +
+                        "Keep this change?", "Unsaved appearance change"))
+                {
+                    CommitDraft();   // saves everything staged, matching the Save button
+                    return;
+                }
+
                 // Revert theme + font to last saved state.
                 _main.ApplyThemeFromConfig();
                 // Revert log visibility to what was committed before Settings opened.
