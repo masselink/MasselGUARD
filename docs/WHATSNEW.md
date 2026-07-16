@@ -11,6 +11,7 @@
 - **Fixed** — the Theme Manager's right-click menu (Apply / Duplicate / Export / Delete) rendered with the plain default Windows look instead of the app's theme. Added a themed style for it (dark surface, themed border, hover highlight), and — since a code-created `ContextMenu` doesn't reliably pick up an implicit style automatically — assigned it explicitly too.
 - **Fixed** — picking a different theme in Settings → Appearance while in Light or Dark mode could preview the *wrong* colour variant (resolved from the raw Windows dark/light setting instead of the mode you'd actually picked in Settings) until you toggled the mode pill or hit Save. The picker now respects the mode you chose, same as the Dark/Light preview buttons already did.
 - **Fixed** — several labels across the Theme Manager (color-row names, "Light"/"Dark" headers, "Tray menu"/"Tray menu preview" section labels, the sidebar theme list, the ● LIVE indicator) and a couple on the main window (the hidden-tunnel-count badge) were colored once, when first built, and never updated again — so they could go unreadable after previewing a different theme, since the app replaces each color resource with a new object on every theme change rather than updating it in place. All now stay live.
+- The Theme Manager footer gained a **Close** button next to Save, matching the title-bar ✕ (prompts to save if there are unsaved changes).
 
 ---
 
