@@ -85,8 +85,10 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 - **Auto colour generation** — define only dark or only light colours; the other variant is computed at load time from HSL lightness inversion, never stored
 - **Theme preview** — apply the selected theme for 10 seconds before committing; auto-reverts
 - **Font override** — pick any installed font; per-typeface rendering in the dropdown; size slider 8–18 pt
+- **Header font** — an optional separate typeface for the title bar and section headers, distinct from the body font; one base size drives four scaled tiers used throughout the app
 - **Theme Manager** *(formerly Theme Builder)* — create and edit custom dual-variant themes with live preview, per-colour transparency sliders (list hover, tray hover, highlight), Undo/Redo, and a right-click menu for Apply/Duplicate/Export/Delete
 - **Community theme browser** — search, tag filters, zoomable dark/light previews, and one-click install (or reinstall to pick up updates) via **Download themes…** in Settings → Appearance
+- **Theme update detection** — installed community themes are checked alongside the app-update check; a badge in Settings → Appearance and a banner in Settings → About point you to the ones with updates waiting
 - **Taskbar/Alt-Tab icon** follows the active theme's app icon, same as the tray icon
 - All themes — built-in, downloaded, and hand-made — live together in `%APPDATA%\MasselGUARD\themes\`
 - Themes are published in the separate [MasselGUARD-themes](https://github.com/masselink/MasselGUARD-themes) repo, along with the full `theme.json` format reference for making your own
@@ -134,8 +136,8 @@ MasselGUARD includes a full CLI for scripting and automation. Requires Administr
 MasselGUARD version
 ```
 ```
-MasselGUARD v3.7.0  |  Chromatic Chameleon
-build:   2607080000
+MasselGUARD v3.7.1  |  Chromatic Chameleon
+build:   2607160000
 Harold Masselink  |  https://masselink.net
 Update:  up to date
 ```
@@ -177,7 +179,7 @@ Requires .NET 10 SDK. Generates a `YYMMDDHHMM` build stamp, compiles with `dotne
 Banner:
 ```
   --------------------------------------------------
-  MasselGUARD  v3.7.0  |  Chromatic Chameleon
+  MasselGUARD  v3.7.1  |  Chromatic Chameleon
   Harold Masselink  |  https://masselink.net
   --------------------------------------------------
 ```

@@ -957,6 +957,11 @@
                                 Style="{StaticResource SuccessBtn}" Padding="18,6"
                                 IsEnabled="False"
                                 Click="Save_Click"/>
+                        <Button x:Name="CloseBtn" Content="Close"
+                                Style="{StaticResource FlatBtn}" Padding="14,6"
+                                Margin="6,0,0,0"
+                                ToolTip="Close the Theme Manager (prompts to save if there are unsaved changes)"
+                                Click="CloseBtn_Click"/>
                     </StackPanel>
                 </Grid>
             </Border>

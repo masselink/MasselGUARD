@@ -622,6 +622,9 @@ namespace MasselGUARD.Views
                 _draft.ActiveTheme = item.FolderName;
                 _vm.ActiveTheme    = item.FolderName;
                 if (_themePreviewActive) CancelThemePreview();
+                // Apply immediately, respecting the draft's Light/Dark/Auto mode — not
+                // the raw Windows setting, which can disagree with what's picked here.
+                ApplySpecificTheme(forceLight: !IsDraftDark());
             }
         }
 
