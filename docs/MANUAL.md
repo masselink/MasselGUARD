@@ -1,6 +1,6 @@
 # MasselGUARD — User Manual
 
-**Version 3.7.0 — Chromatic Chameleon**
+**Version 3.7.1 — Chromatic Chameleon**
 
 ---
 
@@ -622,8 +622,9 @@ catalogue, see the [MasselGUARD-themes](https://github.com/masselink/MasselGUARD
 **Settings → Appearance → Manage themes…** opens the Theme Manager, where every theme (System excepted) is fully editable and deletable:
 
 - **+ Add theme** — create a new theme (from the current theme, from a pair of light/dark images, or as a copy of any existing theme), browse **Community themes**, or **Import…** a `.zip`.
-- **Editor** — Identity, Colors (Light/Dark side by side with copy arrows and a global "Copy inverted colour" mode), Typography, Transparency (app/panel opacity plus dedicated sliders for the list-hover, tray-hover, and highlight colours), Window (title bar + status bar layout), and Assets (a separate Light and Dark picker for the logo, app icon, background image, and both tray icons).
-- Edits **apply live** to the running app as you make them (debounced ~180 ms) — the **● LIVE** indicator confirms it. Closing without saving reverts to the last saved state; **Undo/Redo** (Ctrl+Z/Ctrl+Y) step back through the session's edits.
+- **Editor** — Identity, Colors (Light/Dark side by side with copy arrows and a global "Copy inverted colour" mode), Typography (body font, an optional separate **Header font** for the title bar and section headers, and base font size), Transparency (app/panel opacity plus dedicated sliders for the list-hover, tray-hover, and highlight colours), Window (title bar + status bar layout), and Assets (a separate Light and Dark picker for the logo, app icon, background image, and both tray icons).
+- Edits **apply live** to the running app as you make them (debounced ~180 ms) — the **● LIVE** indicator confirms it (click it to pause/resume). Closing without saving reverts to the last saved state; **Undo/Redo** (Ctrl+Z/Ctrl+Y) step back through the session's edits.
+- The footer has **Save** and **Close** buttons (Close behaves like the title-bar ✕ — prompts to save if there are unsaved changes).
 - Right-click a theme in the list for **Apply / Duplicate / Export / Delete**.
 - **Hold Shift** to temporarily fall back to plain Windows colours if a draft edit makes the Manager itself unreadable.
 
@@ -632,7 +633,8 @@ catalogue, see the [MasselGUARD-themes](https://github.com/masselink/MasselGUARD
 **Settings → Appearance → Download themes…** (or Manage themes… → Community themes) opens a searchable, tag-filterable gallery of themes from the shared repository, each with dark/light preview cards.
 
 - **Click a preview to zoom it** to full size; hover shows a 🔍 hint. Close with the ✕, by clicking outside the image, or Escape. The Dark/Light toggle still works, and the zoomed image updates with it.
-- **Install** downloads a theme into `%APPDATA%\MasselGUARD\themes\`. An already-installed theme shows **Reinstall** instead — redownloading confirms first, since it overwrites any local edits.
+- **Install** downloads a theme into `%APPDATA%\MasselGUARD\themes\`. An already-installed theme shows **Reinstall** instead — or **Update** when the repository has a newer version than the one you installed (redownloading confirms first, since it overwrites any local edits).
+- **Update detection** — installed community themes are checked automatically alongside the regular app-update check. When one has an update waiting, a badge appears in **Settings → Appearance** and a click-through banner in **Settings → About**, both jumping straight to Community themes.
 - The repository URL is configurable in Settings → Advanced (blank uses the default MasselGUARD-themes repository).
 
 ### Live preview

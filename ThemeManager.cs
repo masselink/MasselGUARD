@@ -760,17 +760,47 @@ namespace MasselGUARD
                 {
                     try
                     {
-                        var bmp = LoadImageUncached(iconPath);
-                        res["Theme.AppIcon"]  = bmp;
-                        res["Theme.TrayIcon"] = BitmapToWinFormsIcon(bmp);
+                        System.Drawing.Icon smallIcon, bigIcon;
+                        BitmapSource appIconSrc;
+
+                        if (iconPath.EndsWith(".ico", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Load the native frames directly — a real .ico (like a
+                            // downloaded/hand-made appIcon typically is) usually ships
+                            // several resolutions (16/32/48/256…). Decoding it through
+                            // BitmapImage grabs only one frame and the old single-frame
+                            // re-encode below mislabelled its size in the ICONDIRENTRY,
+                            // so the taskbar (which wants a bigger frame than the tray)
+                            // ended up stretching a tiny bitmap. Picking each size
+                            // natively avoids both problems.
+                            smallIcon  = new System.Drawing.Icon(iconPath, new System.Drawing.Size(16, 16));
+                            bigIcon    = new System.Drawing.Icon(iconPath, new System.Drawing.Size(48, 48));
+                            appIconSrc = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
+                                bigIcon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+                            appIconSrc.Freeze();
+                        }
+                        else
+                        {
+                            // Non-.ico asset (png/jpg) — no native multi-resolution concept,
+                            // same bitmap serves every size.
+                            var bmp = LoadImageUncached(iconPath);
+                            appIconSrc = bmp;
+                            smallIcon  = BitmapToWinFormsIcon(bmp)!;
+                            bigIcon    = smallIcon;
+                        }
+
+                        res["Theme.AppIcon"]       = appIconSrc;
+                        res["Theme.TrayIcon"]      = smallIcon;
+                        res["Theme.TaskbarBigIcon"] = bigIcon;
                         return;
                     }
                     catch { }
                 }
             }
 
-            res["Theme.AppIcon"]  = null;
-            res["Theme.TrayIcon"] = null;
+            res["Theme.AppIcon"]        = null;
+            res["Theme.TrayIcon"]       = null;
+            res["Theme.TaskbarBigIcon"] = null;
         }
 
         /// <summary>

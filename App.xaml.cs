@@ -458,6 +458,7 @@ namespace MasselGUARD
         private Views.ToastWindow? _activeToast;
         private string _lastToastKey    = "";
         private int    _lastActiveCount = 0;  // preserved across theme changes
+        private string _lastActiveTunnelName = "";  // preserved across theme changes, for the tray tooltip
 
         public void ShowTrayNotification(Views.ToastNotification n)
         {
@@ -503,9 +504,12 @@ namespace MasselGUARD
         public void UpdateTrayStatus(string tunnelName, int activeCount)
         {
             if (_trayIcon == null) return;
-            _lastActiveCount = activeCount;   // remember for theme-change redraws
+            _lastActiveCount      = activeCount;   // remember for theme-change redraws
+            _lastActiveTunnelName = tunnelName;
             var appName = ThemeManager.Instance.Current.AppName;
-            _trayIcon.Text = activeCount > 0 ? Lang.T("TrayActive", tunnelName) : appName;
+            _trayIcon.Text = activeCount > 0
+                ? $"{appName} - {Lang.T("TrayActive", tunnelName)}"
+                : $"{appName} - {Lang.T("TrayIdleSubtitle")}";
             _trayIcon.Icon = GetTrayIcon(activeCount);
 
             // Update tunnel header shield to reflect active state
@@ -533,6 +537,13 @@ namespace MasselGUARD
             if (_trayIcon == null) return;
             // Redraw icon and menu with current active-count so state is preserved
             _trayIcon.Icon = GetTrayIcon(_lastActiveCount);
+            // Tooltip text includes the theme's app name too — keep it in step with the
+            // icon instead of leaving the previous theme's name showing until the next
+            // tunnel status change.
+            var appName = ThemeManager.Instance.Current.AppName;
+            _trayIcon.Text = _lastActiveCount > 0
+                ? $"{appName} - {Lang.T("TrayActive", _lastActiveTunnelName)}"
+                : $"{appName} - {Lang.T("TrayIdleSubtitle")}";
             if (_tunnelMenuHeader != null)
                 _tunnelMenuHeader.Image = DrawMenuIcon(
                     _lastActiveCount > 0 ? MenuIconKind.ShieldOn : MenuIconKind.ShieldOff);

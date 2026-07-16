@@ -1,6 +1,6 @@
 # MasselGUARD — Technical reference
 
-Developer/technical reference for v3.7.0 — Chromatic Chameleon. For end-user instructions see [`Manual.md`](Manual.md).
+Developer/technical reference for v3.7.1 — Chromatic Chameleon. For end-user instructions see [`Manual.md`](Manual.md).
 
 ---
 
@@ -558,19 +558,21 @@ Continuation lines (detail sub-entries) render with a `↳` prefix in the timest
 ### BUILD.bat
 
 ```bat
-set VERSION=3.7.0
+set VERSION=3.7.1
 set CODENAME=Chromatic Chameleon
 set DOTNET_CLI_TELEMETRY_OPTOUT=1
 set DOTNET_NOLOGO=1
 dotnet publish -p:Version=%VERSION% -p:InformationalVersion=%VERSION%.%BUILD_NUM% → dist\
-copy theme\ → dist\theme\
+copy lang\ → dist\lang\
 copy wireguard-deps\*.dll → dist\
 ```
+
+(No themes are bundled — they're downloaded from the shared-themes repo into `%APPDATA%`.)
 
 Banner printed during build:
 ```
   --------------------------------------------------
-  MasselGUARD  v3.7.0  |  Chromatic Chameleon
+  MasselGUARD  v3.7.1  |  Chromatic Chameleon
   Harold Masselink  |  https://masselink.net
   --------------------------------------------------
 ```
@@ -772,7 +774,7 @@ dotnet publish -p:Version=%VERSION% -p:InformationalVersion=%VERSION%.%BUILD_NUM
 Assembly.GetEntryAssembly()
     ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
     ?.InformationalVersion;
-// → "3.7.0.2607080000"  (last 10 chars = build stamp)
+// → "3.7.1.2607160000"  (last 10 chars = build stamp)
 ```
 
 `Version.TryParse` handles 4-part versions for comparison. The version component (`Major.Minor.Patch`) is always static; only the build stamp changes between builds.
@@ -946,8 +948,8 @@ string updateStatus =
 
 Plain output:
 ```
-MasselGUARD v3.7.0  |  Chromatic Chameleon
-build:   2607080000
+MasselGUARD v3.7.1  |  Chromatic Chameleon
+build:   2607160000
 Harold Masselink  |  https://masselink.net
 Update:  up to date
 ```
@@ -984,10 +986,11 @@ private static readonly Dictionary<string, string> _codenames =
     new(StringComparer.OrdinalIgnoreCase)
     {
         { "3.7.0", "Chromatic Chameleon" },
+        { "3.7.1", "Chromatic Chameleon" },
     };
 ```
 
-`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"3.7.0 — Chromatic Chameleon"` or just `"3.7.0"`.
+`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"3.7.1 — Chromatic Chameleon"` or just `"3.7.1"`.
 
 Codenames are assigned per `Major.Minor.Patch` release only — not per build. Update the dictionary in `UpdateChecker.cs` **and** `BUILD.bat` when bumping `VERSION`.
 

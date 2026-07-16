@@ -196,15 +196,15 @@ namespace MasselGUARD.Views
         {
             if (_livePaused)
             {
-                LiveIndicator.Text       = "⏸ PAUSED";
-                LiveIndicator.Foreground = (Brush)FindResource("TextMuted");
-                LiveIndicator.ToolTip    = "Live preview is paused — switching themes or editing won't restyle the app. Click to resume.";
+                LiveIndicator.Text    = "⏸ PAUSED";
+                LiveIndicator.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
+                LiveIndicator.ToolTip = "Live preview is paused — switching themes or editing won't restyle the app. Click to resume.";
             }
             else
             {
-                LiveIndicator.Text       = "● LIVE";
-                LiveIndicator.Foreground = (Brush)FindResource("Accent");
-                LiveIndicator.ToolTip    = "Changes (including switching themes) are applied to the app immediately. Click to pause. Close without saving to revert.";
+                LiveIndicator.Text    = "● LIVE";
+                LiveIndicator.SetResourceReference(TextBlock.ForegroundProperty, "Accent");
+                LiveIndicator.ToolTip = "Changes (including switching themes) are applied to the app immediately. Click to pause. Close without saving to revert.";
             }
         }
 
@@ -494,16 +494,24 @@ namespace MasselGUARD.Views
         // ── Color rows (built programmatically) — Light + Dark side by side ───────
         private void BuildColorRows()
         {
+            // SetResourceReference throughout this method, not FindResource — these labels
+            // are built once, here, in the constructor, and never touched again. A
+            // FindResource snapshot freezes whatever theme was active at that moment,
+            // going stale (and unreadable) the instant the user previews a different
+            // theme, since ThemeManager replaces each brush resource with a new object
+            // rather than mutating it in place.
             // Column header: Light | Dark
             var header = new Grid { Margin = new Thickness(0, 0, 0, 6) };
             AddColorColumns(header);
-            var hLight = new TextBlock { Text = "Light", FontFamily = (FontFamily)FindResource("Theme.FontFamily"),
-                FontSize = 10, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("TextMuted"),
+            var hLight = new TextBlock { Text = "Light", FontSize = 10, FontWeight = FontWeights.SemiBold,
                 HorizontalAlignment = HorizontalAlignment.Center };
+            hLight.SetResourceReference(TextBlock.FontFamilyProperty, "Theme.FontFamily");
+            hLight.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
             Grid.SetColumn(hLight, 1); Grid.SetColumnSpan(hLight, 2);
-            var hDark = new TextBlock { Text = "Dark", FontFamily = (FontFamily)FindResource("Theme.FontFamily"),
-                FontSize = 10, FontWeight = FontWeights.SemiBold, Foreground = (Brush)FindResource("TextMuted"),
+            var hDark = new TextBlock { Text = "Dark", FontSize = 10, FontWeight = FontWeights.SemiBold,
                 HorizontalAlignment = HorizontalAlignment.Center };
+            hDark.SetResourceReference(TextBlock.FontFamilyProperty, "Theme.FontFamily");
+            hDark.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
             Grid.SetColumn(hDark, 4); Grid.SetColumnSpan(hDark, 2);
             header.Children.Add(hLight); header.Children.Add(hDark);
             ColorsPanel.Children.Add(header);
@@ -512,15 +520,16 @@ namespace MasselGUARD.Views
             {
                 if (key == "ColorTrayBg")
                 {
-                    ColorsPanel.Children.Add(new TextBlock
+                    var trayHdr = new TextBlock
                     {
                         Text       = "Tray menu",
-                        FontFamily = (FontFamily)FindResource("Theme.FontFamily"),
                         FontSize   = 10,
                         FontWeight = FontWeights.SemiBold,
-                        Foreground = (Brush)FindResource("TextPrimary"),
                         Margin     = new Thickness(0, 10, 0, 6),
-                    });
+                    };
+                    trayHdr.SetResourceReference(TextBlock.FontFamilyProperty, "Theme.FontFamily");
+                    trayHdr.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimary");
+                    ColorsPanel.Children.Add(trayHdr);
                 }
 
                 var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
@@ -530,10 +539,10 @@ namespace MasselGUARD.Views
                 {
                     Text = label,
                     VerticalAlignment = VerticalAlignment.Center,
-                    FontFamily = (FontFamily)FindResource("Theme.FontFamily"),
                     FontSize   = 10,
-                    Foreground = (Brush)FindResource("TextMuted"),
                 };
+                lbl.SetResourceReference(TextBlock.FontFamilyProperty, "Theme.FontFamily");
+                lbl.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
                 Grid.SetColumn(lbl, 0);
                 row.Children.Add(lbl);
 
@@ -587,11 +596,11 @@ namespace MasselGUARD.Views
                 CornerRadius    = new CornerRadius(3),
                 Margin          = new Thickness(4, 0, 0, 0),
                 Cursor          = Cursors.Hand,
-                BorderBrush     = (Brush)FindResource("BorderColor"),
                 BorderThickness = new Thickness(1),
                 Tag = (key, dark),
                 ToolTip = "Click to pick a colour (move off the popup to grab from screen)",
             };
+            swatch.SetResourceReference(Border.BorderBrushProperty, "BorderColor");
             swatch.MouseLeftButtonUp += Swatch_Click;
             Grid.SetColumn(swatch, swatchCol);
 
@@ -622,14 +631,13 @@ namespace MasselGUARD.Views
         private void RefreshArrowGlyphs()
         {
             bool inv = InvertCopyCheck?.IsChecked == true;
-            var accent = (Brush)FindResource("Accent");
             foreach (var b in _arrows)
             {
                 if (b.Tag is not ValueTuple<string, bool> tag) continue;
                 bool toDark = tag.Item2;
                 b.Content    = inv ? (toDark ? "⇉" : "⇇") : (toDark ? "→" : "←");
                 b.FontWeight = inv ? FontWeights.Bold : FontWeights.Normal;
-                if (inv) b.Foreground = accent; else b.ClearValue(Control.ForegroundProperty);
+                if (inv) b.SetResourceReference(Control.ForegroundProperty, "Accent"); else b.ClearValue(Control.ForegroundProperty);
                 b.ToolTip = (toDark ? "Copy Light → Dark" : "Copy Dark → Light") + (inv ? " (inverted)" : "");
             }
         }
@@ -699,14 +707,15 @@ namespace MasselGUARD.Views
         /// </summary>
         private void BuildTrayPreview()
         {
-            ColorsPanel.Children.Add(new TextBlock
+            var trayPreviewLbl = new TextBlock
             {
                 Text       = "Tray menu preview",
-                FontFamily = (FontFamily)FindResource("Theme.FontFamily"),
                 FontSize   = 10,
-                Foreground = (Brush)FindResource("TextMuted"),
                 Margin     = new Thickness(0, 8, 0, 6),
-            });
+            };
+            trayPreviewLbl.SetResourceReference(TextBlock.FontFamilyProperty, "Theme.FontFamily");
+            trayPreviewLbl.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
+            ColorsPanel.Children.Add(trayPreviewLbl);
 
             var rows = new StackPanel { Margin = new Thickness(4) };
             string[] items = { "MyTunnel", "Connect", "Settings", "Exit" };
@@ -807,33 +816,44 @@ namespace MasselGUARD.Views
 
         private ListBoxItem BuildListItem(string name, string display, bool isBuiltin, bool isActive)
         {
+            // SetResourceReference, not FindResource — ThemeManager replaces the brush
+            // resource with a brand-new SolidColorBrush on every theme change rather than
+            // mutating it in place, so a FindResource snapshot taken when the list was
+            // last built goes stale (and unreadable) the moment the user previews a
+            // different theme, while the item's background updates live via the
+            // ItemContainerStyle's own DynamicResource bindings.
             var panel = new StackPanel { Orientation = Orientation.Horizontal };
             if (isActive)
             {
-                panel.Children.Add(new TextBlock
+                var dot = new TextBlock
                 {
-                    Text       = "● ",
-                    FontSize   = 8,
-                    Foreground = (Brush)FindResource("Accent"),
+                    Text = "● ",
+                    FontSize = 8,
                     VerticalAlignment = VerticalAlignment.Center,
-                });
+                };
+                dot.SetResourceReference(TextBlock.ForegroundProperty, "Accent");
+                panel.Children.Add(dot);
             }
-            panel.Children.Add(new TextBlock
+            var nameTb = new TextBlock
             {
-                Text       = display,
-                FontFamily = (FontFamily)FindResource("Theme.FontFamily"),
-                FontSize   = 11,
-                Foreground = (Brush)FindResource(isActive ? "Accent" : "TextPrimary"),
+                Text = display,
+                FontSize = 11,
                 VerticalAlignment = VerticalAlignment.Center,
-            });
+            };
+            nameTb.SetResourceReference(TextBlock.FontFamilyProperty, "Theme.FontFamily");
+            nameTb.SetResourceReference(TextBlock.ForegroundProperty, isActive ? "Accent" : "TextPrimary");
+            panel.Children.Add(nameTb);
             if (isBuiltin)
-                panel.Children.Add(new TextBlock
+            {
+                var lockTb = new TextBlock
                 {
-                    Text       = "  🔒",
-                    FontSize   = 9,
-                    Foreground = (Brush)FindResource("TextMuted"),
+                    Text = "  🔒",
+                    FontSize = 9,
                     VerticalAlignment = VerticalAlignment.Center,
-                });
+                };
+                lockTb.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
+                panel.Children.Add(lockTb);
+            }
 
             return new ListBoxItem { Content = panel, Tag = name };
         }
@@ -866,10 +886,19 @@ namespace MasselGUARD.Views
             lbi.IsSelected = true;   // routes through ThemeList_SelectionChanged → LoadTheme
             if (string.IsNullOrEmpty(_editingName)) return;
 
+            // A code-created ContextMenu/MenuItem — never assigned via a FrameworkElement's
+            // ContextMenu property — doesn't reliably pick up App.xaml's implicit
+            // TargetType styles, so they're assigned explicitly here instead.
             var menu = new ContextMenu();
+            if (Application.Current.Resources[typeof(ContextMenu)] is Style cmStyle)
+                menu.Style = cmStyle;
+            var miStyle = Application.Current.Resources[typeof(MenuItem)] as Style;
+            var sepStyle = Application.Current.Resources[typeof(Separator)] as Style;
+
             void Item(string header, RoutedEventHandler handler)
             {
                 var mi = new MenuItem { Header = header };
+                if (miStyle != null) mi.Style = miStyle;
                 mi.Click += handler;
                 menu.Items.Add(mi);
             }
@@ -880,11 +909,18 @@ namespace MasselGUARD.Views
                 Item("Export…", ExportTheme_Click);
             if (_canDelete)
             {
-                menu.Items.Add(new Separator());
+                var sep = new Separator();
+                if (sepStyle != null) sep.Style = sepStyle;
+                menu.Items.Add(sep);
                 Item("Delete", DeleteTheme_Click);
             }
 
+            // Anchor to the clicked row itself rather than the default MousePoint placement —
+            // MousePoint resolves the cursor position through the wrong window's transform
+            // when the click lands in this (AllowsTransparency) child window, making the menu
+            // pop up shifted toward the main window instead of under the theme it was for.
             menu.PlacementTarget = lbi;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
             menu.IsOpen = true;
             e.Handled = true;
         }
@@ -1689,19 +1725,43 @@ namespace MasselGUARD.Views
                 return;
 
             var dir = EditingThemeDir;
-            try { Directory.Delete(dir, recursive: true); }
-            catch (Exception ex)
-            {
-                ThemedMessageDialog.Info(this, $"Could not delete theme folder:\n{ex.Message}", "Delete theme");
-                return;
-            }
 
-            // Switch away if this was the active theme
-            if (ThemeManager.Instance.CurrentThemeName == _editingName)
+            // Selecting a theme to right-click it already live-previewed it (ApplyDraftLive →
+            // ApplyPreview), which can leave Theme.FontFamily pointing at a private font file
+            // (e.g. a bundled .ttf) inside the folder we're about to delete. WPF's font cache
+            // doesn't release that file until something else is applied, so Directory.Delete
+            // can fail with "file in use" — switch resources away from this folder first: to
+            // System if it's also the committed active theme (nothing to restore it to), or
+            // back to whatever actually is committed otherwise. GC + one retry as a fallback
+            // for WPF's font cache being slow to let go.
+            bool wasActive = _main.ConfigSvc.Config.ActiveTheme == _editingName;
+            if (wasActive)
             {
                 _main.ConfigSvc.Config.ActiveTheme = "__system__";
                 ThemeManager.Instance.LoadSystem(ThemeManager.GetSystemIsDark());
                 _main.ConfigSvc.Save();
+            }
+            else
+            {
+                _main.ApplyThemeFromConfig();
+            }
+
+            try { Directory.Delete(dir, recursive: true); }
+            catch (IOException)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                try { Directory.Delete(dir, recursive: true); }
+                catch (Exception ex2)
+                {
+                    ThemedMessageDialog.Info(this, $"Could not delete theme folder:\n{ex2.Message}", "Delete theme");
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                ThemedMessageDialog.Info(this, $"Could not delete theme folder:\n{ex.Message}", "Delete theme");
+                return;
             }
 
             _editingName = "";

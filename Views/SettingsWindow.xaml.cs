@@ -622,6 +622,9 @@ namespace MasselGUARD.Views
                 _draft.ActiveTheme = item.FolderName;
                 _vm.ActiveTheme    = item.FolderName;
                 if (_themePreviewActive) CancelThemePreview();
+                // Apply immediately, respecting the draft's Light/Dark/Auto mode — not
+                // the raw Windows setting, which can disagree with what's picked here.
+                ApplySpecificTheme(forceLight: !IsDraftDark());
             }
         }
 
@@ -1493,6 +1496,23 @@ namespace MasselGUARD.Views
                     UpdateStatusLabel.Text = "🚀  " + Lang.T("SettingsUpdateAhead", cfg.LatestKnownVersion!);
                 else
                     UpdateStatusLabel.Text = "✓  " + Lang.T("SettingsUpdateCurrent", current);
+            }
+
+            // Theme update indicator — same passive cache as the Appearance tab's badge,
+            // just surfaced here too so "Check for update" guides the user toward it
+            // instead of it only showing up on a tab they may never open.
+            if (AboutThemeUpdatesRow != null && AboutThemeUpdatesLabel != null)
+            {
+                var themeUpdates = cfg.ThemeUpdatesAvailable ?? new System.Collections.Generic.List<string>();
+                int n = themeUpdates.Count;
+                AboutThemeUpdatesRow.Visibility = n > 0 ? Visibility.Visible : Visibility.Collapsed;
+                if (n > 0)
+                {
+                    AboutThemeUpdatesLabel.Text = (n == 1
+                        ? $"🎨 A theme update is available ({themeUpdates[0]})"
+                        : $"🎨 {n} theme updates are available ({string.Join(", ", themeUpdates)})")
+                        + " — click to open Community themes and update.";
+                }
             }
 
             // Check Now button label

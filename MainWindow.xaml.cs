@@ -109,6 +109,22 @@ namespace MasselGUARD
         [DllImport("user32.dll")] private static extern int  SetWindowLong(IntPtr h, int i, int v);
         [DllImport("user32.dll")] private static extern bool DestroyIcon(IntPtr hIcon);
 
+        // ── Taskbar icon refresh ────────────────────────────────────────────────
+        // Window.Icon alone updates the title bar / Alt-Tab thumbnail, but the taskbar
+        // button's icon is cached from window creation and doesn't reliably re-fetch it.
+        // WM_SETICON only sets the per-instance icon; Explorer's taskband re-registration
+        // (triggered by the ShowInTaskbar toggle in RefreshTaskbarButtonIcon) reads the
+        // WINDOW CLASS's own icon slot instead, which WM_SETICON never touches — so both
+        // have to be updated for the taskbar button to actually pick up the new icon.
+        private const int WM_SETICON   = 0x0080;
+        private const int ICON_SMALL   = 0;
+        private const int ICON_BIG     = 1;
+        private const int GCLP_HICON   = -14;
+        private const int GCLP_HICONSM = -34;
+        [DllImport("user32.dll")] private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+        [DllImport("user32.dll", EntryPoint = "SetClassLongPtrW", CharSet = CharSet.Unicode)]
+        private static extern IntPtr SetClassLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
         public MainWindow()
         {
             // ── Bootstrap services ────────────────────────────────────────────
@@ -143,7 +159,10 @@ namespace MasselGUARD
 
             // Override the lang-bound title with the real assembly version so Task Manager
             // and the taskbar always show the current version without updating lang files.
-            Title = $"MasselGUARD  v{UpdateChecker.CurrentVersionString}";
+            // Kept in step with the theme's app name (see UpdateWindowTitle) for the same
+            // reason as the tray tooltip — Window.Title is what Alt-Tab / taskbar hover /
+            // Task Manager actually read, independent of the custom in-window title bar.
+            UpdateWindowTitle();
 
             // ── Startup ───────────────────────────────────────────────────────
             Loaded += OnLoaded;
@@ -242,6 +261,7 @@ namespace MasselGUARD
                 UpdateAdminLabel();
                 UpdateShieldChevron();
                 UpdateTaskbarIcon();
+                UpdateWindowTitle();
                 NotifyAllBadges();
                 ApplyGroupFilter();
                 RebuildLog();   // re-resolve brush colours after accent/theme change
@@ -673,14 +693,18 @@ namespace MasselGUARD
             HiddenCountBadge.Visibility = Visibility.Visible;
             HiddenCountBtn.IsEnabled    = hiddenCount > 0;
 
+            // SetResourceReference, not FindResource — this method only re-runs when the
+            // hidden-tunnel count itself changes, not on every theme change, so a
+            // FindResource snapshot here would go stale (ThemeManager replaces each brush
+            // resource with a new object rather than mutating it in place).
             if (_showAllOverride)
             {
                 // Override active — show plain total in accent with border
                 HiddenCountBtn.Content      = total.ToString();
-                HiddenCountBtn.Foreground   = (Brush)FindResource("Accent");
-                HiddenCountBadge.Background = (Brush)FindResource("BorderColor");
+                HiddenCountBtn.SetResourceReference(ForegroundProperty, "Accent");
+                HiddenCountBadge.SetResourceReference(Border.BackgroundProperty, "BorderColor");
                 HiddenCountBadge.BorderThickness = new Thickness(1);
-                HiddenCountBadge.BorderBrush     = (Brush)FindResource("Accent");
+                HiddenCountBadge.SetResourceReference(Border.BorderBrushProperty, "Accent");
                 HiddenCountBadge.CornerRadius    = new System.Windows.CornerRadius(8);
                 HiddenCountBtn.ToolTip = "Override active: showing all tunnels. Click to restore hidden groups.";
             }
@@ -688,8 +712,8 @@ namespace MasselGUARD
             {
                 // Hidden tunnels exist — show x/y, no border
                 HiddenCountBtn.Content      = $"{visible}/{total}";
-                HiddenCountBtn.Foreground   = (Brush)FindResource("TextMuted");
-                HiddenCountBadge.Background = (Brush)FindResource("BorderColor");
+                HiddenCountBtn.SetResourceReference(ForegroundProperty, "TextMuted");
+                HiddenCountBadge.SetResourceReference(Border.BackgroundProperty, "BorderColor");
                 HiddenCountBadge.BorderThickness = new Thickness(0);
                 HiddenCountBadge.BorderBrush     = Brushes.Transparent;
                 HiddenCountBadge.CornerRadius    = new System.Windows.CornerRadius(8);
@@ -1269,35 +1293,109 @@ namespace MasselGUARD
 
         // ── Taskbar icon (Window.Icon — taskbar button + Alt-Tab) ──────────────
         // Mirrors the tray icon: a theme's appIcon drives both (ThemeManager.ApplyAppIcon
-        // sets Theme.AppIcon for this and Theme.TrayIcon for the tray), but only Theme.AppIcon
-        // was ever consumed until now. Falls back to the compiled exe icon when unset.
+        // sets Theme.AppIcon for this and Theme.TrayIcon for the tray). Window.Icon alone
+        // updates the title bar / Alt-Tab thumbnail fine, but the taskbar button's icon is
+        // cached from window creation and doesn't reliably re-fetch a live Icon change —
+        // an explicit WM_SETICON is needed to force that specific refresh (see
+        // RefreshTaskbarButtonIcon). Falls back to the compiled exe icon when unset.
         private ImageSource? _defaultTaskbarIcon;
+        private System.Drawing.Icon? _defaultTaskbarWinIcon;
+
+        // WM_SETICON / SetClassLongPtr hand Windows a raw HICON with no notion of .NET
+        // object lifetime. Each theme (re-)apply creates fresh Icon objects — once the old
+        // ones are no longer referenced anywhere, GC can finalize them, which destroys the
+        // native handle Windows' taskbar/window-class icon slot is still holding, leaving a
+        // blank icon. Keeping every icon ever assigned to the window alive for the app's
+        // lifetime (a handful of small GDI objects at most) avoids that entirely.
+        private readonly List<System.Drawing.Icon> _liveTaskbarIcons = new();
 
         private void UpdateTaskbarIcon()
         {
-            if (Application.Current.Resources["Theme.AppIcon"] is BitmapSource bmp)
+            BitmapSource? bmp;
+            System.Drawing.Icon? smallIcon, bigIcon;
+            string source;
+
+            if (Application.Current.Resources["Theme.AppIcon"] is BitmapSource themedBmp)
             {
-                Icon = bmp;
-                return;
+                bmp        = themedBmp;
+                smallIcon  = Application.Current.Resources["Theme.TrayIcon"]      as System.Drawing.Icon;
+                bigIcon    = Application.Current.Resources["Theme.TaskbarBigIcon"] as System.Drawing.Icon ?? smallIcon;
+                source     = "themed";
             }
-            _defaultTaskbarIcon ??= LoadDefaultExeIcon();
-            Icon = _defaultTaskbarIcon;
+            else
+            {
+                if (_defaultTaskbarIcon == null)
+                    (_defaultTaskbarIcon, _defaultTaskbarWinIcon) = LoadDefaultExeIcon();
+                bmp       = _defaultTaskbarIcon as BitmapSource;
+                smallIcon = _defaultTaskbarWinIcon;
+                bigIcon   = _defaultTaskbarWinIcon;
+                source    = "default-exe";
+            }
+
+            LogSvc.Debug($"[Icon] UpdateTaskbarIcon: source={source} bmp={(bmp != null)} " +
+                         $"small={(smallIcon != null ? smallIcon.Handle.ToString() : "null")} " +
+                         $"big={(bigIcon != null ? bigIcon.Handle.ToString() : "null")} " +
+                         $"runMode={AppRunMode}");
+
+            Icon = bmp;
+            RefreshTaskbarButtonIcon(smallIcon, bigIcon);
         }
 
-        private static ImageSource? LoadDefaultExeIcon()
+        /// <summary>Forces the OS taskbar button to re-fetch the window icon — Window.Icon
+        /// alone updates the title bar / Alt-Tab thumbnail but doesn't reliably reach the
+        /// taskbar button once it already exists (its icon is cached at registration); an
+        /// explicit WM_SETICON plus the window class's own icon slot (GCLP_HICON/HICONSM —
+        /// some shell code paths read the class icon rather than the per-instance one) is
+        /// needed to force that refresh. Small/big are set separately — reusing one
+        /// undersized icon for both made the taskbar button look tiny/blurry.</summary>
+        private void RefreshTaskbarButtonIcon(System.Drawing.Icon? smallIcon, System.Drawing.Icon? bigIcon)
+        {
+            if (smallIcon == null && bigIcon == null) return;
+            var hwnd = new WindowInteropHelper(this).Handle;
+            LogSvc.Debug($"[Icon] RefreshTaskbarButtonIcon: hwnd={hwnd}");
+            if (hwnd == IntPtr.Zero) return;
+
+            if (bigIcon != null)
+            {
+                _liveTaskbarIcons.Add(bigIcon);
+                var r1 = SendMessage(hwnd, WM_SETICON, (IntPtr)ICON_BIG, bigIcon.Handle);
+                var r2 = SetClassLongPtr(hwnd, GCLP_HICON, bigIcon.Handle);
+                LogSvc.Debug($"[Icon] big: WM_SETICON prev={r1} SetClassLongPtr prev={r2}");
+            }
+            if (smallIcon != null)
+            {
+                _liveTaskbarIcons.Add(smallIcon);
+                var r1 = SendMessage(hwnd, WM_SETICON, (IntPtr)ICON_SMALL, smallIcon.Handle);
+                var r2 = SetClassLongPtr(hwnd, GCLP_HICONSM, smallIcon.Handle);
+                LogSvc.Debug($"[Icon] small: WM_SETICON prev={r1} SetClassLongPtr prev={r2}");
+            }
+        }
+
+        /// <summary>Window.Title — what Alt-Tab, the taskbar hover tooltip, and Task
+        /// Manager actually read, independent of the custom in-window title bar text.
+        /// Kept in step with the theme's app name, same pattern as the tray tooltip.</summary>
+        private void UpdateWindowTitle()
+        {
+            var appName = ThemeManager.Instance.Current.AppName;
+            Title = $"{appName} v{UpdateChecker.CurrentVersionString} - WireGuard VPN Client";
+        }
+
+        private static (ImageSource?, System.Drawing.Icon?) LoadDefaultExeIcon()
         {
             try
             {
                 var path = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
-                if (string.IsNullOrEmpty(path)) return null;
-                using var ico = System.Drawing.Icon.ExtractAssociatedIcon(path);
-                if (ico == null) return null;
+                if (string.IsNullOrEmpty(path)) return (null, null);
+                // Not disposed — its Handle is reused by RefreshTaskbarButtonIcon for the
+                // lifetime of the app, same as the theme-derived Theme.TrayIcon resource.
+                var ico = System.Drawing.Icon.ExtractAssociatedIcon(path);
+                if (ico == null) return (null, null);
                 var src = Imaging.CreateBitmapSourceFromHIcon(
                     ico.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
                 src.Freeze();
-                return src;
+                return (src, ico);
             }
-            catch { return null; }
+            catch { return (null, null); }
         }
 
         private void UpdateFooterLabel()
@@ -1308,8 +1406,8 @@ namespace MasselGUARD
                 AppRunModeKind.ManagedPortable => "Managed (Portable)",
                 _                              => Lang.T("InstallStatusNotInstalled"),
             };
-            FooterLabel.Text       = $"{Lang.T("FooterMode")}: {modeText}";
-            FooterLabel.Foreground = (Brush)FindResource("TextMuted");  // always grey
+            FooterLabel.Text = $"{Lang.T("FooterMode")}: {modeText}";
+            FooterLabel.SetResourceReference(ForegroundProperty, "TextMuted");  // always grey
         }
 
         private void UpdateAdminLabel()
@@ -2700,13 +2798,23 @@ namespace MasselGUARD
                 var currentExe = Environment.ProcessPath ?? AppContext.BaseDirectory;
                 var sourceDir  = System.IO.Path.GetDirectoryName(currentExe)!;
 
-                // 1. Copy files
+                // 1. Copy files — explicit allowlist of what's actually needed to run,
+                // rather than the source folder's entire contents. A portable copy can
+                // pick up things that were never meant to travel into an install: .pdb
+                // debug symbols, install-dotnet.bat (a first-run helper, pointless once
+                // already running), and legacy cruft like an old exe-relative theme\
+                // folder from before themes moved to %APPDATA%. Existing installs are
+                // left alone — this only changes what a fresh install/update copies.
                 System.IO.Directory.CreateDirectory(installDir);
-                foreach (var file in System.IO.Directory.GetFiles(sourceDir))
-                    System.IO.File.Copy(file,
-                        System.IO.Path.Combine(installDir,
-                            System.IO.Path.GetFileName(file)), overwrite: true);
-                CopyDirRecursive(sourceDir, installDir);
+                foreach (var name in new[] { "MasselGUARD.exe", "MasselGUARDcli.exe", "tunnel.dll", "wireguard.dll" })
+                {
+                    var src = System.IO.Path.Combine(sourceDir, name);
+                    if (System.IO.File.Exists(src))
+                        System.IO.File.Copy(src, System.IO.Path.Combine(installDir, name), overwrite: true);
+                }
+                var langSrc = System.IO.Path.Combine(sourceDir, "lang");
+                if (System.IO.Directory.Exists(langSrc))
+                    CopyDirRecursive(langSrc, System.IO.Path.Combine(installDir, "lang"));
 
                 var installedExe = System.IO.Path.Combine(installDir, "MasselGUARD.exe");
 
@@ -2950,14 +3058,14 @@ namespace MasselGUARD
 
         private static void CopyDirRecursive(string src, string dst)
         {
+            System.IO.Directory.CreateDirectory(dst);
+            foreach (var f in System.IO.Directory.GetFiles(src))
+                System.IO.File.Copy(f, System.IO.Path.Combine(dst,
+                    System.IO.Path.GetFileName(f)), overwrite: true);
             foreach (var dir in System.IO.Directory.GetDirectories(src))
             {
                 var name = System.IO.Path.GetFileName(dir);
                 var dest = System.IO.Path.Combine(dst, name);
-                System.IO.Directory.CreateDirectory(dest);
-                foreach (var f in System.IO.Directory.GetFiles(dir))
-                    System.IO.File.Copy(f, System.IO.Path.Combine(dest,
-                        System.IO.Path.GetFileName(f)), overwrite: true);
                 CopyDirRecursive(dir, dest);
             }
         }

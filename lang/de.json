@@ -41,6 +41,7 @@
   "TrayNoTunnels": "Keine Tunnel gefunden",
   "TrayUngrouped": "Ohne Gruppe",
   "TrayActive": "{0} aktiv",
+  "TrayIdleSubtitle": "WireGuard VPN-Client",
   "LogAppStarted": "Application started.",
   "AlreadyRunningTitle": "Already running",
   "AlreadyRunningMessage": "MasselGUARD läuft bereits.\n\nZum Beenden: Klicken Sie mit der rechten Maustaste auf das Schildsymbol im Infobereich und wählen Sie Beenden, oder schließen Sie das Hauptfenster.\n\nStarten Sie MasselGUARD nach dem Schließen erneut.",

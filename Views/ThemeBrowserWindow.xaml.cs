@@ -232,6 +232,14 @@ namespace MasselGUARD.Views
                 it.UpdateAvailable = false;   // just installed the latest version
                 AnyInstalled       = true;
                 StatusText.Text = $"Installed {it.Name} ({n} file(s)).";
+
+                // If this theme is the one currently active, its FontFamily/asset resources
+                // may still reference the files we just overwrote — a private font in
+                // particular is resolved lazily by WPF, so the old FontFamily object can throw
+                // FileNotFoundException the next time anything renders text with it, at any
+                // point afterward. Reload it now so every resource is rebound to the new files.
+                if (string.Equals(_main.ConfigSvc.Config.ActiveTheme, it.Entry.Id, StringComparison.OrdinalIgnoreCase))
+                    _main.ApplyThemeFromConfig();
             }
             catch (Exception ex)
             {

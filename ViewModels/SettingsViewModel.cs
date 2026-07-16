@@ -116,16 +116,16 @@ namespace MasselGUARD.ViewModels
         }
 
         // Appearance
+        // No live-apply side effect here — this setter has no way to know the draft's
+        // Light/Dark/Auto mode, and previously always resolved via the raw Windows
+        // setting (ThemeManager.GetSystemIsDark()), which could disagree with what the
+        // user actually picked in Settings. The view (SettingsWindow) applies the theme
+        // itself via ApplySpecificTheme(forceLight: !IsDraftDark()) after setting this.
         private string _activeTheme = "__system__";
         public string ActiveTheme
         {
             get => _activeTheme;
-            set
-            {
-                if (!SetField(ref _activeTheme, value)) return;
-                bool isDark = ThemeManager.GetSystemIsDark();
-                ThemeManager.Instance.Load(value, isDark);
-            }
+            set => SetField(ref _activeTheme, value);
         }
 
         private bool _showTrayPopup;
