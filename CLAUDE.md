@@ -14,7 +14,7 @@ BUILD.bat          # requires .NET 10 SDK; output → dist\
 
 Produces both `dist\MasselGUARD.exe` and `dist\MasselGUARDcli.exe`.
 
-Current version: **3.8.0 — Handy Hedgehog**
+Current version: **3.8.0 — Protective Pangolin**
 When bumping version, update **both** `UpdateChecker.cs` (`CurrentVersion` + `_codenames`) **and** `BUILD.bat` (`VERSION` + `CODENAME`).
 
 ## Key design decisions

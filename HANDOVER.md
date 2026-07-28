@@ -1,7 +1,7 @@
 # MasselGUARD — Session Handover
 
 **Project:** MasselGUARD — WireGuard tunnel manager for Windows (.NET 10; WinExe GUI + `MasselGUARDcli.exe` console).
-**Current version:** **3.8.0 — Handy Hedgehog** (automation + managed-deployment release; user-facing notes in `docs/WHATSNEW.md`).
+**Current version:** **3.8.0 — Protective Pangolin** (automation + managed-deployment release; user-facing notes in `docs/WHATSNEW.md`).
 **Branch:** `dev`
 **Last updated:** 2026-07-23
 

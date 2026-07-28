@@ -38,7 +38,7 @@ namespace MasselGUARD
                 { "3.6.0", "Dangerous Donkey"   },
                 { "3.7.0", "Chromatic Chameleon" },
                 { "3.7.1", "Chromatic Chameleon" },
-                { "3.8.0", "Handy Hedgehog"      },
+                { "3.8.0", "Protective Pangolin" },
             };
 
         // ── Public: silent background check (called on startup) ──────────────

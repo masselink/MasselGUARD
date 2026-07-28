@@ -1,4 +1,4 @@
-## v3.8.0 — Handy Hedgehog
+## v3.8.0 — Protective Pangolin
 
 This release is about **automation** and **managed deployment**. WiFi rules gain new trigger types and an on/off switch, tunnels show live health and data usage, a tunnel config can be handed to a phone as a QR code, and — the headline — a `.masselguard` **policy file** lets you ship a build with locked settings for a company, family, or kiosk.
 
