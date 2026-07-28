@@ -97,6 +97,10 @@ namespace MasselGUARD.ViewModels
 
         // ── DNS leak status ───────────────────────────────────────────────────
         private TunnelDll.DnsLeakStatus _dnsStatus = TunnelDll.DnsLeakStatus.Unknown;
+        // True when machine-wide DNS-leak prevention (DisableSmartNameResolution) is active,
+        // which contains a PotentialLeak — the inline ⚠ icon is then suppressed to match the
+        // toast/log warnings, which already stay silent while prevention is enabled.
+        private bool _dnsMitigated;
 
         public string DnsLeakDisplay => _dnsStatus switch
         {
@@ -126,16 +130,71 @@ namespace MasselGUARD.ViewModels
             IsActive
             && _dnsStatus != TunnelDll.DnsLeakStatus.Unknown
             && _config.Config.ShowDnsIndicator
+            // Hide the leak warning icon when prevention has contained the leak.
+            && !(_dnsStatus == TunnelDll.DnsLeakStatus.PotentialLeak && _dnsMitigated)
                 ? System.Windows.Visibility.Visible
                 : System.Windows.Visibility.Collapsed;
 
-        public void UpdateDnsStatus(TunnelDll.DnsLeakStatus status)
+        public void UpdateDnsStatus(TunnelDll.DnsLeakStatus status, bool mitigated = false)
         {
-            _dnsStatus = status;
+            _dnsStatus    = status;
+            _dnsMitigated = mitigated;
             OnPropertyChanged(nameof(DnsLeakDisplay));
             OnPropertyChanged(nameof(DnsLeakTooltip));
             OnPropertyChanged(nameof(DnsLeakColor));
             OnPropertyChanged(nameof(DnsLeakVisibility));
+        }
+
+        // ── Tunnel health ─────────────────────────────────────────────────────
+        // Derived from the adapter state + traffic movement observed on each stats
+        // poll. (A true WireGuard handshake age would need pipe IPC the app does not
+        // yet do; adapter-up + traffic movement is a reliable "is it actually alive".)
+        public enum TunnelHealth { Unknown, Healthy, Idle, Down }
+
+        private TunnelHealth _health = TunnelHealth.Unknown;
+        private DateTime _lastTrafficMoveUtc = DateTime.MinValue;
+
+        public string HealthDisplay => _health switch
+        {
+            TunnelHealth.Healthy => "●",
+            TunnelHealth.Idle    => "●",
+            TunnelHealth.Down    => "▲",
+            _                    => "",
+        };
+
+        public string HealthTooltip => _health switch
+        {
+            TunnelHealth.Healthy => "Tunnel healthy — adapter up and passing traffic",
+            TunnelHealth.Idle    => "Tunnel up — no recent traffic (idle)",
+            TunnelHealth.Down    => "Tunnel adapter is down or missing while marked active",
+            _                    => "",
+        };
+
+        public System.Windows.Media.Brush HealthColor => _health switch
+        {
+            TunnelHealth.Healthy => ThemeBrush("Success"),
+            TunnelHealth.Idle    => ThemeBrush("WarningColor"),
+            TunnelHealth.Down    => ThemeBrush("Danger"),
+            _                    => ThemeBrush("TextMuted"),
+        };
+
+        public System.Windows.Visibility HealthVisibility =>
+            IsActive && _health != TunnelHealth.Unknown
+                ? System.Windows.Visibility.Visible
+                : System.Windows.Visibility.Collapsed;
+
+        private void SetHealth(TunnelHealth h)
+        {
+            if (_health == h)
+            {
+                OnPropertyChanged(nameof(HealthVisibility));
+                return;
+            }
+            _health = h;
+            OnPropertyChanged(nameof(HealthDisplay));
+            OnPropertyChanged(nameof(HealthTooltip));
+            OnPropertyChanged(nameof(HealthColor));
+            OnPropertyChanged(nameof(HealthVisibility));
         }
 
         private bool _isAvailable = true;
@@ -191,10 +250,62 @@ namespace MasselGUARD.ViewModels
         /// <summary>Updates traffic stats from a <see cref="TunnelDll.TunnelStats"/> snapshot.</summary>
         public void UpdateStats(TunnelDll.TunnelStats stats)
         {
+            bool moved = stats.RxBytes != _rxBytes || stats.TxBytes != _txBytes;
             _rxBytes = stats.RxBytes;
             _txBytes = stats.TxBytes;
             OnPropertyChanged(nameof(TrafficDisplay));
             OnPropertyChanged(nameof(TrafficVisibility));
+
+            // Derive health from adapter state + traffic movement.
+            if (!IsActive)
+                SetHealth(TunnelHealth.Unknown);
+            else if (!stats.AdapterFound || !stats.AdapterUp)
+                SetHealth(TunnelHealth.Down);
+            else
+            {
+                if (moved) _lastTrafficMoveUtc = DateTime.UtcNow;
+                bool recent = (DateTime.UtcNow - _lastTrafficMoveUtc).TotalSeconds < 30;
+                SetHealth(recent ? TunnelHealth.Healthy : TunnelHealth.Idle);
+            }
+        }
+
+        // ── Monthly data usage ────────────────────────────────────────────────
+        private long _monthlyBytes;
+
+        /// <summary>Current session's total bytes (rx+tx) — used for live cap accounting.</summary>
+        public long SessionBytes => _rxBytes + _txBytes;
+
+        /// <summary>Configured monthly cap in bytes; 0 = unlimited.</summary>
+        public long MonthlyCapBytes => (long)StoredTunnel.MonthlyCapMB * 1_048_576L;
+
+        public string MonthlyUsageDisplay =>
+            StoredTunnel.MonthlyCapMB > 0
+                ? $"▤ {FormatBytes(_monthlyBytes)} / {FormatBytes(MonthlyCapBytes)}"
+                : $"▤ {FormatBytes(_monthlyBytes)}";
+
+        public string MonthlyUsageTooltip =>
+            StoredTunnel.MonthlyCapMB > 0
+                ? $"This month: {FormatBytes(_monthlyBytes)} of {FormatBytes(MonthlyCapBytes)} cap"
+                : $"This month: {FormatBytes(_monthlyBytes)}";
+
+        public System.Windows.Visibility MonthlyUsageVisibility =>
+            IsActive && (_monthlyBytes > 0 || StoredTunnel.MonthlyCapMB > 0)
+                ? System.Windows.Visibility.Visible
+                : System.Windows.Visibility.Collapsed;
+
+        public System.Windows.Media.Brush MonthlyUsageColor =>
+            (MonthlyCapBytes > 0 && _monthlyBytes >= MonthlyCapBytes)
+                ? ThemeBrush("Danger")
+                : ThemeBrush("TextMuted");
+
+        /// <summary>Called each stats poll with the month-to-date total (history + live session).</summary>
+        public void UpdateMonthlyUsage(long monthlyBytes)
+        {
+            _monthlyBytes = monthlyBytes;
+            OnPropertyChanged(nameof(MonthlyUsageDisplay));
+            OnPropertyChanged(nameof(MonthlyUsageTooltip));
+            OnPropertyChanged(nameof(MonthlyUsageVisibility));
+            OnPropertyChanged(nameof(MonthlyUsageColor));
         }
 
         private static string FormatBytes(long bytes)
@@ -346,6 +457,7 @@ namespace MasselGUARD.ViewModels
                 _txBytes = 0;
                 OnPropertyChanged(nameof(TrafficDisplay));
                 OnPropertyChanged(nameof(TrafficVisibility));
+                SetHealth(TunnelHealth.Unknown);
             }
 
             IsActive = active;

@@ -4,9 +4,9 @@ setlocal enabledelayedexpansion
 
 rem ── Build number: YYMMDDHHMM ────────────────────────────────────────────────
 for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyMMddHHmm"') do set BUILD_NUM=%%a
-set VERSION=3.7.1
+set VERSION=3.8.0
 rem Update CODENAME here AND in UpdateChecker.cs when bumping VERSION.
-set CODENAME=Chromatic Chameleon
+set CODENAME=Handy Hedgehog
 
 rem ── Opt out of .NET CLI telemetry ────────────────────────────────────────────
 set DOTNET_CLI_TELEMETRY_OPTOUT=1

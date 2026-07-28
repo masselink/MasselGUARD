@@ -79,7 +79,20 @@
                 <!-- Tab pages -->
                 <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
+                  <!-- Own adorner layer so lock badges track + clip with the scrolling content -->
+                  <AdornerDecorator>
                     <StackPanel Margin="20,16,20,16">
+
+                        <!-- Managed-preset banner (shown on all tabs when a policy is active) -->
+                        <Border x:Name="ManagedBanner" Visibility="Collapsed"
+                                Background="{DynamicResource Surface}"
+                                BorderBrush="{DynamicResource Accent}" BorderThickness="1"
+                                CornerRadius="{DynamicResource Theme.CornerRadius}"
+                                Padding="12,8" Margin="0,0,0,14">
+                            <TextBlock x:Name="ManagedBannerText"
+                                       FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                       Foreground="{DynamicResource Accent}" TextWrapping="Wrap"/>
+                        </Border>
 
                         <!-- ══ GENERAL PAGE ══════════════════════════════════ -->
                         <StackPanel x:Name="PageGeneral">
@@ -486,14 +499,21 @@
                                                             <ColumnDefinition Width="40"/>
                                                             <ColumnDefinition Width="2*"/>
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0"
-                                                                   Text="{Binding RuleName}"
-                                                                   Foreground="{DynamicResource TextPrimary}"
-                                                                   FontFamily="{DynamicResource Theme.FontFamily}"
-                                                                   FontSize="{DynamicResource Theme.FontSize}"
-                                                                   VerticalAlignment="Center"
-                                                                   TextTrimming="CharacterEllipsis"/>
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal"
+                                                                    Opacity="{Binding RowOpacity}">
+                                                            <TextBlock Text="{Binding DisabledIcon}"
+                                                                       Foreground="{DynamicResource TextMuted}"
+                                                                       FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                       VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding RuleName}"
+                                                                       Foreground="{DynamicResource TextPrimary}"
+                                                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                                                       FontSize="{DynamicResource Theme.FontSize}"
+                                                                       VerticalAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                        </StackPanel>
                                                         <TextBlock Grid.Column="1"
+                                                                   Opacity="{Binding RowOpacity}"
                                                                    Text="{Binding SsidDisplay}"
                                                                    Foreground="{DynamicResource TextMuted}"
                                                                    FontFamily="{DynamicResource Theme.FontFamily}"
@@ -501,12 +521,14 @@
                                                                    VerticalAlignment="Center"
                                                                    TextTrimming="CharacterEllipsis"/>
                                                         <TextBlock Grid.Column="2"
+                                                                   Opacity="{Binding RowOpacity}"
                                                                    Text="{Binding ActionLabel}"
                                                                    Foreground="{DynamicResource TextMuted}"
                                                                    FontFamily="{DynamicResource Theme.FontFamily}"
                                                                    FontSize="{DynamicResource Theme.FontSize.Small}"
                                                                    VerticalAlignment="Center"/>
                                                         <TextBlock Grid.Column="3"
+                                                                   Opacity="{Binding RowOpacity}"
                                                                    Text="{Binding ExecutionCount}"
                                                                    Foreground="{DynamicResource TextMuted}"
                                                                    FontFamily="{DynamicResource Theme.FontFamily}"
@@ -514,6 +536,7 @@
                                                                    HorizontalAlignment="Center"
                                                                    VerticalAlignment="Center"/>
                                                         <TextBlock Grid.Column="4"
+                                                                   Opacity="{Binding RowOpacity}"
                                                                    Text="{Binding TunnelDisplay}"
                                                                    Foreground="{DynamicResource TextMuted}"
                                                                    FontFamily="{DynamicResource Theme.FontFamily}"
@@ -527,7 +550,8 @@
                                     </Grid>
                                 </Border>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                    <Button Content="{Binding [BtnAddRule], Source={x:Static local:Lang.Instance}}"
+                                    <Button x:Name="AddRuleBtn"
+                                            Content="{Binding [BtnAddRule], Source={x:Static local:Lang.Instance}}"
                                             Style="{StaticResource SuccessBtn}" FontSize="10" Padding="10,3"
                                             Click="AddRule_Click"/>
                                     <Button Content="{Binding [BtnEditRule], Source={x:Static local:Lang.Instance}}"
@@ -538,6 +562,10 @@
                                             Style="{StaticResource DangerBtn}" FontSize="10" Padding="10,3"
                                             Margin="6,0,0,0" Click="DeleteRule_Click"
                                             x:Name="DeleteBtn" IsEnabled="False"/>
+                                    <Button Content="{Binding [BtnDisableRule], Source={x:Static local:Lang.Instance}}"
+                                            Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                            Margin="6,0,0,0" Click="RuleToggle_Click"
+                                            x:Name="RuleToggleBtn" IsEnabled="False"/>
                                 </StackPanel>
                             </StackPanel>
 
@@ -623,6 +651,40 @@
                                     <ComboBox x:Name="OpenWifiTunnelBox"
                                               MinWidth="160" FontSize="11"
                                               SelectionChanged="OpenWifiTunnel_Changed"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Trusted-network auto-protect -->
+                            <TextBlock Text="{Binding [SettingsSectionTrustedNet], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Background="{DynamicResource Surface}"
+                                    BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                                    CornerRadius="{DynamicResource Theme.CornerRadius}"
+                                    Padding="10,8" Margin="0,0,0,6">
+                                <TextBlock Text="{Binding [SettingsTrustedNetInfo], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+                            </Border>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding [SettingsTrustedList], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                               Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,4"/>
+                                    <TextBox x:Name="TrustedNetworksBox" AcceptsReturn="True"
+                                             MinHeight="60" MaxHeight="140" FontSize="11"
+                                             TextWrapping="NoWrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             LostFocus="TrustedNetworks_LostFocus"/>
+                                    <Button x:Name="AddCurrentTrustedBtn"
+                                            Content="{Binding [SettingsTrustedAddCurrent], Source={x:Static local:Lang.Instance}}"
+                                            Style="{StaticResource FlatBtn}"
+                                            FontSize="10" Padding="10,4" HorizontalAlignment="Left"
+                                            Margin="0,6,0,0"
+                                            Click="AddCurrentTrusted_Click"/>
+                                    <TextBlock Text="{Binding [SettingsTrustedListDesc], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,4,0,0"/>
                                 </StackPanel>
                             </Border>
 
@@ -1011,6 +1073,9 @@
                                 <Button Content="{Binding [BtnImportSettings], Source={x:Static local:Lang.Instance}}"
                                         Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
                                         Margin="8,0,0,0" Click="ImportSettings_Click"/>
+                                <Button Content="{Binding [BtnExportPreset], Source={x:Static local:Lang.Instance}}"
+                                        Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                        Margin="8,0,0,0" Click="ExportPreset_Click"/>
                             </StackPanel>
 
                             <!-- Log level -->
@@ -1855,6 +1920,7 @@
                         </StackPanel>
 
                     </StackPanel>
+                  </AdornerDecorator>
                 </ScrollViewer>
             </Grid>
 

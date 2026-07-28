@@ -380,14 +380,13 @@
                                        FontSize="10" Foreground="{DynamicResource TextMuted}"
                                        VerticalAlignment="Center"/>
                         </StackPanel>
-                        <!-- Row 4: Skip validation -->
+                        <!-- Row 4: Monthly data cap -->
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                            <ToggleButton x:Name="SkipValidationToggle"
-                                          Style="{StaticResource ToggleSwitch}"
-                                          Margin="0,0,6,0"/>
-                            <TextBlock Text="⚠️ Skip config validation"
+                            <TextBlock Text="▤ Monthly data cap (MB, 0 = none):"
                                        FontSize="10" Foreground="{DynamicResource TextMuted}"
-                                       VerticalAlignment="Center"/>
+                                       VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBox x:Name="MonthlyCapBox" Width="80" FontSize="10"
+                                     Text="0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </StackPanel>
                     <!-- Right: Cancel + Save -->

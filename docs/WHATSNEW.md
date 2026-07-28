@@ -1,3 +1,57 @@
+## v3.8.0 — Handy Hedgehog
+
+This release is about **automation** and **managed deployment**. WiFi rules gain new trigger types and an on/off switch, tunnels show live health and data usage, a tunnel config can be handed to a phone as a QR code, and — the headline — a `.masselguard` **policy file** lets you ship a build with locked settings for a company, family, or kiosk.
+
+---
+
+### Automation — new rule types, and an on/off switch
+
+- **Trusted-network auto-protect** — a new rule type that connects a chosen tunnel on *any* WiFi network that isn't in your **trusted list**, and disconnects on a trusted one. Manage the trusted SSIDs in **Settings → WiFi** (one per line, or **"Add current WiFi network"**). It's a smarter default action: "VPN everywhere except my home/office".
+- **Scheduled rules** — a rule can now fire on a **day + time window** (e.g. Work 09:00–18:00, Mon–Fri) instead of a network. Overnight windows (22:00–06:00) are supported. Checked on a one-minute timer.
+- **Enable / disable a rule** — select a rule and click **Disable** (or **Enable**) below the list. A disabled rule stays in place but is skipped — its row greys out with a `⊘` marker. The tidy way to switch a rule off without deleting it.
+- The rules list now shows a **kind icon** in front of each rule — 📶 for a WiFi network, ⏰ for a schedule, 🛡 for trusted-network protection.
+- **Fixed** — editing or deleting a trusted/schedule rule from the main-window WiFi panel didn't work (it matched rules by SSID, which those kinds don't have). The panel now operates on the exact rule, and can create every rule type.
+
+---
+
+### Managed preset — ship a locked configuration
+
+A **`.masselguard`** file is a full snapshot of the app's settings that plays two roles depending on where it is:
+
+- **Imported** (Setup wizard, or Advanced → Import) → all settings apply and stay **editable**.
+- **Placed next to `MasselGUARD.exe`** → only the settings you marked as **Locked** are **forced and locked** — greyed out with a 🔒 and a *"managed by &lt;policy&gt;"* banner at the top of Settings. The forced values are re-applied on every save, so a hand-edited `config.json` can't override them. `MasselGUARDcli.exe` obeys the same file.
+
+- **Create one** via **Advanced → Import / Export → "Export settings as preset…"**: enter a policy name and tick which settings to lock — grouped by section, with a section header that selects all its items, so you can lock a whole section *or* single settings (e.g. lock the tray notification but not its duration). Tunnel definitions are never included.
+- If a locked policy sets a **theme that isn't installed**, the app downloads it from the shared-themes repo on first launch (falling back to system colours if that fails).
+- The **managed install** offers to copy the `.masselguard` into the install folder so the installed copy stays locked.
+
+> Soft lock — meant for managed distributions where users don't tamper with the build, not a security boundary against a hostile local user.
+
+---
+
+### Live tunnel health
+
+Each active tunnel now shows a small **health dot** next to its status — green ● when the adapter is up and passing traffic, amber ● when up but idle, red ▲ if the adapter is down while the tunnel is marked active.
+
+### Data usage & monthly caps
+
+- Each tunnel shows this **month's data usage** (aggregated from the connection history you already record).
+- Set an optional **monthly data cap (MB)** per tunnel in the tunnel dialog; crossing it raises a one-time warning (log + toast) that re-arms next month.
+
+### QR export
+
+Right-click a local tunnel → **"Show QR code"** to display a scannable QR of its configuration — scan it with the WireGuard mobile app to move the tunnel to a phone. Includes a Save-PNG option and a private-key warning.
+
+---
+
+### Fixes & smaller changes
+
+- **Fixed** — the inline DNS-leak icon stayed visible even when DNS-leak *prevention* was enabled (which contains the leak). It's now hidden in that state, matching the toast/log warnings, which already stayed silent.
+- **Config validation** — the "Skip config validation" toggle is back on **Settings → Tunnels**, off by default (validation active). Picking any View preset re-asserts validation on. The per-tunnel skip was removed — the bypass now lives in exactly one place.
+- All new interface text is translated across **English, Dutch, German, French, Spanish, and Japanese**.
+
+---
+
 ## v3.7.1 — Chromatic Chameleon
 
 - **Settings → About** now surfaces theme updates too, not just app updates — "Check for update" also checks installed themes, and a click-through banner appears here (in addition to the existing Appearance-tab badge) pointing you at Community themes when one is available.

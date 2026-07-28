@@ -225,9 +225,38 @@ namespace MasselGUARD
 
                 if (!isNewInstance && RealInstanceExists())
                 {
-                    ShowAlreadyRunning();
-                    Shutdown();
-                    return;
+                    var choice = ShowAlreadyRunning();
+                    if (choice == AlreadyRunningChoice.ReplaceRunning)
+                    {
+                        // User chose to close the running copy and continue here.
+                        KillOtherInstances();
+
+                        // Wait for the old process to release the single-instance mutex.
+                        for (int i = 0; i < 20 && !isNewInstance; i++)
+                        {
+                            System.Threading.Thread.Sleep(250);
+                            try
+                            {
+                                _instanceMutex?.Dispose();
+                                _instanceMutex = new Mutex(
+                                    initiallyOwned: true,
+                                    name: "Global\\MasselGUARD_SingleInstance",
+                                    out isNewInstance);
+                            }
+                            catch { }
+                        }
+                        // Fall through to launch this instance.
+                    }
+                    else
+                    {
+                        // User chose to keep the running copy — restore it and exit. Prefer the
+                        // in-process signal (works even when it's hidden in the tray); fall back to
+                        // window-handle activation for older instances without the listener.
+                        if (!SignalExistingInstance())
+                            BringExistingToFront();
+                        Shutdown();
+                        return;
+                    }
                 }
                 // Acquired after wait (orphaned mutex or update scenario) — continue normally
             }
@@ -248,6 +277,57 @@ namespace MasselGUARD
             }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
             SetupTrayIcon();
+            StartShowRequestListener();
+        }
+
+        // ── Cross-instance "show me" signal ──────────────────────────────────
+        // A second instance the user chooses to dismiss ("Open running app") sets this named
+        // event so THIS (running) instance restores its own window — necessary because when
+        // MasselGUARD is minimised to the tray the window is hidden and has no MainWindowHandle
+        // for the second process to restore from the outside.
+        private const string ShowEventName = "Global\\MasselGUARD_ShowWindow";
+        private EventWaitHandle? _showEvent;
+
+        private void StartShowRequestListener()
+        {
+            try
+            {
+                _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName, out _);
+            }
+            catch { return; }   // event unavailable — falls back to BringExistingToFront elsewhere
+
+            var t = new Thread(() =>
+            {
+                while (!IsShuttingDown)
+                {
+                    try
+                    {
+                        if (!_showEvent.WaitOne()) break;
+                    }
+                    catch { break; }
+                    if (IsShuttingDown) break;
+                    try { Dispatcher.BeginInvoke(new Action(ShowMainWindow)); } catch { }
+                }
+            })
+            { IsBackground = true, Name = "MasselGUARD-ShowListener" };
+            t.Start();
+        }
+
+        /// <summary>Asks an already-running instance to restore its window. Returns false if no
+        /// listener is reachable (e.g. an older build), so the caller can fall back.</summary>
+        private static bool SignalExistingInstance()
+        {
+            try
+            {
+                if (EventWaitHandle.TryOpenExisting(ShowEventName, out var h))
+                {
+                    h.Set();
+                    h.Dispose();
+                    return true;
+                }
+            }
+            catch { }
+            return false;
         }
 
         private void SetupTrayIcon()
@@ -819,6 +899,9 @@ namespace MasselGUARD
             // This prevents orphaned WireGuardTunnel$ services remaining in the SCM.
             try { TunnelDll.DisconnectAll(); } catch { }
             _trayIcon?.Dispose();
+            // Wake the show-request listener so it observes IsShuttingDown and exits, then dispose.
+            try { _showEvent?.Set(); } catch { }
+            _showEvent?.Dispose();
             try { _instanceMutex?.ReleaseMutex(); } catch { }
             _instanceMutex?.Dispose();
             base.OnExit(e);
@@ -858,6 +941,37 @@ namespace MasselGUARD
                 if (p.Id != current.Id) return true;
             return false;
         }
+
+        /// <summary>
+        /// Closes every other MasselGUARD instance — asks politely first
+        /// (CloseMainWindow), then force-kills any that don't exit in time.
+        /// </summary>
+        private static void KillOtherInstances()
+        {
+            var current = Process.GetCurrentProcess();
+            var others = Process.GetProcessesByName(current.ProcessName)
+                                .Where(p => p.Id != current.Id)
+                                .ToList();
+
+            foreach (var p in others)
+            {
+                try { p.CloseMainWindow(); } catch { }
+            }
+
+            foreach (var p in others)
+            {
+                try
+                {
+                    if (!p.WaitForExit(2500)) p.Kill(entireProcessTree: true);
+                    p.WaitForExit(2000);
+                }
+                catch { }
+                finally { p.Dispose(); }
+            }
+        }
+
+        /// <summary>Result of the "already running" dialog.</summary>
+        private enum AlreadyRunningChoice { OpenExisting, ReplaceRunning }
 
         /// <summary>
         /// Shows a simple one-button info dialog themed to match the current dark/light palette.
@@ -989,7 +1103,7 @@ namespace MasselGUARD
             win.ShowDialog();
         }
 
-        private void ShowAlreadyRunning()
+        private AlreadyRunningChoice ShowAlreadyRunning()
         {
             // The theme is loaded before the single-instance check, so
             // Application.Current.Resources already holds the correct colours.
@@ -1064,9 +1178,23 @@ namespace MasselGUARD
 
             var bgExit  = Clr("CardBg",    System.Windows.Media.Color.FromRgb(36, 41, 51));
             var hovExit = Clr("Highlight", System.Windows.Media.Color.FromRgb(55, 62, 76));
-            var exitBtn = MakeBtn(Lang.T("AlreadyRunningBtnExit"), textC, bgExit, hovExit);
-            exitBtn.HorizontalAlignment = HorizontalAlignment.Right;
-            stack.Children.Add(exitBtn);
+
+            // "Open the running app" — keep the existing instance, close this one (default).
+            var openBtn = MakeBtn(Lang.T("AlreadyRunningBtnOpenExisting"), textC, bgExit, hovExit);
+
+            // "Close it & start here" — terminate the running instance and continue.
+            var hovWarn = System.Windows.Media.Color.FromArgb(40, warn.R, warn.G, warn.B);
+            var replaceBtn = MakeBtn(Lang.T("AlreadyRunningBtnReplace"), warn, bgExit, hovWarn);
+
+            var btnRow = new System.Windows.Controls.StackPanel
+            {
+                Orientation         = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+            };
+            replaceBtn.Margin = new Thickness(0, 0, 10, 0);
+            btnRow.Children.Add(replaceBtn);
+            btnRow.Children.Add(openBtn);
+            stack.Children.Add(btnRow);
 
             // Title bar
             var titleBar = new System.Windows.Controls.Border
@@ -1104,7 +1232,7 @@ namespace MasselGUARD
             var win = new Window
             {
                 Title                 = "MasselGUARD — Already running",
-                Width                 = 460,
+                Width                 = 520,
                 SizeToContent         = SizeToContent.Height,
                 WindowStyle           = WindowStyle.None,
                 AllowsTransparency    = true,
@@ -1119,9 +1247,12 @@ namespace MasselGUARD
                 if (mev.LeftButton == System.Windows.Input.MouseButtonState.Pressed) win.DragMove();
             };
 
-            exitBtn.MouseLeftButtonUp += (_, _) => win.Close();
+            var choice = AlreadyRunningChoice.OpenExisting;
+            openBtn.MouseLeftButtonUp    += (_, _) => { choice = AlreadyRunningChoice.OpenExisting;  win.Close(); };
+            replaceBtn.MouseLeftButtonUp += (_, _) => { choice = AlreadyRunningChoice.ReplaceRunning; win.Close(); };
 
             win.ShowDialog();
+            return choice;
         }
 
     internal static class TrayIconHelper

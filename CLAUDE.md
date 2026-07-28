@@ -14,7 +14,7 @@ BUILD.bat          # requires .NET 10 SDK; output → dist\
 
 Produces both `dist\MasselGUARD.exe` and `dist\MasselGUARDcli.exe`.
 
-Current version: **3.7.1 — Chromatic Chameleon**
+Current version: **3.8.0 — Handy Hedgehog**
 When bumping version, update **both** `UpdateChecker.cs` (`CurrentVersion` + `_codenames`) **and** `BUILD.bat` (`VERSION` + `CODENAME`).
 
 ## Key design decisions
@@ -31,6 +31,7 @@ When bumping version, update **both** `UpdateChecker.cs` (`CurrentVersion` + `_c
 - **External companion connect/disconnect** — when the 1 s poll sees a companion tunnel transition that MasselGUARD didn't initiate (WireGuard app / CLI), `MainViewModel.RefreshTunnelStatus` calls `TunnelService.RecordExternalConnect` (opens history entry, snapshots byte counters, clears stale intentional mark + `UserDisconnected`) or `RecordExternalDisconnect` (closes the open history entry via `LogDisconnect`, which also writes the `Disconnected: <name>` log line). Without this, externally dropped tunnels left history entries open forever and never appeared in the activity log.
 - **`UpdateChecker.UpdateAsync`** — takes an `onShutdown` callback so WPF-specific `Application.Current.Dispatcher.Invoke(ShutdownApp)` stays in the GUI call site, keeping `UpdateChecker.cs` WPF-free.
 - **File-only tunnel config storage** — `StoredTunnel.Config` (inline DPAPI blob) is legacy. All new saves write a `.conf.dpapi` file to `%APPDATA%\MasselGUARD\tunnels\` and store only the `Path`. `ConfigService.Load()` migrates old inline entries to files automatically on first run and nulls `Config` so it disappears from `config.json`. The `[JsonIgnore(Condition = WhenWritingNull)]` attribute ensures `Config` is never written once cleared.
+- **Managed preset / unified `.masselguard`** — a `.masselguard` file is a **flat full-settings snapshot** (`PresetService.Build` serialises `PolicyFields`; enums as strings) plus an optional **`Locked`** object (`{blocks:[…], settings:[…]}`). One file, two roles by **location + `Locked`**: **imported** (wizard/`ConfigService.Import` → `PresetService.ApplyAll`) every value applies + stays editable, `Locked` ignored; **next to the exe** only the `Locked` sections/settings are forced + locked (`PresetService.ApplyLocked`), everything else ignored. `ConfigService.ApplyPreset()` (end of `Load()`, both paths) scans `PresetService.FindPresetFile()` for **any `*.masselguard`**, calls `ApplyLocked`, and treats it as a policy only if it locked ≥1 field; `Save()` re-asserts (`_presetObj.ApplyLocked`) so a hand-edited `config.json` can't win; fails open on a bad file. Blocks → fields = `PresetService.Blocks`/`BlockFields`; `IsLocked(field)` drives the UI. `TunnelsLocked` only if a hand-authored `Locked` names `Tunnels` (export never offers it). `SettingsWindow.ApplyPresetLocks()` (last in `ShowTab`) greys locked controls + banner; `MainWindow.ApplyPolicyGating()` + selection handlers gate rule Add/Edit/Delete. A locked theme that isn't installed is fetched via `ThemeDownloadService.DownloadAsync` (`MainWindow.TryInstallPresetThemeAsync`), else system colours. Managed install offers to copy the `.masselguard`. `ConfigService.Export`/`Import` both route through `PresetService` (regular "Export settings" = full snapshot, no `Locked`; "Export as preset" adds the ticked sections). **Soft lock** — user-writable; not a security boundary (hard lock = HKLM/ACL'd ProgramData). `PresetService` is WPF-free (CLI-shared) — **new shared `Services/*.cs` must be added to `MasselGUARDcli.csproj`'s explicit `<Compile Include>` list** (CLI globs Models, not Services).
 - **`TunnelService.SaveConfigToFile`** — DPAPI-encrypts plaintext and writes to `TunnelStorageDir`. Used by GUI add/edit, import dialog, QR import, and CLI import/rawconnect. Returns the file path stored in `StoredTunnel.Path`.
 - **`ApplyWifiState`** — central method called from both `OnWifiChanged` (WLAN notification) and `TryUpdateWifi` (startup query). Records SSID history and updates all UI. Ensures the current SSID is captured immediately at startup rather than only on WiFi changes.
 - **WiFi history `IsOpen`** — `WifiHistoryEntry.IsOpen` is populated from the `bSecurityEnabled` field of `WLAN_CONNECTION_ATTRIBUTES` (offset +576). `true` = no security (open network). Passed from `WiFiService` → `OnWifiChanged` → `RecordSsidConnect`.
@@ -50,12 +51,15 @@ Cli/
 Models/
   AppConfig.cs              # Main config model (serialised to config.json)
   StoredTunnel.cs           # Tunnel definition; Config field is legacy (null after migration)
+  TunnelRule.cs             # Automation rule: Kind = wifi | schedule | trusted; Enabled flag
   ConnectionHistoryEntry.cs
   WifiHistoryEntry.cs       # Ssid, ConnectedAt, DisconnectedAt, IsOpen
 Services/
   TunnelService.cs          # Connect/Disconnect orchestration; SaveConfigToFile; TunnelStorageDir
   TunnelDll.cs              # P/Invoke to tunnel.dll + wireguard.dll  (root, not Services/)
-  ConfigService.cs          # Load/Save config.json; MigrateInlineConfigsToFiles on load
+  ConfigService.cs          # Load/Save config.json; MigrateInlineConfigsToFiles + ApplyPreset on load
+  PresetService.cs          # Managed preset: Load/Apply (force+lock) + Build/Save (export). Add to CLI csproj!
+  RuleEngine.cs             # WiFi/schedule/trusted rule precedence (EvaluateWifi/EvaluateSchedules)
   HistoryService.cs         # tunnel_history.json + wifi_history.json (with legacy migration)
   KillSwitchService.cs
   LogService.cs

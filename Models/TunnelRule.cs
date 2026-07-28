@@ -1,11 +1,13 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using MasselGUARD.Infrastructure;
 
 namespace MasselGUARD.Models
 {
     /// <summary>
-    /// A mapping from a WiFi SSID to a WireGuard tunnel.
-    /// Empty Tunnel means "disconnect all".
+    /// An automation rule that maps a trigger to a WireGuard tunnel.
+    /// Two kinds: "wifi" (triggered by an SSID) and "schedule" (triggered by
+    /// day-of-week + time window). Empty Tunnel means "disconnect all".
     /// </summary>
     public class TunnelRule : ObservableObject
     {
@@ -13,11 +15,64 @@ namespace MasselGUARD.Models
         private string _tunnel        = "";
         private string _networkType   = "wifi";
         private string _name          = "";
+        private string _kind          = "wifi";
+        private string _startTime     = "09:00";
+        private string _endTime       = "17:00";
+        private List<int> _days       = new() { 1, 2, 3, 4, 5 }; // Mon–Fri
+        private bool   _enabled       = true;
 
         public string Name
         {
             get => _name;
             set => SetField(ref _name, value);
+        }
+
+        /// <summary>When false the rule is kept in the list but ignored by the engine.
+        /// Lets a rule be temporarily switched off without deleting it.</summary>
+        public bool Enabled
+        {
+            get => _enabled;
+            set
+            {
+                SetField(ref _enabled, value);
+                OnPropertyChanged(nameof(RowOpacity));
+                OnPropertyChanged(nameof(DisabledIcon));
+            }
+        }
+
+        /// <summary>Row dimming for the rules list — full when enabled, faded when off.</summary>
+        [JsonIgnore] public double RowOpacity => _enabled ? 1.0 : 0.4;
+
+        /// <summary>Small marker (with trailing space) shown before a disabled rule's name;
+        /// empty when enabled. Kept WPF-free so the shared CLI project still compiles.</summary>
+        [JsonIgnore] public string DisabledIcon => _enabled ? "" : "⊘ ";
+
+        /// <summary>"wifi" (SSID-triggered) | "schedule" (time-triggered).</summary>
+        public string Kind
+        {
+            get => _kind;
+            set { SetField(ref _kind, value); OnPropertyChanged(nameof(SsidDisplay)); OnPropertyChanged(nameof(RuleName)); OnPropertyChanged(nameof(ScheduleSummary)); }
+        }
+
+        /// <summary>Schedule start time, "HH:mm" (24-hour). Used when Kind == "schedule".</summary>
+        public string StartTime
+        {
+            get => _startTime;
+            set { SetField(ref _startTime, value); OnPropertyChanged(nameof(SsidDisplay)); OnPropertyChanged(nameof(ScheduleSummary)); OnPropertyChanged(nameof(RuleName)); }
+        }
+
+        /// <summary>Schedule end time, "HH:mm" (24-hour). An end &lt;= start means an overnight window.</summary>
+        public string EndTime
+        {
+            get => _endTime;
+            set { SetField(ref _endTime, value); OnPropertyChanged(nameof(SsidDisplay)); OnPropertyChanged(nameof(ScheduleSummary)); OnPropertyChanged(nameof(RuleName)); }
+        }
+
+        /// <summary>Days the schedule is active: 0=Sun … 6=Sat. Empty = every day.</summary>
+        public List<int> Days
+        {
+            get => _days;
+            set { SetField(ref _days, value); OnPropertyChanged(nameof(ScheduleSummary)); }
         }
 
         public string Ssid
@@ -40,7 +95,11 @@ namespace MasselGUARD.Models
         }
 
 
-        [JsonIgnore] public string SsidDisplay => string.IsNullOrEmpty(_ssid) ? "—" : _ssid;
+        [JsonIgnore]
+        public string SsidDisplay =>
+            _kind == "schedule" ? $"⏰ {ScheduleSummary}"
+          : _kind == "trusted"  ? "🛡 Untrusted networks"
+          : (string.IsNullOrEmpty(_ssid) ? "—" : $"📶 {_ssid}");   // 📶 matches the footer's current-SSID icon
 
         [JsonIgnore]
         public string TunnelDisplay =>
@@ -53,9 +112,34 @@ namespace MasselGUARD.Models
             get
             {
                 if (!string.IsNullOrEmpty(_name)) return _name;
+                if (_kind == "schedule")
+                    return $"{ScheduleSummary} \u2192 {(string.IsNullOrEmpty(_tunnel) ? "disconnect" : _tunnel)}";
+                if (_kind == "trusted")
+                    return $"Untrusted network \u2192 {(string.IsNullOrEmpty(_tunnel) ? "disconnect" : _tunnel)}";
                 var ssid   = string.IsNullOrEmpty(_ssid)   ? "\u2014"          : _ssid;
                 var target = string.IsNullOrEmpty(_tunnel) ? "disconnect" : _tunnel;
                 return $"{ssid} \u2192 {target}";
+            }
+        }
+
+        /// <summary>Compact "Days HH:mm–HH:mm" summary for schedule rules.</summary>
+        [JsonIgnore]
+        public string ScheduleSummary
+        {
+            get
+            {
+                string[] abbr = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+                string days;
+                if (_days == null || _days.Count == 0 || _days.Count == 7)
+                    days = "Daily";
+                else if (_days.Count == 5 && _days.Contains(1) && _days.Contains(2) &&
+                         _days.Contains(3) && _days.Contains(4) && _days.Contains(5))
+                    days = "Weekdays";
+                else if (_days.Count == 2 && _days.Contains(0) && _days.Contains(6))
+                    days = "Weekend";
+                else
+                    days = string.Join(",", _days.FindAll(d => d >= 0 && d <= 6).ConvertAll(d => abbr[d]));
+                return $"{days} {_startTime}–{_endTime}";
             }
         }
 

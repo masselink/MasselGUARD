@@ -151,8 +151,8 @@ namespace MasselGUARD.Services
             }
 
             // Validate before writing — tunnel.dll exits with code 2 for any parse error.
-            // Skipped when the per-tunnel flag or the global override is set.
-            if (!stored.SkipValidation && !cfg.SkipTunnelValidation)
+            // Active by default; only the global bypass switch can turn it off.
+            if (!cfg.SkipTunnelValidation)
             {
                 var validationError = Cli.WireGuardConf.Validate(plaintext);
                 if (validationError != null)
@@ -164,10 +164,9 @@ namespace MasselGUARD.Services
                     return false;
                 }
             }
-            else if (stored.SkipValidation || cfg.SkipTunnelValidation)
+            else
             {
-                _log.Debug($"Config validation skipped for {stored.Name}" +
-                           (cfg.SkipTunnelValidation ? " (global override)" : " (per-tunnel flag)") + ".");
+                _log.Debug($"Config validation bypassed for {stored.Name} (global setting).");
             }
 
             // Write to secure temp file

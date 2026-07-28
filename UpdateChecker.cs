@@ -26,7 +26,7 @@ namespace MasselGUARD
         // Major.Minor.Patch only — static, never modified by build.
         // The build timestamp is injected at compile time via -p:InformationalVersion
         // and read at runtime from the assembly attribute (see BuildStamp below).
-        private const string CurrentVersion = "3.7.1";
+        private const string CurrentVersion = "3.8.0";
 
         // Release codenames — one entry per public version, keyed by Major.Minor.Patch.
         // Update both here AND in BUILD.bat (set CODENAME=...) when bumping the version.
@@ -38,6 +38,7 @@ namespace MasselGUARD
                 { "3.6.0", "Dangerous Donkey"   },
                 { "3.7.0", "Chromatic Chameleon" },
                 { "3.7.1", "Chromatic Chameleon" },
+                { "3.8.0", "Handy Hedgehog"      },
             };
 
         // ── Public: silent background check (called on startup) ──────────────

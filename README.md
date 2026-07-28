@@ -27,13 +27,27 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 ## Features
 
 ### Automation
-- **WiFi rules** — map any SSID to any tunnel (or disconnect). Each rule has a **Name**, **SSID**, **Hits counter**, and target tunnel
+- **WiFi rules** — each rule maps a trigger to a tunnel (or "disconnect"), with a **Name**, **Hits counter**, and an **Enable/Disable** switch (disabled rules grey out with a `⊘` marker and are skipped). Three trigger types:
+  - **WiFi network (SSID)** — fires when you join that named network
+  - **Schedule** — fires during a day/time window (checked on a timer; overnight windows supported)
+  - **Trusted networks** — one policy rule: connect the tunnel on any *untrusted* WiFi, disconnect on *trusted* SSIDs (list managed in Settings → WiFi)
 - WiFi Rules panel: drag-to-reorder, hits counter, click-to-highlight matching rules in tunnel list
-- Rules column in tunnel list updates immediately on add/edit/delete
 - **Default action** — do nothing / disconnect / activate a fallback when no rule matches
 - **Open network protection** — force a tunnel on passwordless WiFi before any rule fires
-- **Defaults button** in toolbar — set/clear both roles from a single popup centred on the window
+- **Defaults button** in toolbar — set/clear default action + open protection from one popup
 - Rules fire exactly once per network switch (double-fire prevention)
+
+**Rule evaluation order** (on a WiFi change — first match wins):
+
+1. **Manual mode** → nothing happens (automation paused)
+2. **Open network protection** (open WiFi + assigned tunnel)
+3. **WiFi-SSID rules** (exact SSID match, top-to-bottom)
+4. **Trusted-network protection** (untrusted → connect · trusted → disconnect)
+5. **Default action** (fallback)
+
+*Schedule rules* run on their own timer, outside this chain.
+
+**Default action vs. Trusted networks** — both catch networks that no rule matched, but default action gives **one** outcome for every network, while trusted-network protection gives **two** based on your trusted list (connect on untrusted, disconnect on trusted). Trusted protection runs *before* default action, so while it's enabled it handles every named network and the default action only applies when WiFi drops entirely. It's effectively a smarter default action — *"default = connect X"* equals a trusted rule with an empty list; *"default = disconnect"* equals one where every network is trusted.
 
 ### Auto-reconnect
 - Detects unexpected tunnel drops (sleep/wake, kernel crash, network blip) and reconnects automatically
@@ -104,6 +118,12 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 - Notification duration picker (3 / 5 / 10 / 15 / 30 s)
 - **Update check frequency** — On start / Daily / Weekly / Manual
 - Six languages: English, Dutch, German, French, Spanish, Japanese — with country flags in the picker
+
+### Managed deployment (locked preset)
+- A **`.masselguard`** file is a full settings snapshot: **import** it (wizard/Advanced) to apply-and-edit, or drop it next to the exe to **force + lock** every setting it contains — for a company rollout, a family/kids' laptop, or a kiosk
+- Locked settings are forced on startup (re-asserted on every save) and shown greyed with a 🔒 and a *"managed by &lt;policy&gt;"* banner; `MasselGUARDcli.exe` honours the same file
+- **Advanced → Export settings as preset…** writes the file (all settings incl. WiFi rules; tunnel definitions never included); a policy theme not in the build is auto-downloaded from the shared-themes repo (falls back to system colours)
+- **Soft lock** — suitable for managed distributions, not tamper-proof (the file is in the app folder)
 
 ---
 

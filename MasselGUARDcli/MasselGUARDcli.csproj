@@ -37,6 +37,7 @@
     <Compile Include="..\Models\*.cs" />
     <Compile Include="..\Infrastructure\*.cs" />
     <Compile Include="..\Services\ConfigService.cs" />
+    <Compile Include="..\Services\PresetService.cs" />
     <Compile Include="..\Services\HistoryService.cs" />
     <Compile Include="..\Services\KillSwitchService.cs" />
     <Compile Include="..\Services\LogService.cs" />

@@ -17,7 +17,7 @@ namespace MasselGUARD.Views
         public bool   ResultIsOpenProtection   { get; private set; }
         public bool   ResultKillSwitch         { get; private set; }
         public bool   ResultAutoReconnect      { get; private set; }
-        public bool   ResultSkipValidation     { get; private set; }
+        public int    ResultMonthlyCapMB       { get; private set; }
 
         public TunnelMetadataDialog(string tunnelName, string currentGroup,
                                     string currentNotes, List<string> groups,
@@ -26,7 +26,7 @@ namespace MasselGUARD.Views
                                     bool isDefault = false, bool isOpenProtection = false,
                                     bool isKillSwitch = false, bool isGlobalAlways = false,
                                     bool isAutoReconnect = false, string autoReconnectMode = "off",
-                                    bool isSkipValidation = false)
+                                    int existingMonthlyCapMB = 0)
         {
             InitializeComponent();
 
@@ -62,9 +62,9 @@ namespace MasselGUARD.Views
                 }
             }
 
-            // Skip validation toggle
-            if (SkipValidationToggle != null)
-                SkipValidationToggle.IsChecked = isSkipValidation;
+            // Monthly data cap
+            if (MonthlyCapBox != null)
+                MonthlyCapBox.Text = existingMonthlyCapMB.ToString();
 
             // Auto-reconnect toggle
             if (AutoReconnectRow != null)
@@ -103,7 +103,7 @@ namespace MasselGUARD.Views
             ResultIsOpenProtection    = IsOpenProtectionToggle?.IsChecked == true;
             ResultKillSwitch          = KillSwitchToggle?.IsChecked       == true;
             ResultAutoReconnect       = AutoReconnectToggle?.IsChecked    == true;
-            ResultSkipValidation      = SkipValidationToggle?.IsChecked   == true;
+            ResultMonthlyCapMB        = int.TryParse(MonthlyCapBox?.Text?.Trim(), out var capv) && capv > 0 ? capv : 0;
             DialogResult = true;
         }
 
