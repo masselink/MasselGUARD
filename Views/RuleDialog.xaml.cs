@@ -228,7 +228,13 @@ namespace MasselGUARD.Views
         }
 
         /// <summary>Auto-generate name from SSID and tunnel unless user has typed one.</summary>
-        private void AutoGenerateName()
+        /// <param name="tunnelOverride">
+        /// Tunnel value to use instead of <c>TunnelBox.Text</c>. Needed when called from the
+        /// ComboBox's SelectionChanged handler, where <c>TunnelBox.Text</c> still holds the
+        /// previous value (editable ComboBoxes update Text only after the event completes) —
+        /// passing the freshly-selected item avoids regenerating a stale "→ disconnect" name.
+        /// </param>
+        private void AutoGenerateName(string? tunnelOverride = null)
         {
             if (_nameManuallyEdited) return;
             // Controls may not exist yet if an initial IsChecked fires during InitializeComponent.
@@ -237,7 +243,7 @@ namespace MasselGUARD.Views
             if (TypeScheduleRadio?.IsChecked == true) return;
             if (TypeTrustedRadio?.IsChecked  == true) return;
             var ssid   = SsidBox.Text.Trim();
-            var tunnel = TunnelBox.Text.Trim();
+            var tunnel = (tunnelOverride ?? TunnelBox.Text).Trim();
             string generated;
             if (string.IsNullOrEmpty(ssid))
                 generated = "";
@@ -261,7 +267,15 @@ namespace MasselGUARD.Views
 
         private void TunnelBox_Changed(object sender,
             System.Windows.Controls.SelectionChangedEventArgs e)
-            => AutoGenerateName();
+        {
+            // On an editable ComboBox, TunnelBox.Text still holds the previous value while
+            // SelectionChanged fires. Read the freshly-selected item so the auto-generated
+            // name reflects the tunnel just picked, not a stale "→ disconnect".
+            string tunnel = e.AddedItems.Count > 0
+                ? (e.AddedItems[0] as string ?? "")
+                : (TunnelBox.SelectedItem as string ?? "");
+            AutoGenerateName(tunnel);
+        }
 
         private void UseCurrent_Click(object sender, RoutedEventArgs e)
         {
