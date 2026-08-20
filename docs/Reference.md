@@ -1,6 +1,6 @@
 # MasselGUARD — Technical reference
 
-Developer/technical reference for v3.7.1 — Chromatic Chameleon. For end-user instructions see [`Manual.md`](Manual.md).
+Developer/technical reference for v3.9.0 — Adaptive Armadillo. For end-user instructions see [`Manual.md`](Manual.md).
 
 ---
 
@@ -558,26 +558,25 @@ Continuation lines (detail sub-entries) render with a `↳` prefix in the timest
 ### BUILD.bat
 
 ```bat
-set VERSION=3.7.1
-set CODENAME=Chromatic Chameleon
-set DOTNET_CLI_TELEMETRY_OPTOUT=1
-set DOTNET_NOLOGO=1
-dotnet publish -p:Version=%VERSION% -p:InformationalVersion=%VERSION%.%BUILD_NUM% → dist\
-copy lang\ → dist\lang\
-copy wireguard-deps\*.dll → dist\
+BUILD.bat            :: both arches (x64 + arm64)
+BUILD.bat x64        :: single arch
+BUILD.bat arm64
 ```
+
+Per arch (`x64`, `arm64`) BUILD.bat cleans `obj\`/`bin\`, cross-publishes GUI + CLI framework-dependent single-file to `dist\<arch>\` with `-r win-<arch> -p:RuntimeIdentifier=win-<arch>`, copies `lang\` + the matching `wireguard-deps\<arch>\*.dll`, and zips the folder to `dist\MasselGUARD-<arch>.zip`. Both `.csproj` declare `<RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>` with a conditional default RID (win-x64 for IDE builds). ARM64 cross-publishes from an x64 host — the SDK emits a native ARM64 apphost (PE machine `0xAA64`). A release requires **both** `MasselGUARD-x64.zip` and `MasselGUARD-arm64.zip`.
 
 (No themes are bundled — they're downloaded from the shared-themes repo into `%APPDATA%`.)
 
 Banner printed during build:
 ```
   --------------------------------------------------
-  MasselGUARD  v3.7.1  |  Chromatic Chameleon
+  MasselGUARD  v3.9.0  |  Adaptive Armadillo
   Harold Masselink  |  https://masselink.net
+  Building arch(es): x64 arm64
   --------------------------------------------------
 ```
 
-Update `CODENAME` in both `BUILD.bat` **and** `UpdateChecker.cs` (`_codenames` dictionary) when bumping the version.
+Update `VERSION`/`CODENAME` in both `BUILD.bat` **and** `UpdateChecker.cs` (`_codenames` dictionary) when bumping the version.
 
 ### Version vs. build stamp
 
@@ -587,16 +586,20 @@ Update `CODENAME` in both `BUILD.bat` **and** `UpdateChecker.cs` (`_codenames` d
 
 ### tunnelbuild\tunnelbuild.bat
 
-Builds `tunnel.dll` from source (requires Go 1.21+ and gcc/MinGW). Downloads `wireguard.dll` from download.wireguard.com/wireguard-nt/. Output to `tunnelbuild\wireguard-deps\`.
+Builds the per-architecture native DLLs into `wireguard-deps\<arch>\`. Run with no argument it **prompts** for x64 / arm64 / both; or pass `x64` / `arm64` / `all`. Requires Go 1.21+ and git; `wireguard.dll` is extracted from the wireguard-NT zip's arch subfolder (download.wireguard.com/wireguard-nt/), `tunnel.dll` is compiled from wireguard-windows. x64 uses gcc/MinGW; **arm64 `tunnel.dll` is a Go+CGO cross-build requiring an aarch64 Windows toolchain** (llvm-mingw's `aarch64-w64-mingw32-clang`). `get-wireguard-dlls.ps1` PE-verifies each produced DLL's machine type so a wrong-arch build can't slip through.
+
+### Architecture support (x64 / ARM64)
+
+The managed code is architecture-portable; only the launcher exe and the two native DLLs are per-arch. A Windows process is a single architecture and .NET has no fat binary, so each arch is a separate native build. On Windows-on-ARM the wireguard-NT **kernel driver is native and cannot be emulated**, so an emulated x64 build cannot drive local tunnels — ARM64 users need the ARM64 build (companion tunnels still work emulated). `UpdateChecker` selects the release asset by `RuntimeInformation.ProcessArchitecture` (`MasselGUARD-<arch>.zip`, falling back to legacy `MasselGUARD.zip` for x64). `TunnelDll.ValidateDlls()` gates on architecture first — `ArchSupportError()` catches the emulated-x64-on-ARM64 case, and a PE machine-type check on each DLL catches a wrong-arch DLL before the P/Invoke throws `BadImageFormatException`. The running architecture is shown in Settings → About and the CLI `version` output.
 
 ### Runtime requirements
 
 | | |
 |---|---|
-| OS | Windows 10 / 11 x64 |
-| Runtime | .NET 10 Desktop Runtime |
+| OS | Windows 10 / 11 — x64 or ARM64 (separate native builds) |
+| Runtime | .NET 10 Desktop Runtime (matching architecture) |
 | Elevation | Administrator |
-| Standalone / Mixed | `tunnel.dll` + `wireguard.dll` next to exe |
+| Standalone / Mixed | matching-arch `tunnel.dll` + `wireguard.dll` next to exe |
 | Companion / Mixed | WireGuard for Windows installed |
 
 ---
@@ -774,7 +777,7 @@ dotnet publish -p:Version=%VERSION% -p:InformationalVersion=%VERSION%.%BUILD_NUM
 Assembly.GetEntryAssembly()
     ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
     ?.InformationalVersion;
-// → "3.7.1.2607160000"  (last 10 chars = build stamp)
+// → "3.9.0.2608200000"  (last 10 chars = build stamp)
 ```
 
 `Version.TryParse` handles 4-part versions for comparison. The version component (`Major.Minor.Patch`) is always static; only the build stamp changes between builds.
@@ -948,13 +951,14 @@ string updateStatus =
 
 Plain output:
 ```
-MasselGUARD v3.7.1  |  Chromatic Chameleon
-build:   2607160000
+MasselGUARD v3.9.0  |  Adaptive Armadillo
+build:   2608200000
+arch:    x64
 Harold Masselink  |  https://masselink.net
 Update:  up to date
 ```
 
-JSON output adds `update_status` field alongside `version`, `codename`, `build`.
+JSON output adds `arch` and `update_status` fields alongside `version`, `codename`, `build`. `arch` comes from `UpdateChecker.ArchMoniker` (`RuntimeInformation.ProcessArchitecture` → `x64`/`arm64`/`x86`).
 
 ### Exit codes
 
@@ -987,10 +991,12 @@ private static readonly Dictionary<string, string> _codenames =
     {
         { "3.7.0", "Chromatic Chameleon" },
         { "3.7.1", "Chromatic Chameleon" },
+        { "3.8.0", "Protective Pangolin" },
+        { "3.9.0", "Adaptive Armadillo" },
     };
 ```
 
-`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"3.7.1 — Chromatic Chameleon"` or just `"3.7.1"`.
+`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"3.9.0 — Adaptive Armadillo"` or just `"3.9.0"`.
 
 Codenames are assigned per `Major.Minor.Patch` release only — not per build. Update the dictionary in `UpdateChecker.cs` **and** `BUILD.bat` when bumping `VERSION`.
 

@@ -151,16 +151,98 @@ namespace MasselGUARD
         // will fail with "cannot find file" when starting the tunnel service.
         private const long WireGuardNtMinBytes = 900_000;
 
+        // PE machine-type values (IMAGE_FILE_HEADER.Machine).
+        private const ushort IMAGE_FILE_MACHINE_I386  = 0x014C;
+        private const ushort IMAGE_FILE_MACHINE_AMD64 = 0x8664;
+        private const ushort IMAGE_FILE_MACHINE_ARM64 = 0xAA64;
+
+        /// <summary>Reads the PE Machine field of a DLL/EXE, or null if unreadable.</summary>
+        private static ushort? ReadPeMachine(string path)
+        {
+            try
+            {
+                using var fs = File.OpenRead(path);
+                using var br = new BinaryReader(fs);
+                if (fs.Length < 0x40) return null;
+                fs.Seek(0x3C, SeekOrigin.Begin);          // e_lfanew
+                int peOffset = br.ReadInt32();
+                if (peOffset <= 0 || peOffset + 6 > fs.Length) return null;
+                fs.Seek(peOffset, SeekOrigin.Begin);
+                if (br.ReadUInt32() != 0x00004550) return null; // "PE\0\0"
+                return br.ReadUInt16();                    // IMAGE_FILE_HEADER.Machine
+            }
+            catch { return null; }
+        }
+
+        /// <summary>The PE machine type that matches the current process architecture.</summary>
+        private static ushort ExpectedMachine => RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.X64   => IMAGE_FILE_MACHINE_AMD64,
+            Architecture.Arm64 => IMAGE_FILE_MACHINE_ARM64,
+            Architecture.X86   => IMAGE_FILE_MACHINE_I386,
+            _                  => 0,
+        };
+
+        private static string MachineName(ushort m) => m switch
+        {
+            IMAGE_FILE_MACHINE_AMD64 => "x64",
+            IMAGE_FILE_MACHINE_ARM64 => "arm64",
+            IMAGE_FILE_MACHINE_I386  => "x86",
+            _                        => $"0x{m:X4}",
+        };
+
+        /// <summary>
+        /// Returns a message if this build cannot drive local tunnels on the current
+        /// system for architecture reasons (e.g. an x64 build running emulated on an
+        /// ARM64 host), otherwise null. Kernel drivers cannot be emulated, so local
+        /// tunnels require an arch-native build. Companion tunnels are unaffected.
+        /// </summary>
+        public static string? ArchSupportError()
+        {
+            if (RuntimeInformation.OSArchitecture == Architecture.Arm64 &&
+                RuntimeInformation.ProcessArchitecture == Architecture.X64)
+                return "You are running the x64 build under emulation on an ARM64 system. " +
+                       "Local (standalone) tunnels need the native ARM64 build because the " +
+                       "wireguard-NT kernel driver cannot run under emulation. Download the " +
+                       "arm64 release of MasselGUARD to enable local tunnels. " +
+                       "(WireGuard companion tunnels still work in this build.)";
+            return null;
+        }
+
         /// <summary>
         /// Returns null if DLLs are present and appear correct.
-        /// Returns an error string if DLLs are missing or the wrong version.
+        /// Returns an error string if DLLs are missing, the wrong version, or the
+        /// wrong architecture for the running process.
         /// </summary>
         public static string? ValidateDlls()
         {
+            // Architecture gate first — a wrong-arch process can never load these DLLs
+            // or the kernel driver, and the failure would otherwise be cryptic.
+            var archErr = ArchSupportError();
+            if (archErr != null) return archErr;
+
             if (!File.Exists(TunnelDllPath))
                 return $"tunnel.dll not found in: {ExeDir}";
             if (!File.Exists(WireGuardDllPath))
                 return $"wireguard.dll not found in: {ExeDir}";
+
+            // Verify each DLL's architecture matches this process. A mismatched DLL
+            // (e.g. x64 tunnel.dll shipped next to an arm64 exe) fails to load with a
+            // BadImageFormatException deep inside the P/Invoke — surface it clearly.
+            ushort want = ExpectedMachine;
+            if (want != 0)
+            {
+                var tnMachine = ReadPeMachine(TunnelDllPath);
+                if (tnMachine is ushort tm && tm != want)
+                    return $"tunnel.dll is the wrong architecture ({MachineName(tm)}) — this " +
+                           $"{MachineName(want)} build needs a {MachineName(want)} tunnel.dll. " +
+                           $"Reinstall the {MachineName(want)} release of MasselGUARD.";
+                var wgMachine = ReadPeMachine(WireGuardDllPath);
+                if (wgMachine is ushort wm && wm != want)
+                    return $"wireguard.dll is the wrong architecture ({MachineName(wm)}) — this " +
+                           $"{MachineName(want)} build needs a {MachineName(want)} wireguard.dll. " +
+                           $"Reinstall the {MachineName(want)} release of MasselGUARD.";
+            }
 
             try
             {

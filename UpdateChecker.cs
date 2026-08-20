@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using MasselGUARD.Models;
@@ -16,11 +17,37 @@ namespace MasselGUARD
     /// GitHub API endpoint:
     ///   GET https://api.github.com/repos/masselink/MasselGUARD/releases/latest
     ///
-    /// The release must contain an asset named MasselGUARD.zip.
+    /// The release must contain an architecture-specific asset — "MasselGUARD-x64.zip"
+    /// or "MasselGUARD-arm64.zip" — matching the running process. Older releases that
+    /// ship a single "MasselGUARD.zip" are still accepted as a fallback (x64).
     /// The tag name is used as the version string (e.g. "v2.0.1").
     /// </summary>
     public static class UpdateChecker
     {
+        /// <summary>
+        /// Architecture moniker for the running process ("x64" / "arm64" / "x86").
+        /// Used to pick the matching release asset and shown on the About/version pages.
+        /// </summary>
+        public static string ArchMoniker => RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.X64   => "x64",
+            Architecture.Arm64 => "arm64",
+            Architecture.X86   => "x86",
+            var other          => other.ToString().ToLowerInvariant(),
+        };
+
+        /// <summary>
+        /// Candidate release-asset names for this process, most-specific first:
+        /// the arch-specific zip, then the legacy single-arch "MasselGUARD.zip" (x64).
+        /// </summary>
+        private static string[] AssetCandidates()
+        {
+            var arch = ArchMoniker;
+            // Legacy MasselGUARD.zip predates multi-arch and only ever contained x64.
+            return arch == "x64"
+                ? new[] { $"MasselGUARD-{arch}.zip", "MasselGUARD.zip" }
+                : new[] { $"MasselGUARD-{arch}.zip" };
+        }
         private const string TagsApiUrl     = "https://api.github.com/repos/masselink/MasselGUARD/tags";
         private const string ReleasesApiUrl = "https://api.github.com/repos/masselink/MasselGUARD/releases";
         // Major.Minor.Patch only — static, never modified by build.
@@ -72,7 +99,8 @@ namespace MasselGUARD
             Action? onShutdown = null)
         {
             if (release.ZipUrl == null)
-                throw new InvalidOperationException("No MasselGUARD.zip asset in release.");
+                throw new InvalidOperationException(
+                    $"No MasselGUARD-{ArchMoniker}.zip asset in release {release.TagName}.");
 
             var currentExe = Environment.ProcessPath
                 ?? AppContext.BaseDirectory;
@@ -240,26 +268,31 @@ namespace MasselGUARD
             }
             if (latestTag == null) return null;
 
-            // Step 2: find the GitHub release for this tag to get the asset URL
+            // Step 2: find the GitHub release for this tag and pick the asset that
+            // matches this process's architecture. Collect all assets first, then
+            // choose by priority (arch-specific zip, then legacy MasselGUARD.zip).
             string? zipUrl = null;
             try
             {
                 var relJson = await http.GetStringAsync(
                     ReleasesApiUrl + "/tags/" + latestTag);
                 using var relDoc = JsonDocument.Parse(relJson);
+
+                var byName = new System.Collections.Generic.Dictionary<string, string>(
+                    StringComparer.OrdinalIgnoreCase);
                 if (relDoc.RootElement.TryGetProperty("assets", out var assets))
                     foreach (var asset in assets.EnumerateArray())
                     {
                         var aname = asset.TryGetProperty("name", out var an)
                             ? an.GetString() : null;
-                        if (string.Equals(aname, "MasselGUARD.zip",
-                                StringComparison.OrdinalIgnoreCase))
-                        {
-                            zipUrl = asset.TryGetProperty("browser_download_url", out var u)
-                                ? u.GetString() : null;
-                            break;
-                        }
+                        var url = asset.TryGetProperty("browser_download_url", out var u)
+                            ? u.GetString() : null;
+                        if (!string.IsNullOrEmpty(aname) && !string.IsNullOrEmpty(url))
+                            byName[aname] = url;
                     }
+
+                foreach (var candidate in AssetCandidates())
+                    if (byName.TryGetValue(candidate, out var url)) { zipUrl = url; break; }
             }
             catch { /* tag exists but has no release — that is fine */ }
 

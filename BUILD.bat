@@ -15,10 +15,24 @@ set DOTNET_NOLOGO=1
 set DIST=%~dp0dist
 set DEPS=%~dp0wireguard-deps
 
+rem ── Architecture selection ───────────────────────────────────────────────────
+rem   BUILD.bat            -> builds all supported arches (x64 + arm64)
+rem   BUILD.bat x64        -> x64 only
+rem   BUILD.bat arm64      -> arm64 only
+rem Each arch is published natively (framework-dependent single-file) into
+rem dist\<arch>\ with its matching wireguard-deps\<arch>\ DLLs, then zipped to
+rem dist\MasselGUARD-<arch>.zip for release. ARM64 native DLLs must be built
+rem separately (tunnelbuild\tunnelbuild.bat arm64); without them the ARM64 exe
+rem still builds but has no local-tunnel support.
+set ARCHES=%~1
+if "%ARCHES%"=="" set ARCHES=all
+if /I "%ARCHES%"=="all" set ARCHES=x64 arm64
+
 echo.
 echo  --------------------------------------------------
 echo  MasselGUARD  v%VERSION%  ^|  %CODENAME%
 echo  Harold Masselink  ^|  https://masselink.net
+echo  Building arch(es): %ARCHES%
 echo  --------------------------------------------------
 echo.
 
@@ -45,137 +59,17 @@ pause & exit /b 1
 :sdk_ok
 echo.
 
-rem ── Step 2a: pre-flight — fail if either exe is locked by a running process ──
-if exist "!DIST!\MasselGUARD.exe" (
-    ren "!DIST!\MasselGUARD.exe" "MasselGUARD.exe.__chk" >nul 2>&1
+rem ── Build each requested architecture ────────────────────────────────────────
+for %%A in (%ARCHES%) do (
+    call :build_arch %%A
     if errorlevel 1 (
-        echo  ==========================================
-        echo   BUILD FAILED -- EXE IS STILL RUNNING
-        echo  ==========================================
         echo.
-        echo   Close MasselGUARD.exe before building,
-        echo   then run BUILD.bat again.
+        echo  ==========================================
+        echo   BUILD FAILED -- arch %%A
+        echo  ==========================================
         echo.
         pause & exit /b 1
     )
-    ren "!DIST!\MasselGUARD.exe.__chk" "MasselGUARD.exe" >nul 2>&1
-)
-if exist "!DIST!\MasselGUARDcli.exe" (
-    ren "!DIST!\MasselGUARDcli.exe" "MasselGUARDcli.exe.__chk" >nul 2>&1
-    if errorlevel 1 (
-        echo  ==========================================
-        echo   BUILD FAILED -- CLI EXE IS STILL RUNNING
-        echo  ==========================================
-        echo.
-        echo   Close MasselGUARDcli.exe before building,
-        echo   then run BUILD.bat again.
-        echo.
-        pause & exit /b 1
-    )
-    ren "!DIST!\MasselGUARDcli.exe.__chk" "MasselGUARDcli.exe" >nul 2>&1
-)
-
-rem ── Step 2a2: clean intermediate outputs ─────────────────────────────────────
-rem WPF bakes the AssemblyVersion into compiled resource pack-URIs (App.g.cs).
-rem Stale obj\ artifacts from before a version bump produce an exe whose assembly
-rem identity and resource URIs disagree -> FileNotFoundException for its own
-rem assembly at startup. A clean rebuild is cheap insurance.
-echo  Cleaning obj/bin intermediates...
-if exist "%~dp0obj"               rmdir /s /q "%~dp0obj"
-if exist "%~dp0bin"               rmdir /s /q "%~dp0bin"
-if exist "%~dp0MasselGUARDcli\obj" rmdir /s /q "%~dp0MasselGUARDcli\obj"
-if exist "%~dp0MasselGUARDcli\bin" rmdir /s /q "%~dp0MasselGUARDcli\bin"
-echo.
-
-rem ── Step 2b: compile MasselGUARD (GUI) ───────────────────────────────────────
-echo  -------------------------------------------------------
-echo   Compiling MasselGUARD (GUI)...
-echo  -------------------------------------------------------
-echo.
-dotnet publish "%~dp0MasselGUARD.csproj" -c Release -o "!DIST!" ^
-    -p:Version=%VERSION% ^
-    -p:AssemblyVersion=%VERSION%.0 ^
-    -p:FileVersion=%VERSION%.0 ^
-    -p:InformationalVersion=%VERSION%.%BUILD_NUM%
-if not exist "!DIST!\MasselGUARD.exe" (
-    echo.
-    echo  ==========================================
-    echo   BUILD FAILED -- MasselGUARD.exe not produced
-    echo  ==========================================
-    echo.
-    pause & exit /b 1
-)
-echo.
-echo  OK  MasselGUARD.exe
-echo.
-
-rem ── Step 2c: compile MasselGUARDcli (CLI) ────────────────────────────────────
-echo  -------------------------------------------------------
-echo   Compiling MasselGUARDcli (CLI)...
-echo  -------------------------------------------------------
-echo.
-dotnet publish "%~dp0MasselGUARDcli\MasselGUARDcli.csproj" -c Release -o "!DIST!" ^
-    -p:Version=%VERSION% ^
-    -p:AssemblyVersion=%VERSION%.0 ^
-    -p:FileVersion=%VERSION%.0 ^
-    -p:InformationalVersion=%VERSION%.%BUILD_NUM%
-if not exist "!DIST!\MasselGUARDcli.exe" (
-    echo.
-    echo  ==========================================
-    echo   BUILD FAILED -- MasselGUARDcli.exe not produced
-    echo  ==========================================
-    echo.
-    pause & exit /b 1
-)
-echo.
-echo  OK  MasselGUARDcli.exe
-echo.
-
-rem ── Step 3a: copy install helper ─────────────────────────────────────────────
-if exist "%~dp0install-dotnet.bat" (
-    copy /y "%~dp0install-dotnet.bat" "!DIST!\install-dotnet.bat" >nul
-    echo  OK  install-dotnet.bat
-) else (
-    echo  WARNING: install-dotnet.bat not found -- skipped.
-)
-echo.
-
-rem ── Step 3b: copy lang folder into dist ───────────────────────────────────────
-rem  (No themes are bundled — shared themes are downloaded from the shared-themes repo.)
-echo  -------------------------------------------------------
-echo   Copying lang folder...
-echo  -------------------------------------------------------
-if exist "%~dp0lang" (
-    if exist "!DIST!\lang" rmdir /s /q "!DIST!\lang"
-    xcopy /e /i /q "%~dp0lang" "!DIST!\lang" >nul
-    echo  lang folder copied to dist\lang\
-) else (
-    echo  WARNING: lang folder not found -- skipped.
-)
-echo.
-
-rem ── Step 4: copy DLLs from wireguard-deps ────────────────────────────────────
-echo  -------------------------------------------------------
-echo   Copying tunnel DLLs from wireguard-deps\...
-echo  -------------------------------------------------------
-set DLL_OK=1
-
-if exist "!DEPS!\tunnel.dll" (
-    copy /y "!DEPS!\tunnel.dll" "!DIST!\tunnel.dll" >nul
-    echo    Copied: tunnel.dll
-) else (
-    echo  WARNING: wireguard-deps\tunnel.dll not found.
-    echo           Run tunnelbuild\tunnelbuild.bat, then copy DLLs to wireguard-deps\.
-    set DLL_OK=0
-)
-
-if exist "!DEPS!\wireguard.dll" (
-    copy /y "!DEPS!\wireguard.dll" "!DIST!\wireguard.dll" >nul
-    echo    Copied: wireguard.dll
-) else (
-    echo  WARNING: wireguard-deps\wireguard.dll not found.
-    echo           Run tunnelbuild\tunnelbuild.bat, then copy DLLs to wireguard-deps\.
-    set DLL_OK=0
 )
 
 echo.
@@ -183,24 +77,133 @@ echo  ==========================================
 echo   BUILD SUCCESSFUL
 echo  ==========================================
 echo.
-echo   dist\MasselGUARD.exe        (GUI application)
-echo   dist\MasselGUARDcli.exe     (command-line interface)
-echo   dist\install-dotnet.bat     (.NET 10 install helper)
-echo   dist\lang\
-if "!DLL_OK!"=="1" (
-    echo   dist\tunnel.dll
-    echo   dist\wireguard.dll
-    echo.
-    echo   Standalone local tunnels: ready.
-) else (
-    echo.
-    echo   NOTE: One or more WireGuard DLLs were not copied.
-    echo   Run tunnelbuild\tunnelbuild.bat to rebuild,
-    echo   then re-run BUILD.bat, or copy DLLs manually.
+for %%A in (%ARCHES%) do (
+    echo   dist\%%A\                     ^(native %%A build^)
+    if exist "%DIST%\MasselGUARD-%%A.zip" echo   dist\MasselGUARD-%%A.zip     ^(release asset^)
 )
 echo.
-echo   Target machine requires .NET 10 Desktop Runtime:
+echo   Target machine requires the .NET 10 Desktop Runtime for its architecture:
 echo   https://dotnet.microsoft.com/download/dotnet/10.0
 echo.
 pause
 exit /b 0
+
+rem ═════════════════════════════════════════════════════════════════════════════
+rem  :build_arch <x64|arm64>
+rem ═════════════════════════════════════════════════════════════════════════════
+:build_arch
+setlocal enabledelayedexpansion
+set ARCH=%~1
+set RID=
+if /I "%ARCH%"=="x64"   set RID=win-x64
+if /I "%ARCH%"=="arm64" set RID=win-arm64
+if not defined RID (
+    echo  ERROR: unknown architecture "%ARCH%" ^(expected x64 or arm64^).
+    endlocal & exit /b 1
+)
+set OUT=%DIST%\%ARCH%
+
+echo  =======================================================
+echo   [%ARCH%]  publishing %RID% ...
+echo  =======================================================
+echo.
+
+rem ── Pre-flight: fail if a target exe is locked by a running process ──────────
+if exist "%OUT%\MasselGUARD.exe" (
+    ren "%OUT%\MasselGUARD.exe" "MasselGUARD.exe.__chk" >nul 2>&1
+    if errorlevel 1 (
+        echo   BUILD FAILED -- %ARCH% MasselGUARD.exe is still running. Close it first.
+        endlocal & exit /b 1
+    )
+    ren "%OUT%\MasselGUARD.exe.__chk" "MasselGUARD.exe" >nul 2>&1
+)
+if exist "%OUT%\MasselGUARDcli.exe" (
+    ren "%OUT%\MasselGUARDcli.exe" "MasselGUARDcli.exe.__chk" >nul 2>&1
+    if errorlevel 1 (
+        echo   BUILD FAILED -- %ARCH% MasselGUARDcli.exe is still running. Close it first.
+        endlocal & exit /b 1
+    )
+    ren "%OUT%\MasselGUARDcli.exe.__chk" "MasselGUARDcli.exe" >nul 2>&1
+)
+
+rem ── Clean intermediates (per-arch: obj\ caches the previous RID) ─────────────
+rem WPF bakes AssemblyVersion into compiled resource pack-URIs; stale obj\ from a
+rem different RID or version produces a mixed-arch/mixed-version exe. Clean is
+rem cheap insurance and mandatory between architectures.
+echo   Cleaning obj/bin intermediates...
+if exist "%~dp0obj"                rmdir /s /q "%~dp0obj"
+if exist "%~dp0bin"                rmdir /s /q "%~dp0bin"
+if exist "%~dp0MasselGUARDcli\obj" rmdir /s /q "%~dp0MasselGUARDcli\obj"
+if exist "%~dp0MasselGUARDcli\bin" rmdir /s /q "%~dp0MasselGUARDcli\bin"
+if exist "%OUT%"                   rmdir /s /q "%OUT%"
+
+rem ── Compile GUI ─────────────────────────────────────────────────────────────
+echo   Compiling MasselGUARD (GUI) [%ARCH%]...
+dotnet publish "%~dp0MasselGUARD.csproj" -c Release -r %RID% --self-contained false -o "%OUT%" ^
+    -p:RuntimeIdentifier=%RID% ^
+    -p:Version=%VERSION% ^
+    -p:AssemblyVersion=%VERSION%.0 ^
+    -p:FileVersion=%VERSION%.0 ^
+    -p:InformationalVersion=%VERSION%.%BUILD_NUM%
+if not exist "%OUT%\MasselGUARD.exe" (
+    echo   BUILD FAILED -- MasselGUARD.exe not produced for %ARCH%.
+    endlocal & exit /b 1
+)
+echo   OK  %ARCH%\MasselGUARD.exe
+
+rem ── Compile CLI ─────────────────────────────────────────────────────────────
+echo   Compiling MasselGUARDcli (CLI) [%ARCH%]...
+dotnet publish "%~dp0MasselGUARDcli\MasselGUARDcli.csproj" -c Release -r %RID% --self-contained false -o "%OUT%" ^
+    -p:RuntimeIdentifier=%RID% ^
+    -p:Version=%VERSION% ^
+    -p:AssemblyVersion=%VERSION%.0 ^
+    -p:FileVersion=%VERSION%.0 ^
+    -p:InformationalVersion=%VERSION%.%BUILD_NUM%
+if not exist "%OUT%\MasselGUARDcli.exe" (
+    echo   BUILD FAILED -- MasselGUARDcli.exe not produced for %ARCH%.
+    endlocal & exit /b 1
+)
+echo   OK  %ARCH%\MasselGUARDcli.exe
+
+rem ── Copy install helper ─────────────────────────────────────────────────────
+if exist "%~dp0install-dotnet.bat" copy /y "%~dp0install-dotnet.bat" "%OUT%\install-dotnet.bat" >nul
+
+rem ── Copy lang folder ────────────────────────────────────────────────────────
+if exist "%~dp0lang" (
+    if exist "%OUT%\lang" rmdir /s /q "%OUT%\lang"
+    xcopy /e /i /q "%~dp0lang" "%OUT%\lang" >nul
+    echo   OK  %ARCH%\lang\
+)
+
+rem ── Copy the matching-arch WireGuard DLLs ───────────────────────────────────
+set DLL_OK=1
+if exist "%DEPS%\%ARCH%\tunnel.dll" (
+    copy /y "%DEPS%\%ARCH%\tunnel.dll" "%OUT%\tunnel.dll" >nul
+    echo   OK  %ARCH%\tunnel.dll
+) else (
+    echo   WARNING: wireguard-deps\%ARCH%\tunnel.dll not found -- local tunnels disabled for %ARCH%.
+    set DLL_OK=0
+)
+if exist "%DEPS%\%ARCH%\wireguard.dll" (
+    copy /y "%DEPS%\%ARCH%\wireguard.dll" "%OUT%\wireguard.dll" >nul
+    echo   OK  %ARCH%\wireguard.dll
+) else (
+    echo   WARNING: wireguard-deps\%ARCH%\wireguard.dll not found -- local tunnels disabled for %ARCH%.
+    set DLL_OK=0
+)
+if "!DLL_OK!"=="0" (
+    echo   NOTE: build tunnel DLLs with  tunnelbuild\tunnelbuild.bat %ARCH%
+)
+
+rem ── Package release zip: dist\MasselGUARD-<arch>.zip ────────────────────────
+echo   Packaging dist\MasselGUARD-%ARCH%.zip ...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "Compress-Archive -Path '%OUT%\*' -DestinationPath '%DIST%\MasselGUARD-%ARCH%.zip' -Force"
+if exist "%DIST%\MasselGUARD-%ARCH%.zip" (
+    echo   OK  dist\MasselGUARD-%ARCH%.zip
+) else (
+    echo   WARNING: could not create MasselGUARD-%ARCH%.zip
+)
+
+echo.
+endlocal & exit /b 0

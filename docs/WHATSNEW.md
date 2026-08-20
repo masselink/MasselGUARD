@@ -1,3 +1,40 @@
+## v3.9.0 — Adaptive Armadillo
+
+The headline is **native ARM64 support**. MasselGUARD now ships as two native builds — **x64** and **ARM64** — so it runs at full speed on Windows-on-ARM devices (Snapdragon-based Copilot+ PCs, recent Surface models) instead of under x64 emulation. Alongside it: a fix for auto-generated rule names, and a fresh batch of community themes.
+
+---
+
+### Native ARM64 build
+
+Windows on ARM can *emulate* x64 apps, but a VPN can't lean on that: the **wireguard-NT kernel driver is native and cannot be emulated**, so an emulated x64 build can't bring up local (standalone) tunnels on an ARM machine. The fix is a genuine ARM64 build.
+
+- **Two downloads now** — `MasselGUARD-x64.zip` and `MasselGUARD-arm64.zip`. Grab the one that matches your PC: on a normal Intel/AMD machine that's **x64**; on a Snapdragon / Copilot+ / Windows-on-ARM device it's **arm64**.
+- **Local tunnels run natively on ARM64** — the ARM64 build carries ARM64 `tunnel.dll` + `wireguard.dll` and drives the native kernel driver directly. (Companion tunnels — automating the WireGuard for Windows app — already worked under emulation and still do.)
+- **Auto-update picks the right one** — the updater downloads the build matching your processor automatically; there's nothing to re-select at update time. Older single-arch releases still resolve to the x64 build.
+- **A clear message if you're on the wrong build** — run the x64 build on an ARM64 PC and, instead of a cryptic driver failure, MasselGUARD tells you to grab the ARM64 release. A wrong-architecture DLL is likewise caught up front rather than crashing the connect.
+- **Your architecture is shown** in Settings → About and in the CLI `version` output (`arch: arm64`).
+
+> **Which do I need?** If you're not sure, you're almost certainly on **x64**. ARM64 is only for Windows-on-ARM devices.
+
+---
+
+### Fixes
+
+- **Auto-generated rule names** — creating a WiFi rule by typing the SSID *first* and then choosing a tunnel produced the name "SSID → disconnect" even though a tunnel was selected (an editable-dropdown timing quirk that read the tunnel box a beat too early). The name now reflects the tunnel you actually picked.
+
+---
+
+### Themes
+
+Eight new themes are available in the **Community theme browser** (Settings → Appearance → **Download themes…**) — the first batch to ship **background images** and theme-matched fonts:
+
+- **Aurora Borealis**, **Nebula**, **Ocean Depth**, **Alpine Fog** — atmospheric, calm backdrops
+- **Synthwave Sunset** (retro Orbitron display font), **Circuit** (JetBrains Mono), **Carbon Fiber**, **Topographic** — textured, technical looks
+
+Each ships tuned dark *and* light variants, with panel opacity set so text stays readable over the artwork.
+
+---
+
 ## v3.8.0 — Protective Pangolin
 
 This release is about **automation** and **managed deployment**. WiFi rules gain new trigger types and an on/off switch, tunnels show live health and data usage, a tunnel config can be handed to a phone as a QR code, and — the headline — a `.masselguard` **policy file** lets you ship a build with locked settings for a company, family, or kiosk.

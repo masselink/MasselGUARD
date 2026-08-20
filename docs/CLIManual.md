@@ -1,6 +1,6 @@
 # MasselGUARD — CLI Manual
 
-**Version 3.7.1 — Chromatic Chameleon**
+**Version 3.9.0 — Adaptive Armadillo**
 
 MasselGUARD includes a full command-line interface for scripting, automation, and headless operation. The CLI and the GUI share the same WireGuard kernel driver and the same configuration — any change made via CLI is reflected in the GUI within ~1 second, and vice versa.
 
@@ -708,27 +708,27 @@ MasselGUARD check-update --json
 
 **Plain output:**
 ```
-Up to date — v3.7.1 is the latest release.
+Up to date — v3.9.0 is the latest release.
 ```
 ```
-Update available: v3.8.0  (current: v3.7.1)
+Update available: v3.9.1  (current: v3.9.0)
 ```
 
 **JSON output:**
 ```json
 {
   "result":  "up_to_date",
-  "current": "3.7.1",
-  "latest":  "3.7.1",
-  "message": "Up to date — v3.7.1 is the latest release."
+  "current": "3.9.0",
+  "latest":  "3.9.0",
+  "message": "Up to date — v3.9.0 is the latest release."
 }
 ```
 ```json
 {
   "result":  "update_available",
-  "current": "3.7.1",
-  "latest":  "3.8.0",
-  "message": "Update available: v3.8.0  (current: v3.7.1)"
+  "current": "3.9.0",
+  "latest":  "3.9.1",
+  "message": "Update available: v3.9.1  (current: v3.9.0)"
 }
 ```
 
@@ -746,8 +746,9 @@ MasselGUARD -v
 
 **Plain output:**
 ```
-MasselGUARD v3.7.1  |  Chromatic Chameleon
-build:   2607160000
+MasselGUARD v3.9.0  |  Adaptive Armadillo
+build:   2608200000
+arch:    x64
 Harold Masselink  |  https://masselink.net
 Update:  up to date
 ```
@@ -755,9 +756,10 @@ Update:  up to date
 **JSON output:**
 ```json
 {
-  "version":       "3.7.1",
-  "codename":      "Chromatic Chameleon",
-  "build":         "2607160000",
+  "version":       "3.9.0",
+  "codename":      "Adaptive Armadillo",
+  "build":         "2608200000",
+  "arch":          "x64",
   "update_status": "up to date"
 }
 ```

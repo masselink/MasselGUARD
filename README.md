@@ -131,11 +131,22 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 
 | | |
 |---|---|
-| OS | Windows 10 or 11 (x64) |
-| Runtime | [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) |
+| OS | Windows 10 or 11 — **x64 or ARM64** (separate native builds) |
+| Runtime | [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) for your architecture |
 | Elevation | Administrator (or Scheduled Task for UAC-free managed launch) |
-| Standalone / Mixed | `tunnel.dll` + `wireguard.dll` v1.1 (wireguard-NT) next to the exe (included in release zip) |
+| Standalone / Mixed | `tunnel.dll` + `wireguard.dll` (wireguard-NT) for your architecture, next to the exe — included in the matching release zip |
 | Companion / Mixed | [WireGuard for Windows](https://wireguard.com/install) installed |
+
+### Which download?
+
+Releases ship two architecture-specific builds — pick the one that matches your PC:
+
+| Your PC | Download |
+|---|---|
+| Intel / AMD (the vast majority) | **`MasselGUARD-x64.zip`** |
+| Windows-on-ARM — Snapdragon / Copilot+ PCs, recent Surface | **`MasselGUARD-arm64.zip`** |
+
+On Windows-on-ARM the ARM64 build is required for **local (standalone) tunnels** — the wireguard-NT kernel driver is native and can't run under x64 emulation. Companion tunnels (automating the WireGuard for Windows app) work on either build. Not sure which you have? Settings → About and the CLI `version` command both show the running architecture; if in doubt, you're almost certainly on x64. The auto-updater always fetches the build matching your processor.
 
 ---
 
@@ -156,8 +167,9 @@ MasselGUARD includes a full CLI for scripting and automation. Requires Administr
 MasselGUARD version
 ```
 ```
-MasselGUARD v3.7.1  |  Chromatic Chameleon
-build:   2607160000
+MasselGUARD v3.9.0  |  Adaptive Armadillo
+build:   2608200000
+arch:    x64
 Harold Masselink  |  https://masselink.net
 Update:  up to date
 ```
@@ -192,19 +204,33 @@ Exit codes: `0` success · `1` error · `2` already in desired state.
 
 ```bat
 BUILD.bat
+BUILD.bat x64
+BUILD.bat arm64
 ```
 
-Requires .NET 10 SDK. Generates a `YYMMDDHHMM` build stamp, compiles with `dotnet publish`, copies output to `dist\`.
+Requires the .NET 10 SDK. With no argument, `BUILD.bat` builds **both** architectures; pass `x64` or `arm64` for one. Each arch publishes natively (framework-dependent single-file, `YYMMDDHHMM` build stamp) into `dist\<arch>\` and is zipped to `dist\MasselGUARD-<arch>.zip` for release. ARM64 cross-publishes cleanly from an x64 host — the SDK produces a native ARM64 apphost. **A release needs both `MasselGUARD-x64.zip` and `MasselGUARD-arm64.zip` uploaded.**
 
 Banner:
 ```
   --------------------------------------------------
-  MasselGUARD  v3.7.1  |  Chromatic Chameleon
+  MasselGUARD  v3.9.0  |  Adaptive Armadillo
   Harold Masselink  |  https://masselink.net
+  Building arch(es): x64 arm64
   --------------------------------------------------
 ```
 
-Update `CODENAME` in both `BUILD.bat` and `UpdateChecker.cs` when bumping the version.
+### Native DLLs (`tunnel.dll` + `wireguard.dll`)
+
+The two wireguard-NT native DLLs are architecture-specific and live in `wireguard-deps\<arch>\`. Build/fetch them with:
+
+```bat
+tunnelbuild\tunnelbuild.bat
+tunnelbuild\tunnelbuild.bat arm64
+```
+
+Run with no argument, it **prompts** for x64 / arm64 / both. `wireguard.dll` is downloaded from download.wireguard.com (which ships an arm64 build); `tunnel.dll` is compiled from wireguard-windows via Go. The **ARM64 `tunnel.dll` is a CGO cross-build** that needs an aarch64 Windows toolchain — [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releases)'s `aarch64-w64-mingw32-clang` on PATH (the script checks for it, and every produced DLL is PE-verified for the correct machine type).
+
+Update `VERSION` / `CODENAME` in both `BUILD.bat` and `UpdateChecker.cs` when bumping the version.
 
 ---
 

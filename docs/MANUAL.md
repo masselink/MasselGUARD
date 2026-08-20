@@ -1,6 +1,6 @@
 # MasselGUARD — User Manual
 
-**Version 3.7.1 — Chromatic Chameleon**
+**Version 3.9.0 — Adaptive Armadillo**
 
 ---
 
@@ -45,7 +45,7 @@ MasselGUARD is a WireGuard automation tool for Windows. It monitors your WiFi co
 
 ## 2. Installation and run modes
 
-**Requirements:** Windows 10 or 11 (64-bit), [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0), Administrator rights.
+**Requirements:** Windows 10 or 11 — **x64 or ARM64** (download the matching build: `MasselGUARD-x64.zip` for Intel/AMD PCs, `MasselGUARD-arm64.zip` for Windows-on-ARM devices), the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) for that architecture, and Administrator rights. On Windows-on-ARM the ARM64 build is required for local (standalone) tunnels; if unsure which you have, Settings → About shows the running architecture.
 
 ### Run modes
 
@@ -900,8 +900,9 @@ MasselGUARD info "1.MasselinkVPN-Split-AG"
 ### Version output
 
 ```
-MasselGUARD v3.6.0  |  Dangerous Donkey
-build:   2606040000
+MasselGUARD v3.9.0  |  Adaptive Armadillo
+build:   2608200000
+arch:    x64
 Harold Masselink  |  https://masselink.net
 Update:  up to date
 ```

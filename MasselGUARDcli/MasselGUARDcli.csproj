@@ -13,7 +13,10 @@
     <ApplicationManifest>app-cli.manifest</ApplicationManifest>
     <StartupObject>MasselGUARD.CliProgram</StartupObject>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- RID overridable per-arch by BUILD.bat (-p:RuntimeIdentifier=win-arm64);
+         defaults to win-x64 for IDE / bare `dotnet build`. -->
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
     <!-- Default versions for IDE / dotnet build without BUILD.bat. -->

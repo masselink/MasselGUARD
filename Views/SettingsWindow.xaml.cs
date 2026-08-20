@@ -1814,11 +1814,12 @@ namespace MasselGUARD.Views
                     : $"MasselGUARD v{current}  |  {codename}";
             }
 
-            // Build stamp — small muted line below the version
+            // Build stamp + architecture — small muted line below the version
             if (BuildLabel != null)
             {
                 var stamp = UpdateChecker.BuildStamp;
-                BuildLabel.Text = string.IsNullOrEmpty(stamp) ? "" : $"build {stamp}";
+                var arch  = UpdateChecker.ArchMoniker;
+                BuildLabel.Text = string.IsNullOrEmpty(stamp) ? arch : $"build {stamp}  ·  {arch}";
             }
 
             // Last checked label
