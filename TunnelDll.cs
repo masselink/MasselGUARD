@@ -144,12 +144,17 @@ namespace MasselGUARD
         public static bool IsTunnelDllAvailable() =>
             File.Exists(TunnelDllPath) && File.Exists(WireGuardDllPath);
 
-        // Minimum size (bytes) for the wireguard-NT wireguard.dll.
-        // The wireguard-NT dll (~1.3 MB) embeds its own kernel driver.
-        // The WireGuard-for-Windows wireguard.dll (~400 KB) does NOT — it
-        // requires wireguard.sys to be pre-installed by the WireGuard app and
-        // will fail with "cannot find file" when starting the tunnel service.
-        private const long WireGuardNtMinBytes = 900_000;
+        // Minimum size (bytes) for the wireguard-NT wireguard.dll, which embeds its own kernel
+        // driver. The WireGuard-for-Windows wireguard.dll (~400 KB) does NOT — it requires
+        // wireguard.sys to be pre-installed and fails with "cannot find file" at tunnel start.
+        // The wireguard-NT dll size is architecture-dependent (official v1.1: amd64 ~1.32 MB,
+        // arm64 ~667 KB, x86 ~1.86 MB), so the floor is per-arch — it only needs to sit above
+        // the driverless ~400 KB dll. The PE machine-type check below is the primary gate.
+        private static long WireGuardNtMinBytes => RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.Arm64 => 500_000,
+            _                  => 900_000,
+        };
 
         // PE machine-type values (IMAGE_FILE_HEADER.Machine).
         private const ushort IMAGE_FILE_MACHINE_I386  = 0x014C;
@@ -250,9 +255,9 @@ namespace MasselGUARD
                 if (wgSize < WireGuardNtMinBytes)
                     return $"Wrong wireguard.dll — this copy is {wgSize / 1024} KB and appears to be " +
                            $"the WireGuard-for-Windows version, which requires the WireGuard app to be " +
-                           $"installed. Standalone mode needs the wireguard-NT version (~1.3 MB). " +
-                           $"Run get-wireguard-dlls.ps1 to download the correct file, or download it from " +
-                           $"https://download.wireguard.com/wireguard-nt/";
+                           $"installed. Standalone mode needs the wireguard-NT version for this " +
+                           $"architecture. Run get-wireguard-dlls.ps1 to download the correct file, or " +
+                           $"download it from https://download.wireguard.com/wireguard-nt/";
             }
             catch { /* best-effort */ }
 

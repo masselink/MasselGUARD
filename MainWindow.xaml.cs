@@ -315,6 +315,12 @@ namespace MasselGUARD
             if (ShouldCheckForUpdates())
                 _ = CheckForUpdatesAsync(silent: true);
 
+            // Running the x64 build emulated on an ARM64 PC — offer a one-click switch to the
+            // native ARM64 build (unless the user chose "Don't remind me"). Local tunnels can't
+            // work under emulation, so this is worth surfacing proactively.
+            if (!ConfigSvc.Config.ArmSwitchDismissed && TunnelDll.ArchSupportError() != null)
+                _ = OfferArm64SwitchAsync();
+
             // Managed Portable + different version → offer to overwrite installed version
             if (AppRunMode == AppRunModeKind.ManagedPortable)
                 Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
@@ -2823,6 +2829,125 @@ namespace MasselGUARD
                 }
             }
             catch { /* silent — network may not be available */ }
+        }
+
+        // ── ARM64 switch (x64 build running emulated on an ARM64 PC) ──────────
+        private enum Arm64Choice { Download, Later, Dismiss }
+
+        /// <summary>
+        /// Offers to download the latest ARM64 build from GitHub and switch this install to it.
+        /// Shown at startup only when running the x64 build on an ARM64 system. "Download" reuses
+        /// the update pipeline forced to the arm64 asset; "Don't remind me" persists a flag.
+        /// </summary>
+        private async System.Threading.Tasks.Task OfferArm64SwitchAsync()
+        {
+            // Let the window settle before popping a modal over it.
+            await System.Threading.Tasks.Task.Delay(1200);
+
+            var choice = Arm64Choice.Later;
+            await Dispatcher.InvokeAsync(() => { choice = ShowArm64SwitchPrompt(); });
+
+            if (choice == Arm64Choice.Dismiss)
+            {
+                ConfigSvc.Config.ArmSwitchDismissed = true;
+                ConfigSvc.Save();
+                return;
+            }
+            if (choice != Arm64Choice.Download) return;   // Later → offer again next launch
+
+            try
+            {
+                // Force the arm64 asset even though this process is emulated x64.
+                var release = await UpdateChecker.FetchLatestReleaseAsync(forceArch: "arm64");
+                if (release?.ZipUrl == null)
+                {
+                    await Dispatcher.InvokeAsync(() =>
+                        ShowThemedInfo(Lang.T("Arm64NoticeNoAsset"), Lang.T("Arm64NoticeTitle")));
+                    return;
+                }
+
+                var progress = new System.Progress<string>(msg => LogSvc.Info($"[ARM64] {msg}"));
+                await UpdateChecker.UpdateAsync(
+                    release, progress, ConfigSvc.Config, ConfigSvc.Save,
+                    onShutdown: () => Dispatcher.Invoke(
+                        () => ((App)System.Windows.Application.Current).ShutdownApp()));
+                // UpdateAsync calls onShutdown on success — execution never reaches here.
+            }
+            catch (Exception ex)
+            {
+                LogSvc.Warn($"[ARM64] switch failed: {ex.Message}");
+                await Dispatcher.InvokeAsync(() =>
+                    ShowThemedInfo(Lang.T("Arm64NoticeFailed"), Lang.T("Arm64NoticeTitle")));
+            }
+        }
+
+        /// <summary>Themed three-choice prompt for the ARM64 switch: Download / Later / Don't remind me.</summary>
+        private Arm64Choice ShowArm64SwitchPrompt()
+        {
+            var choice = Arm64Choice.Later;
+            var win = new Window
+            {
+                WindowStyle           = WindowStyle.None,
+                AllowsTransparency    = true,
+                Background            = System.Windows.Media.Brushes.Transparent,
+                Width                 = 440,
+                SizeToContent         = SizeToContent.Height,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner                 = this,
+                ResizeMode            = ResizeMode.NoResize,
+            };
+
+            var border = new System.Windows.Controls.Border
+            {
+                Background      = (System.Windows.Media.Brush)Application.Current.Resources["WindowBg"],
+                BorderBrush     = (System.Windows.Media.Brush)Application.Current.Resources["Accent"],
+                BorderThickness = new Thickness(1),
+                CornerRadius    = new System.Windows.CornerRadius(6),
+                Padding         = new Thickness(20),
+            };
+
+            var panel = new System.Windows.Controls.StackPanel();
+
+            var titleTb = new System.Windows.Controls.TextBlock
+            {
+                Text       = Lang.T("Arm64NoticeTitle"),
+                FontWeight = FontWeights.Bold,
+                Foreground = (System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
+                Margin     = new Thickness(0, 0, 0, 10),
+            };
+            titleTb.SetResourceReference(FontSizeProperty, "Theme.FontSize");
+            panel.Children.Add(titleTb);
+
+            var msgTb = new System.Windows.Controls.TextBlock
+            {
+                Text         = Lang.T("Arm64NoticeMsg"),
+                Foreground   = (System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
+                TextWrapping = TextWrapping.Wrap,
+                Margin       = new Thickness(0, 0, 0, 16),
+            };
+            msgTb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
+            panel.Children.Add(msgTb);
+
+            var btns = new System.Windows.Controls.StackPanel
+            {
+                Orientation         = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+            };
+            var btnDismiss  = new System.Windows.Controls.Button { Content = Lang.T("Arm64NoticeDismiss"),  Style = (Style)Application.Current.Resources["FlatBtn"],    Padding = new Thickness(14,6,14,6), Margin = new Thickness(0,0,8,0) };
+            var btnLater    = new System.Windows.Controls.Button { Content = Lang.T("Arm64NoticeLater"),    Style = (Style)Application.Current.Resources["FlatBtn"],    Padding = new Thickness(14,6,14,6), Margin = new Thickness(0,0,8,0) };
+            var btnDownload = new System.Windows.Controls.Button { Content = Lang.T("Arm64NoticeDownload"), Style = (Style)Application.Current.Resources["SuccessBtn"], Padding = new Thickness(14,6,14,6) };
+            btnDismiss.Click  += (_, _) => { choice = Arm64Choice.Dismiss;  win.Close(); };
+            btnLater.Click    += (_, _) => { choice = Arm64Choice.Later;    win.Close(); };
+            btnDownload.Click += (_, _) => { choice = Arm64Choice.Download; win.Close(); };
+            btns.Children.Add(btnDismiss);
+            btns.Children.Add(btnLater);
+            btns.Children.Add(btnDownload);
+            panel.Children.Add(btns);
+
+            border.Child = panel;
+            win.Content  = border;
+            win.ShowDialog();
+            return choice;
         }
 
         /// <summary>Checks installed community themes against the repo manifest for updates —

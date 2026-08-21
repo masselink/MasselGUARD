@@ -193,6 +193,11 @@ namespace MasselGUARD.Models
         public DateTime LastUpdateCheck    { get; set; } = DateTime.MinValue;
         public string?  LatestKnownVersion { get; set; } = null;
 
+        /// <summary>Set once the user picks "Don't remind me" on the startup notice that
+        /// offers to switch an emulated x64 build to the native ARM64 build (shown only when
+        /// running the x64 build on an ARM64 system). Suppresses the notice on later launches.</summary>
+        public bool ArmSwitchDismissed { get; set; } = false;
+
         /// <summary>Ids of installed themes whose repo "version" was newer than the installed
         /// one, as of the last check. Checked at the same time as the app update (same
         /// frequency setting) — see MainWindow.CheckForUpdatesAsync.</summary>

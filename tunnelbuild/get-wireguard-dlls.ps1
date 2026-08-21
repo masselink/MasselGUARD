@@ -12,9 +12,12 @@ $ErrorActionPreference = 'Continue'
 
 # ── Arch mapping ────────────────────────────────────────────────────────────
 # MasselGUARD arch -> wireguard-nt zip subfolder / Go GOARCH / PE machine / CC
+# wgMinKb: floor for a valid wireguard-NT wireguard.dll (which embeds the driver). Size is
+# arch-dependent (official v1.1: amd64 ~1321 KB, arm64 ~667 KB, x86 ~1857 KB); it only needs
+# to sit above the driverless WireGuard-for-Windows dll (~400 KB).
 switch ($Arch) {
-    'x64'   { $wgFolder='amd64'; $goarch='amd64'; $peMachine=0x8664; $cc='' }
-    'arm64' { $wgFolder='arm64'; $goarch='arm64'; $peMachine=0xAA64; $cc='aarch64-w64-mingw32-clang' }
+    'x64'   { $wgFolder='amd64'; $goarch='amd64'; $peMachine=0x8664; $cc='';                          $wgMinKb=900 }
+    'arm64' { $wgFolder='arm64'; $goarch='arm64'; $peMachine=0xAA64; $cc='aarch64-w64-mingw32-clang'; $wgMinKb=500 }
 }
 
 if (-not $Work) { throw 'Missing -Work directory.' }
@@ -49,7 +52,7 @@ Write-Host '  [1/2] wireguard.dll (wireguard-NT)...'
 
 if (Test-Path $wgDll) {
     $m = Get-PeMachine $wgDll
-    if (((Get-Item $wgDll).Length -gt 900000) -and ($m -eq $peMachine)) {
+    if (((Get-Item $wgDll).Length -gt ($wgMinKb*1024)) -and ($m -eq $peMachine)) {
         Write-Host "        Already cached (wireguard-NT $Arch)."
     } else {
         Write-Host "        Cached wireguard.dll is wrong size/arch -- re-extracting..."
@@ -188,7 +191,7 @@ Write-Host ''
 Write-Host "  $Arch DLLs ready in $Out"
 Write-Host "        wireguard.dll  ($wgKb KB, PE 0x$("{0:X4}" -f (Get-PeMachine $wgDll)))"
 Write-Host "        tunnel.dll     ($tnKb KB, PE 0x$("{0:X4}" -f (Get-PeMachine $tnDll)))"
-if ($wgKb -lt 900) {
+if ($wgKb -lt $wgMinKb) {
     Write-Host ''
-    Write-Host '  WARNING: wireguard.dll is smaller than expected for wireguard-NT.'
+    Write-Host "  WARNING: wireguard.dll ($wgKb KB) is smaller than expected for wireguard-NT $Arch."
 }

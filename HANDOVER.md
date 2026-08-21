@@ -1,7 +1,7 @@
 # MasselGUARD — Session Handover
 
 **Project:** MasselGUARD — WireGuard tunnel manager for Windows (.NET 10; WinExe GUI + `MasselGUARDcli.exe` console).
-**Current version (docs/target):** **3.9.0 — Adaptive Armadillo** (native x64 + ARM64 release; user-facing notes in `docs/WHATSNEW.md`). ⚠️ Code still at 3.8.0 until the version bump — see the 3.9.0 cycle section below.
+**Current version:** **3.9.0 — Adaptive Armadillo** (native x64 + ARM64 release; user-facing notes in `docs/WHATSNEW.md`). Bumped in code + docs (3.8.0 was never shipped — folded in).
 **Branch:** `dev`
 **Last updated:** 2026-08-20
 
@@ -13,7 +13,7 @@
 
 ## What shipped in 3.9.0 (this cycle)
 
-> ⚠️ **Code version bump still PENDING.** All docs (README, WHATSNEW, MANUAL, CLIManual, Reference, CLAUDE.md) now read **3.9.0 — Adaptive Armadillo**, but `UpdateChecker.CurrentVersion` + `_codenames` and `BUILD.bat` `VERSION`/`CODENAME` are still **3.8.0**. Bump both (and add `{ "3.9.0", "Adaptive Armadillo" }` to `_codenames`) to cut the release.
+> ✅ **Version bumped to 3.9.0 — Adaptive Armadillo** in code: `UpdateChecker.CurrentVersion` + `_codenames` (`{ "3.9.0", "Adaptive Armadillo" }`), `BUILD.bat` `VERSION`/`CODENAME`, and both `.csproj` default `<Version>`/`<AssemblyVersion>`/`<FileVersion>`/`<InformationalVersion>`. Docs already matched. Build banner + About + CLI now report 3.9.0.
 
 ### 1. Native x64 + ARM64 (headline)
 - Both `.csproj`: `<RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>` + a conditional default `RuntimeIdentifier` (IDE → win-x64; BUILD.bat overrides).
@@ -22,7 +22,9 @@
 - **STILL TODO (needs a machine/toolchain I don't have): build the ARM64 `tunnel.dll`** — Go+CGO cross-build requiring llvm-mingw `aarch64-w64-mingw32-clang`. Until then `BUILD.bat arm64` produces the app but arm64 local tunnels are disabled (companion works).
 - `UpdateChecker`: `ArchMoniker` + arch-aware release-asset pick (`MasselGUARD-<arch>.zip`, legacy `MasselGUARD.zip` fallback for x64).
 - `TunnelDll.ValidateDlls()`: gates on arch first — `ArchSupportError()` (emulated x64-on-ARM64) + a PE machine-type check per DLL before the P/Invoke. New PE-reader helpers (`ReadPeMachine`, `ExpectedMachine`).
+- **`WireGuardNtMinBytes` is now arch-aware** (const → computed property). The wireguard-NT `wireguard.dll` size differs by arch (official v1.1: amd64 ~1321 KB, **arm64 ~667 KB**, x86 ~1857 KB); the old flat 900 KB floor wrongly rejected the genuine arm64 dll ("appears to be the WireGuard-for-Windows version"). Floor is now 500 KB for arm64, 900 KB otherwise. Same fix mirrored in `get-wireguard-dlls.ps1` (`$wgMinKb` — cache-validity check + final warning).
 - Arch surfaced in CLI `version` (plain + `arch` JSON field) and Settings → About build line.
+- **One-click "switch to ARM64" notice** — at startup, when `TunnelDll.ArchSupportError() != null` (emulated x64-on-ARM64) and `!AppConfig.ArmSwitchDismissed`, `MainWindow.OfferArm64SwitchAsync()` shows a themed 3-button prompt (`ShowArm64SwitchPrompt` → Download / Later / Don't remind me). "Download" calls `UpdateChecker.FetchLatestReleaseAsync(forceArch:"arm64")` then reuses `UpdateChecker.UpdateAsync` (download → extract → robocopy over install → relaunch; the relaunched native arm64 exe starts arm64). `UpdateChecker` now takes `forceArch` and `AssetCandidates(arch)`. 7 new lang keys (`Arm64Notice*`) added to all 6 files. New config flag `AppConfig.ArmSwitchDismissed`.
 - **Release now needs BOTH `MasselGUARD-x64.zip` and `MasselGUARD-arm64.zip` uploaded.**
 
 ### 2. Rule-name fix

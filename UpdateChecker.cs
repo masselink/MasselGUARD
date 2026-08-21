@@ -37,13 +37,13 @@ namespace MasselGUARD
         };
 
         /// <summary>
-        /// Candidate release-asset names for this process, most-specific first:
-        /// the arch-specific zip, then the legacy single-arch "MasselGUARD.zip" (x64).
+        /// Candidate release-asset names for the given architecture, most-specific first:
+        /// the arch-specific zip, then the legacy single-arch "MasselGUARD.zip" (x64 only).
+        /// arm64 has no legacy fallback — MasselGUARD.zip is x64 and must never be handed to
+        /// an ARM64 install.
         /// </summary>
-        private static string[] AssetCandidates()
+        private static string[] AssetCandidates(string arch)
         {
-            var arch = ArchMoniker;
-            // Legacy MasselGUARD.zip predates multi-arch and only ever contained x64.
             return arch == "x64"
                 ? new[] { $"MasselGUARD-{arch}.zip", "MasselGUARD.zip" }
                 : new[] { $"MasselGUARD-{arch}.zip" };
@@ -53,7 +53,7 @@ namespace MasselGUARD
         // Major.Minor.Patch only — static, never modified by build.
         // The build timestamp is injected at compile time via -p:InformationalVersion
         // and read at runtime from the assembly attribute (see BuildStamp below).
-        private const string CurrentVersion = "3.8.0";
+        private const string CurrentVersion = "3.9.0";
 
         // Release codenames — one entry per public version, keyed by Major.Minor.Patch.
         // Update both here AND in BUILD.bat (set CODENAME=...) when bumping the version.
@@ -66,6 +66,7 @@ namespace MasselGUARD
                 { "3.7.0", "Chromatic Chameleon" },
                 { "3.7.1", "Chromatic Chameleon" },
                 { "3.8.0", "Protective Pangolin" },
+                { "3.9.0", "Adaptive Armadillo" },
             };
 
         // ── Public: silent background check (called on startup) ──────────────
@@ -250,7 +251,10 @@ namespace MasselGUARD
         }
 
         // Fetch latest tag from GitHub tags API, then find its release asset.
-        public static async Task<ReleaseInfo?> FetchLatestReleaseAsync()
+        // forceArch overrides the process architecture when selecting the asset — used by the
+        // "switch to ARM64" flow, where the running process is emulated x64 but we want the
+        // arm64 build. Pass null (default) to select for the current process architecture.
+        public static async Task<ReleaseInfo?> FetchLatestReleaseAsync(string? forceArch = null)
         {
             using var http = MakeClient();
 
@@ -291,7 +295,8 @@ namespace MasselGUARD
                             byName[aname] = url;
                     }
 
-                foreach (var candidate in AssetCandidates())
+                var wantArch = forceArch ?? ArchMoniker;
+                foreach (var candidate in AssetCandidates(wantArch))
                     if (byName.TryGetValue(candidate, out var url)) { zipUrl = url; break; }
             }
             catch { /* tag exists but has no release — that is fine */ }

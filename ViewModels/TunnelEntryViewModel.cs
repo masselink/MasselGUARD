@@ -33,6 +33,8 @@ namespace MasselGUARD.ViewModels
             {
                 if (!SetField(ref _isActive, value)) return;
                 OnPropertyChanged(nameof(StatusText));
+                OnPropertyChanged(nameof(StatusDot));
+                OnPropertyChanged(nameof(StatusDotColor));
                 OnPropertyChanged(nameof(ButtonLabel));
                 OnPropertyChanged(nameof(ButtonEnabled));
                 OnPropertyChanged(nameof(ButtonTooltip));
@@ -72,6 +74,8 @@ namespace MasselGUARD.ViewModels
         private void NotifyButtonState()
         {
             OnPropertyChanged(nameof(StatusText));
+            OnPropertyChanged(nameof(StatusDot));
+            OnPropertyChanged(nameof(StatusDotColor));
             OnPropertyChanged(nameof(ButtonLabel));
             OnPropertyChanged(nameof(ButtonEnabled));
             OnPropertyChanged(nameof(ButtonTooltip));
@@ -154,47 +158,26 @@ namespace MasselGUARD.ViewModels
         private TunnelHealth _health = TunnelHealth.Unknown;
         private DateTime _lastTrafficMoveUtc = DateTime.MinValue;
 
-        public string HealthDisplay => _health switch
-        {
-            TunnelHealth.Healthy => "●",
-            TunnelHealth.Idle    => "●",
-            TunnelHealth.Down    => "▲",
-            _                    => "",
-        };
-
-        public string HealthTooltip => _health switch
+        // Health/traffic is shown by colouring the single status dot (StatusDot /
+        // StatusDotColor) in front of the status text — there is no separate dot.
+        // HealthTooltip is surfaced on that dot.
+        // null (not "") when there's nothing to say, so the always-visible dot shows no
+        // empty tooltip popup while disconnected / (dis)connecting.
+        public string? HealthTooltip => _health switch
         {
             TunnelHealth.Healthy => "Tunnel healthy — adapter up and passing traffic",
             TunnelHealth.Idle    => "Tunnel up — no recent traffic (idle)",
             TunnelHealth.Down    => "Tunnel adapter is down or missing while marked active",
-            _                    => "",
+            _                    => null,
         };
-
-        public System.Windows.Media.Brush HealthColor => _health switch
-        {
-            TunnelHealth.Healthy => ThemeBrush("Success"),
-            TunnelHealth.Idle    => ThemeBrush("WarningColor"),
-            TunnelHealth.Down    => ThemeBrush("Danger"),
-            _                    => ThemeBrush("TextMuted"),
-        };
-
-        public System.Windows.Visibility HealthVisibility =>
-            IsActive && _health != TunnelHealth.Unknown
-                ? System.Windows.Visibility.Visible
-                : System.Windows.Visibility.Collapsed;
 
         private void SetHealth(TunnelHealth h)
         {
-            if (_health == h)
-            {
-                OnPropertyChanged(nameof(HealthVisibility));
-                return;
-            }
+            if (_health == h) return;
             _health = h;
-            OnPropertyChanged(nameof(HealthDisplay));
+            OnPropertyChanged(nameof(StatusDot));
+            OnPropertyChanged(nameof(StatusDotColor));
             OnPropertyChanged(nameof(HealthTooltip));
-            OnPropertyChanged(nameof(HealthColor));
-            OnPropertyChanged(nameof(HealthVisibility));
         }
 
         private bool _isAvailable = true;
@@ -205,6 +188,8 @@ namespace MasselGUARD.ViewModels
             {
                 if (!SetField(ref _isAvailable, value)) return;
                 OnPropertyChanged(nameof(StatusText));
+                OnPropertyChanged(nameof(StatusDot));
+                OnPropertyChanged(nameof(StatusDotColor));
                 OnPropertyChanged(nameof(StatusColor));
                 ConnectCommand.RaiseCanExecuteChanged();
             }
@@ -226,11 +211,35 @@ namespace MasselGUARD.ViewModels
                 _connectedAt = connectedAt;
         }
 
+        // The leading dot lives in StatusDot / StatusDotColor (a separate coloured element),
+        // so StatusText itself carries no glyph.
         public string StatusText =>
-            _isConnecting    ? "◌ Connecting…"    :
-            _isDisconnecting ? "◌ Disconnecting…" :
-            IsActive         ? $"● {UptimeDisplay}" :
-            IsAvailable      ? "○ Disconnected"   : "Unavailable";
+            _isConnecting    ? "Connecting…"    :
+            _isDisconnecting ? "Disconnecting…" :
+            IsActive         ? UptimeDisplay    :
+            IsAvailable      ? "Disconnected"   : "Unavailable";
+
+        /// <summary>The status dot glyph shown in front of the status text.
+        /// Active tunnels show ● (or ▲ when the adapter is down); ◌ while (dis)connecting,
+        /// ○ when disconnected, none when unavailable.</summary>
+        public string StatusDot =>
+            _isConnecting || _isDisconnecting ? "◌" :
+            IsActive                          ? (_health == TunnelHealth.Down ? "▲" : "●") :
+            IsAvailable                       ? "○" : "";
+
+        /// <summary>Colour of the status dot. When active it reflects tunnel health/traffic
+        /// (green healthy · amber idle · red down · accent until the first poll); muted while
+        /// (dis)connecting or disconnected; danger when unavailable.</summary>
+        public System.Windows.Media.Brush StatusDotColor =>
+            _isConnecting || _isDisconnecting ? ThemeBrush("TextMuted") :
+            IsActive ? _health switch
+            {
+                TunnelHealth.Healthy => ThemeBrush("Success"),
+                TunnelHealth.Idle    => ThemeBrush("WarningColor"),
+                TunnelHealth.Down    => ThemeBrush("Danger"),
+                _                    => ThemeBrush("Accent"),
+            } :
+            IsAvailable ? ThemeBrush("TextMuted") : ThemeBrush("Danger");
 
         // ── Traffic stats ─────────────────────────────────────────────────────
         private long _rxBytes;

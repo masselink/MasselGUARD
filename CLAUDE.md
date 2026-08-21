@@ -16,7 +16,7 @@ BUILD.bat arm64
 
 Each arch publishes natively (framework-dependent single-file) into `dist\<arch>\` (`MasselGUARD.exe` + `MasselGUARDcli.exe`) and is zipped to `dist\MasselGUARD-<arch>.zip` for release. ARM64 is a genuine cross-publish from an x64 host — the SDK produces a native ARM64 apphost (PE machine `0xAA64`). See **x64 / ARM64 architecture support** below.
 
-Current version: **3.8.0 — Protective Pangolin**
+Current version: **3.9.0 — Adaptive Armadillo**
 When bumping version, update **both** `UpdateChecker.cs` (`CurrentVersion` + `_codenames`) **and** `BUILD.bat` (`VERSION` + `CODENAME`).
 
 ## Key design decisions

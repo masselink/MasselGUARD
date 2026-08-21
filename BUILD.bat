@@ -4,9 +4,9 @@ setlocal enabledelayedexpansion
 
 rem ── Build number: YYMMDDHHMM ────────────────────────────────────────────────
 for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyMMddHHmm"') do set BUILD_NUM=%%a
-set VERSION=3.8.0
+set VERSION=3.9.0
 rem Update CODENAME here AND in UpdateChecker.cs when bumping VERSION.
-set CODENAME=Protective Pangolin
+set CODENAME=Adaptive Armadillo
 
 rem ── Opt out of .NET CLI telemetry ────────────────────────────────────────────
 set DOTNET_CLI_TELEMETRY_OPTOUT=1
@@ -193,6 +193,12 @@ if exist "%DEPS%\%ARCH%\wireguard.dll" (
 )
 if "!DLL_OK!"=="0" (
     echo   NOTE: build tunnel DLLs with  tunnelbuild\tunnelbuild.bat %ARCH%
+)
+
+rem ── Strip debug symbols — .pdb files are not needed to run and don't ship ────
+if exist "%OUT%\*.pdb" (
+    del /q "%OUT%\*.pdb"
+    echo   Removed .pdb debug symbols
 )
 
 rem ── Package release zip: dist\MasselGUARD-<arch>.zip ────────────────────────

@@ -421,17 +421,18 @@
                                                     <StackPanel Grid.Column="1"
                                                                 Orientation="Horizontal"
                                                                 VerticalAlignment="Center">
+                                                        <!-- Status dot — colour reflects health/traffic when active
+                                                             (green healthy · amber idle · red down) -->
+                                                        <TextBlock Text="{Binding StatusDot}"
+                                                                   Foreground="{Binding StatusDotColor}"
+                                                                   FontSize="{DynamicResource Theme.FontSize}"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="0,0,4,0"
+                                                                   ToolTip="{Binding HealthTooltip}"/>
                                                         <TextBlock Text="{Binding StatusText}"
                                                                    Foreground="{Binding StatusColor}"
                                                                    FontSize="{DynamicResource Theme.FontSize}"
                                                                    VerticalAlignment="Center"/>
-                                                        <TextBlock Text="{Binding HealthDisplay}"
-                                                                   Foreground="{Binding HealthColor}"
-                                                                   FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                                   VerticalAlignment="Center"
-                                                                   Margin="6,0,0,0"
-                                                                   Visibility="{Binding HealthVisibility}"
-                                                                   ToolTip="{Binding HealthTooltip}"/>
                                                         <TextBlock Text="  |  "
                                                                    Foreground="{DynamicResource TextMuted}"
                                                                    FontSize="{DynamicResource Theme.FontSize.Small}"
