@@ -1,3 +1,96 @@
+## v3.9.0 — Adaptive Armadillo
+
+The headline is **native ARM64 support**. MasselGUARD now ships as two native builds — **x64** and **ARM64** — so it runs at full speed on Windows-on-ARM devices (Snapdragon-based Copilot+ PCs, recent Surface models) instead of under x64 emulation. Alongside it: a fix for auto-generated rule names, and a fresh batch of community themes.
+
+---
+
+### Native ARM64 build
+
+Windows on ARM can *emulate* x64 apps, but a VPN can't lean on that: the **wireguard-NT kernel driver is native and cannot be emulated**, so an emulated x64 build can't bring up local (standalone) tunnels on an ARM machine. The fix is a genuine ARM64 build.
+
+- **Two downloads now** — `MasselGUARD-x64.zip` and `MasselGUARD-arm64.zip`. Grab the one that matches your PC: on a normal Intel/AMD machine that's **x64**; on a Snapdragon / Copilot+ / Windows-on-ARM device it's **arm64**.
+- **Local tunnels run natively on ARM64** — the ARM64 build carries ARM64 `tunnel.dll` + `wireguard.dll` and drives the native kernel driver directly. (Companion tunnels — automating the WireGuard for Windows app — already worked under emulation and still do.)
+- **Auto-update picks the right one** — the updater downloads the build matching your processor automatically; there's nothing to re-select at update time. Older single-arch releases still resolve to the x64 build.
+- **One-click switch if you're on the wrong build** — run the x64 build on an ARM64 PC and MasselGUARD offers, right at startup, to **download the native ARM64 build from GitHub and switch to it automatically** (or "Later", or "Don't remind me"). No cryptic driver failure, no manual download. A wrong-architecture DLL is likewise caught up front rather than crashing the connect.
+- **Your architecture is shown** in Settings → About and in the CLI `version` output (`arch: arm64`).
+
+> **Which do I need?** If you're not sure, you're almost certainly on **x64**. ARM64 is only for Windows-on-ARM devices.
+
+---
+
+### Fixes
+
+- **Auto-generated rule names** — creating a WiFi rule by typing the SSID *first* and then choosing a tunnel produced the name "SSID → disconnect" even though a tunnel was selected (an editable-dropdown timing quirk that read the tunnel box a beat too early). The name now reflects the tunnel you actually picked.
+
+---
+
+### Themes
+
+Eight new themes are available in the **Community theme browser** (Settings → Appearance → **Download themes…**) — the first batch to ship **background images** and theme-matched fonts:
+
+- **Aurora Borealis**, **Nebula**, **Ocean Depth**, **Alpine Fog** — atmospheric, calm backdrops
+- **Synthwave Sunset** (retro Orbitron display font), **Circuit** (JetBrains Mono), **Carbon Fiber**, **Topographic** — textured, technical looks
+
+Each ships tuned dark *and* light variants, with panel opacity set so text stays readable over the artwork.
+
+---
+
+## v3.8.0 — Protective Pangolin  ·  *(unreleased)*
+
+> *Never shipped as a standalone release — these changes are folded into 3.9.0.*
+
+This release is about **automation** and **managed deployment**. WiFi rules gain new trigger types and an on/off switch, tunnels show live health and data usage, a tunnel config can be handed to a phone as a QR code, and — the headline — a `.masselguard` **policy file** lets you ship a build with locked settings for a company, family, or kiosk.
+
+---
+
+### Automation — new rule types, and an on/off switch
+
+- **Trusted-network auto-protect** — a new rule type that connects a chosen tunnel on *any* WiFi network that isn't in your **trusted list**, and disconnects on a trusted one. Manage the trusted SSIDs in **Settings → WiFi** (one per line, or **"Add current WiFi network"**). It's a smarter default action: "VPN everywhere except my home/office".
+- **Scheduled rules** — a rule can now fire on a **day + time window** (e.g. Work 09:00–18:00, Mon–Fri) instead of a network. Overnight windows (22:00–06:00) are supported. Checked on a one-minute timer.
+- **Enable / disable a rule** — select a rule and click **Disable** (or **Enable**) below the list. A disabled rule stays in place but is skipped — its row greys out with a `⊘` marker. The tidy way to switch a rule off without deleting it.
+- The rules list now shows a **kind icon** in front of each rule — 📶 for a WiFi network, ⏰ for a schedule, 🛡 for trusted-network protection.
+- **Fixed** — editing or deleting a trusted/schedule rule from the main-window WiFi panel didn't work (it matched rules by SSID, which those kinds don't have). The panel now operates on the exact rule, and can create every rule type.
+
+---
+
+### Managed preset — ship a locked configuration
+
+A **`.masselguard`** file is a full snapshot of the app's settings that plays two roles depending on where it is:
+
+- **Imported** (Setup wizard, or Advanced → Import) → all settings apply and stay **editable**.
+- **Placed next to `MasselGUARD.exe`** → only the settings you marked as **Locked** are **forced and locked** — greyed out with a 🔒 and a *"managed by &lt;policy&gt;"* banner at the top of Settings. The forced values are re-applied on every save, so a hand-edited `config.json` can't override them. `MasselGUARDcli.exe` obeys the same file.
+
+- **Create one** via **Advanced → Import / Export → "Export settings as preset…"**: enter a policy name and tick which settings to lock — grouped by section, with a section header that selects all its items, so you can lock a whole section *or* single settings (e.g. lock the tray notification but not its duration). Tunnel definitions are never included.
+- If a locked policy sets a **theme that isn't installed**, the app downloads it from the shared-themes repo on first launch (falling back to system colours if that fails).
+- The **managed install** offers to copy the `.masselguard` into the install folder so the installed copy stays locked.
+
+> Soft lock — meant for managed distributions where users don't tamper with the build, not a security boundary against a hostile local user.
+
+---
+
+### Live tunnel health
+
+Each active tunnel now shows a small **health dot** next to its status — green ● when the adapter is up and passing traffic, amber ● when up but idle, red ▲ if the adapter is down while the tunnel is marked active.
+
+### Data usage & monthly caps
+
+- Each tunnel shows this **month's data usage** (aggregated from the connection history you already record).
+- Set an optional **monthly data cap (MB)** per tunnel in the tunnel dialog; crossing it raises a one-time warning (log + toast) that re-arms next month.
+
+### QR export
+
+Right-click a local tunnel → **"Show QR code"** to display a scannable QR of its configuration — scan it with the WireGuard mobile app to move the tunnel to a phone. Includes a Save-PNG option and a private-key warning.
+
+---
+
+### Fixes & smaller changes
+
+- **Fixed** — the inline DNS-leak icon stayed visible even when DNS-leak *prevention* was enabled (which contains the leak). It's now hidden in that state, matching the toast/log warnings, which already stayed silent.
+- **Config validation** — the "Skip config validation" toggle is back on **Settings → Tunnels**, off by default (validation active). Picking any View preset re-asserts validation on. The per-tunnel skip was removed — the bypass now lives in exactly one place.
+- All new interface text is translated across **English, Dutch, German, French, Spanish, and Japanese**.
+
+---
+
 ## v3.7.1 — Chromatic Chameleon
 
 - **Settings → About** now surfaces theme updates too, not just app updates — "Check for update" also checks installed themes, and a click-through banner appears here (in addition to the existing Appearance-tab badge) pointing you at Community themes when one is available.

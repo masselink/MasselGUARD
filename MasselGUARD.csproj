@@ -20,17 +20,21 @@
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <!-- Single-file framework-dependent publish — bundles app + NuGet dlls
          into one exe. Runtime is NOT included; .NET 10 Desktop Runtime must
-         be installed on the target machine. -->
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+         be installed on the target machine.
+         RID is overridable: BUILD.bat passes -p:RuntimeIdentifier=win-arm64
+         to produce the native ARM64 build; IDE / bare `dotnet build` default
+         to win-x64. Both win-x64 and win-arm64 are supported targets. -->
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
     <ApplicationIcon>MasselGUARD.ico</ApplicationIcon>
     <!-- Default versions for IDE / dotnet build without BUILD.bat.
          BUILD.bat overrides these via -p:Version / -p:InformationalVersion. -->
-    <Version>3.7.0</Version>
-    <AssemblyVersion>3.7.0.0</AssemblyVersion>
-    <FileVersion>3.7.0.0</FileVersion>
-    <InformationalVersion>3.7.0</InformationalVersion>
+    <Version>3.9.0</Version>
+    <AssemblyVersion>3.9.0.0</AssemblyVersion>
+    <FileVersion>3.9.0.0</FileVersion>
+    <InformationalVersion>3.9.0</InformationalVersion>
     <!-- Keep the SDK from appending "+<git-sha>" to InformationalVersion — the
          About page shows the raw value as the build stamp. -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>

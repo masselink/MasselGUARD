@@ -1,6 +1,8 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 
@@ -11,6 +13,11 @@ namespace MasselGUARD.Views
         public string ResultName   { get; private set; } = "";
         public string ResultSsid   { get; private set; } = "";
         public string ResultTunnel { get; private set; } = "";
+        /// <summary>"wifi" | "schedule" — which trigger type the user chose.</summary>
+        public string ResultKind      { get; private set; } = "wifi";
+        public string ResultStartTime { get; private set; } = "09:00";
+        public string ResultEndTime   { get; private set; } = "17:00";
+        public List<int> ResultDays   { get; private set; } = new();
         /// <summary>
         /// New counter value to persist. -1 = no change; 0 = cleared; any positive = new value.
         /// </summary>
@@ -25,7 +32,11 @@ namespace MasselGUARD.Views
                           string existingSsid   = "",
                           string existingTunnel = "",
                           int    executionCount = -1,   // -1 = add mode (counter hidden)
-                          List<string>? tunnels = null)
+                          List<string>? tunnels = null,
+                          string existingKind   = "wifi",
+                          string existingStart  = "09:00",
+                          string existingEnd    = "17:00",
+                          List<int>? existingDays = null)
         {
             InitializeComponent();
             _currentSsid  = currentSsid;
@@ -37,13 +48,35 @@ namespace MasselGUARD.Views
             if (tunnels != null)
                 foreach (var t in tunnels) TunnelBox.Items.Add(t);
 
+            bool editMode = existingKind == "schedule" || existingKind == "trusted"
+                            || !string.IsNullOrEmpty(existingSsid);
+
             if (!string.IsNullOrEmpty(existingSsid))
             {
-                DialogTitle.Text    = Lang.T("RuleDialogEditTitle");
                 SsidBox.Text        = existingSsid;
                 _nameManuallyEdited = !string.IsNullOrEmpty(existingName);
                 NameBox.Text        = existingName;
             }
+
+            // Schedule fields
+            if (!string.IsNullOrEmpty(existingStart)) StartTimeBox.Text = existingStart;
+            if (!string.IsNullOrEmpty(existingEnd))   EndTimeBox.Text   = existingEnd;
+            if (existingDays != null) SetDayToggles(existingDays);
+
+            if (existingKind == "schedule")
+            {
+                _nameManuallyEdited = !string.IsNullOrEmpty(existingName);
+                NameBox.Text        = existingName;
+                TypeScheduleRadio.IsChecked = true;   // fires RuleType_Changed → shows SchedulePanel
+            }
+            else if (existingKind == "trusted")
+            {
+                _nameManuallyEdited = !string.IsNullOrEmpty(existingName);
+                NameBox.Text        = existingName;
+                TypeTrustedRadio.IsChecked = true;    // fires RuleType_Changed → shows TrustedPanel
+            }
+
+            if (editMode) DialogTitle.Text = Lang.T("RuleDialogEditTitle");
 
             TunnelBox.Text = existingTunnel;
 
@@ -195,11 +228,22 @@ namespace MasselGUARD.Views
         }
 
         /// <summary>Auto-generate name from SSID and tunnel unless user has typed one.</summary>
-        private void AutoGenerateName()
+        /// <param name="tunnelOverride">
+        /// Tunnel value to use instead of <c>TunnelBox.Text</c>. Needed when called from the
+        /// ComboBox's SelectionChanged handler, where <c>TunnelBox.Text</c> still holds the
+        /// previous value (editable ComboBoxes update Text only after the event completes) —
+        /// passing the freshly-selected item avoids regenerating a stale "→ disconnect" name.
+        /// </param>
+        private void AutoGenerateName(string? tunnelOverride = null)
         {
             if (_nameManuallyEdited) return;
+            // Controls may not exist yet if an initial IsChecked fires during InitializeComponent.
+            if (SsidBox == null || TunnelBox == null || NameBox == null) return;
+            // Schedule and trusted rules derive their name from the rule, not an SSID.
+            if (TypeScheduleRadio?.IsChecked == true) return;
+            if (TypeTrustedRadio?.IsChecked  == true) return;
             var ssid   = SsidBox.Text.Trim();
-            var tunnel = TunnelBox.Text.Trim();
+            var tunnel = (tunnelOverride ?? TunnelBox.Text).Trim();
             string generated;
             if (string.IsNullOrEmpty(ssid))
                 generated = "";
@@ -223,7 +267,15 @@ namespace MasselGUARD.Views
 
         private void TunnelBox_Changed(object sender,
             System.Windows.Controls.SelectionChangedEventArgs e)
-            => AutoGenerateName();
+        {
+            // On an editable ComboBox, TunnelBox.Text still holds the previous value while
+            // SelectionChanged fires. Read the freshly-selected item so the auto-generated
+            // name reflects the tunnel just picked, not a stale "→ disconnect".
+            string tunnel = e.AddedItems.Count > 0
+                ? (e.AddedItems[0] as string ?? "")
+                : (TunnelBox.SelectedItem as string ?? "");
+            AutoGenerateName(tunnel);
+        }
 
         private void UseCurrent_Click(object sender, RoutedEventArgs e)
         {
@@ -236,8 +288,86 @@ namespace MasselGUARD.Views
                     MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
+        private void RuleType_Changed(object sender, RoutedEventArgs e)
+        {
+            bool schedule = TypeScheduleRadio?.IsChecked == true;
+            bool trusted  = TypeTrustedRadio?.IsChecked  == true;
+            bool wifi     = !schedule && !trusted;
+
+            if (SsidPanel     != null) SsidPanel.Visibility     = wifi     ? Visibility.Visible : Visibility.Collapsed;
+            if (SchedulePanel != null) SchedulePanel.Visibility = schedule ? Visibility.Visible : Visibility.Collapsed;
+            if (TrustedPanel  != null) TrustedPanel.Visibility  = trusted  ? Visibility.Visible : Visibility.Collapsed;
+            AutoGenerateName();
+        }
+
+        private List<ToggleButton> DayToggles() =>
+            new() { DayMon, DayTue, DayWed, DayThu, DayFri, DaySat, DaySun };
+
+        private void SetDayToggles(List<int> days)
+        {
+            foreach (var tb in DayToggles())
+                tb.IsChecked = days.Contains(int.Parse((string)tb.Tag));
+        }
+
+        private List<int> GatherDays() =>
+            DayToggles().Where(t => t.IsChecked == true)
+                        .Select(t => int.Parse((string)t.Tag))
+                        .OrderBy(d => d).ToList();
+
         private void Save_Click(object sender, RoutedEventArgs e)
         {
+            bool schedule = TypeScheduleRadio?.IsChecked == true;
+            bool trusted  = TypeTrustedRadio?.IsChecked  == true;
+            ResultKind   = schedule ? "schedule" : trusted ? "trusted" : "wifi";
+            ResultTunnel = TunnelBox.Text.Trim();
+
+            if (trusted)
+            {
+                // The trusted-SSID list itself lives in Settings; the rule only needs the
+                // tunnel to bring up on an untrusted network.
+                if (string.IsNullOrEmpty(ResultTunnel))
+                {
+                    MessageBox.Show(
+                        Lang.T("RuleDialogTunnelRequired"),
+                        Lang.T("RuleDialogValidationTitle"),
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                ResultSsid   = "";
+                ResultName   = NameBox.Text.Trim();   // empty → RuleName auto-summarises
+                DialogResult = true;
+                return;
+            }
+
+            if (schedule)
+            {
+                if (!System.TimeSpan.TryParse(StartTimeBox.Text.Trim(), out _) ||
+                    !System.TimeSpan.TryParse(EndTimeBox.Text.Trim(), out _))
+                {
+                    MessageBox.Show(
+                        Lang.T("RuleDialogTimeInvalid"),
+                        Lang.T("RuleDialogValidationTitle"),
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                var days = GatherDays();
+                if (days.Count == 0)
+                {
+                    MessageBox.Show(
+                        Lang.T("RuleDialogDaysRequired"),
+                        Lang.T("RuleDialogValidationTitle"),
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                ResultStartTime = StartTimeBox.Text.Trim();
+                ResultEndTime   = EndTimeBox.Text.Trim();
+                ResultDays      = days;
+                ResultSsid      = "";
+                ResultName      = NameBox.Text.Trim();   // empty → RuleName auto-summarises
+                DialogResult    = true;
+                return;
+            }
+
             var ssid = SsidBox.Text.Trim();
             if (string.IsNullOrEmpty(ssid))
             {
@@ -249,7 +379,6 @@ namespace MasselGUARD.Views
                 return;
             }
             ResultSsid   = ssid;
-            ResultTunnel = TunnelBox.Text.Trim();
             var name = NameBox.Text.Trim();
             if (string.IsNullOrEmpty(name))
                 name = string.IsNullOrEmpty(ResultTunnel)

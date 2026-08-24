@@ -371,6 +371,12 @@
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
                                             <Grid Margin="0">
+                                                <Grid.ContextMenu>
+                                                    <ContextMenu>
+                                                        <MenuItem Header="{Binding [MenuShowQr], Source={x:Static local:Lang.Instance}}"
+                                                                  Click="ShowQr_Click"/>
+                                                    </ContextMenu>
+                                                </Grid.ContextMenu>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="4"/>
                                                     <ColumnDefinition Width="*"/>
@@ -415,6 +421,14 @@
                                                     <StackPanel Grid.Column="1"
                                                                 Orientation="Horizontal"
                                                                 VerticalAlignment="Center">
+                                                        <!-- Status dot — colour reflects health/traffic when active
+                                                             (green healthy · amber idle · red down) -->
+                                                        <TextBlock Text="{Binding StatusDot}"
+                                                                   Foreground="{Binding StatusDotColor}"
+                                                                   FontSize="{DynamicResource Theme.FontSize}"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="0,0,4,0"
+                                                                   ToolTip="{Binding HealthTooltip}"/>
                                                         <TextBlock Text="{Binding StatusText}"
                                                                    Foreground="{Binding StatusColor}"
                                                                    FontSize="{DynamicResource Theme.FontSize}"
@@ -440,6 +454,17 @@
                                                                    VerticalAlignment="Center"
                                                                    Visibility="{Binding DnsLeakVisibility}"
                                                                    ToolTip="{Binding DnsLeakTooltip}"/>
+                                                        <TextBlock Text="  |  "
+                                                                   Foreground="{DynamicResource TextMuted}"
+                                                                   FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                   VerticalAlignment="Center"
+                                                                   Visibility="{Binding MonthlyUsageVisibility}"/>
+                                                        <TextBlock Text="{Binding MonthlyUsageDisplay}"
+                                                                   Foreground="{Binding MonthlyUsageColor}"
+                                                                   FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                   VerticalAlignment="Center"
+                                                                   Visibility="{Binding MonthlyUsageVisibility}"
+                                                                   ToolTip="{Binding MonthlyUsageTooltip}"/>
                                                     </StackPanel>
                                                     <!-- Rules hit count -->
                                                     <TextBlock Grid.Column="2"
@@ -622,7 +647,7 @@
                                             <Border Background="{Binding RowBg}"
                                                     BorderBrush="{Binding BorderBrush}"
                                                     BorderThickness="{Binding BorderThick}">
-                                                <Grid Margin="8,3">
+                                                <Grid Margin="8,3" Opacity="{Binding Rule.RowOpacity}">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="{Binding Data.WifCol0W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="60"/>
                                                         <ColumnDefinition Width="{Binding Data.WifCol1W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="50"/>
@@ -630,12 +655,17 @@
                                                         <ColumnDefinition Width="{Binding Data.WifCol3W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="30"/>
                                                         <ColumnDefinition Width="{Binding Data.WifCol4W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="50"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0"
-                                                               Text="{Binding RuleName}"
-                                                               Foreground="{DynamicResource TextPrimary}"
-                                                               FontSize="{DynamicResource Theme.FontSize}"
-                                                               VerticalAlignment="Center"
-                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Rule.DisabledIcon}"
+                                                                   Foreground="{DynamicResource TextMuted}"
+                                                                   FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                   VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding RuleName}"
+                                                                   Foreground="{DynamicResource TextPrimary}"
+                                                                   FontSize="{DynamicResource Theme.FontSize}"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
                                                     <TextBlock Grid.Column="1"
                                                                Text="{Binding Ssid}"
                                                                Foreground="{DynamicResource TextMuted}"
@@ -686,6 +716,11 @@
                                     Style="{StaticResource DangerBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
                                     Margin="6,0,0,0" IsEnabled="False"
                                     Click="WifiRuleDelete_Click"/>
+                            <Button x:Name="WifiRuleToggleBtn"
+                                    Content="{Binding [BtnDisableRule], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Margin="6,0,0,0" IsEnabled="False"
+                                    Click="WifiRuleToggle_Click"/>
                         </StackPanel>
 
                     <!-- RIGHT: Activity Log — self-contained, spans all left rows -->

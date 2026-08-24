@@ -6,6 +6,8 @@
 
 MasselGUARD sits in the system tray and watches your WiFi connection. When you join a known network it activates the right WireGuard tunnel automatically. When you leave, or land on an unknown network, a configurable fallback fires. It also works as a clean manual WireGuard front-end.
 
+> **⚡ Native x64 *and* ARM64** — MasselGUARD ships a genuine **native ARM64** build, so on Windows-on-ARM devices (Snapdragon-based Copilot+ PCs, recent Surface) it runs at full native speed **with full standalone-tunnel support** — not under x64 emulation. Because the wireguard-NT kernel driver can't be emulated, a native ARM64 app is the *only* way to run local tunnels on ARM, and few WireGuard clients offer one. Running the x64 build on an ARM64 PC? MasselGUARD offers a **one-click switch** to the native ARM64 build at startup. ([Which download?](#which-download))
+
 > **User manual** → [`docs/Manual.md`](docs/Manual.md)
 > **CLI manual** → [`docs/CLIManual.md`](docs/CLIManual.md)
 > **Technical reference** → [`docs/Reference.md`](docs/Reference.md)
@@ -27,13 +29,27 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 ## Features
 
 ### Automation
-- **WiFi rules** — map any SSID to any tunnel (or disconnect). Each rule has a **Name**, **SSID**, **Hits counter**, and target tunnel
+- **WiFi rules** — each rule maps a trigger to a tunnel (or "disconnect"), with a **Name**, **Hits counter**, and an **Enable/Disable** switch (disabled rules grey out with a `⊘` marker and are skipped). Three trigger types:
+  - **WiFi network (SSID)** — fires when you join that named network
+  - **Schedule** — fires during a day/time window (checked on a timer; overnight windows supported)
+  - **Trusted networks** — one policy rule: connect the tunnel on any *untrusted* WiFi, disconnect on *trusted* SSIDs (list managed in Settings → WiFi)
 - WiFi Rules panel: drag-to-reorder, hits counter, click-to-highlight matching rules in tunnel list
-- Rules column in tunnel list updates immediately on add/edit/delete
 - **Default action** — do nothing / disconnect / activate a fallback when no rule matches
 - **Open network protection** — force a tunnel on passwordless WiFi before any rule fires
-- **Defaults button** in toolbar — set/clear both roles from a single popup centred on the window
+- **Defaults button** in toolbar — set/clear default action + open protection from one popup
 - Rules fire exactly once per network switch (double-fire prevention)
+
+**Rule evaluation order** (on a WiFi change — first match wins):
+
+1. **Manual mode** → nothing happens (automation paused)
+2. **Open network protection** (open WiFi + assigned tunnel)
+3. **WiFi-SSID rules** (exact SSID match, top-to-bottom)
+4. **Trusted-network protection** (untrusted → connect · trusted → disconnect)
+5. **Default action** (fallback)
+
+*Schedule rules* run on their own timer, outside this chain.
+
+**Default action vs. Trusted networks** — both catch networks that no rule matched, but default action gives **one** outcome for every network, while trusted-network protection gives **two** based on your trusted list (connect on untrusted, disconnect on trusted). Trusted protection runs *before* default action, so while it's enabled it handles every named network and the default action only applies when WiFi drops entirely. It's effectively a smarter default action — *"default = connect X"* equals a trusted rule with an empty list; *"default = disconnect"* equals one where every network is trusted.
 
 ### Auto-reconnect
 - Detects unexpected tunnel drops (sleep/wake, kernel crash, network blip) and reconnects automatically
@@ -105,17 +121,34 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 - **Update check frequency** — On start / Daily / Weekly / Manual
 - Six languages: English, Dutch, German, French, Spanish, Japanese — with country flags in the picker
 
+### Managed deployment (locked preset)
+- A **`.masselguard`** file is a full settings snapshot: **import** it (wizard/Advanced) to apply-and-edit, or drop it next to the exe to **force + lock** every setting it contains — for a company rollout, a family/kids' laptop, or a kiosk
+- Locked settings are forced on startup (re-asserted on every save) and shown greyed with a 🔒 and a *"managed by &lt;policy&gt;"* banner; `MasselGUARDcli.exe` honours the same file
+- **Advanced → Export settings as preset…** writes the file (all settings incl. WiFi rules; tunnel definitions never included); a policy theme not in the build is auto-downloaded from the shared-themes repo (falls back to system colours)
+- **Soft lock** — suitable for managed distributions, not tamper-proof (the file is in the app folder)
+
 ---
 
 ## Requirements
 
 | | |
 |---|---|
-| OS | Windows 10 or 11 (x64) |
-| Runtime | [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) |
+| OS | Windows 10 or 11 — **x64 or ARM64** (separate native builds) |
+| Runtime | [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) for your architecture |
 | Elevation | Administrator (or Scheduled Task for UAC-free managed launch) |
-| Standalone / Mixed | `tunnel.dll` + `wireguard.dll` v1.1 (wireguard-NT) next to the exe (included in release zip) |
+| Standalone / Mixed | `tunnel.dll` + `wireguard.dll` (wireguard-NT) for your architecture, next to the exe — included in the matching release zip |
 | Companion / Mixed | [WireGuard for Windows](https://wireguard.com/install) installed |
+
+### Which download?
+
+Releases ship two architecture-specific builds — pick the one that matches your PC:
+
+| Your PC | Download |
+|---|---|
+| Intel / AMD (the vast majority) | **`MasselGUARD-x64.zip`** |
+| Windows-on-ARM — Snapdragon / Copilot+ PCs, recent Surface | **`MasselGUARD-arm64.zip`** |
+
+On Windows-on-ARM the ARM64 build is required for **local (standalone) tunnels** — the wireguard-NT kernel driver is native and can't run under x64 emulation. Companion tunnels (automating the WireGuard for Windows app) work on either build. Not sure which you have? Settings → About and the CLI `version` command both show the running architecture; if in doubt, you're almost certainly on x64. The auto-updater always fetches the build matching your processor.
 
 ---
 
@@ -136,8 +169,9 @@ MasselGUARD includes a full CLI for scripting and automation. Requires Administr
 MasselGUARD version
 ```
 ```
-MasselGUARD v3.7.1  |  Chromatic Chameleon
-build:   2607160000
+MasselGUARD v3.9.0  |  Adaptive Armadillo
+build:   2608200000
+arch:    x64
 Harold Masselink  |  https://masselink.net
 Update:  up to date
 ```
@@ -172,19 +206,33 @@ Exit codes: `0` success · `1` error · `2` already in desired state.
 
 ```bat
 BUILD.bat
+BUILD.bat x64
+BUILD.bat arm64
 ```
 
-Requires .NET 10 SDK. Generates a `YYMMDDHHMM` build stamp, compiles with `dotnet publish`, copies output to `dist\`.
+Requires the .NET 10 SDK. With no argument, `BUILD.bat` builds **both** architectures; pass `x64` or `arm64` for one. Each arch publishes natively (framework-dependent single-file, `YYMMDDHHMM` build stamp) into `dist\<arch>\` and is zipped to `dist\MasselGUARD-<arch>.zip` for release. ARM64 cross-publishes cleanly from an x64 host — the SDK produces a native ARM64 apphost. **A release needs both `MasselGUARD-x64.zip` and `MasselGUARD-arm64.zip` uploaded.**
 
 Banner:
 ```
   --------------------------------------------------
-  MasselGUARD  v3.7.1  |  Chromatic Chameleon
+  MasselGUARD  v3.9.0  |  Adaptive Armadillo
   Harold Masselink  |  https://masselink.net
+  Building arch(es): x64 arm64
   --------------------------------------------------
 ```
 
-Update `CODENAME` in both `BUILD.bat` and `UpdateChecker.cs` when bumping the version.
+### Native DLLs (`tunnel.dll` + `wireguard.dll`)
+
+The two wireguard-NT native DLLs are architecture-specific and live in `wireguard-deps\<arch>\`. Build/fetch them with:
+
+```bat
+tunnelbuild\tunnelbuild.bat
+tunnelbuild\tunnelbuild.bat arm64
+```
+
+Run with no argument, it **prompts** for x64 / arm64 / both. `wireguard.dll` is downloaded from download.wireguard.com (which ships an arm64 build); `tunnel.dll` is compiled from wireguard-windows via Go. The **ARM64 `tunnel.dll` is a CGO cross-build** that needs an aarch64 Windows toolchain — [llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releases)'s `aarch64-w64-mingw32-clang` on PATH (the script checks for it, and every produced DLL is PE-verified for the correct machine type).
+
+Update `VERSION` / `CODENAME` in both `BUILD.bat` and `UpdateChecker.cs` when bumping the version.
 
 ---
 

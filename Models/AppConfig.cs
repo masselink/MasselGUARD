@@ -41,6 +41,13 @@ namespace MasselGUARD.Models
         public string OpenWifiTunnel         { get; set; } = "";
         public bool   ManualMode             { get; set; } = false;
 
+        // ── Trusted-network auto-protect ─────────────────────────────────────
+        // The feature is driven entirely by a single "trusted"-kind TunnelRule in
+        // <see cref="Rules"/>: its existence enables protection and it carries the tunnel
+        // to bring up on an untrusted network. The only extra state is the safe-SSID list.
+        /// <summary>SSIDs considered safe; protection stands down (disconnects) on these.</summary>
+        public List<string> TrustedNetworks { get; set; } = new();
+
         // ── Tunnels ──────────────────────────────────────────────────────────
         public List<StoredTunnel>  Tunnels      { get; set; } = new();
         public List<TunnelGroup>   TunnelGroups { get; set; } = new()
@@ -173,15 +180,23 @@ namespace MasselGUARD.Models
 
         // ── Validation ────────────────────────────────────────────────────────
         /// <summary>
-        /// When true, pre-flight WireGuard config validation is skipped for ALL tunnels.
-        /// Overrides the per-tunnel SkipValidation flag. Use only as a last resort
-        /// when a valid-but-unusual config is incorrectly rejected by the validator.
+        /// Bypass switch for pre-flight WireGuard config validation.
+        /// <para>
+        /// Default <c>false</c> = validation is ACTIVE. Setting it true bypasses
+        /// validation for all tunnels — a last-resort escape hatch for a valid-but-unusual
+        /// config the validator rejects. There is deliberately no per-tunnel equivalent.
+        /// </para>
         /// </summary>
         public bool SkipTunnelValidation { get; set; } = false;
 
         // ── Update checker ───────────────────────────────────────────────────
         public DateTime LastUpdateCheck    { get; set; } = DateTime.MinValue;
         public string?  LatestKnownVersion { get; set; } = null;
+
+        /// <summary>Set once the user picks "Don't remind me" on the startup notice that
+        /// offers to switch an emulated x64 build to the native ARM64 build (shown only when
+        /// running the x64 build on an ARM64 system). Suppresses the notice on later launches.</summary>
+        public bool ArmSwitchDismissed { get; set; } = false;
 
         /// <summary>Ids of installed themes whose repo "version" was newer than the installed
         /// one, as of the last check. Checked at the same time as the app update (same

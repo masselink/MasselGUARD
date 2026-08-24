@@ -179,6 +179,33 @@ namespace MasselGUARD.Services
                 System.Threading.ThreadPool.QueueUserWorkItem(_ => SaveSsid());
         }
 
+        // ── Data-usage aggregation ────────────────────────────────────────────
+
+        /// <summary>
+        /// Sums session Rx+Tx bytes for a tunnel within the calendar month of
+        /// <paramref name="monthUtc"/> (UTC). Only cleanly-closed sessions carry byte
+        /// totals; the in-progress session is added live by the caller. Pass a null/empty
+        /// <paramref name="tunnelName"/> to sum across all tunnels.
+        /// </summary>
+        public (long rx, long tx) GetMonthlyUsage(string? tunnelName, DateTime monthUtc)
+        {
+            var start = new DateTime(monthUtc.Year, monthUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var end   = start.AddMonths(1);
+            long rx = 0, tx = 0;
+            lock (_lock)
+            {
+                foreach (var e in _entries)
+                {
+                    if (e.ConnectedAt < start || e.ConnectedAt >= end) continue;
+                    if (!string.IsNullOrEmpty(tunnelName) &&
+                        !e.TunnelName.Equals(tunnelName, StringComparison.OrdinalIgnoreCase)) continue;
+                    rx += e.SessionRxBytes;
+                    tx += e.SessionTxBytes;
+                }
+            }
+            return (rx, tx);
+        }
+
         // ── Record events ─────────────────────────────────────────────────────
 
         /// <summary>Called when a tunnel successfully connects.</summary>

@@ -34,11 +34,15 @@ namespace MasselGUARD.Models
         public bool AutoReconnect   { get; set; } = false;
         public int  RetryCount      { get; set; } = 0;
         public int  RetryDelaySec   { get; set; } = 5;
+        // Note: the former SkipValidation flag was removed — pre-flight config
+        // validation is always enforced and cannot be overridden. Old config.json
+        // values are simply ignored on load.
+
+        // ── Data usage ───────────────────────────────────────────────────────
         /// <summary>
-        /// When true, pre-flight config validation is skipped for this tunnel.
-        /// Use only when the config is known to be valid but uses constructs
-        /// the validator does not yet understand.
+        /// Monthly data cap in megabytes for this tunnel. 0 = unlimited (no cap).
+        /// When the month's Rx+Tx total crosses this, a one-time warning is raised.
         /// </summary>
-        public bool SkipValidation  { get; set; } = false;
+        public int MonthlyCapMB { get; set; } = 0;
     }
 }

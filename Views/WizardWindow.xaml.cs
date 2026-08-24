@@ -376,6 +376,8 @@ namespace MasselGUARD.Views
             // WiFi-only strip behind.
             cfg.ShowWifiInChart           = showTimeline;
             _vm.DisableWifiRules          = manualMode;   // committed to ManualMode when the wizard finishes
+            // Every preset ships with config validation ACTIVE (bypass off).
+            cfg.SkipTunnelValidation      = false;
 
             ApplyViewLive(showActivityLog);
             HighlightPresetCard(selectedCard);

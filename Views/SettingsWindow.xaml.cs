@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using MasselGUARD.Infrastructure;
@@ -136,6 +138,254 @@ namespace MasselGUARD.Views
             if (tab == "History")    RefreshHistoryTab();
             if (tab == "Advanced")   { RefreshInstallState(); RefreshDllStatus(); RefreshWireGuardSection(); ScanOrphans(); PopulateLogLevelPicker(); RefreshDnsLeakSection(); }
             if (tab == "About")      RefreshUpdateState();
+
+            // Managed-preset lock UI — runs last so it wins over the per-tab populate above.
+            ApplyPresetLocks();
+        }
+
+        /// <summary>
+        /// Greys out + 🔒-tooltips every control whose AppConfig field is locked by the managed
+        /// preset, and shows the "managed by …" banner. The forcing itself is guaranteed by
+        /// ConfigService (values re-asserted on save) — this pass is the visible signal.
+        /// </summary>
+        private void ApplyPresetLocks()
+        {
+            var cfg = _main.ConfigSvc;
+
+            if (ManagedBanner != null)
+            {
+                ManagedBanner.Visibility = cfg.HasManagedPreset ? Visibility.Visible : Visibility.Collapsed;
+                if (cfg.HasManagedPreset && ManagedBannerText != null)
+                    ManagedBannerText.Text = string.IsNullOrWhiteSpace(cfg.PolicyName)
+                        ? Lang.T("SettingsManagedBannerGeneric")
+                        : Lang.T("SettingsManagedBanner", cfg.PolicyName);
+            }
+
+            if (!cfg.HasManagedPreset) return;
+
+            // Lock + 🔒 badge (one representative control per setting).
+            void L(FrameworkElement? c, string field)
+            {
+                if (c == null || !cfg.IsLocked(field)) return;
+                c.IsEnabled = false;
+                c.ToolTip   = Lang.T("SettingsLockedTip");
+                MarkLocked(c);
+            }
+            // Disable only, no badge — for the sibling radios/buttons of an already-badged setting.
+            void D(FrameworkElement? c, string field)
+            {
+                if (c == null || !cfg.IsLocked(field)) return;
+                c.IsEnabled = false;
+                c.ToolTip   = Lang.T("SettingsLockedTip");
+            }
+
+            // General
+            L(ModeStandalone, "Mode"); D(ModeCompanion, "Mode"); D(ModeMixed, "Mode");
+            L(LanguagePicker, "Language");
+            L(StartWithWindowsToggle, "StartWithWindows");
+            L(ConfirmOnCloseToggle, "ConfirmOnClose");
+
+            // WiFi / automation
+            L(ManualModeToggle, "ManualMode");
+            L(ActionNone, "DefaultAction"); D(ActionDiscon, "DefaultAction"); D(ActionActivate, "DefaultAction");
+            L(DefaultTunnelBox, "DefaultTunnel");
+            L(OpenWifiTunnelBox, "OpenWifiTunnel");
+            L(TrustedNetworksBox, "TrustedNetworks"); D(AddCurrentTrustedBtn, "TrustedNetworks");
+            L(AddRuleBtn, "Rules"); D(EditBtn, "Rules"); D(DeleteBtn, "Rules"); D(RuleToggleBtn, "Rules");
+
+            // Tunnels
+            L(ArModeOff, "AutoReconnectMode"); D(ArModePerTunnel, "AutoReconnectMode"); D(ArModeAlways, "AutoReconnectMode");
+            L(KsModePerTunnel, "KillSwitchMode"); D(KsModeAlways, "KillSwitchMode");
+            L(SkipTunnelValidationToggle, "SkipTunnelValidation");
+
+            // DNS
+            L(ShowDnsIndicatorToggle, "ShowDnsIndicator");
+            L(DnsLeakWarnLogToggle, "DnsLeakWarnLog");
+            L(DnsLeakWarnToastToggle, "DnsLeakWarnToast");
+
+            // Advanced
+            L(SharedThemesRepoBox, "SharedThemesRepoUrl"); D(ResetThemesRepoBtn, "SharedThemesRepoUrl");
+            L(WireGuardSectionCard, "WireGuardInstallDirectory");
+            L(FreqOnStart, "UpdateCheckFrequency"); D(FreqDaily, "UpdateCheckFrequency");
+            D(FreqWeekly, "UpdateCheckFrequency"); D(FreqManual, "UpdateCheckFrequency");
+
+            // Appearance
+            L(ThemePicker, "ActiveTheme");
+            L(SysModeLight, "SystemThemeMode"); D(SysModeDark, "SystemThemeMode"); D(SysModeAuto, "SystemThemeMode");
+
+            // Notifications
+            L(TrayPopupToggle, "ShowTrayPopupOnSwitch");
+            L(NotifDurationPicker, "NotificationDurationSeconds");
+
+            // Display
+            L(HideWifiRulesToggle, "ShowWifiRulesOnMainWindow");
+            L(ShowRulesColumnToggle, "ShowTunnelRulesColumn");
+            L(ShowActivityLogToggle, "ShowActivityLog");
+            L(ShowTimelineToggle, "ShowTimeline");
+        }
+
+        // Title elements that already carry a 🔒 badge (ApplyPresetLocks runs on every ShowTab).
+        private readonly HashSet<UIElement> _lockAdorned = new();
+
+        /// <summary>
+        /// Marks a locked setting consistently: a 🔒 badge right after the setting's title, and a
+        /// "not allowed" cursor over the whole setting row. The title and row are derived from the
+        /// control's layout (see <see cref="FindBadgeLabel"/> / <see cref="FindLockRow"/>) so the lock
+        /// always lands in the same place regardless of whether the control is a toggle, a field, a
+        /// radio group or a whole card. Deferred to Loaded priority so the visual tree + adorner layer
+        /// exist; re-runs harmlessly on every ShowTab (badge de-duped, cursor idempotent).
+        /// </summary>
+        private void MarkLocked(FrameworkElement control)
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!control.IsVisible) return;   // control's tab is hidden — retry when it shows
+
+                // "Not allowed" cursor over the locked row. A disabled control ignores its own
+                // Cursor and passes mouse hits to its parent, so set it on the enabled row container.
+                if (FindLockRow(control) is FrameworkElement row)
+                    row.Cursor = Cursors.No;
+
+                var label = FindBadgeLabel(control) ?? control;
+                if (_lockAdorned.Contains(label)) return;
+                var layer = AdornerLayer.GetAdornerLayer(label);
+                if (layer == null) return;
+                layer.Add(new LockAdorner(label));
+                _lockAdorned.Add(label);
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        // ── Locked-setting layout resolution ──────────────────────────────────
+        // Every setting is a SettingsCard. A "row" setting (toggle/combo/field) keeps its own label
+        // inside its row Grid; a "group" setting (radio group / whole card) is titled by the section
+        // header just above its card. These helpers find the right title + row for either shape.
+
+        private bool IsSettingsCard(DependencyObject o)
+            => o is Border b && ReferenceEquals(b.Style, TryFindResource("SettingsCard"));
+
+        /// <summary>The container to show the locked cursor over — the whole card if the locked
+        /// element is itself a card, otherwise the control's immediate parent (its row).</summary>
+        private FrameworkElement? FindLockRow(FrameworkElement control)
+            => IsSettingsCard(control)
+                ? control
+                : VisualTreeHelper.GetParent(control) as FrameworkElement ?? control;
+
+        /// <summary>Finds the TextBlock that visually titles a locked setting.</summary>
+        private FrameworkElement? FindBadgeLabel(FrameworkElement control)
+        {
+            // 1) A label inside the control's own row (a child before the control).
+            if (!IsSettingsCard(control) &&
+                VisualTreeHelper.GetParent(control) is FrameworkElement row)
+            {
+                var inRow = FirstTextBlockBeforeChild(row, control);
+                if (inRow != null) return inRow;
+            }
+            // 2) Otherwise the section header directly above the enclosing card.
+            var card = IsSettingsCard(control) ? control : NearestCard(control);
+            if (card != null)
+            {
+                var header = PrecedingSiblingTextBlock(card);
+                if (header != null) return header;
+            }
+            return null;
+        }
+
+        private Border? NearestCard(DependencyObject start)
+        {
+            var style = TryFindResource("SettingsCard") as Style;
+            for (var n = VisualTreeHelper.GetParent(start); n != null; n = VisualTreeHelper.GetParent(n))
+                if (n is Border b && ReferenceEquals(b.Style, style)) return b;
+            return null;
+        }
+
+        /// <summary>First TextBlock found among the row's children that come before <paramref name="control"/>.</summary>
+        private static TextBlock? FirstTextBlockBeforeChild(FrameworkElement row, FrameworkElement control)
+        {
+            int n = VisualTreeHelper.GetChildrenCount(row);
+            for (int i = 0; i < n; i++)
+            {
+                var child = VisualTreeHelper.GetChild(row, i);
+                if (child == control || IsAncestorOf(child, control)) break;
+                var tb = FindFirstTextBlock(child);
+                if (tb != null) return tb;
+            }
+            return null;
+        }
+
+        /// <summary>The nearest TextBlock that is a direct sibling before <paramref name="card"/> (its section header).</summary>
+        private static TextBlock? PrecedingSiblingTextBlock(FrameworkElement card)
+        {
+            var parent = VisualTreeHelper.GetParent(card);
+            if (parent == null) return null;
+            int n = VisualTreeHelper.GetChildrenCount(parent), idx = -1;
+            for (int i = 0; i < n; i++)
+                if (VisualTreeHelper.GetChild(parent, i) == card) { idx = i; break; }
+            for (int i = idx - 1; i >= 0; i--)
+                if (VisualTreeHelper.GetChild(parent, i) is TextBlock tb) return tb;
+            return null;
+        }
+
+        private static TextBlock? FindFirstTextBlock(DependencyObject root)
+        {
+            if (root is TextBlock tb) return tb;
+            int n = VisualTreeHelper.GetChildrenCount(root);
+            for (int i = 0; i < n; i++)
+                if (FindFirstTextBlock(VisualTreeHelper.GetChild(root, i)) is TextBlock r) return r;
+            return null;
+        }
+
+        private static bool IsAncestorOf(DependencyObject ancestor, DependencyObject node)
+        {
+            for (var cur = node; cur != null; cur = VisualTreeHelper.GetParent(cur))
+                if (cur == ancestor) return true;
+            return false;
+        }
+
+        /// <summary>Draws a small 🔒 immediately after the adorned title's text, vertically centred
+        /// on its first line. Anchoring to the title (not the control) keeps the lock in the same
+        /// place for every setting shape.</summary>
+        private sealed class LockAdorner : Adorner
+        {
+            private static readonly Typeface Emoji =
+                new(new FontFamily("Segoe UI Emoji"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+
+            public LockAdorner(UIElement adorned) : base(adorned)
+            {
+                IsHitTestVisible = false;
+                // The badge shares one adorner layer across all tabs; re-draw when the title's
+                // tab shows/hides so a hidden-tab badge doesn't linger over the visible page.
+                if (adorned is FrameworkElement fe)
+                    fe.IsVisibleChanged += (_, _) => InvalidateVisual();
+            }
+
+            protected override void OnRender(DrawingContext dc)
+            {
+                if (AdornedElement is not FrameworkElement fe || !fe.IsVisible) return;
+
+                double ppd = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+                var culture = System.Globalization.CultureInfo.CurrentUICulture;
+
+                // Measure the title text so the lock sits right after the words, not at the far
+                // (stretched) edge of the label column.
+                double textW = fe.RenderSize.Width;
+                double fontSize = 11;
+                if (fe is TextBlock tb && !string.IsNullOrEmpty(tb.Text))
+                {
+                    fontSize = tb.FontSize;
+                    var face = new Typeface(tb.FontFamily, tb.FontStyle, tb.FontWeight, tb.FontStretch);
+                    var measure = new FormattedText(tb.Text, culture, FlowDirection.LeftToRight,
+                        face, fontSize, Brushes.Black, ppd);
+                    textW = Math.Min(measure.WidthIncludingTrailingWhitespace, fe.RenderSize.Width);
+                }
+
+                var lockFt = new FormattedText("🔒", culture, FlowDirection.LeftToRight,
+                    Emoji, 11, Brushes.Gray, ppd);
+
+                // Centre vertically on a single line even if the title happens to wrap.
+                double lineH = Math.Min(fe.RenderSize.Height, fontSize * 1.4);
+                double y = Math.Max(0, (lineH - lockFt.Height) / 2);
+                dc.DrawText(lockFt, new Point(textW + 5, y));
+            }
         }
 
         private void RefreshCurrentTab() => ShowTab(_activeTab);
@@ -998,6 +1248,11 @@ namespace MasselGUARD.Views
                 OpenWifiTunnelBox.SelectedItem = (object?)match ?? Lang.T("OpenWifiNone");
             }
 
+            // Trusted-network auto-protect — only the safe-SSID list lives here now;
+            // enabling it and choosing the tunnel is done via the WiFi rule itself.
+            if (TrustedNetworksBox != null)
+                TrustedNetworksBox.Text = string.Join(Environment.NewLine, cfg.TrustedNetworks);
+
             _loading = false;
         }
 
@@ -1046,6 +1301,49 @@ namespace MasselGUARD.Views
             _vm.OpenWifiTunnel = sel == none ? "" : sel ?? "";
         }
 
+        private void TrustedNetworks_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            CommitTrustedNetworks();
+        }
+
+        private void CommitTrustedNetworks()
+        {
+            _draft.TrustedNetworks = (TrustedNetworksBox?.Text ?? "")
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private void AddCurrentTrusted_Click(object sender, RoutedEventArgs e)
+        {
+            var ssid = _main.WifiSvc.CurrentSsid;
+            if (string.IsNullOrWhiteSpace(ssid))
+            {
+                _main.LogInfoPublic("No current WiFi network to add to the trusted list.");
+                return;
+            }
+
+            var lines = (TrustedNetworksBox?.Text ?? "")
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0)
+                .ToList();
+
+            // Don't add a duplicate (case-insensitive).
+            if (lines.Any(l => l.Equals(ssid, StringComparison.OrdinalIgnoreCase)))
+                return;
+
+            lines.Add(ssid);
+            _loading = true;
+            if (TrustedNetworksBox != null)
+                TrustedNetworksBox.Text = string.Join(Environment.NewLine, lines);
+            _loading = false;
+            CommitTrustedNetworks();
+        }
+
         private void ManualMode_Changed(object sender, RoutedEventArgs e)
         {
             if (_loading) return;
@@ -1061,7 +1359,15 @@ namespace MasselGUARD.Views
             var dlg = new RuleDialog(_main.WifiSvc.CurrentSsid,
                 tunnels: _main.GetTunnelNames()) { Owner = this };
             if (dlg.ShowDialog() != true) return;
-            var rule = new TunnelRule { Ssid = dlg.ResultSsid, Tunnel = dlg.ResultTunnel };
+            var rule = new TunnelRule
+            {
+                Kind      = dlg.ResultKind,
+                Ssid      = dlg.ResultSsid,
+                Tunnel    = dlg.ResultTunnel,
+                StartTime = dlg.ResultStartTime,
+                EndTime   = dlg.ResultEndTime,
+                Days      = dlg.ResultDays,
+            };
             _vm.AddRule(rule);
             RefreshAutomationControls();
         }
@@ -1072,10 +1378,21 @@ namespace MasselGUARD.Views
                 existingName:   rule.Name,
                 existingSsid:   rule.Ssid,
                 existingTunnel: rule.Tunnel,
-                tunnels:        _main.GetTunnelNames()) { Owner = this };
+                executionCount: rule.ExecutionCount,   // shows the trigger counter row
+                tunnels:        _main.GetTunnelNames(),
+                existingKind:   rule.Kind,
+                existingStart:  rule.StartTime,
+                existingEnd:    rule.EndTime,
+                existingDays:   rule.Days) { Owner = this };
             if (dlg.ShowDialog() != true) return;
-            rule.Ssid   = dlg.ResultSsid;
-            rule.Tunnel = dlg.ResultTunnel;
+            rule.Kind      = dlg.ResultKind;
+            rule.Ssid      = dlg.ResultSsid;
+            rule.Tunnel    = dlg.ResultTunnel;
+            rule.StartTime = dlg.ResultStartTime;
+            rule.EndTime   = dlg.ResultEndTime;
+            rule.Days      = dlg.ResultDays;
+            if (dlg.ResultNewCounterValue >= 0)
+                rule.ExecutionCount = dlg.ResultNewCounterValue;
             _vm.UpdateRule(rule);
             RefreshAutomationControls();
         }
@@ -1089,8 +1406,28 @@ namespace MasselGUARD.Views
         private void RulesListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             _vm.SelectedRule = RulesListView?.SelectedItem as TunnelRule;
-            if (EditBtn   != null) EditBtn.IsEnabled   = _vm.SelectedRule != null;
-            if (DeleteBtn != null) DeleteBtn.IsEnabled = _vm.SelectedRule != null;
+            bool has = _vm.SelectedRule != null;
+            if (EditBtn   != null) EditBtn.IsEnabled   = has;
+            if (DeleteBtn != null) DeleteBtn.IsEnabled = has;
+            if (RuleToggleBtn != null)
+            {
+                RuleToggleBtn.IsEnabled = has;
+                bool enabled = _vm.SelectedRule?.Enabled ?? true;
+                RuleToggleBtn.Content = Lang.T(enabled ? "BtnDisableRule" : "BtnEnableRule");
+            }
+        }
+
+        // Enable/disable the selected rule. Grey-out + icon update via bindings on the
+        // (live config) rule instance; persist immediately.
+        private void RuleToggle_Click(object sender, RoutedEventArgs e)
+        {
+            if (_vm.SelectedRule is not TunnelRule rule) return;
+            rule.Enabled = !rule.Enabled;
+            _main.SaveConfigPublic(rule.Enabled
+                ? $"Rule enabled: {rule.RuleName}"
+                : $"Rule disabled: {rule.RuleName}");
+            if (RuleToggleBtn != null)
+                RuleToggleBtn.Content = Lang.T(rule.Enabled ? "BtnDisableRule" : "BtnEnableRule");
         }
 
         // ── Advanced tab ──────────────────────────────────────────────────────
@@ -1350,6 +1687,36 @@ namespace MasselGUARD.Views
         private void ExportSettings_Click(object sender, RoutedEventArgs e)     => _vm.ExportCommand.Execute(null);
         private void ImportSettings_Click(object sender, RoutedEventArgs e)     => _vm.ImportCommand.Execute(null);
 
+        // Export the current settings as a .masselguard file. All settings are written (for import);
+        // the sections ticked in the dialog go under Locked and are what a preset enforces.
+        private void ExportPreset_Click(object sender, RoutedEventArgs e)
+        {
+            var picker = new ExportPresetWindow { Owner = this };
+            if (picker.ShowDialog() != true) return;
+
+            var dlg = new Microsoft.Win32.SaveFileDialog
+            {
+                Title            = Lang.T("PresetExportTitle"),
+                Filter           = "MasselGUARD policy (*.masselguard)|*.masselguard",
+                FileName         = "MasselGUARD-policy",
+                DefaultExt       = ".masselguard",
+                InitialDirectory = Services.PresetService.ExeDirectory(),
+            };
+            if (dlg.ShowDialog() != true) return;
+
+            try
+            {
+                _main.ConfigSvc.Export(dlg.FileName, UpdateChecker.CurrentVersionString,
+                    picker.ResultPolicyName, lockedSettings: picker.ResultSettings);
+                _main.LogInfoPublic(Lang.T("PresetExportSuccess", dlg.FileName));
+                _main.ShowThemedInfo(Lang.T("PresetExportSuccess", dlg.FileName), Lang.T("PresetExportTitle"));
+            }
+            catch (Exception ex)
+            {
+                _main.ShowThemedInfo(Lang.T("PresetExportError", ex.Message), Lang.T("PresetExportTitle"));
+            }
+        }
+
         private void OnExportSettings()
         {
             if (!_main.ShowThemedYesNo(Lang.T("SettingsExportWarning"), Lang.T("SettingsExportTitle")))
@@ -1447,11 +1814,12 @@ namespace MasselGUARD.Views
                     : $"MasselGUARD v{current}  |  {codename}";
             }
 
-            // Build stamp — small muted line below the version
+            // Build stamp + architecture — small muted line below the version
             if (BuildLabel != null)
             {
                 var stamp = UpdateChecker.BuildStamp;
-                BuildLabel.Text = string.IsNullOrEmpty(stamp) ? "" : $"build {stamp}";
+                var arch  = UpdateChecker.ArchMoniker;
+                BuildLabel.Text = string.IsNullOrEmpty(stamp) ? arch : $"build {stamp}  ·  {arch}";
             }
 
             // Last checked label
@@ -1731,6 +2099,8 @@ namespace MasselGUARD.Views
             // same on/off so Simple/Manual genuinely hide it, not just the tunnel bars.
             _draft.ShowWifiInChart           = showTimeline;
             _vm.DisableWifiRules             = manualMode;
+            // Every preset ships with config validation ACTIVE (bypass off).
+            _draft.SkipTunnelValidation      = false;
 
             var cfg = _main.ConfigSvc.Config;
             cfg.ShowTimeline              = showTimeline;
@@ -1739,6 +2109,7 @@ namespace MasselGUARD.Views
             cfg.ShowTunnelRulesColumn     = showWifiRules;
             cfg.ShowWifiInChart           = showTimeline;
             cfg.ManualMode                = manualMode;
+            cfg.SkipTunnelValidation      = false;
             _main.ConfigSvc.Save();
 
             _main.RefreshWifiRulesPanel();
@@ -1982,6 +2353,7 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.DnsLeakWarnToast    = _draft.DnsLeakWarnToast;
             _main.ConfigSvc.Config.KillSwitchMode      = _draft.KillSwitchMode;
             _main.ConfigSvc.Config.SkipTunnelValidation = _draft.SkipTunnelValidation;
+            _main.ConfigSvc.Config.TrustedNetworks     = _draft.TrustedNetworks;
             _main.ConfigSvc.Config.FontOverrideEnabled    = _draft.FontOverrideEnabled;
             _main.ConfigSvc.Config.FontOverrideFamily    = _draft.FontOverrideFamily;
             _main.ConfigSvc.Config.FontOverrideSize      = _draft.FontOverrideSize;
@@ -1996,6 +2368,7 @@ namespace MasselGUARD.Views
                 LogChangedSettings(before, _main.ConfigSvc.Config);
 
             _vm.DoSave();
+
             // Apply side effects immediately
             Lang.Instance.Load(_vm.Language);
             _main.LogSvc.IsExtended = _vm.LogLevel == "extended";

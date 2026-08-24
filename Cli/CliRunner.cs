@@ -971,6 +971,8 @@ namespace MasselGUARD.Cli
                 UpdateChecker.IsAheadOfLatest(latestKnown) ? $"ahead of latest ({latestKnown})" :
                 "up to date";
 
+            var arch = UpdateChecker.ArchMoniker;
+
             if (json)
             {
                 CliOutput.PrintJson(new
@@ -978,6 +980,7 @@ namespace MasselGUARD.Cli
                     version       = ver,
                     codename      = string.IsNullOrEmpty(codename) ? null : (string?)codename,
                     build         = string.IsNullOrEmpty(stamp)    ? null : (string?)stamp,
+                    arch,
                     update_status = updateStatus,
                 });
             }
@@ -987,6 +990,7 @@ namespace MasselGUARD.Cli
                     ? $"{ExeName} v{ver}"
                     : $"{ExeName} v{ver}  |  {codename}");
                 if (!string.IsNullOrEmpty(stamp)) CliOutput.Info($"build:   {stamp}");
+                CliOutput.Info($"arch:    {arch}");
                 CliOutput.Info("Harold Masselink  |  https://masselink.net");
                 CliOutput.Info($"Update:  {updateStatus}");
             }

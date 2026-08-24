@@ -144,23 +144,110 @@ namespace MasselGUARD
         public static bool IsTunnelDllAvailable() =>
             File.Exists(TunnelDllPath) && File.Exists(WireGuardDllPath);
 
-        // Minimum size (bytes) for the wireguard-NT wireguard.dll.
-        // The wireguard-NT dll (~1.3 MB) embeds its own kernel driver.
-        // The WireGuard-for-Windows wireguard.dll (~400 KB) does NOT — it
-        // requires wireguard.sys to be pre-installed by the WireGuard app and
-        // will fail with "cannot find file" when starting the tunnel service.
-        private const long WireGuardNtMinBytes = 900_000;
+        // Minimum size (bytes) for the wireguard-NT wireguard.dll, which embeds its own kernel
+        // driver. The WireGuard-for-Windows wireguard.dll (~400 KB) does NOT — it requires
+        // wireguard.sys to be pre-installed and fails with "cannot find file" at tunnel start.
+        // The wireguard-NT dll size is architecture-dependent (official v1.1: amd64 ~1.32 MB,
+        // arm64 ~667 KB, x86 ~1.86 MB), so the floor is per-arch — it only needs to sit above
+        // the driverless ~400 KB dll. The PE machine-type check below is the primary gate.
+        private static long WireGuardNtMinBytes => RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.Arm64 => 500_000,
+            _                  => 900_000,
+        };
+
+        // PE machine-type values (IMAGE_FILE_HEADER.Machine).
+        private const ushort IMAGE_FILE_MACHINE_I386  = 0x014C;
+        private const ushort IMAGE_FILE_MACHINE_AMD64 = 0x8664;
+        private const ushort IMAGE_FILE_MACHINE_ARM64 = 0xAA64;
+
+        /// <summary>Reads the PE Machine field of a DLL/EXE, or null if unreadable.</summary>
+        private static ushort? ReadPeMachine(string path)
+        {
+            try
+            {
+                using var fs = File.OpenRead(path);
+                using var br = new BinaryReader(fs);
+                if (fs.Length < 0x40) return null;
+                fs.Seek(0x3C, SeekOrigin.Begin);          // e_lfanew
+                int peOffset = br.ReadInt32();
+                if (peOffset <= 0 || peOffset + 6 > fs.Length) return null;
+                fs.Seek(peOffset, SeekOrigin.Begin);
+                if (br.ReadUInt32() != 0x00004550) return null; // "PE\0\0"
+                return br.ReadUInt16();                    // IMAGE_FILE_HEADER.Machine
+            }
+            catch { return null; }
+        }
+
+        /// <summary>The PE machine type that matches the current process architecture.</summary>
+        private static ushort ExpectedMachine => RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.X64   => IMAGE_FILE_MACHINE_AMD64,
+            Architecture.Arm64 => IMAGE_FILE_MACHINE_ARM64,
+            Architecture.X86   => IMAGE_FILE_MACHINE_I386,
+            _                  => 0,
+        };
+
+        private static string MachineName(ushort m) => m switch
+        {
+            IMAGE_FILE_MACHINE_AMD64 => "x64",
+            IMAGE_FILE_MACHINE_ARM64 => "arm64",
+            IMAGE_FILE_MACHINE_I386  => "x86",
+            _                        => $"0x{m:X4}",
+        };
+
+        /// <summary>
+        /// Returns a message if this build cannot drive local tunnels on the current
+        /// system for architecture reasons (e.g. an x64 build running emulated on an
+        /// ARM64 host), otherwise null. Kernel drivers cannot be emulated, so local
+        /// tunnels require an arch-native build. Companion tunnels are unaffected.
+        /// </summary>
+        public static string? ArchSupportError()
+        {
+            if (RuntimeInformation.OSArchitecture == Architecture.Arm64 &&
+                RuntimeInformation.ProcessArchitecture == Architecture.X64)
+                return "You are running the x64 build under emulation on an ARM64 system. " +
+                       "Local (standalone) tunnels need the native ARM64 build because the " +
+                       "wireguard-NT kernel driver cannot run under emulation. Download the " +
+                       "arm64 release of MasselGUARD to enable local tunnels. " +
+                       "(WireGuard companion tunnels still work in this build.)";
+            return null;
+        }
 
         /// <summary>
         /// Returns null if DLLs are present and appear correct.
-        /// Returns an error string if DLLs are missing or the wrong version.
+        /// Returns an error string if DLLs are missing, the wrong version, or the
+        /// wrong architecture for the running process.
         /// </summary>
         public static string? ValidateDlls()
         {
+            // Architecture gate first — a wrong-arch process can never load these DLLs
+            // or the kernel driver, and the failure would otherwise be cryptic.
+            var archErr = ArchSupportError();
+            if (archErr != null) return archErr;
+
             if (!File.Exists(TunnelDllPath))
                 return $"tunnel.dll not found in: {ExeDir}";
             if (!File.Exists(WireGuardDllPath))
                 return $"wireguard.dll not found in: {ExeDir}";
+
+            // Verify each DLL's architecture matches this process. A mismatched DLL
+            // (e.g. x64 tunnel.dll shipped next to an arm64 exe) fails to load with a
+            // BadImageFormatException deep inside the P/Invoke — surface it clearly.
+            ushort want = ExpectedMachine;
+            if (want != 0)
+            {
+                var tnMachine = ReadPeMachine(TunnelDllPath);
+                if (tnMachine is ushort tm && tm != want)
+                    return $"tunnel.dll is the wrong architecture ({MachineName(tm)}) — this " +
+                           $"{MachineName(want)} build needs a {MachineName(want)} tunnel.dll. " +
+                           $"Reinstall the {MachineName(want)} release of MasselGUARD.";
+                var wgMachine = ReadPeMachine(WireGuardDllPath);
+                if (wgMachine is ushort wm && wm != want)
+                    return $"wireguard.dll is the wrong architecture ({MachineName(wm)}) — this " +
+                           $"{MachineName(want)} build needs a {MachineName(want)} wireguard.dll. " +
+                           $"Reinstall the {MachineName(want)} release of MasselGUARD.";
+            }
 
             try
             {
@@ -168,9 +255,9 @@ namespace MasselGUARD
                 if (wgSize < WireGuardNtMinBytes)
                     return $"Wrong wireguard.dll — this copy is {wgSize / 1024} KB and appears to be " +
                            $"the WireGuard-for-Windows version, which requires the WireGuard app to be " +
-                           $"installed. Standalone mode needs the wireguard-NT version (~1.3 MB). " +
-                           $"Run get-wireguard-dlls.ps1 to download the correct file, or download it from " +
-                           $"https://download.wireguard.com/wireguard-nt/";
+                           $"installed. Standalone mode needs the wireguard-NT version for this " +
+                           $"architecture. Run get-wireguard-dlls.ps1 to download the correct file, or " +
+                           $"download it from https://download.wireguard.com/wireguard-nt/";
             }
             catch { /* best-effort */ }
 

@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using MasselGUARD.Models;
@@ -16,17 +17,43 @@ namespace MasselGUARD
     /// GitHub API endpoint:
     ///   GET https://api.github.com/repos/masselink/MasselGUARD/releases/latest
     ///
-    /// The release must contain an asset named MasselGUARD.zip.
+    /// The release must contain an architecture-specific asset — "MasselGUARD-x64.zip"
+    /// or "MasselGUARD-arm64.zip" — matching the running process. Older releases that
+    /// ship a single "MasselGUARD.zip" are still accepted as a fallback (x64).
     /// The tag name is used as the version string (e.g. "v2.0.1").
     /// </summary>
     public static class UpdateChecker
     {
+        /// <summary>
+        /// Architecture moniker for the running process ("x64" / "arm64" / "x86").
+        /// Used to pick the matching release asset and shown on the About/version pages.
+        /// </summary>
+        public static string ArchMoniker => RuntimeInformation.ProcessArchitecture switch
+        {
+            Architecture.X64   => "x64",
+            Architecture.Arm64 => "arm64",
+            Architecture.X86   => "x86",
+            var other          => other.ToString().ToLowerInvariant(),
+        };
+
+        /// <summary>
+        /// Candidate release-asset names for the given architecture, most-specific first:
+        /// the arch-specific zip, then the legacy single-arch "MasselGUARD.zip" (x64 only).
+        /// arm64 has no legacy fallback — MasselGUARD.zip is x64 and must never be handed to
+        /// an ARM64 install.
+        /// </summary>
+        private static string[] AssetCandidates(string arch)
+        {
+            return arch == "x64"
+                ? new[] { $"MasselGUARD-{arch}.zip", "MasselGUARD.zip" }
+                : new[] { $"MasselGUARD-{arch}.zip" };
+        }
         private const string TagsApiUrl     = "https://api.github.com/repos/masselink/MasselGUARD/tags";
         private const string ReleasesApiUrl = "https://api.github.com/repos/masselink/MasselGUARD/releases";
         // Major.Minor.Patch only — static, never modified by build.
         // The build timestamp is injected at compile time via -p:InformationalVersion
         // and read at runtime from the assembly attribute (see BuildStamp below).
-        private const string CurrentVersion = "3.7.1";
+        private const string CurrentVersion = "3.9.0";
 
         // Release codenames — one entry per public version, keyed by Major.Minor.Patch.
         // Update both here AND in BUILD.bat (set CODENAME=...) when bumping the version.
@@ -38,6 +65,8 @@ namespace MasselGUARD
                 { "3.6.0", "Dangerous Donkey"   },
                 { "3.7.0", "Chromatic Chameleon" },
                 { "3.7.1", "Chromatic Chameleon" },
+                { "3.8.0", "Protective Pangolin" },
+                { "3.9.0", "Adaptive Armadillo" },
             };
 
         // ── Public: silent background check (called on startup) ──────────────
@@ -71,7 +100,8 @@ namespace MasselGUARD
             Action? onShutdown = null)
         {
             if (release.ZipUrl == null)
-                throw new InvalidOperationException("No MasselGUARD.zip asset in release.");
+                throw new InvalidOperationException(
+                    $"No MasselGUARD-{ArchMoniker}.zip asset in release {release.TagName}.");
 
             var currentExe = Environment.ProcessPath
                 ?? AppContext.BaseDirectory;
@@ -221,7 +251,10 @@ namespace MasselGUARD
         }
 
         // Fetch latest tag from GitHub tags API, then find its release asset.
-        public static async Task<ReleaseInfo?> FetchLatestReleaseAsync()
+        // forceArch overrides the process architecture when selecting the asset — used by the
+        // "switch to ARM64" flow, where the running process is emulated x64 but we want the
+        // arm64 build. Pass null (default) to select for the current process architecture.
+        public static async Task<ReleaseInfo?> FetchLatestReleaseAsync(string? forceArch = null)
         {
             using var http = MakeClient();
 
@@ -239,26 +272,32 @@ namespace MasselGUARD
             }
             if (latestTag == null) return null;
 
-            // Step 2: find the GitHub release for this tag to get the asset URL
+            // Step 2: find the GitHub release for this tag and pick the asset that
+            // matches this process's architecture. Collect all assets first, then
+            // choose by priority (arch-specific zip, then legacy MasselGUARD.zip).
             string? zipUrl = null;
             try
             {
                 var relJson = await http.GetStringAsync(
                     ReleasesApiUrl + "/tags/" + latestTag);
                 using var relDoc = JsonDocument.Parse(relJson);
+
+                var byName = new System.Collections.Generic.Dictionary<string, string>(
+                    StringComparer.OrdinalIgnoreCase);
                 if (relDoc.RootElement.TryGetProperty("assets", out var assets))
                     foreach (var asset in assets.EnumerateArray())
                     {
                         var aname = asset.TryGetProperty("name", out var an)
                             ? an.GetString() : null;
-                        if (string.Equals(aname, "MasselGUARD.zip",
-                                StringComparison.OrdinalIgnoreCase))
-                        {
-                            zipUrl = asset.TryGetProperty("browser_download_url", out var u)
-                                ? u.GetString() : null;
-                            break;
-                        }
+                        var url = asset.TryGetProperty("browser_download_url", out var u)
+                            ? u.GetString() : null;
+                        if (!string.IsNullOrEmpty(aname) && !string.IsNullOrEmpty(url))
+                            byName[aname] = url;
                     }
+
+                var wantArch = forceArch ?? ArchMoniker;
+                foreach (var candidate in AssetCandidates(wantArch))
+                    if (byName.TryGetValue(candidate, out var url)) { zipUrl = url; break; }
             }
             catch { /* tag exists but has no release — that is fine */ }
 

@@ -1,6 +1,6 @@
 # MasselGUARD — User Manual
 
-**Version 3.7.1 — Chromatic Chameleon**
+**Version 3.9.0 — Adaptive Armadillo**
 
 ---
 
@@ -45,7 +45,7 @@ MasselGUARD is a WireGuard automation tool for Windows. It monitors your WiFi co
 
 ## 2. Installation and run modes
 
-**Requirements:** Windows 10 or 11 (64-bit), [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0), Administrator rights.
+**Requirements:** Windows 10 or 11 — **x64 or ARM64** (download the matching build: `MasselGUARD-x64.zip` for Intel/AMD PCs, `MasselGUARD-arm64.zip` for Windows-on-ARM devices), the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) for that architecture, and Administrator rights. On Windows-on-ARM the ARM64 build is required for local (standalone) tunnels; if unsure which you have, Settings → About shows the running architecture.
 
 ### Run modes
 
@@ -174,6 +174,8 @@ Active tunnels show elapsed uptime: `< 1 min` → `Xs`, `< 1 h` → `Xm YYs`, `<
 
 What happens when connecting to WiFi with no matching rule. Options: Do nothing / Disconnect all / Activate a tunnel. The assigned tunnel shows `⚡` in the list and `⚡ TunnelName` in the footer.
 
+> **Default action vs. Trusted networks.** Both are catch-alls, but a *Trusted-networks* rule is evaluated **before** the default action and gives two outcomes (connect on untrusted networks, disconnect on trusted) instead of one. While such a rule is enabled the default action only applies when WiFi drops entirely. Full precedence and comparison: **§8 → Rule evaluation order**.
+
 ### Open network protection
 
 Activates automatically on **passwordless** WiFi before any SSID rule. The assigned tunnel shows `🔓` in the list and `🔓 TunnelName` in the footer.
@@ -192,9 +194,45 @@ Activates automatically on **passwordless** WiFi before any SSID rule. The assig
 
 | Field | Description |
 |---|---|
-| **Name** | Display name — auto-generates from SSID + tunnel as you type. Stops auto-generating once manually edited. |
-| **SSID** | Network name — case-sensitive. "Use Current" fills from active WiFi. |
-| **Tunnel** | Leave empty to disconnect all tunnels on this network. |
+| **Trigger type** | **WiFi network (SSID)**, **Schedule**, or **Trusted networks** — see *Rule trigger types* below. |
+| **Name** | Display name — auto-generates from the trigger + tunnel as you type. Stops auto-generating once manually edited. |
+| **SSID** | *(WiFi type)* Network name — case-sensitive. "Use Current" fills from active WiFi. |
+| **Active days / Start / End** | *(Schedule type)* The day-of-week and `HH:mm` window the rule is active. |
+| **Tunnel** | Leave empty to disconnect all tunnels when the rule fires. |
+
+### Rule trigger types
+
+- **WiFi network (SSID)** — fires when you join that exact named network.
+- **Schedule** — fires during a day-of-week + time window (e.g. Work 09:00–18:00, Mon–Fri). Schedule rules are checked on a one-minute timer, independent of WiFi changes; overnight windows such as 22:00–06:00 are supported.
+- **Trusted networks** — a single broad policy: connect the chosen tunnel on any WiFi network that is **not** in your trusted list, and disconnect on a **trusted** one. The trusted-SSID list is managed in **Settings → WiFi → Trusted networks** (one SSID per line, or use *Add current WiFi network*). The whole list shares this one action.
+
+### Rule evaluation order
+
+On every WiFi change the engine walks these steps and **stops at the first match**:
+
+1. **Manual mode** — if WiFi automation is off, nothing happens.
+2. **Open network protection** — on an open (passwordless) network with a tunnel assigned, that tunnel is activated before any rule.
+3. **WiFi-SSID rules** — an *enabled* WiFi rule whose SSID equals the current network. (Drag to reorder; first match wins.)
+4. **Trusted-network protection** — if an *enabled* Trusted-networks rule exists: **untrusted** network → connect its tunnel; **trusted** network → disconnect.
+5. **Default action** — the fallback (do nothing / disconnect / activate a tunnel).
+
+Schedule rules run on their own timer rather than in this WiFi chain. When WiFi drops **entirely** (no network at all), only *Default action = Disconnect* applies — nothing can classify a network that isn't there.
+
+#### Default action vs. Trusted networks
+
+Both are catch-alls for a network that no specific rule matched — the difference is how many outcomes they produce:
+
+| | **Default action** | **Trusted-network protection** |
+|---|---|---|
+| Decides based on | Nothing — same result for every unmatched network | Whether the SSID is in your trusted list |
+| Outcomes | **One** (none / disconnect / connect a fixed tunnel) | **Two** (untrusted → connect · trusted → disconnect) |
+| Runs when WiFi drops completely | Yes | No (no SSID to classify) |
+
+Because trusted-network protection sits **above** default action, while an enabled Trusted-networks rule exists it handles every named network and the **default action never fires** for one — default action then only matters when WiFi drops entirely. In effect trusted protection is a more expressive default action: *"default = connect X"* is the same as a trusted rule with an empty trusted list, and *"default = disconnect"* is a trusted rule where every network is trusted. Use trusted protection when you want "VPN on everything except my home/office WiFi"; use plain default action when one blanket outcome is enough.
+
+### Enable / disable a rule
+
+Select a rule and click **Disable** (or **Enable**) below the list. A disabled rule stays in the list but is skipped by the engine — its row greys out and shows a `⊘` marker before the name. This is the tidy way to switch a rule off temporarily without deleting it.
 
 ### Hits counter
 
@@ -283,14 +321,15 @@ Changes deferred until Save.
 
 ## 11. Settings — WiFi
 
-Everything that controls what happens when your network changes, in evaluation order: rules first, then the default action when no rule matches, plus open network protection.
+Everything that controls what happens when your network changes. For the exact precedence see **§8 → Rule evaluation order** (open network → SSID rules → trusted-network → default action).
 
 **Layout (top to bottom):**
-1. Rules list — Add / Edit / Delete buttons
+1. Rules list — **Add / Edit / Delete** and **Enable / Disable** buttons (the last reflects the selected rule's state)
 2. **Disable WiFi rules** toggle — pauses all automation
-3. **Default action** picker: None / Disconnect / Activate tunnel — applied when no rule matches the current SSID. Same as the Defaults button popup but deferred to Settings Save
-4. **Open network protection** tunnel picker — activated when connecting to an unsecured (open) WiFi network, before any SSID rule or default action
-5. Display — **Hide WiFi rules on main window** and **Show Rules column** in tunnel list toggles
+3. **Default action** picker: None / Disconnect / Activate tunnel — the fallback when no rule matches. Same as the Defaults button popup but deferred to Settings Save
+4. **Open network protection** tunnel picker — activated on an unsecured (open) WiFi network, before any SSID rule or default action
+5. **Trusted networks** — the safe-SSID list for a *Trusted networks* rule (one SSID per line; **Add current WiFi network** appends the network you're on, skipping duplicates). Enabling the feature and choosing its tunnel is done in the rule itself, not here — see §8
+6. Display — **Hide WiFi rules on main window** and **Show Rules column** in tunnel list toggles
 
 Rules changes save via the main Save button.
 
@@ -388,10 +427,46 @@ App maintenance and diagnostics only — tunnel behaviour settings (auto-reconne
 
 **Order:**
 1. Import / Export settings
-2. Log level (Normal / Extended)
-3. Installation — run mode, Install/Uninstall button
-4. WireGuard client — open the WireGuard for Windows app
-5. Orphaned services — scan and clean up
+2. Managed preset — export the current settings as a locked policy
+3. Log level (Normal / Extended)
+4. Installation — run mode, Install/Uninstall button
+5. WireGuard client — open the WireGuard for Windows app
+6. Orphaned services — scan and clean up
+
+### Managed preset (locked settings)
+
+A **managed preset** lets you ship a build in which the settings are pre-set and **locked** — for a company rollout, a family/kids' laptop, a kiosk, or any "configure once, hand it out" scenario.
+
+**One file, two roles.** A **`.masselguard`** file always holds a full snapshot of the app's settings, plus an optional **`Locked`** marker. What it does depends on where it is:
+- **Imported** (Setup wizard Step 0, or Advanced → Import) → *all* its settings are applied and stay **editable**; `Locked` is ignored.
+- **Placed next to `MasselGUARD.exe`** → only the sections/settings listed under **`Locked`** are **forced and locked**; every other value is ignored (a file with no `Locked` does nothing as a preset).
+
+**How the lock works.** On startup the app looks for any `*.masselguard` next to the exe. If it finds one with a `Locked` list, it forces those settings and locks them, and re-applies them on every save so editing `config.json` by hand can't override them. Delete the file and everything unlocks on the next launch. `MasselGUARDcli.exe` (same folder) obeys the same policy.
+
+> **Soft lock, not tamper-proof.** The file sits in the app folder, so anyone who can write there can edit or delete it. Meant for **managed distributions** where users don't tamper with the build — not a security boundary against a hostile local user.
+
+**What a locked setting looks like.** A banner appears at the top of Settings — *"🔒 Some settings are locked by the *&lt;policy name&gt;* policy."* — and every locked control is greyed out with a 🔒 tooltip. WiFi-rule **Add / Edit / Delete** buttons are disabled when the automation section is locked.
+
+**Creating one.** Configure the app the way you want, then **Advanced → Import / Export → "Export settings as preset…"** (next to Export/Import settings). Enter a **policy name** (shown in the banner) and tick which **settings to lock** — items are grouped by section, and each section header selects/clears all of its items, so you can lock a whole section *or* single settings (e.g. lock **Tray notification on switch** but leave **Notification duration** open, both under Appearance/Notifications). The saved `.masselguard` contains **all** current settings (so it's also a normal, importable backup); the ticked items go under `Locked.settings`. **Tunnel definitions are never included** — they're per-site, and their secrets never leave the app. Drop the file next to the exe in your distribution zip.
+
+**Themes.** If a locked policy sets a theme that isn't installed in the build, the app downloads it from the shared-themes repo on first launch; if that fails it falls back to system colours.
+
+**Installing.** If you use **Advanced → Install** (managed install) and a `.masselguard` sits next to the exe, the app offers to copy it into the install folder so the installed copy stays locked.
+
+**Format** (human-readable JSON — all settings present; `PolicyName` and `Locked` are the policy bits):
+```json
+{
+  "PolicyName": "Family Safe",
+  "Locked": { "blocks": ["killSwitch", "updates"], "settings": ["Language"] },
+
+  "Mode": "Companion",
+  "Language": "en",
+  "KillSwitchMode": "always",
+  "UpdateCheckFrequency": "never",
+  "Rules": [ … ]
+}
+```
+Here import applies everything; as a preset only `KillSwitchMode`, `UpdateCheckFrequency` (from the two blocks) and `Language` are forced + locked.
 
 ### Extended log on Save
 
@@ -825,8 +900,9 @@ MasselGUARD info "1.MasselinkVPN-Split-AG"
 ### Version output
 
 ```
-MasselGUARD v3.6.0  |  Dangerous Donkey
-build:   2606040000
+MasselGUARD v3.9.0  |  Adaptive Armadillo
+build:   2608200000
+arch:    x64
 Harold Masselink  |  https://masselink.net
 Update:  up to date
 ```

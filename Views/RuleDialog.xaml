@@ -41,22 +41,95 @@
                 <TextBox x:Name="NameBox" Margin="0,0,0,12"
                          TextChanged="NameBox_TextChanged"/>
 
-                <!-- SSID -->
-                <TextBlock Text="{Binding [RuleDialogSsidLabel], Source={x:Static local:Lang.Instance}}"
+                <!-- Trigger type -->
+                <TextBlock Text="{Binding [RuleDialogTriggerTypeLabel], Source={x:Static local:Lang.Instance}}"
                            FontFamily="{DynamicResource Theme.FontFamily}"
                            FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4"/>
-                <Grid Margin="0,0,0,12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBox Grid.Column="0" x:Name="SsidBox" Margin="0,0,8,0"
-                             TextChanged="SsidBox_TextChanged"/>
-                    <Button Grid.Column="1"
-                            Content="{Binding [BtnUseCurrent], Source={x:Static local:Lang.Instance}}"
-                            Style="{StaticResource FlatBtn}"
-                            FontSize="10" Padding="10,6" Click="UseCurrent_Click"/>
-                </Grid>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                    <RadioButton x:Name="TypeWifiRadio" GroupName="RuleType" IsChecked="True"
+                                 Content="{Binding [RuleDialogTypeWifi], Source={x:Static local:Lang.Instance}}"
+                                 Foreground="{DynamicResource TextPrimary}"
+                                 FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                 Margin="0,0,16,0" Checked="RuleType_Changed"/>
+                    <RadioButton x:Name="TypeScheduleRadio" GroupName="RuleType"
+                                 Content="{Binding [RuleDialogTypeSchedule], Source={x:Static local:Lang.Instance}}"
+                                 Foreground="{DynamicResource TextPrimary}"
+                                 FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                 Margin="0,0,16,0" Checked="RuleType_Changed"/>
+                    <RadioButton x:Name="TypeTrustedRadio" GroupName="RuleType"
+                                 Content="{Binding [RuleDialogTypeTrusted], Source={x:Static local:Lang.Instance}}"
+                                 Foreground="{DynamicResource TextPrimary}"
+                                 FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                 Checked="RuleType_Changed"/>
+                </StackPanel>
+
+                <!-- Trusted networks (SSID list lives in Settings) -->
+                <StackPanel x:Name="TrustedPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                    <Border Background="{DynamicResource Surface}"
+                            BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                            CornerRadius="{DynamicResource Theme.CornerRadius}"
+                            Padding="10,8">
+                        <TextBlock Text="{Binding [RuleDialogTrustedInfo], Source={x:Static local:Lang.Instance}}"
+                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+                    </Border>
+                </StackPanel>
+
+                <!-- SSID (WiFi rules) -->
+                <StackPanel x:Name="SsidPanel">
+                    <TextBlock Text="{Binding [RuleDialogSsidLabel], Source={x:Static local:Lang.Instance}}"
+                               FontFamily="{DynamicResource Theme.FontFamily}"
+                               FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4"/>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0" x:Name="SsidBox" Margin="0,0,8,0"
+                                 TextChanged="SsidBox_TextChanged"/>
+                        <Button Grid.Column="1"
+                                Content="{Binding [BtnUseCurrent], Source={x:Static local:Lang.Instance}}"
+                                Style="{StaticResource FlatBtn}"
+                                FontSize="10" Padding="10,6" Click="UseCurrent_Click"/>
+                    </Grid>
+                </StackPanel>
+
+                <!-- Schedule (time rules) -->
+                <StackPanel x:Name="SchedulePanel" Visibility="Collapsed">
+                    <TextBlock Text="{Binding [RuleDialogDaysLabel], Source={x:Static local:Lang.Instance}}"
+                               FontFamily="{DynamicResource Theme.FontFamily}"
+                               FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                        <ToggleButton x:Name="DayMon" Tag="1" Content="Mon" Width="42" FontSize="10" Margin="0,0,3,0" IsChecked="True"/>
+                        <ToggleButton x:Name="DayTue" Tag="2" Content="Tue" Width="42" FontSize="10" Margin="0,0,3,0" IsChecked="True"/>
+                        <ToggleButton x:Name="DayWed" Tag="3" Content="Wed" Width="42" FontSize="10" Margin="0,0,3,0" IsChecked="True"/>
+                        <ToggleButton x:Name="DayThu" Tag="4" Content="Thu" Width="42" FontSize="10" Margin="0,0,3,0" IsChecked="True"/>
+                        <ToggleButton x:Name="DayFri" Tag="5" Content="Fri" Width="42" FontSize="10" Margin="0,0,3,0" IsChecked="True"/>
+                        <ToggleButton x:Name="DaySat" Tag="6" Content="Sat" Width="42" FontSize="10" Margin="0,0,3,0"/>
+                        <ToggleButton x:Name="DaySun" Tag="0" Content="Sun" Width="42" FontSize="10"/>
+                    </StackPanel>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="{Binding [RuleDialogStartLabel], Source={x:Static local:Lang.Instance}}"
+                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                       FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4"/>
+                            <TextBox x:Name="StartTimeBox" Text="09:00"/>
+                        </StackPanel>
+                        <TextBlock Grid.Column="1" Text="–" VerticalAlignment="Bottom"
+                                   Foreground="{DynamicResource TextMuted}" Margin="8,0,8,4"/>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="{Binding [RuleDialogEndLabel], Source={x:Static local:Lang.Instance}}"
+                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                       FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4"/>
+                            <TextBox x:Name="EndTimeBox" Text="17:00"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
 
                 <!-- Tunnel -->
                 <TextBlock Text="{Binding [RuleDialogTunnelLabel], Source={x:Static local:Lang.Instance}}"

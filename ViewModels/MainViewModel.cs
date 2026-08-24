@@ -24,6 +24,7 @@ namespace MasselGUARD.ViewModels
         private readonly LogService     _log;
         private readonly WiFiService    _wifi;
         private readonly RuleEngine     _rules;
+        private readonly HistoryService _history;
         private readonly DispatcherTimer _timer;
 
         // ── Observable state ──────────────────────────────────────────────────
@@ -84,13 +85,15 @@ namespace MasselGUARD.ViewModels
             TunnelService  tunnels,
             LogService     log,
             WiFiService    wifi,
-            RuleEngine     rules)
+            RuleEngine     rules,
+            HistoryService history)
         {
             _config  = config;
             _tunnels = tunnels;
             _log     = log;
             _wifi    = wifi;
             _rules   = rules;
+            _history = history;
 
             AddTunnelCommand    = new RelayCommand(DoAddTunnel);
             EditTunnelCommand   = new RelayCommand(DoEditTunnel,
@@ -103,7 +106,7 @@ namespace MasselGUARD.ViewModels
 
             // Status poll
             _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            _timer.Tick += (_, _) => { RefreshTunnelStatus(); StatusTick?.Invoke(); };
+            _timer.Tick += (_, _) => { RefreshTunnelStatus(); CheckSchedules(); StatusTick?.Invoke(); };
             _timer.Start();
 
             // WiFi events are handled by MainWindow which calls InitialWifiCheck()
@@ -230,6 +233,37 @@ namespace MasselGUARD.ViewModels
         /// <summary>Tunnels currently in a warned PotentialLeak episode (re-armed on recovery/disconnect).</summary>
         private readonly HashSet<string> _dnsLeakWarned = new(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>Keys "tunnel|yyyy-MM" already warned about exceeding the monthly data cap.</summary>
+        private readonly HashSet<string> _dataCapWarned = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Edge-triggered "monthly data cap reached" warning. Fires a one-time tray toast +
+        /// log line the first time a tunnel's month-to-date total crosses its configured cap.
+        /// Re-arms automatically next calendar month (the key includes yyyy-MM).
+        /// </summary>
+        private void MaybeWarnDataCap(TunnelEntryViewModel t, long monthlyBytes)
+        {
+            long capMB = t.StoredTunnel.MonthlyCapMB;
+            if (capMB <= 0) return;                                 // no cap set
+            if (monthlyBytes < capMB * 1_048_576L) return;          // under cap
+
+            var key = $"{t.Name}|{DateTime.UtcNow:yyyy-MM}";
+            if (!_dataCapWarned.Add(key)) return;                   // already warned this month
+
+            _log.Warn($"Monthly data cap reached for {t.Name}: " +
+                      $"{capMB} MB used this month.");
+            if (_config.Config.ShowTrayPopupOnSwitch)
+                (Application.Current as App)?.ShowTrayNotification(
+                    new Views.ToastNotification
+                    {
+                        Category   = "Data cap reached",
+                        Primary    = $"{t.Name}: monthly data cap reached",
+                        Secondary  = $"{capMB} MB used this month.",
+                        StripColor = "Warning",
+                        DurationMs = _config.Config.NotificationDurationSeconds * 1000,
+                    });
+        }
+
         /// <summary>
         /// Edge-triggered "possible DNS leak" warning. Fires a one-time tray toast + log
         /// line when a tunnel's DNS status first becomes PotentialLeak — but only while the
@@ -237,7 +271,7 @@ namespace MasselGUARD.ViewModels
         /// the machine policy contains the leak, on Secure/NotConfigured/Unknown, and after
         /// the first warning until the status recovers (tracked in <see cref="_dnsLeakWarned"/>).
         /// </summary>
-        private void MaybeWarnDnsLeak(TunnelEntryViewModel t, TunnelDll.DnsLeakStatus dns)
+        private void MaybeWarnDnsLeak(TunnelEntryViewModel t, TunnelDll.DnsLeakStatus dns, bool mitigated)
         {
             if (dns != TunnelDll.DnsLeakStatus.PotentialLeak)
             {
@@ -248,7 +282,7 @@ namespace MasselGUARD.ViewModels
             bool wantToast = _config.Config.DnsLeakWarnToast;
             if (!wantLog && !wantToast)          return;   // both warning channels off
             if (_dnsLeakWarned.Contains(t.Name)) return;   // already warned this episode
-            if (Services.DnsLeakService.IsSmartNameResolutionDisabled()) return;  // contained → no message
+            if (mitigated) return;                         // prevention active → contained → no message
 
             _dnsLeakWarned.Add(t.Name);
             if (wantLog)
@@ -286,8 +320,16 @@ namespace MasselGUARD.ViewModels
                     var stats = TunnelDll.GetTrafficStats(t.Name);
                     t.UpdateStats(stats);
                     var dns = TunnelDll.CheckDnsLeak(t.Name);
-                    t.UpdateDnsStatus(dns);
-                    MaybeWarnDnsLeak(t, dns);
+                    // Prevention state (machine-wide) — a set leak becomes "contained".
+                    bool dnsMitigated = Services.DnsLeakService.IsSmartNameResolutionDisabled();
+                    t.UpdateDnsStatus(dns, dnsMitigated);
+                    MaybeWarnDnsLeak(t, dns, dnsMitigated);
+
+                    // Monthly data usage = closed-session history for this month + live session.
+                    var (mrx, mtx) = _history.GetMonthlyUsage(t.Name, DateTime.UtcNow);
+                    long monthTotal = mrx + mtx + t.SessionBytes;
+                    t.UpdateMonthlyUsage(monthTotal);
+                    MaybeWarnDataCap(t, monthTotal);
 
                     // Local tunnel: if the kernel adapter is gone but we still think
                     // it's connected (IsRunning checks in-memory HashSet only),
@@ -539,6 +581,54 @@ namespace MasselGUARD.ViewModels
                         StripColor = stripKey,
                         DurationMs = ms,
                     });
+            }
+        }
+
+        // ── Schedule (time-based rules) ───────────────────────────────────────
+
+        private string? _scheduleActiveTunnel;
+        private int     _lastScheduleMinute = -1;
+
+        /// <summary>
+        /// Time-rule scheduler. Invoked every second from the status poll but acts
+        /// only when the wall-clock minute changes. Activates a schedule rule's tunnel
+        /// when its window opens, and disconnects the schedule-driven tunnel when the
+        /// window closes. Explicit WiFi rules and manual actions can still override.
+        /// </summary>
+        public void CheckSchedules()
+        {
+            var now = DateTime.Now;
+            if (now.Minute == _lastScheduleMinute) return;
+            _lastScheduleMinute = now.Minute;
+
+            if (_config.Config.ManualMode) return;
+
+            var r = _rules.EvaluateSchedules(_config.Config, now);
+
+            switch (r.Action)
+            {
+                case RuleEngine.ActionKind.Activate:
+                    if (!string.Equals(_scheduleActiveTunnel, r.TunnelName,
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        _scheduleActiveTunnel = r.TunnelName;
+                        ApplyRuleResult(r);
+                    }
+                    break;
+
+                case RuleEngine.ActionKind.Disconnect:
+                    _scheduleActiveTunnel = null;
+                    ApplyRuleResult(r);
+                    break;
+
+                default: // None — no schedule window currently open
+                    if (_scheduleActiveTunnel != null)
+                    {
+                        _scheduleActiveTunnel = null;
+                        ApplyRuleResult(new RuleEngine.RuleResult(
+                            RuleEngine.ActionKind.Disconnect, null, "Schedule window ended"));
+                    }
+                    break;
             }
         }
 

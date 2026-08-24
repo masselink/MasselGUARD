@@ -144,7 +144,7 @@ namespace MasselGUARD
             RuleEngine     = new RuleEngine();
 
             // ── Build ViewModel ───────────────────────────────────────────────
-            _vm = new MainViewModel(ConfigSvc, TunnelSvc, LogSvc, WifiSvc, RuleEngine);
+            _vm = new MainViewModel(ConfigSvc, TunnelSvc, LogSvc, WifiSvc, RuleEngine, HistorySvc);
 
             // ── Wire ViewModel → View dialog requests ─────────────────────────
             _vm.AddTunnelRequested    += OnAddTunnel;
@@ -285,6 +285,7 @@ namespace MasselGUARD
             RebuildTunnelGroups();
             RefreshWifiRulesPanel();
             UpdateStatusBarCentre();
+            ApplyPolicyGating();
 
             // WiFi — single consolidated handler: label + rule evaluation
             WifiSvc.SsidChanged += OnWifiChanged;
@@ -313,6 +314,12 @@ namespace MasselGUARD
             // Background update check (frequency-based) — also refreshes the badge when done
             if (ShouldCheckForUpdates())
                 _ = CheckForUpdatesAsync(silent: true);
+
+            // Running the x64 build emulated on an ARM64 PC — offer a one-click switch to the
+            // native ARM64 build (unless the user chose "Don't remind me"). Local tunnels can't
+            // work under emulation, so this is worth surfacing proactively.
+            if (!ConfigSvc.Config.ArmSwitchDismissed && TunnelDll.ArchSupportError() != null)
+                _ = OfferArm64SwitchAsync();
 
             // Managed Portable + different version → offer to overwrite installed version
             if (AppRunMode == AppRunModeKind.ManagedPortable)
@@ -917,11 +924,22 @@ namespace MasselGUARD
             return null;
         }
 
+        /// <summary>
+        /// Disables the main-window Add buttons a managed preset forbids. Edit/Delete/Toggle
+        /// (selection-driven) are gated in their SelectionChanged handlers.
+        /// </summary>
+        private void ApplyPolicyGating()
+        {
+            if (AddTunnelBtn  != null && ConfigSvc.TunnelsLocked)  AddTunnelBtn.IsEnabled  = false;
+            if (WifiRuleAddBtn != null && ConfigSvc.IsLocked("Rules")) WifiRuleAddBtn.IsEnabled = false;
+        }
+
         private void TunnelsListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             _vm.SelectedTunnel = TunnelsListView.SelectedItem as TunnelEntryViewModel;
-            EditTunnelBtn.IsEnabled   = _vm.SelectedTunnel != null;
-            DeleteTunnelBtn.IsEnabled = _vm.SelectedTunnel != null;
+            bool tunnelsLocked = ConfigSvc.TunnelsLocked;
+            EditTunnelBtn.IsEnabled   = _vm.SelectedTunnel != null && !tunnelsLocked;
+            DeleteTunnelBtn.IsEnabled = _vm.SelectedTunnel != null && !tunnelsLocked;
             DeleteTunnelBtn.Visibility = _vm.SelectedTunnel != null
                 ? Visibility.Visible : Visibility.Collapsed;
             if (_vm.SelectedTunnel != null)
@@ -948,6 +966,39 @@ namespace MasselGUARD
             }
         }
 
+        private void ShowQr_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is not TunnelEntryViewModel vm)
+                return;
+            var stored = vm.StoredTunnel;
+
+            // Only local tunnels have a config stored in MasselGUARD to encode.
+            if (stored.Source != "local")
+            {
+                MessageBox.Show(Lang.T("QrExportUnavailable"),
+                    Lang.T("QrExportTitle", stored.Name),
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            string config;
+            try { config = Services.TunnelService.DecryptConfig(stored); }
+            catch (Exception ex)
+            {
+                LogSvc.Warn($"QR export failed: {ex.Message}");
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(config))
+            {
+                MessageBox.Show(Lang.T("QrExportUnavailable"),
+                    Lang.T("QrExportTitle", stored.Name),
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            new Views.QrExportWindow(stored.Name, config) { Owner = this }.ShowDialog();
+        }
+
         // ── Dialog dispatchers (called by ViewModel events) ───────────────────
         private void OnAddTunnel()
         {
@@ -971,6 +1022,7 @@ namespace MasselGUARD
                 PostDisconnectScript= dlg.ResultPostDisconnectScript,
                 KillSwitch          = dlg.ResultKillSwitch,
                 AutoReconnect       = arMode != "always" && dlg.ResultAutoReconnect,
+                MonthlyCapMB        = dlg.ResultMonthlyCapMB,
             };
             ConfigSvc.Config.Tunnels.Add(stored);
             ConfigSvc.Save();
@@ -999,7 +1051,7 @@ namespace MasselGUARD
                     isGlobalAlways: isGlobalAlways,
                     isAutoReconnect: stored.AutoReconnect || arAlways,
                     autoReconnectMode: arMode,
-                    isSkipValidation: stored.SkipValidation)
+                    existingMonthlyCapMB: stored.MonthlyCapMB)
                     { Owner = this }
                 : new Views.TunnelMetadataDialog(
                     stored.Name, stored.Group, stored.Notes,
@@ -1011,7 +1063,7 @@ namespace MasselGUARD
                     isGlobalAlways: isGlobalAlways,
                     isAutoReconnect: stored.AutoReconnect || arAlways,
                     autoReconnectMode: arMode,
-                    isSkipValidation: stored.SkipValidation)
+                    existingMonthlyCapMB: stored.MonthlyCapMB)
                     { Owner = this };
 
             if (dlg.ShowDialog() != true) return;
@@ -1039,7 +1091,7 @@ namespace MasselGUARD
                 newOpen    = tcd.ResultIsOpenProtection;
                 if (!isGlobalAlways) stored.KillSwitch    = tcd.ResultKillSwitch;
                 if (!arAlways)      stored.AutoReconnect = tcd.ResultAutoReconnect;
-                stored.SkipValidation = tcd.ResultSkipValidation;
+                stored.MonthlyCapMB   = tcd.ResultMonthlyCapMB;
             }
             else if (dlg is Views.TunnelMetadataDialog tmd)
             {
@@ -1053,7 +1105,7 @@ namespace MasselGUARD
                 newOpen    = tmd.ResultIsOpenProtection;
                 if (!isGlobalAlways) stored.KillSwitch    = tmd.ResultKillSwitch;
                 if (!arAlways)      stored.AutoReconnect = tmd.ResultAutoReconnect;
-                stored.SkipValidation = tmd.ResultSkipValidation;
+                stored.MonthlyCapMB   = tmd.ResultMonthlyCapMB;
             }
             else return;
 
@@ -1439,6 +1491,18 @@ namespace MasselGUARD
             };
 
             var theme = cfg.ActiveTheme;
+
+            // A managed preset can force a theme that isn't installed in this build. Fetch it from
+            // the shared-themes repo in the background and fall back to system colours until it
+            // lands (permanently, if the download fails).
+            if (!string.IsNullOrEmpty(theme) && theme != "__system__"
+                && ConfigSvc.HasManagedPreset && ConfigSvc.IsLocked("ActiveTheme")
+                && !ThemeManager.ThemeExists(theme))
+            {
+                _ = TryInstallPresetThemeAsync(theme);
+                theme = "__system__";
+            }
+
             if (string.IsNullOrEmpty(theme) || theme == "__system__")
                 ThemeManager.Instance.LoadSystem(isDark);
             else
@@ -1446,6 +1510,28 @@ namespace MasselGUARD
 
             // Font override: applied after theme so it wins over the theme's own font.
             ThemeManager.ApplyFontOverride(cfg.FontOverrideEnabled, cfg.FontOverrideFamily, cfg.FontOverrideSize);
+        }
+
+        /// <summary>
+        /// Downloads shared themes from the repo so a preset-forced theme becomes available, then
+        /// re-applies the real theme. Best-effort — on failure the app stays on system colours.
+        /// </summary>
+        private async System.Threading.Tasks.Task TryInstallPresetThemeAsync(string themeName)
+        {
+            try
+            {
+                var url = (ConfigSvc.Config.SharedThemesRepoUrl ?? "").Trim();
+                if (string.IsNullOrWhiteSpace(url)) url = Models.AppConfig.DefaultSharedThemesRepoUrl;
+                await ThemeDownloadService.DownloadAsync(url, ThemeManager.SharedThemeRoot);
+                if (ThemeManager.ThemeExists(themeName))
+                    Dispatcher.Invoke(ApplyThemeFromConfig);
+                else
+                    LogSvc.Warn($"Preset theme '{themeName}' not found in the shared-themes repo — using system colours.");
+            }
+            catch (Exception ex)
+            {
+                LogSvc.Warn($"Could not fetch preset theme '{themeName}': {ex.Message} — using system colours.");
+            }
         }
 
         internal void ApplyManualMode()
@@ -1891,8 +1977,16 @@ namespace MasselGUARD
             System.Windows.Controls.SelectionChangedEventArgs e)
         {
             bool hasSelection = WifiRulesListView.SelectedItem != null;
-            if (WifiRuleEditBtn   != null) WifiRuleEditBtn.IsEnabled   = hasSelection;
-            if (WifiRuleDeleteBtn != null) WifiRuleDeleteBtn.IsEnabled = hasSelection;
+            bool rulesLocked  = ConfigSvc.IsLocked("Rules");
+            if (WifiRuleEditBtn   != null) WifiRuleEditBtn.IsEnabled   = hasSelection && !rulesLocked;
+            if (WifiRuleDeleteBtn != null) WifiRuleDeleteBtn.IsEnabled = hasSelection && !rulesLocked;
+            if (WifiRuleToggleBtn != null)
+            {
+                WifiRuleToggleBtn.IsEnabled = hasSelection && !rulesLocked;
+                // Label reflects what the button will DO to the selected rule.
+                bool enabled = (WifiRulesListView.SelectedItem as WifiRuleRow)?.Rule.Enabled ?? true;
+                WifiRuleToggleBtn.Content = Lang.T(enabled ? "BtnDisableRule" : "BtnEnableRule");
+            }
         }
 
         /// <summary>
@@ -1920,18 +2014,26 @@ namespace MasselGUARD
                 { Owner = this };
             if (dlg.ShowDialog() != true) return;
             var rule = new Models.TunnelRule
-                { Name = dlg.ResultName, Ssid = dlg.ResultSsid, Tunnel = dlg.ResultTunnel };
+            {
+                Kind      = dlg.ResultKind,
+                Name      = dlg.ResultName,
+                Ssid      = dlg.ResultSsid,
+                Tunnel    = dlg.ResultTunnel,
+                StartTime = dlg.ResultStartTime,
+                EndTime   = dlg.ResultEndTime,
+                Days      = dlg.ResultDays,
+            };
             ConfigSvc.Config.Rules.Add(rule);
-            LogSvc.Ok($"Rule added: {rule.Ssid}");
+            LogSvc.Ok($"Rule added: {rule.RuleName}");
             OnRulesChanged();
         }
 
         private void WifiRuleEdit_Click(object sender, RoutedEventArgs e)
         {
             if (WifiRulesListView.SelectedItem is not WifiRuleRow row) return;
-            var rule = ConfigSvc.Config.Rules
-                .FirstOrDefault(r => r.Ssid == row.Ssid);
-            if (rule == null) return;
+            // Operate on the exact rule instance — matching by SSID breaks for trusted /
+            // schedule rules, whose SSID is empty.
+            var rule = row.Rule;
 
             var oldCount = rule.ExecutionCount;
             var dlg = new Views.RuleDialog(
@@ -1940,14 +2042,22 @@ namespace MasselGUARD
                 existingSsid:   rule.Ssid,
                 existingTunnel: rule.Tunnel,
                 executionCount: rule.ExecutionCount,
-                tunnels:        GetTunnelNames())
+                tunnels:        GetTunnelNames(),
+                existingKind:   rule.Kind,
+                existingStart:  rule.StartTime,
+                existingEnd:    rule.EndTime,
+                existingDays:   rule.Days)
                 { Owner = this };
             if (dlg.ShowDialog() != true) return;
-            rule.Name   = dlg.ResultName;
-            rule.Ssid   = dlg.ResultSsid;
-            rule.Tunnel = dlg.ResultTunnel;
+            rule.Kind      = dlg.ResultKind;
+            rule.Name      = dlg.ResultName;
+            rule.Ssid      = dlg.ResultSsid;
+            rule.Tunnel    = dlg.ResultTunnel;
+            rule.StartTime = dlg.ResultStartTime;
+            rule.EndTime   = dlg.ResultEndTime;
+            rule.Days      = dlg.ResultDays;
             if (dlg.ResultNewCounterValue >= 0) rule.ExecutionCount = dlg.ResultNewCounterValue;
-            LogSvc.Ok($"Rule updated: {rule.Ssid}");
+            LogSvc.Ok($"Rule updated: {rule.RuleName}");
             if (dlg.ResultNewCounterValue >= 0)
                 LogSvc.Info($"  Counter: {oldCount} → {dlg.ResultNewCounterValue}");
             OnRulesChanged();
@@ -1956,13 +2066,26 @@ namespace MasselGUARD
         private void WifiRuleDelete_Click(object sender, RoutedEventArgs e)
         {
             if (WifiRulesListView.SelectedItem is not WifiRuleRow row) return;
-            var rule = ConfigSvc.Config.Rules
-                .FirstOrDefault(r => r.Ssid == row.Ssid && r.Tunnel == row.TunnelName);
-            if (rule == null) return;
-            if (!ShowThemedYesNo($"Delete rule for \"{rule.Ssid}\"?", "Delete rule")) return;
+            var rule = row.Rule;
+            if (!ShowThemedYesNo($"Delete rule \"{rule.RuleName}\"?", "Delete rule")) return;
             ConfigSvc.Config.Rules.Remove(rule);
-            LogSvc.Ok($"Rule deleted: {rule.Ssid}");
+            LogSvc.Ok($"Rule deleted: {rule.RuleName}");
             OnRulesChanged();
+        }
+
+        private void WifiRuleToggle_Click(object sender, RoutedEventArgs e)
+        {
+            if (WifiRulesListView.SelectedItem is not WifiRuleRow row) return;
+            var rule = row.Rule;
+            rule.Enabled = !rule.Enabled;          // grey-out + icon update via bindings
+            LogSvc.Ok(rule.Enabled
+                ? $"Rule enabled: {rule.RuleName}"
+                : $"Rule disabled: {rule.RuleName}");
+            ConfigSvc.Save();
+            _vm.RebuildTunnelList();
+            // Refresh the button label for the still-selected row.
+            if (WifiRuleToggleBtn != null)
+                WifiRuleToggleBtn.Content = Lang.T(rule.Enabled ? "BtnDisableRule" : "BtnEnableRule");
         }
 
         // ── Defaults popup ────────────────────────────────────────────────────
@@ -2344,6 +2467,8 @@ namespace MasselGUARD
 
         private sealed class WifiRuleRow
         {
+            /// <summary>The underlying rule — edit/delete/toggle act on this exact instance.</summary>
+            public Models.TunnelRule Rule { get; }
             public string RuleName      { get; }
             public string Ssid          { get; }
             public string ActionLabel   { get; }
@@ -2397,12 +2522,10 @@ namespace MasselGUARD
             public WifiRuleRow(Models.TunnelRule r, string? filter, MainWindow main)
             {
                 _main          = main;
-                // Display name: use stored name or auto-generate
-                var autoName   = string.IsNullOrEmpty(r.Tunnel)
-                    ? $"{(string.IsNullOrEmpty(r.Ssid) ? "—" : r.Ssid)} → disconnect"
-                    : $"{(string.IsNullOrEmpty(r.Ssid) ? "—" : r.Ssid)} → {r.Tunnel}";
-                RuleName       = string.IsNullOrEmpty(r.Name) ? autoName : r.Name;
-                Ssid           = string.IsNullOrEmpty(r.Ssid) ? "—" : r.Ssid;
+                Rule           = r;
+                // Kind-aware display comes straight from the rule (handles wifi / schedule / trusted).
+                RuleName       = r.RuleName;
+                Ssid           = r.SsidDisplay;
                 TunnelName     = string.IsNullOrEmpty(r.Tunnel) ? "" : r.Tunnel;
                 ActionLabel    = string.IsNullOrEmpty(r.Tunnel)
                     ? Lang.T("RuleActionDisconnect")
@@ -2708,6 +2831,125 @@ namespace MasselGUARD
             catch { /* silent — network may not be available */ }
         }
 
+        // ── ARM64 switch (x64 build running emulated on an ARM64 PC) ──────────
+        private enum Arm64Choice { Download, Later, Dismiss }
+
+        /// <summary>
+        /// Offers to download the latest ARM64 build from GitHub and switch this install to it.
+        /// Shown at startup only when running the x64 build on an ARM64 system. "Download" reuses
+        /// the update pipeline forced to the arm64 asset; "Don't remind me" persists a flag.
+        /// </summary>
+        private async System.Threading.Tasks.Task OfferArm64SwitchAsync()
+        {
+            // Let the window settle before popping a modal over it.
+            await System.Threading.Tasks.Task.Delay(1200);
+
+            var choice = Arm64Choice.Later;
+            await Dispatcher.InvokeAsync(() => { choice = ShowArm64SwitchPrompt(); });
+
+            if (choice == Arm64Choice.Dismiss)
+            {
+                ConfigSvc.Config.ArmSwitchDismissed = true;
+                ConfigSvc.Save();
+                return;
+            }
+            if (choice != Arm64Choice.Download) return;   // Later → offer again next launch
+
+            try
+            {
+                // Force the arm64 asset even though this process is emulated x64.
+                var release = await UpdateChecker.FetchLatestReleaseAsync(forceArch: "arm64");
+                if (release?.ZipUrl == null)
+                {
+                    await Dispatcher.InvokeAsync(() =>
+                        ShowThemedInfo(Lang.T("Arm64NoticeNoAsset"), Lang.T("Arm64NoticeTitle")));
+                    return;
+                }
+
+                var progress = new System.Progress<string>(msg => LogSvc.Info($"[ARM64] {msg}"));
+                await UpdateChecker.UpdateAsync(
+                    release, progress, ConfigSvc.Config, ConfigSvc.Save,
+                    onShutdown: () => Dispatcher.Invoke(
+                        () => ((App)System.Windows.Application.Current).ShutdownApp()));
+                // UpdateAsync calls onShutdown on success — execution never reaches here.
+            }
+            catch (Exception ex)
+            {
+                LogSvc.Warn($"[ARM64] switch failed: {ex.Message}");
+                await Dispatcher.InvokeAsync(() =>
+                    ShowThemedInfo(Lang.T("Arm64NoticeFailed"), Lang.T("Arm64NoticeTitle")));
+            }
+        }
+
+        /// <summary>Themed three-choice prompt for the ARM64 switch: Download / Later / Don't remind me.</summary>
+        private Arm64Choice ShowArm64SwitchPrompt()
+        {
+            var choice = Arm64Choice.Later;
+            var win = new Window
+            {
+                WindowStyle           = WindowStyle.None,
+                AllowsTransparency    = true,
+                Background            = System.Windows.Media.Brushes.Transparent,
+                Width                 = 440,
+                SizeToContent         = SizeToContent.Height,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner                 = this,
+                ResizeMode            = ResizeMode.NoResize,
+            };
+
+            var border = new System.Windows.Controls.Border
+            {
+                Background      = (System.Windows.Media.Brush)Application.Current.Resources["WindowBg"],
+                BorderBrush     = (System.Windows.Media.Brush)Application.Current.Resources["Accent"],
+                BorderThickness = new Thickness(1),
+                CornerRadius    = new System.Windows.CornerRadius(6),
+                Padding         = new Thickness(20),
+            };
+
+            var panel = new System.Windows.Controls.StackPanel();
+
+            var titleTb = new System.Windows.Controls.TextBlock
+            {
+                Text       = Lang.T("Arm64NoticeTitle"),
+                FontWeight = FontWeights.Bold,
+                Foreground = (System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
+                Margin     = new Thickness(0, 0, 0, 10),
+            };
+            titleTb.SetResourceReference(FontSizeProperty, "Theme.FontSize");
+            panel.Children.Add(titleTb);
+
+            var msgTb = new System.Windows.Controls.TextBlock
+            {
+                Text         = Lang.T("Arm64NoticeMsg"),
+                Foreground   = (System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
+                TextWrapping = TextWrapping.Wrap,
+                Margin       = new Thickness(0, 0, 0, 16),
+            };
+            msgTb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
+            panel.Children.Add(msgTb);
+
+            var btns = new System.Windows.Controls.StackPanel
+            {
+                Orientation         = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+            };
+            var btnDismiss  = new System.Windows.Controls.Button { Content = Lang.T("Arm64NoticeDismiss"),  Style = (Style)Application.Current.Resources["FlatBtn"],    Padding = new Thickness(14,6,14,6), Margin = new Thickness(0,0,8,0) };
+            var btnLater    = new System.Windows.Controls.Button { Content = Lang.T("Arm64NoticeLater"),    Style = (Style)Application.Current.Resources["FlatBtn"],    Padding = new Thickness(14,6,14,6), Margin = new Thickness(0,0,8,0) };
+            var btnDownload = new System.Windows.Controls.Button { Content = Lang.T("Arm64NoticeDownload"), Style = (Style)Application.Current.Resources["SuccessBtn"], Padding = new Thickness(14,6,14,6) };
+            btnDismiss.Click  += (_, _) => { choice = Arm64Choice.Dismiss;  win.Close(); };
+            btnLater.Click    += (_, _) => { choice = Arm64Choice.Later;    win.Close(); };
+            btnDownload.Click += (_, _) => { choice = Arm64Choice.Download; win.Close(); };
+            btns.Children.Add(btnDismiss);
+            btns.Children.Add(btnLater);
+            btns.Children.Add(btnDownload);
+            panel.Children.Add(btns);
+
+            border.Child = panel;
+            win.Content  = border;
+            win.ShowDialog();
+            return choice;
+        }
+
         /// <summary>Checks installed community themes against the repo manifest for updates —
         /// called alongside the app update check (same frequency/trigger). Purely a passive
         /// result (ConfigSvc.Config.ThemeUpdatesAvailable) for Settings to badge; unlike the
@@ -2815,6 +3057,22 @@ namespace MasselGUARD
                 var langSrc = System.IO.Path.Combine(sourceDir, "lang");
                 if (System.IO.Directory.Exists(langSrc))
                     CopyDirRecursive(langSrc, System.IO.Path.Combine(installDir, "lang"));
+
+                // Managed preset — offer to carry the locked policy into the install so the
+                // installed copy stays managed. Only asked when a *.masselguard sits alongside.
+                try
+                {
+                    var presetSrc = System.IO.Directory.GetFiles(sourceDir, "*" + Services.PresetService.Extension);
+                    if (presetSrc.Length > 0 &&
+                        ShowThemedYesNo(Lang.T("InstallCopyPreset"), Lang.T("InstallTitle")))
+                    {
+                        foreach (var pf in presetSrc)
+                            System.IO.File.Copy(pf,
+                                System.IO.Path.Combine(installDir, System.IO.Path.GetFileName(pf)),
+                                overwrite: true);
+                    }
+                }
+                catch { /* preset copy is best-effort */ }
 
                 var installedExe = System.IO.Path.Combine(installDir, "MasselGUARD.exe");
 

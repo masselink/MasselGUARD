@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
@@ -35,6 +36,21 @@ namespace MasselGUARD.Services
         /// </summary>
         public bool IsFirstRun { get; private set; }
 
+        // ── Managed preset (a .masselguard next to the exe = forced/locked config) ──
+        private System.Text.Json.Nodes.JsonObject? _presetObj;   // cached for re-assert on save
+        private HashSet<string> _lockedKeys = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>True when a *.masselguard file was found next to the exe.</summary>
+        public bool    HasManagedPreset { get; private set; }
+        /// <summary>Policy name from the preset (for the "managed by …" banner); may be null.</summary>
+        public string? PolicyName       { get; private set; }
+
+        /// <summary>True when the given AppConfig field is forced + locked by the managed preset.</summary>
+        public bool IsLocked(string field) => _lockedKeys.Contains(field);
+        /// <summary>True when the preset locks the tunnel list (only if a hand-authored preset
+        /// includes a Tunnels value — the normal export never does).</summary>
+        public bool TunnelsLocked => _lockedKeys.Contains("Tunnels");
+
         // ── Load ─────────────────────────────────────────────────────────────
         public void Load()
         {
@@ -42,6 +58,7 @@ namespace MasselGUARD.Services
             {
                 IsFirstRun = true;
                 Config     = new AppConfig();
+                ApplyPreset();   // a managed preset still forces its values on first run
                 return;
             }
             try
@@ -63,6 +80,42 @@ namespace MasselGUARD.Services
             }
 
             MigrateInlineConfigsToFiles();
+            ApplyPreset();
+        }
+
+        /// <summary>
+        /// Loads the managed preset (if present next to the exe), forces its values onto
+        /// <see cref="Config"/>, and records what is locked. Called at the end of Load and
+        /// re-asserted on every Save so a hand-edited config.json can never win.
+        /// </summary>
+        private void ApplyPreset()
+        {
+            _lockedKeys = new(StringComparer.OrdinalIgnoreCase);
+            _presetObj  = null;
+            PolicyName  = null;
+            HasManagedPreset = false;
+
+            try
+            {
+                var path = PresetService.FindPresetFile();
+                if (path == null) return;
+                var obj = PresetService.LoadObject(path);
+                if (obj == null) return;
+
+                var (name, locked) = PresetService.ApplyLocked(Config, obj);
+                if (locked.Count == 0) return;   // a .masselguard with nothing marked Locked = not a policy
+
+                _presetObj       = obj;
+                _lockedKeys      = locked;
+                PolicyName       = name;
+                HasManagedPreset = true;
+            }
+            catch
+            {
+                // A broken preset must never prevent the app from starting — fail open.
+                _presetObj = null;
+                HasManagedPreset = false;
+            }
         }
 
         /// <summary>
@@ -103,6 +156,10 @@ namespace MasselGUARD.Services
         // ── Save ─────────────────────────────────────────────────────────────
         public void Save()
         {
+            // Re-assert the managed preset's locked values so they're always persisted,
+            // even if something tried to change them (or config.json was hand-edited).
+            if (_presetObj != null) PresetService.ApplyLocked(Config, _presetObj);
+
             var dir = Path.GetDirectoryName(ConfigPath)!;
             Directory.CreateDirectory(dir);
             EnsureDirectoryAcl(dir);
@@ -154,87 +211,33 @@ namespace MasselGUARD.Services
 
         // ── Export ───────────────────────────────────────────────────────────
         /// <summary>
-        /// Writes a .masselguard export file containing automation settings,
-        /// rules, groups, and UI preferences. Never includes tunnel configs
-        /// or DPAPI material.
+        /// Writes a full <c>.masselguard</c> snapshot of every policy setting (defaults and
+        /// empties included), plus rules and groups. Never includes tunnel configs or DPAPI
+        /// material. A non-empty <paramref name="policyName"/> makes the file a managed policy:
+        /// dropped next to the exe it forces + locks its settings and names the lock banner.
         /// </summary>
-        public void Export(string path, string appVersion)
+        public void Export(string path, string appVersion, string? policyName = null,
+            IEnumerable<string>? lockedBlocks = null, IEnumerable<string>? lockedSettings = null)
         {
-            var cfg = Config;
-            var export = new
-            {
-                ExportVersion    = 1,
-                AppVersion       = appVersion,
-                ExportedAt       = DateTime.UtcNow,
-                Rules            = cfg.Rules,
-                TunnelGroups     = cfg.TunnelGroups,
-                DefaultAction    = cfg.DefaultAction,
-                DefaultTunnel    = cfg.DefaultTunnel,
-                OpenWifiTunnel   = cfg.OpenWifiTunnel,
-                ManualMode       = cfg.ManualMode,
-                Mode             = cfg.Mode.ToString(),
-                Language         = cfg.Language,
-                ActiveTheme      = cfg.ActiveTheme,
-                LogLevelSetting  = cfg.LogLevelSetting,
-                ShowTrayPopupOnSwitch = cfg.ShowTrayPopupOnSwitch,
-            };
-            File.WriteAllText(path,
-                JsonSerializer.Serialize(export, new JsonSerializerOptions { WriteIndented = true }));
+            var obj = PresetService.Build(Config, appVersion, policyName, lockedBlocks, lockedSettings);
+            File.WriteAllText(path, PresetService.ToJson(obj));
         }
 
         // ── Import ───────────────────────────────────────────────────────────
         /// <summary>
-        /// Reads a .masselguard file and merges compatible fields into Config.
-        /// Returns the AppVersion string found in the file (empty if absent).
-        /// Unknown fields are silently ignored for forward compatibility.
+        /// Reads a <c>.masselguard</c> file and applies its settings into Config (editable — no
+        /// locking; that only happens for a file placed next to the exe). Returns the AppVersion
+        /// string found in the file (empty if absent). Unknown fields are ignored.
         /// </summary>
         public string Import(string path)
         {
-            var json = File.ReadAllText(path);
-            using var doc  = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var obj = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path)) as System.Text.Json.Nodes.JsonObject
+                      ?? new System.Text.Json.Nodes.JsonObject();
 
-            var fileVersion = root.TryGetProperty("AppVersion", out var v)
-                ? v.GetString() ?? "" : "";
+            string fileVersion = "";
+            try { fileVersion = obj["AppVersion"]?.GetValue<string>() ?? ""; } catch { }
 
-            void Str(string key, Action<string> set)
-            {
-                if (root.TryGetProperty(key, out var el) &&
-                    el.ValueKind == JsonValueKind.String)
-                    set(el.GetString() ?? "");
-            }
-            void Bool(string key, Action<bool> set)
-            {
-                if (root.TryGetProperty(key, out var el) &&
-                    (el.ValueKind == JsonValueKind.True ||
-                     el.ValueKind == JsonValueKind.False))
-                    set(el.GetBoolean());
-            }
-
-            Str ("DefaultAction",     v => Config.DefaultAction    = v);
-            Str ("DefaultTunnel",     v => Config.DefaultTunnel    = v);
-            Str ("OpenWifiTunnel",    v => Config.OpenWifiTunnel   = v);
-            Str ("Language",          v => Config.Language         = v);
-            Str ("ActiveTheme",       v => Config.ActiveTheme      = v);
-            Str ("LogLevelSetting",   v => Config.LogLevelSetting  = v);
-            Bool("ManualMode",        v => Config.ManualMode       = v);
-            Bool("ShowTrayPopupOnSwitch", v => Config.ShowTrayPopupOnSwitch = v);
-
-            if (root.TryGetProperty("Rules", out var rulesEl))
-            {
-                var rules = JsonSerializer.Deserialize<
-                    System.Collections.Generic.List<TunnelRule>>(
-                    rulesEl.GetRawText(), opts);
-                if (rules != null) Config.Rules = rules;
-            }
-            if (root.TryGetProperty("TunnelGroups", out var grpEl))
-            {
-                var groups = JsonSerializer.Deserialize<
-                    System.Collections.Generic.List<TunnelGroup>>(
-                    grpEl.GetRawText(), opts);
-                if (groups != null) Config.TunnelGroups = groups;
-            }
+            PresetService.ApplyAll(Config, obj);   // import applies all values; Locked is ignored
 
             Save();
             return fileVersion;
