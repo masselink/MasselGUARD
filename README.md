@@ -6,6 +6,8 @@
 
 MasselGUARD sits in the system tray and watches your WiFi connection. When you join a known network it activates the right WireGuard tunnel automatically. When you leave, or land on an unknown network, a configurable fallback fires. It also works as a clean manual WireGuard front-end.
 
+> **⚡ Native x64 *and* ARM64** — MasselGUARD ships a genuine **native ARM64** build, so on Windows-on-ARM devices (Snapdragon-based Copilot+ PCs, recent Surface) it runs at full native speed **with full standalone-tunnel support** — not under x64 emulation. Because the wireguard-NT kernel driver can't be emulated, a native ARM64 app is the *only* way to run local tunnels on ARM, and few WireGuard clients offer one. Running the x64 build on an ARM64 PC? MasselGUARD offers a **one-click switch** to the native ARM64 build at startup. ([Which download?](#which-download))
+
 > **User manual** → [`docs/Manual.md`](docs/Manual.md)
 > **CLI manual** → [`docs/CLIManual.md`](docs/CLIManual.md)
 > **Technical reference** → [`docs/Reference.md`](docs/Reference.md)

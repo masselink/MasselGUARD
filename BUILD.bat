@@ -72,6 +72,16 @@ for %%A in (%ARCHES%) do (
     )
 )
 
+rem ── Legacy auto-update bridge: dist\MasselGUARD.zip ──────────────────────────
+rem Installs from releases <= 3.7.1 run the old updater, which looks ONLY for an
+rem asset literally named MasselGUARD.zip. Ship a copy of the x64 zip under that
+rem name so those installs can still auto-update to the arch-specific builds.
+rem (Keep uploading it to every release until no pre-3.9.0 installs remain.)
+if exist "%DIST%\MasselGUARD-x64.zip" (
+    copy /y "%DIST%\MasselGUARD-x64.zip" "%DIST%\MasselGUARD.zip" >nul
+    echo  Created dist\MasselGUARD.zip ^(x64 copy — legacy update bridge^)
+)
+
 echo.
 echo  ==========================================
 echo   BUILD SUCCESSFUL
@@ -81,6 +91,7 @@ for %%A in (%ARCHES%) do (
     echo   dist\%%A\                     ^(native %%A build^)
     if exist "%DIST%\MasselGUARD-%%A.zip" echo   dist\MasselGUARD-%%A.zip     ^(release asset^)
 )
+if exist "%DIST%\MasselGUARD.zip" echo   dist\MasselGUARD.zip         ^(legacy update bridge = x64^)
 echo.
 echo   Target machine requires the .NET 10 Desktop Runtime for its architecture:
 echo   https://dotnet.microsoft.com/download/dotnet/10.0
