@@ -27,7 +27,7 @@ namespace MasselGUARD.Cli
     ///   log [n]                      Recent activity log entries (default 20)
     ///   tunnel-history [n]       Connection history (default 20)
     ///   wifi-history [n]             WiFi SSID history (default 20)
-    ///   import &lt;file&gt;               Import a .conf or .conf.dpapi tunnel
+    ///   import &lt;file&gt;               Import a .conf, .mgconf or .conf.dpapi tunnel
     ///   delete &lt;name&gt;               Remove a tunnel from config
     ///   rawconnect                   Connect a tunnel built from inline parameters
     ///   check-update                 Check GitHub for a newer version
@@ -600,8 +600,8 @@ namespace MasselGUARD.Cli
                 !a.StartsWith("--", StringComparison.Ordinal));
             if (filePath == null)
             {
-                CliOutput.Error($"Usage: {ExeName} import <file.conf|file.conf.dpapi>");
-                CliOutput.Error("       Options: --name <display-name>  --group <name>  --unsecure");
+                CliOutput.Error($"Usage: {ExeName} import <file.conf|file.mgconf|file.conf.dpapi>");
+                CliOutput.Error("       Options: --name <display-name>  --group <name>  --password <pw>  --unsecure");
                 return 1;
             }
 
@@ -614,6 +614,7 @@ namespace MasselGUARD.Cli
             bool unsecure = args.Any(a => string.Equals(a, "--unsecure", StringComparison.OrdinalIgnoreCase));
             string? nameOverride = ParseFlagValue(args, "--name");
             string? groupArg    = ParseFlagValue(args, "--group");
+            string? passwordArg = ParseFlagValue(args, "--password");
 
             // Derive tunnel name
             string tunnelName = nameOverride
@@ -634,9 +635,29 @@ namespace MasselGUARD.Cli
             string plainText;
             try
             {
+                bool isEncrypted = filePath.EndsWith(TunnelExportService.EncryptedExtension, StringComparison.OrdinalIgnoreCase);
                 bool isDpapi = filePath.EndsWith(".conf.dpapi", StringComparison.OrdinalIgnoreCase)
                             || filePath.EndsWith(".dpapi",      StringComparison.OrdinalIgnoreCase);
-                if (isDpapi)
+                if (isEncrypted)
+                {
+                    // Password-encrypted MasselGUARD export (portable AES-256-GCM).
+                    var enc = File.ReadAllBytes(filePath);
+                    if (string.IsNullOrEmpty(passwordArg))
+                    {
+                        CliOutput.Error($"'{filePath}' is password-encrypted. Provide the password with --password <pw>.");
+                        return 1;
+                    }
+                    try
+                    {
+                        plainText = TunnelExportService.Decrypt(enc, passwordArg);
+                    }
+                    catch (Exception ex)
+                    {
+                        CliOutput.Error($"Failed to decrypt '{filePath}': {ex.Message}");
+                        return 1;
+                    }
+                }
+                else if (isDpapi)
                 {
                     var cipher = File.ReadAllBytes(filePath);
 
@@ -686,6 +707,11 @@ namespace MasselGUARD.Cli
                 return 1;
             }
 
+            // Split out any embedded MasselGUARD settings so only the clean
+            // WireGuard config is written to disk; the extras are applied below.
+            var (confText, importSettings) = TunnelExportService.ParseImportText(plainText);
+            plainText = confText;
+
             // Build StoredTunnel
             StoredTunnel stored;
 
@@ -724,6 +750,13 @@ namespace MasselGUARD.Cli
                     Group  = groupArg ?? "",
                 };
             }
+
+            // Restore embedded MasselGUARD settings, then let explicit flags /
+            // global policy win over what the export carried.
+            importSettings?.ApplyTo(stored);
+            if (!string.IsNullOrEmpty(groupArg))         stored.Group         = groupArg;
+            if (cfg.KillSwitchMode == "always")          stored.KillSwitch    = false;
+            if (cfg.AutoReconnectMode == "always")       stored.AutoReconnect = false;
 
             cfg.Tunnels.Add(stored);
             configSvc.Save();
@@ -1018,7 +1051,7 @@ namespace MasselGUARD.Cli
             CliOutput.Info("  log [n]                    Last n activity log entries (default 20)");
             CliOutput.Info("  tunnel-history [n]     Connection history with source and traffic (default 20)");
             CliOutput.Info("  wifi-history [n]           WiFi SSID history with duration and security (default 20)");
-            CliOutput.Info("  import <file>              Import a .conf or .conf.dpapi tunnel");
+            CliOutput.Info("  import <file>              Import a .conf, .mgconf or .conf.dpapi tunnel");
             CliOutput.Info("  delete <name>              Remove a tunnel from config");
             CliOutput.Info("  rawconnect                 Connect a tunnel built from inline parameters");
             CliOutput.Info("  check-update               Check GitHub for a newer version");
@@ -1039,6 +1072,8 @@ namespace MasselGUARD.Cli
             CliOutput.Info("");
             CliOutput.Info("import options:");
             CliOutput.Info("  --name <display-name>      Display name (default: filename)");
+            CliOutput.Info("  --group <name>             Assign to a tunnel group");
+            CliOutput.Info("  --password <pw>            Password for a .mgconf encrypted export");
             CliOutput.Info("  --unsecure                 Store without DPAPI encryption");
             CliOutput.Info("");
             CliOutput.Info("delete options:");

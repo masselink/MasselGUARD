@@ -1,6 +1,6 @@
 # MasselGUARD — Technical reference
 
-Developer/technical reference for v3.9.0 — Adaptive Armadillo. For end-user instructions see [`Manual.md`](Manual.md).
+Developer/technical reference for v3.9.5 — Selective Serval. For end-user instructions see [`Manual.md`](Manual.md).
 
 ---
 
@@ -716,6 +716,8 @@ public int    ExecutionCount { get; set; } = 0;    // incremented by RuleEngine 
 ```
 
 `RuleEngine.EvaluateWifi` increments `match.ExecutionCount++` before returning a result. Config is saved by the caller after rule execution.
+
+**Directional trusted rules.** A `trusted`-kind `TunnelRule` carries `TrustedWhen` (`"untrusted"` | `"trusted"`; `TrustedWhenOnList` is the parsed bool). In `EvaluateWifi` step 4 the engine loops every enabled trusted rule and a rule matches only on its side of `AppConfig.TrustedNetworks` (`TrustedWhenOnList ? isTrusted : !isTrusted`); the first match activates its tunnel (empty `Tunnel` → disconnect), and the non-matching side falls through to the Default action. Two rules therefore cover both directions against one shared SSID list. The field serialises with the rule (managed-preset "Rules" export/import carries it automatically).
 
 `WifiRuleRow` display class auto-generates `RuleName` when `rule.Name` is empty:
 ```csharp

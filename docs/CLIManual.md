@@ -1,6 +1,6 @@
 # MasselGUARD — CLI Manual
 
-**Version 3.9.0 — Adaptive Armadillo**
+**Version 3.9.5 — Selective Serval**
 
 MasselGUARD includes a full command-line interface for scripting, automation, and headless operation. The CLI and the GUI share the same WireGuard kernel driver and the same configuration — any change made via CLI is reflected in the GUI within ~1 second, and vice versa.
 
@@ -528,7 +528,7 @@ MasselGUARD wifi-history --json
 
 ### import
 
-Imports a WireGuard `.conf` or `.conf.dpapi` file into MasselGUARD as a local tunnel. Duplicate names are rejected.
+Imports a WireGuard `.conf`, a MasselGUARD encrypted `.mgconf`, or a `.conf.dpapi` file into MasselGUARD as a local tunnel. Duplicate names are rejected.
 
 ```
 MasselGUARD import <file>
@@ -539,7 +539,8 @@ MasselGUARD import <file>
 | Flag | Effect |
 |---|---|
 | `--name <display-name>` | Override the tunnel name (default: filename without extension) |
-| `--group <name>` | Assign the tunnel to a group |
+| `--group <name>` | Assign the tunnel to a group (wins over any group carried in the file) |
+| `--password <pw>` | Password for a `.mgconf` encrypted export (required for that format) |
 | `--unsecure` | Store without DPAPI encryption (copies plaintext to the tunnels folder) |
 
 **Default behaviour (secure):** The config is DPAPI-encrypted (`CurrentUser` scope) and written to `%APPDATA%\MasselGUARD\tunnels\<name>.conf.dpapi`. Only the file path is stored in `config.json` — no key material. The original file is not moved or deleted.
@@ -547,6 +548,10 @@ MasselGUARD import <file>
 **`--unsecure` behaviour:** A copy of the plaintext `.conf` is written to `<exedir>\tunnels\<name>.conf`. A warning is printed. Useful when the config must be readable on disk (e.g. shared admin tools), but not recommended.
 
 **Importing a `.conf.dpapi` file:** The file is decrypted first (requires the same Windows user account that encrypted it). The decrypted content is then re-encrypted under the current user.
+
+**Importing a `.mgconf` file:** A portable, password-encrypted export produced by the GUI's **Export tunnel** dialog (AES-256-GCM). Pass the password with `--password`; unlike `.conf.dpapi`, it decrypts on any machine. Without `--password` the import fails with a clear message.
+
+**Embedded MasselGUARD settings:** If the exported file was created with *Include MasselGUARD settings*, the tunnel's group, scripts, kill switch, auto-reconnect, data cap and notes are restored on import (a global `always` kill-switch / auto-reconnect policy still overrides the per-tunnel flag). The settings ride along as readable `# MasselGUARD-…` comment lines, which plain WireGuard clients ignore.
 
 **Examples:**
 
@@ -559,6 +564,9 @@ MasselGUARD import "C:\VPN\home.conf" --name "Home VPN" --group Personal
 
 # Import an already-encrypted file
 MasselGUARD import "C:\Backup\home.conf.dpapi" --name "Home VPN"
+
+# Import a portable password-encrypted export
+MasselGUARD import "C:\VPN\home.mgconf" --password "correct horse battery staple"
 
 # Import without DPAPI (not recommended)
 MasselGUARD import "C:\VPN\home.conf" --unsecure

@@ -107,6 +107,7 @@ namespace MasselGUARD
                 bool shiftHeld       = (WinForms.Control.ModifierKeys & WinForms.Keys.Shift) != 0;
                 bool shiftFontReset  = false;
                 bool shiftThemeReset = false;
+                bool shiftLangReset  = false;
 
                 if (shiftHeld)
                 {
@@ -123,7 +124,14 @@ namespace MasselGUARD
                         bootCfg.Config.SystemThemeMode = "auto";
                         shiftThemeReset = true;
                     }
-                    if (shiftFontReset || shiftThemeReset)
+                    // Escape a hard-to-read language choice back to the default (English).
+                    if (!string.IsNullOrEmpty(bootCfg.Config.Language) &&
+                        !string.Equals(bootCfg.Config.Language, "en", StringComparison.OrdinalIgnoreCase))
+                    {
+                        bootCfg.Config.Language = "en";
+                        shiftLangReset = true;
+                    }
+                    if (shiftFontReset || shiftThemeReset || shiftLangReset)
                         bootCfg.Save();
                 }
 
@@ -149,11 +157,12 @@ namespace MasselGUARD
                 }
 
                 // Show the reset confirmation now that theme resources are loaded
-                if (shiftFontReset || shiftThemeReset)
+                if (shiftFontReset || shiftThemeReset || shiftLangReset)
                 {
                     var parts = new System.Collections.Generic.List<string>();
                     if (shiftFontReset)  parts.Add("• Font override reset to system UI font");
                     if (shiftThemeReset) parts.Add("• Custom theme reverted to Windows system colours (auto mode)");
+                    if (shiftLangReset)  parts.Add("• Interface language reset to the default (English)");
                     ShowThemedInfo(
                         "MasselGUARD — Emergency Reset",
                         string.Join("\n", parts) + "\n\nThis was triggered by holding Shift at startup.");
@@ -542,14 +551,18 @@ namespace MasselGUARD
 
         public void ShowTrayNotification(Views.ToastNotification n)
         {
-            // Deduplicate: ignore identical notification fired within 1 second
-            string key = $"{n.Category}|{n.Primary}|{n.Secondary}";
-            if (key == _lastToastKey) return;
-            _lastToastKey = key;
-            var resetTimer = new System.Windows.Threading.DispatcherTimer
-                { Interval = TimeSpan.FromSeconds(1) };
-            resetTimer.Tick += (_, _) => { _lastToastKey = ""; resetTimer.Stop(); };
-            resetTimer.Start();
+            // Deduplicate identical routine notifications within 1 second. Interactive
+            // toasts (a decision the user must make) are never deduplicated.
+            if (!n.Interactive)
+            {
+                string key = $"{n.Category}|{n.Primary}|{n.Secondary}";
+                if (key == _lastToastKey) return;
+                _lastToastKey = key;
+                var resetTimer = new System.Windows.Threading.DispatcherTimer
+                    { Interval = TimeSpan.FromSeconds(1) };
+                resetTimer.Tick += (_, _) => { _lastToastKey = ""; resetTimer.Stop(); };
+                resetTimer.Start();
+            }
 
             Dispatcher.Invoke(() =>
             {
@@ -557,6 +570,10 @@ namespace MasselGUARD
                 {
                     if (_activeToast != null)
                     {
+                        // A decision toast the user hasn't answered stays put — drop ANY new
+                        // toast (routine or another decision) so it isn't swept away by a
+                        // follow-up automation event. The 120 s safety timeout still frees it.
+                        if (_activeToast.AwaitingDecision) return;
                         try { _activeToast.Close(); } catch { }
                         _activeToast = null;
                     }

@@ -1,3 +1,69 @@
+## v3.9.5 — Selective Serval
+
+_Release in preparation._ This cycle is about **rules and portability**.
+
+---
+
+### Trusted-network rules now work in both directions
+
+A *Trusted networks* rule used to do one fixed thing: connect on untrusted networks, disconnect on trusted ones. Now each trusted rule picks a **direction**:
+
+- **When NOT on a trusted network** → activate its tunnel (protect on public WiFi — typically a **full tunnel**).
+- **When on a trusted network** → activate its tunnel (bring something up only on known networks — e.g. a **split tunnel** at home or work).
+
+A rule now acts **only on its own side**; the other side falls through to your other rules and the **Default action** (so the Default always still applies where a rule doesn't). Want both behaviours? Add two trusted rules against the one shared trusted-SSID list — one for on-list, one for off-list. Leaving a rule's tunnel blank disconnects on its side instead of connecting.
+
+---
+
+### Data-usage warnings (daily / weekly / monthly)
+
+The per-tunnel data cap is now a proper **DATA-USAGE WARNINGS** section (in the tunnel editor's *Options*) with **daily, weekly, and monthly** thresholds — set any of them in MB, `0` = off.
+
+When a tunnel's usage for a period crosses its threshold you get a **one-time notification**: a log entry, a tray toast, and the tunnel's row is **highlighted** (a subtle amber tint, with the usage figure turning amber and a tooltip breaking down today / this week / this month). Each warning re-arms at the next period boundary.
+
+These are **warnings only** — MasselGUARD does not disconnect the tunnel at the limit. Usage is measured from the connection history you already record (calendar day / week / month, UTC).
+
+**Enforce a cap (disconnect at the limit).** Each period now has a **Kill at cap** checkbox next to its threshold. With it on, the tunnel is **disconnected** the moment its usage crosses that cap — with a log line, a **sticky toast** offering **Ignore & reconnect**, and a **🛑 marker** next to its Connect button (until you next start it) — and it won't auto-reconnect while over budget. The tunnel editor's usage section also shows each period's **current usage** (e.g. `· 320 MB used`) next to its threshold. Trying to (re)connect over the limit asks first:
+- **Manually** (window open) → a *"Connect anyway and ignore the limit?"* confirmation.
+- **Automatically** (a WiFi rule) → an interactive toast with the usage details and **Connect / Cancel** buttons; if you don't answer it defaults to **Cancel** (respecting the limit).
+
+Choosing *Connect anyway* ignores that cap until the period rolls over, so you're not nagged every second. Enforcement is per-period and opt-in — leave it off for warning-only behaviour.
+
+**See it on a chart.** The bottom info panel now has a **Timeline ⇄ Data usage** switch. In *Data usage*, it draws a **line chart (with dots) of data per tunnel** over the selected range — the same **24h / 7d / 31d** toggle you already use, with hourly points for 24h and daily points for 7d / 31d. The window grows a little in this view so the tunnel list keeps its size. The range doubles as the cap period, so where a tunnel's usage reaches its **daily / weekly / monthly** cap a **red limit-marker ring** appears on that point of its line — and you can read the rest straight off the chart: the line **drops to zero** if the cap disconnected it, or **carries on** if the limit was overruled. Hovering a point breaks down that hour/day per tunnel. The legend is just the tunnel name and its colour; click an entry to show/hide that tunnel.
+
+---
+
+### Export a tunnel
+
+Select a tunnel and use the new **Export** button in the toolbar (next to *Defaults*) to hand the config to another device or keep a backup. Three formats:
+
+- **Plain file (`.conf`)** — a standard WireGuard config. Import it into any WireGuard client, phone or router.
+- **Encrypted file (`.mgconf`)** — password-protected with **AES-256-GCM** (key derived from your passphrase). Unlike the at-rest storage format, it's **portable**: open it on any machine with the password. There's no recovery if the password is lost.
+- **QR code** — scan straight into the WireGuard mobile app (this is the existing QR export, now reachable from the toolbar too).
+
+**Include MasselGUARD settings** (file formats only) bundles the tunnel's extras — group, scripts, kill switch, auto-reconnect, data cap and notes — alongside the config. They ride along as **readable `# MasselGUARD-…` comment lines** that other WireGuard clients ignore, so the `.conf` stays universally importable, while MasselGUARD restores them on import. (Multi-line values like embedded scripts are base64-wrapped so the file stays valid.) QR codes are standard-only and can't carry the extras.
+
+The tunnel editor's **Raw config** tab now shows those same `# MasselGUARD-…` lines below the config, and you can edit them there — Raw is a full editable view of both the WireGuard config and the MasselGUARD settings.
+
+Importing understands all of it: `.mgconf` files prompt for the password, and any bundled settings are restored automatically. The CLI keeps pace — `MasselGUARDcli import file.mgconf --password <pw>`.
+
+> The exported config contains the tunnel's **private key**. Keep plain and QR exports private; use the encrypted format to share safely. A managed policy that locks *Tunnels* now also disables Export.
+
+---
+
+### Polish
+
+- **Six more languages.** MasselGUARD's interface is now available in **Italian, Portuguese (Brazil), Russian, Polish, Turkish, and Chinese (Simplified)** — joining English, Dutch, German, French, Spanish, and Japanese. Pick one under Settings → General → Interface language.
+- **Usage rings on the tunnel row.** The status line dropped the live ↑↓ traffic figure (it added noise). In its place, a connected tunnel shows a compact set of **concentric usage rings** — **day** (innermost), **week** (middle), **month** (outermost). A ring appears automatically for each cap you've set (the old *Show in row* toggle is gone), fills **0 → 360°** as usage approaches the cap, turns **amber** near the limit and **red** once over it. Hover for the exact per-period breakdown, shown immediately.
+- **Smoother tunnel import.** The import file picker now defaults to an **All supported configs** filter, so `.conf`, `.mgconf`, and `.conf.dpapi` files all show at once — no more switching the filter to see encrypted files. And if the imported name already exists, you're asked to **Overwrite**, **Save as new name**, or **Cancel** instead of silently creating a second tunnel with the same name.
+- **No more duplicate WiFi rules list.** The rules list was showing in *two* places — the main window and Settings → WiFi. Settings now keeps only the automation settings (default action, open-network protection, trusted networks, manual mode, and the main-window rules panel/column toggles); manage the rules themselves on the main window.
+- **Tidier tunnel editor.** The behaviour switches (Default action, Open network protection, Kill switch, Auto-reconnect) and the data-usage warnings moved out of the cramped footer into a dedicated **Options** area — a new tab for local tunnels, an *Options* section for companion tunnels. Scripts are no longer a separate tab either: they're now a **Scripts** section at the bottom of **Fields**, below Peer. Both footers are now just *Cancel / Save*.
+- **Fully themed dialogs.** Checkboxes now match the theme (accent checkmark) instead of default Windows chrome — so the whole *Export tunnel* pop-over is themed, and its *Include MasselGUARD settings* box correctly greys out for QR exports (which can't carry settings).
+- **Nicer on/off switches.** The toggle switches (tunnel settings, Settings, wizard) got a refresh: a crisp white thumb with a soft shadow that stays clear in the off state, a smooth slide, and a properly dimmed look when a switch is read-only (e.g. *Auto-reconnect — controlled globally*).
+- **Themed controls everywhere.** The day-of-week toggles in the Schedule rule editor and the *Scan / Cancel* buttons on the QR-capture overlay now follow the active theme (selected days fill with the accent colour) instead of showing default Windows chrome.
+
+---
+
 ## v3.9.0 — Adaptive Armadillo
 
 The headline is **native ARM64 support**. MasselGUARD now ships as two native builds — **x64** and **ARM64** — so it runs at full speed on Windows-on-ARM devices (Snapdragon-based Copilot+ PCs, recent Surface models) instead of under x64 emulation. Alongside it: a fix for auto-generated rule names, and a fresh batch of community themes.
