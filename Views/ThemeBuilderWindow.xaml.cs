@@ -198,13 +198,13 @@ namespace MasselGUARD.Views
             {
                 LiveIndicator.Text    = "⏸ PAUSED";
                 LiveIndicator.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
-                LiveIndicator.ToolTip = "Live preview is paused — switching themes or editing won't restyle the app. Click to resume.";
+                LiveIndicator.ToolTip = Lang.T("TBLivePausedTip");
             }
             else
             {
                 LiveIndicator.Text    = "● LIVE";
                 LiveIndicator.SetResourceReference(TextBlock.ForegroundProperty, "Accent");
-                LiveIndicator.ToolTip = "Changes (including switching themes) are applied to the app immediately. Click to pause. Close without saving to revert.";
+                LiveIndicator.ToolTip = Lang.T("TBLiveTip");
             }
         }
 
@@ -337,7 +337,7 @@ namespace MasselGUARD.Views
             var name = _editingName;
             LoadTheme(name);                 // reloads from disk → discards edits, resets dirty + undo
             _main.ApplyThemeFromConfig();    // revert the running app to the committed theme
-            StatusLabel.Text = "Reverted";
+            StatusLabel.Text = Lang.T("TBReverted");
         }
 
         /// <summary>
@@ -348,7 +348,7 @@ namespace MasselGUARD.Views
         private void ResolveDirtyDraft(string question)
         {
             if (!_dirty || _readOnly || string.IsNullOrEmpty(_editingName)) return;
-            if (ThemedMessageDialog.Confirm(this, question, "Theme Builder"))
+            if (ThemedMessageDialog.Confirm(this, question, Lang.T("TBTitle")))
             {
                 TrySaveDraft();
             }
@@ -458,8 +458,8 @@ namespace MasselGUARD.Views
                 ApplyDraftLive();
         }
 
-        private void CopyAllToLight_Click(object sender, RoutedEventArgs e) => CopyAllVariant(_darkVals, _lightVals, "Light");
-        private void CopyAllToDark_Click(object sender, RoutedEventArgs e)  => CopyAllVariant(_lightVals, _darkVals, "Dark");
+        private void CopyAllToLight_Click(object sender, RoutedEventArgs e) => CopyAllVariant(_darkVals, _lightVals, Lang.T("WizardThemeLight"));
+        private void CopyAllToDark_Click(object sender, RoutedEventArgs e)  => CopyAllVariant(_lightVals, _darkVals, Lang.T("WizardThemeDark"));
 
         /// <summary>
         /// Bulk-copies every colour from one variant into the other. The global Invert
@@ -472,7 +472,7 @@ namespace MasselGUARD.Views
             if (_readOnly || string.IsNullOrEmpty(_editingName)) return;
             if (source.Count == 0)
             {
-                ThemedMessageDialog.Info(this, $"The other variant has no colours to copy into {targetName}.", "Theme Builder");
+                ThemedMessageDialog.Info(this, Lang.T("TBNoColoursToCopy", targetName), Lang.T("TBTitle"));
                 return;
             }
 
@@ -503,12 +503,12 @@ namespace MasselGUARD.Views
             // Column header: Light | Dark
             var header = new Grid { Margin = new Thickness(0, 0, 0, 6) };
             AddColorColumns(header);
-            var hLight = new TextBlock { Text = "Light", FontSize = 10, FontWeight = FontWeights.SemiBold,
+            var hLight = new TextBlock { Text = Lang.T("WizardThemeLight"), FontSize = 10, FontWeight = FontWeights.SemiBold,
                 HorizontalAlignment = HorizontalAlignment.Center };
             hLight.SetResourceReference(TextBlock.FontFamilyProperty, "Theme.FontFamily");
             hLight.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
             Grid.SetColumn(hLight, 1); Grid.SetColumnSpan(hLight, 2);
-            var hDark = new TextBlock { Text = "Dark", FontSize = 10, FontWeight = FontWeights.SemiBold,
+            var hDark = new TextBlock { Text = Lang.T("WizardThemeDark"), FontSize = 10, FontWeight = FontWeights.SemiBold,
                 HorizontalAlignment = HorizontalAlignment.Center };
             hDark.SetResourceReference(TextBlock.FontFamilyProperty, "Theme.FontFamily");
             hDark.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
@@ -522,7 +522,7 @@ namespace MasselGUARD.Views
                 {
                     var trayHdr = new TextBlock
                     {
-                        Text       = "Tray menu",
+                        Text       = Lang.T("TBTrayMenu"),
                         FontSize   = 10,
                         FontWeight = FontWeights.SemiBold,
                         Margin     = new Thickness(0, 10, 0, 6),
@@ -537,7 +537,7 @@ namespace MasselGUARD.Views
 
                 var lbl = new TextBlock
                 {
-                    Text = label,
+                    Text = Lang.T("TBCol" + key.Substring(5)),
                     VerticalAlignment = VerticalAlignment.Center,
                     FontSize   = 10,
                 };
@@ -550,8 +550,8 @@ namespace MasselGUARD.Views
 
                 // Copy arrows between the two variants
                 var arrows = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-                arrows.Children.Add(MakeArrow("←", "Copy Dark → Light", key, copyToDark: false));
-                arrows.Children.Add(MakeArrow("→", "Copy Light → Dark", key, copyToDark: true));
+                arrows.Children.Add(MakeArrow("←", Lang.T("TBCopyDarkToLight"), key, copyToDark: false));
+                arrows.Children.Add(MakeArrow("→", Lang.T("TBCopyLightToDark"), key, copyToDark: true));
                 Grid.SetColumn(arrows, 3);
                 row.Children.Add(arrows);
 
@@ -598,7 +598,7 @@ namespace MasselGUARD.Views
                 Cursor          = Cursors.Hand,
                 BorderThickness = new Thickness(1),
                 Tag = (key, dark),
-                ToolTip = "Click to pick a colour (move off the popup to grab from screen)",
+                ToolTip = Lang.T("TBSwatchTip"),
             };
             swatch.SetResourceReference(Border.BorderBrushProperty, "BorderColor");
             swatch.MouseLeftButtonUp += Swatch_Click;
@@ -638,7 +638,7 @@ namespace MasselGUARD.Views
                 b.Content    = inv ? (toDark ? "⇉" : "⇇") : (toDark ? "→" : "←");
                 b.FontWeight = inv ? FontWeights.Bold : FontWeights.Normal;
                 if (inv) b.SetResourceReference(Control.ForegroundProperty, "Accent"); else b.ClearValue(Control.ForegroundProperty);
-                b.ToolTip = (toDark ? "Copy Light → Dark" : "Copy Dark → Light") + (inv ? " (inverted)" : "");
+                b.ToolTip = (toDark ? Lang.T("TBCopyLightToDark") : Lang.T("TBCopyDarkToLight")) + (inv ? Lang.T("TBInvertedSuffix") : "");
             }
         }
 
@@ -709,7 +709,7 @@ namespace MasselGUARD.Views
         {
             var trayPreviewLbl = new TextBlock
             {
-                Text       = "Tray menu preview",
+                Text       = Lang.T("TBTrayPreview"),
                 FontSize   = 10,
                 Margin     = new Thickness(0, 8, 0, 6),
             };
@@ -792,7 +792,7 @@ namespace MasselGUARD.Views
 
             // BUILT-IN — only the virtual System theme, embedded in code and read-only
             // (locked). Duplicable so the live Windows palette can seed an editable copy.
-            BuiltinList.Items.Add(BuildListItem("__system__", "System (Windows colors)",
+            BuiltinList.Items.Add(BuildListItem("__system__", Lang.T("TBSystemName"),
                 isBuiltin: true, isActive: active is "__system__" or "system"));
 
             // THEMES — every theme in %APPDATA%\MasselGUARD\themes\ (downloaded + user-made),
@@ -874,7 +874,7 @@ namespace MasselGUARD.Views
 
             var name = selected.Tag as string ?? "";
             if (!string.Equals(name, _editingName, StringComparison.OrdinalIgnoreCase))
-                ResolveDirtyDraft($"Save changes to '{ThemeName.Text}' before switching?");
+                ResolveDirtyDraft(Lang.T("TBSaveBeforeSwitch", ThemeName.Text));
             LoadTheme(name);
         }
 
@@ -903,16 +903,16 @@ namespace MasselGUARD.Views
                 menu.Items.Add(mi);
             }
 
-            Item("Apply", Apply_Click);
-            Item("Duplicate", Duplicate_Click);
+            Item(Lang.T("TBMenuApply"), Apply_Click);
+            Item(Lang.T("TBMenuDuplicate"), Duplicate_Click);
             if (_editingName is not ("__system__" or "system"))
-                Item("Export…", ExportTheme_Click);
+                Item(Lang.T("TBMenuExport"), ExportTheme_Click);
             if (_canDelete)
             {
                 var sep = new Separator();
                 if (sepStyle != null) sep.Style = sepStyle;
                 menu.Items.Add(sep);
-                Item("Delete", DeleteTheme_Click);
+                Item(Lang.T("TBMenuDelete"), DeleteTheme_Click);
             }
 
             // Anchor to the clicked row itself rather than the default MousePoint placement —
@@ -943,7 +943,7 @@ namespace MasselGUARD.Views
                 // inspected in the editor and duplicated into an editable copy.
                 def = new ThemeDefinition
                 {
-                    Name  = "System (Windows colors)",
+                    Name  = Lang.T("TBSystemName"),
                     Dark  = ThemeManager.BuildSystemTheme(true),
                     Light = ThemeManager.BuildSystemTheme(false),
                 };
@@ -1561,7 +1561,7 @@ namespace MasselGUARD.Views
                 catch (Exception ex)
                 {
                     ThemedMessageDialog.Info(this, $"Could not build a palette from the image:\n{ex.Message}",
-                        "Theme Manager");
+                        Lang.T("TBTitle"));
                     return;
                 }
                 if (dlg.UseAsBackground) { lightBg = dlg.LightImagePath; darkBg = dlg.DarkImagePath; }
@@ -1617,7 +1617,7 @@ namespace MasselGUARD.Views
 
             bool isSystem = _editingName == "__system__";
             var suggested = (isSystem ? "system" : _editingName) + "-copy";
-            var dlg = new InputDialog("Duplicate theme", "Enter a folder name for the copy:", suggested);
+            var dlg = new InputDialog(Lang.T("TBDuplicateTitle"), Lang.T("TBDuplicatePrompt"), suggested);
             dlg.Owner = this;
             dlg.ShowDialog();
             if (!dlg.Confirmed) return;
@@ -1634,7 +1634,7 @@ namespace MasselGUARD.Views
                     Dark  = ThemeManager.BuildSystemTheme(true),
                     Light = ThemeManager.BuildSystemTheme(false),
                 };
-                seed.Name = "System (copy)";
+                seed.Name = Lang.T("TBSystemCopy");
             }
             else
             {
@@ -1671,7 +1671,7 @@ namespace MasselGUARD.Views
             var dir = Path.Combine(ThemeManager.UserThemeRoot, folderName);
             if (Directory.Exists(dir))
             {
-                ThemedMessageDialog.Info(this, $"A theme named '{folderName}' already exists.", "Theme Manager");
+                ThemedMessageDialog.Info(this, Lang.T("TBThemeExists", folderName), Lang.T("TBTitle"));
                 return;
             }
 
@@ -1721,7 +1721,7 @@ namespace MasselGUARD.Views
 
             var display = ThemeManager.GetThemeDisplayName(_editingName);
             if (!ThemedMessageDialog.Confirm(this,
-                    $"Delete theme '{display}'?\n\nThis cannot be undone.", "Delete theme"))
+                    Lang.T("TBDeleteConfirm", display), Lang.T("TBDeleteTitle")))
                 return;
 
             var dir = EditingThemeDir;
@@ -1754,13 +1754,13 @@ namespace MasselGUARD.Views
                 try { Directory.Delete(dir, recursive: true); }
                 catch (Exception ex2)
                 {
-                    ThemedMessageDialog.Info(this, $"Could not delete theme folder:\n{ex2.Message}", "Delete theme");
+                    ThemedMessageDialog.Info(this, Lang.T("TBDeleteFailed", ex2.Message), Lang.T("TBDeleteTitle"));
                     return;
                 }
             }
             catch (Exception ex)
             {
-                ThemedMessageDialog.Info(this, $"Could not delete theme folder:\n{ex.Message}", "Delete theme");
+                ThemedMessageDialog.Info(this, Lang.T("TBDeleteFailed", ex.Message), Lang.T("TBDeleteTitle"));
                 return;
             }
 
@@ -1782,7 +1782,7 @@ namespace MasselGUARD.Views
 
             // Resolve unsaved edits first (save/discard) so we apply the on-disk theme.
             if (_dirty && !_readOnly)
-                ResolveDirtyDraft($"Save changes to '{ThemeName.Text}' before applying?");
+                ResolveDirtyDraft(Lang.T("TBSaveBeforeApply", ThemeName.Text));
 
             var name = _editingName is "__system__" or "system" ? "__system__" : _editingName;
             _main.ConfigSvc.Config.ActiveTheme = name;
@@ -1790,7 +1790,7 @@ namespace MasselGUARD.Views
             _main.ApplyThemeFromConfig();   // commit-apply the now-active theme
 
             PopulateThemeList();            // refresh the ● active marker
-            StatusLabel.Text = "Applied ✓";
+            StatusLabel.Text = Lang.T("TBApplied");
         }
 
         // ── Download (open the Theme Browser to install from the repository) ──
@@ -1817,8 +1817,8 @@ namespace MasselGUARD.Views
         {
             if (_readOnly || string.IsNullOrEmpty(_editingName))
             {
-                ThemedMessageDialog.Info(this, "The System theme can't be saved. Use Duplicate to create an editable copy.",
-                    "Theme Builder");
+                ThemedMessageDialog.Info(this, Lang.T("TBSystemCantSave"),
+                    Lang.T("TBTitle"));
                 return false;
             }
 
@@ -1827,7 +1827,7 @@ namespace MasselGUARD.Views
             // Validate name
             if (string.IsNullOrWhiteSpace(draft.Name))
             {
-                ThemedMessageDialog.Info(this, "Theme name cannot be empty.", "Theme Builder");
+                ThemedMessageDialog.Info(this, Lang.T("TBNameEmpty"), Lang.T("TBTitle"));
                 return false;
             }
 
@@ -1845,7 +1845,7 @@ namespace MasselGUARD.Views
 
             _dirty = false;
             if (CancelBtn != null) CancelBtn.IsEnabled = false;   // current == last saved
-            StatusLabel.Text = "Saved ✓";
+            StatusLabel.Text = Lang.T("TBSaved");
             PopulateThemeList();
 
             // The committed load above used the system mode; while the builder is
@@ -1922,12 +1922,12 @@ namespace MasselGUARD.Views
         private void ExportTheme_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrEmpty(_editingName) || _editingName == "__system__") return;
-            ResolveDirtyDraft($"Save changes to '{ThemeName.Text}' before exporting?");
+            ResolveDirtyDraft(Lang.T("TBSaveBeforeExport", ThemeName.Text));
 
             var dlg = new Microsoft.Win32.SaveFileDialog
             {
                 FileName = _editingName + ".zip",
-                Filter   = "Theme zip|*.zip",
+                Filter   = Lang.T("TBZipFilterName") + "|*.zip",
             };
             if (dlg.ShowDialog() != true) return;
 
@@ -1940,11 +1940,11 @@ namespace MasselGUARD.Views
                 TryEmbedThemeFont(themeDir);
                 if (File.Exists(dlg.FileName)) File.Delete(dlg.FileName);
                 ZipFile.CreateFromDirectory(themeDir, dlg.FileName);
-                StatusLabel.Text = "Exported ✓";
+                StatusLabel.Text = Lang.T("TBExported");
             }
             catch (Exception ex)
             {
-                ThemedMessageDialog.Info(this, $"Export failed:\n{ex.Message}", "Theme Builder");
+                ThemedMessageDialog.Info(this, Lang.T("TBExportFailed", ex.Message), Lang.T("TBTitle"));
             }
         }
 
@@ -2007,7 +2007,7 @@ namespace MasselGUARD.Views
 
         private void ImportTheme_Click(object sender, RoutedEventArgs e)
         {
-            var dlg = new Microsoft.Win32.OpenFileDialog { Filter = "Theme zip|*.zip" };
+            var dlg = new Microsoft.Win32.OpenFileDialog { Filter = Lang.T("TBZipFilterName") + "|*.zip" };
             if (dlg.ShowDialog() != true) return;
 
             var folderName = SanitizeFolderName(Path.GetFileNameWithoutExtension(dlg.FileName));
@@ -2016,7 +2016,7 @@ namespace MasselGUARD.Views
             var dir = Path.Combine(ThemeManager.UserThemeRoot, folderName);
             if (Directory.Exists(dir))
             {
-                ThemedMessageDialog.Info(this, $"A theme named '{folderName}' already exists.", "Theme Builder");
+                ThemedMessageDialog.Info(this, Lang.T("TBThemeExists", folderName), Lang.T("TBTitle"));
                 return;
             }
 
@@ -2030,19 +2030,19 @@ namespace MasselGUARD.Views
                 if (!hasThemeFile)
                 {
                     Directory.Delete(dir, recursive: true);
-                    ThemedMessageDialog.Info(this, "The zip does not contain a theme.json at its root.", "Theme Builder");
+                    ThemedMessageDialog.Info(this, Lang.T("TBZipNoJson"), Lang.T("TBTitle"));
                     return;
                 }
 
                 PopulateThemeList();
                 SelectThemeInList(folderName);
-                StatusLabel.Text = "Imported ✓";
+                StatusLabel.Text = Lang.T("TBImported");
             }
             catch (Exception ex)
             {
                 try { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); }
                 catch { }
-                ThemedMessageDialog.Info(this, $"Import failed:\n{ex.Message}", "Theme Builder");
+                ThemedMessageDialog.Info(this, Lang.T("TBImportFailed", ex.Message), Lang.T("TBTitle"));
             }
         }
 
@@ -2069,7 +2069,7 @@ namespace MasselGUARD.Views
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
         {
             _applyTimer.Stop();
-            ResolveDirtyDraft($"Save changes to '{ThemeName.Text}' before closing?");
+            ResolveDirtyDraft(Lang.T("TBSaveBeforeClose", ThemeName.Text));
             // Restore the committed theme — a no-op when a save just applied it,
             // a revert when live edits were discarded.
             _main.ApplyThemeFromConfig();
@@ -2165,7 +2165,7 @@ namespace MasselGUARD.Views
 
             var ok = new Button
             {
-                Content = "OK", IsDefault = true, MinWidth = 80, Padding = new Thickness(20, 6, 20, 6),
+                Content = Lang.T("BtnOk"), IsDefault = true, MinWidth = 80, Padding = new Thickness(20, 6, 20, 6),
                 HorizontalAlignment = HorizontalAlignment.Right, Style = (Style)FindResource("SuccessBtn"),
             };
             ok.Click += (_, _) => Accept();
@@ -2233,21 +2233,21 @@ namespace MasselGUARD.Views
             // ── Create ──
             stack.Children.Add(Caption("CREATE A NEW THEME", 10, new Thickness(0, 0, 0, 6)));
 
-            stack.Children.Add(Caption("Folder name (lowercase, no spaces — e.g. my-theme):", 11, new Thickness(0, 0, 0, 3)));
+            stack.Children.Add(Caption(Lang.T("TBFolderNameCaption"), 11, new Thickness(0, 0, 0, 3)));
             _nameBox = Field(12);
             _nameBox.Margin = new Thickness(0, 0, 0, 10);
             stack.Children.Add(_nameBox);
 
-            stack.Children.Add(Caption("Based on:", 11, new Thickness(0, 0, 0, 3)));
+            stack.Children.Add(Caption(Lang.T("TBBasedOn"), 11, new Thickness(0, 0, 0, 3)));
             _baseBox = new ComboBox
             {
                 FontFamily = ThemeFont(), FontSize = 12, Padding = new Thickness(6, 4, 6, 4),
                 Foreground = B("TextPrimary"), Margin = new Thickness(0, 0, 0, 8),
             };
-            _baseBox.Items.Add(new BaseItem { Label = "Current theme (what you see now)", Kind = "current" });
-            _baseBox.Items.Add(new BaseItem { Label = "Two images (extract a palette)",   Kind = "image"   });
+            _baseBox.Items.Add(new BaseItem { Label = Lang.T("TBBaseCurrent"), Kind = "current" });
+            _baseBox.Items.Add(new BaseItem { Label = Lang.T("TBBaseImages"),   Kind = "image"   });
             foreach (var (id, display) in themes)
-                _baseBox.Items.Add(new BaseItem { Label = $"Copy of “{display}”", Kind = "theme", Id = id });
+                _baseBox.Items.Add(new BaseItem { Label = Lang.T("TBBaseCopyOf", display), Kind = "theme", Id = id });
             _baseBox.SelectedIndex = 0;
             _baseBox.SelectionChanged += (_, _) => SyncImageRows();
             stack.Children.Add(_baseBox);
@@ -2262,11 +2262,11 @@ namespace MasselGUARD.Views
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 var box = Field(11); box.IsReadOnly = true;
                 Grid.SetColumn(box, 0);
-                var browse = new Button { Content = "Browse…", FontSize = 11, Padding = new Thickness(10, 4, 10, 4),
+                var browse = new Button { Content = Lang.T("BtnBrowse"), FontSize = 11, Padding = new Thickness(10, 4, 10, 4),
                                           Margin = new Thickness(6, 0, 0, 0), Style = (Style)FindResource("FlatBtn") };
                 browse.Click += (_, _) =>
                 {
-                    var ofd = new Microsoft.Win32.OpenFileDialog { Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tiff" };
+                    var ofd = new Microsoft.Win32.OpenFileDialog { Filter = Lang.T("TBImagesFilterName") + "|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tiff" };
                     if (ofd.ShowDialog() == true) box.Text = ofd.FileName;
                 };
                 Grid.SetColumn(browse, 1);
@@ -2274,11 +2274,11 @@ namespace MasselGUARD.Views
                 _imagePanel.Children.Add(grid);
                 return (box, browse);
             }
-            (_lightImageBox, _) = MakeImageRow("Light-mode picture (seeds the Light variant):");
-            (_darkImageBox,  _) = MakeImageRow("Dark-mode picture (seeds the Dark variant):");
+            (_lightImageBox, _) = MakeImageRow(Lang.T("TBLightPicture"));
+            (_darkImageBox,  _) = MakeImageRow(Lang.T("TBDarkPicture"));
             _bgCheck = new CheckBox
             {
-                Content = "Also use each picture as that variant's window background",
+                Content = Lang.T("TBUsePictureBg"),
                 FontSize = 11, FontFamily = ThemeFont(), Foreground = B("TextPrimary"),
                 Margin = new Thickness(0, 2, 0, 4),
             };
@@ -2287,7 +2287,7 @@ namespace MasselGUARD.Views
 
             var createBtn = new Button
             {
-                Content = "Create", IsDefault = true, MinWidth = 80, HorizontalAlignment = HorizontalAlignment.Right,
+                Content = Lang.T("TBCreate"), IsDefault = true, MinWidth = 80, HorizontalAlignment = HorizontalAlignment.Right,
                 Padding = new Thickness(20, 6, 20, 6), Margin = new Thickness(0, 6, 0, 0),
                 Style = (Style)FindResource("SuccessBtn"),
             };
@@ -2295,12 +2295,12 @@ namespace MasselGUARD.Views
             {
                 if (string.IsNullOrWhiteSpace(_nameBox.Text))
                 {
-                    ThemedMessageDialog.Info(this, "Folder name cannot be empty.", "Add theme");
+                    ThemedMessageDialog.Info(this, Lang.T("TBFolderEmpty"), Lang.T("TBAddThemeTitle"));
                     return;
                 }
                 if (FromImage && (!File.Exists(_lightImageBox.Text) || !File.Exists(_darkImageBox.Text)))
                 {
-                    ThemedMessageDialog.Info(this, "Pick both a light-mode and a dark-mode picture.", "Add theme");
+                    ThemedMessageDialog.Info(this, Lang.T("TBPickBothPictures"), Lang.T("TBAddThemeTitle"));
                     return;
                 }
                 Mode = AddThemeMode.Create;
@@ -2318,13 +2318,13 @@ namespace MasselGUARD.Views
             var getRow = new StackPanel { Orientation = Orientation.Horizontal };
             var downloadBtn = new Button
             {
-                Content = "Download community themes…", Style = (Style)FindResource("FlatBtn"),
+                Content = Lang.T("TBDownloadCommunity"), Style = (Style)FindResource("FlatBtn"),
                 FontSize = 11, Padding = new Thickness(14, 6, 14, 6),
             };
             downloadBtn.Click += (_, _) => { Mode = AddThemeMode.Download; Close(); };
             var importBtn = new Button
             {
-                Content = "Import .zip…", Style = (Style)FindResource("FlatBtn"),
+                Content = Lang.T("TBImportZip"), Style = (Style)FindResource("FlatBtn"),
                 FontSize = 11, Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(8, 0, 0, 0),
             };
             importBtn.Click += (_, _) => { Mode = AddThemeMode.Import; Close(); };
@@ -2335,14 +2335,14 @@ namespace MasselGUARD.Views
             // ── Cancel ──
             var cancel = new Button
             {
-                Content = "Cancel", IsCancel = true, MinWidth = 80, HorizontalAlignment = HorizontalAlignment.Right,
+                Content = Lang.T("BtnCancel"), IsCancel = true, MinWidth = 80, HorizontalAlignment = HorizontalAlignment.Right,
                 Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 14, 0, 0),
                 Style = (Style)FindResource("FlatBtn"),
             };
             cancel.Click += (_, _) => Close();
             stack.Children.Add(cancel);
 
-            SetThemedContent("Add theme", stack);
+            SetThemedContent(Lang.T("TBAddThemeTitle"), stack);
             Loaded += (_, _) => _nameBox.Focus();
         }
 
@@ -2558,7 +2558,7 @@ namespace MasselGUARD.Views
             var midRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
             midRow.Children.Add(_preview);
             var hexStack = new StackPanel { Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-            hexStack.Children.Add(new TextBlock { Text = "Hex", FontSize = 11, Foreground = B("TextMuted"), FontFamily = Font() });
+            hexStack.Children.Add(new TextBlock { Text = Lang.T("TBHex"), FontSize = 11, Foreground = B("TextMuted"), FontFamily = Font() });
             hexStack.Children.Add(_hexBox);
             midRow.Children.Add(hexStack);
             midRow.Children.Add(_rgbLabel);
@@ -2566,19 +2566,19 @@ namespace MasselGUARD.Views
             // ── Live preview toggle ──
             var liveCheck = new CheckBox
             {
-                Content = "Live preview", IsChecked = _livePreviewOn,
+                Content = Lang.T("TBLivePreview"), IsChecked = _livePreviewOn,
                 Foreground = B("TextPrimary"), FontFamily = Font(), FontSize = 11,
                 Margin = new Thickness(0, 12, 0, 0),
-                ToolTip = "Show the colour in the app as you drag, before clicking OK",
+                ToolTip = Lang.T("TBLivePreviewTip"),
             };
             liveCheck.Checked   += (_, _) => _livePreviewOn = true;
             liveCheck.Unchecked += (_, _) => _livePreviewOn = false;
 
             // ── OK / Cancel (same styles as the builder footer) ──
-            var ok = new Button { Content = "OK", IsDefault = true, MinWidth = 80, Padding = new Thickness(16, 6, 16, 6),
+            var ok = new Button { Content = Lang.T("BtnOk"), IsDefault = true, MinWidth = 80, Padding = new Thickness(16, 6, 16, 6),
                                   Style = (Style)FindResource("SuccessBtn") };
             ok.Click += (_, _) => { Selected = HsvToRgb(_hue, _sat, _val); Close(); };
-            var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 80, Padding = new Thickness(16, 6, 16, 6),
+            var cancel = new Button { Content = Lang.T("BtnCancel"), IsCancel = true, MinWidth = 80, Padding = new Thickness(16, 6, 16, 6),
                                       Margin = new Thickness(8, 0, 0, 0), Style = (Style)FindResource("FlatBtn") };
             cancel.Click += (_, _) => Close();
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
@@ -2591,7 +2591,7 @@ namespace MasselGUARD.Views
             body.Children.Add(liveCheck);
             body.Children.Add(btnRow);
 
-            SetThemedContent("Pick a colour", body);
+            SetThemedContent(Lang.T("TBPickColour"), body);
 
             // Move the cursor off the popup → grab a colour from the screen (inkpen).
             MouseEnter += (_, _) => _fetchArmed = true;
@@ -2727,10 +2727,10 @@ namespace MasselGUARD.Views
             var btnRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             if (yesNo)
             {
-                var yes = new Button { Content = "Yes", MinWidth = 80, Padding = new Thickness(16, 6, 16, 6),
+                var yes = new Button { Content = Lang.T("BtnYes"), MinWidth = 80, Padding = new Thickness(16, 6, 16, 6),
                                        Style = (Style)FindResource("DangerBtn") };
                 yes.Click += (_, _) => { Confirmed = true; Close(); };
-                var no  = new Button { Content = "No", MinWidth = 80, Padding = new Thickness(16, 6, 16, 6),
+                var no  = new Button { Content = Lang.T("BtnNo"), MinWidth = 80, Padding = new Thickness(16, 6, 16, 6),
                                        Margin = new Thickness(8, 0, 0, 0), Style = (Style)FindResource("FlatBtn"), IsCancel = true };
                 no.Click += (_, _) => Close();
                 btnRow.Children.Add(yes);
@@ -2738,7 +2738,7 @@ namespace MasselGUARD.Views
             }
             else
             {
-                var ok = new Button { Content = "OK", MinWidth = 80, Padding = new Thickness(16, 6, 16, 6),
+                var ok = new Button { Content = Lang.T("BtnOk"), MinWidth = 80, Padding = new Thickness(16, 6, 16, 6),
                                       Style = (Style)FindResource("FlatBtn"), IsDefault = true, IsCancel = true };
                 ok.Click += (_, _) => Close();
                 btnRow.Children.Add(ok);

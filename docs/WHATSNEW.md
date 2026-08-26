@@ -21,7 +21,7 @@ The per-tunnel data cap is now a proper **DATA-USAGE WARNINGS** section (in the 
 
 When a tunnel's usage for a period crosses its threshold you get a **one-time notification**: a log entry, a tray toast, and the tunnel's row is **highlighted** (a subtle amber tint, with the usage figure turning amber and a tooltip breaking down today / this week / this month). Each warning re-arms at the next period boundary.
 
-These are **warnings only** — MasselGUARD does not disconnect the tunnel at the limit. Usage is measured from the connection history you already record (calendar day / week / month, UTC).
+By default these are **warnings only** — nothing is disconnected. If you want a hard stop, tick **Kill at cap** (see *Enforce a cap* below) and MasselGUARD disconnects the tunnel when the period's limit is reached. Usage is measured from the connection history you already record (calendar day / week / month, UTC).
 
 **Enforce a cap (disconnect at the limit).** Each period now has a **Kill at cap** checkbox next to its threshold. With it on, the tunnel is **disconnected** the moment its usage crosses that cap — with a log line, a **sticky toast** offering **Ignore & reconnect**, and a **🛑 marker** next to its Connect button (until you next start it) — and it won't auto-reconnect while over budget. The tunnel editor's usage section also shows each period's **current usage** (e.g. `· 320 MB used`) next to its threshold. Trying to (re)connect over the limit asks first:
 - **Manually** (window open) → a *"Connect anyway and ignore the limit?"* confirmation.
@@ -55,7 +55,7 @@ Importing understands all of it: `.mgconf` files prompt for the password, and an
 
 MasselGUARD now ships in **twelve languages**. Six are new this release — **Italian, Portuguese (Brazil), Russian, Polish, Turkish, and Chinese (Simplified)** — joining English, Dutch, German, French, Spanish, and Japanese. Each gets its own flag in the picker (Settings → General → Interface language, and the setup wizard).
 
-Alongside the new languages, this release clears a large **translation backlog**: hundreds of strings that had quietly stayed English in the European languages are now translated, and UI that was previously hardcoded is fully localized too — the tunnel **Connect / Disconnect** status and buttons, the **Theme browser** and the *Manage themes* / *Download themes* buttons, the *View preset* section, and the DNS/health tooltips. Switching language updates the whole window live.
+Alongside the new languages, this release clears a large **translation backlog**: hundreds of strings that had quietly stayed English in the European languages are now translated, and UI that was previously hardcoded is fully localized too — the tunnel **Connect / Disconnect** status and buttons, the entire **Theme Manager** (the theme editor and the community theme browser, plus the *Manage themes* / *Download themes* buttons), the *View preset* section, and the DNS/health tooltips. Switching language updates the whole window live.
 
 **Escape hatch:** hold **Shift** while starting MasselGUARD to reset the interface language to the default (English) — handy if you land in a language you can't read. (The same Shift-at-startup reset already covers a bad font or theme, and there's a reminder of it under the language selector.)
 
