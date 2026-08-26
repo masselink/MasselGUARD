@@ -716,27 +716,27 @@ MasselGUARD check-update --json
 
 **Plain output:**
 ```
-Up to date — v3.9.0 is the latest release.
+Up to date — v3.9.5 is the latest release.
 ```
 ```
-Update available: v3.9.1  (current: v3.9.0)
+Update available: v3.9.6  (current: v3.9.5)
 ```
 
 **JSON output:**
 ```json
 {
   "result":  "up_to_date",
-  "current": "3.9.0",
-  "latest":  "3.9.0",
-  "message": "Up to date — v3.9.0 is the latest release."
+  "current": "3.9.5",
+  "latest":  "3.9.5",
+  "message": "Up to date — v3.9.5 is the latest release."
 }
 ```
 ```json
 {
   "result":  "update_available",
-  "current": "3.9.0",
-  "latest":  "3.9.1",
-  "message": "Update available: v3.9.1  (current: v3.9.0)"
+  "current": "3.9.5",
+  "latest":  "3.9.6",
+  "message": "Update available: v3.9.6  (current: v3.9.5)"
 }
 ```
 
@@ -754,7 +754,7 @@ MasselGUARD -v
 
 **Plain output:**
 ```
-MasselGUARD v3.9.0  |  Adaptive Armadillo
+MasselGUARD v3.9.5  |  Selective Serval
 build:   2608200000
 arch:    x64
 Harold Masselink  |  https://masselink.net
@@ -764,8 +764,8 @@ Update:  up to date
 **JSON output:**
 ```json
 {
-  "version":       "3.9.0",
-  "codename":      "Adaptive Armadillo",
+  "version":       "3.9.5",
+  "codename":      "Selective Serval",
   "build":         "2608200000",
   "arch":          "x64",
   "update_status": "up to date"

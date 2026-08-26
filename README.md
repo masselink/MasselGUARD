@@ -119,7 +119,7 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 - Start with Windows toggle (Scheduled Task, no UAC on subsequent launches)
 - Notification duration picker (3 / 5 / 10 / 15 / 30 s)
 - **Update check frequency** — On start / Daily / Weekly / Manual
-- Six languages: English, Dutch, German, French, Spanish, Japanese — with country flags in the picker
+- Twelve languages: English, Dutch, German, French, Spanish, Japanese, Italian, Portuguese (Brazil), Russian, Polish, Turkish, Chinese (Simplified) — with country flags in the picker; hold **Shift** at startup to reset to English
 
 ### Managed deployment (locked preset)
 - A **`.masselguard`** file is a full settings snapshot: **import** it (wizard/Advanced) to apply-and-edit, or drop it next to the exe to **force + lock** every setting it contains — for a company rollout, a family/kids' laptop, or a kiosk
@@ -169,7 +169,7 @@ MasselGUARD includes a full CLI for scripting and automation. Requires Administr
 MasselGUARD version
 ```
 ```
-MasselGUARD v3.9.0  |  Adaptive Armadillo
+MasselGUARD v3.9.5  |  Selective Serval
 build:   2608200000
 arch:    x64
 Harold Masselink  |  https://masselink.net
@@ -215,7 +215,7 @@ Requires the .NET 10 SDK. With no argument, `BUILD.bat` builds **both** architec
 Banner:
 ```
   --------------------------------------------------
-  MasselGUARD  v3.9.0  |  Adaptive Armadillo
+  MasselGUARD  v3.9.5  |  Selective Serval
   Harold Masselink  |  https://masselink.net
   Building arch(es): x64 arm64
   --------------------------------------------------

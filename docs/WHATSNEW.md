@@ -1,6 +1,6 @@
-## v3.9.5 — Selective Serval
+## v3.9.5-beta — Selective Serval
 
-_Release in preparation._ This cycle is about **rules and portability**.
+_Beta release._ This cycle is about **rules, portability, and languages**.
 
 ---
 
@@ -51,9 +51,19 @@ Importing understands all of it: `.mgconf` files prompt for the password, and an
 
 ---
 
+### Twelve interface languages
+
+MasselGUARD now ships in **twelve languages**. Six are new this release — **Italian, Portuguese (Brazil), Russian, Polish, Turkish, and Chinese (Simplified)** — joining English, Dutch, German, French, Spanish, and Japanese. Each gets its own flag in the picker (Settings → General → Interface language, and the setup wizard).
+
+Alongside the new languages, this release clears a large **translation backlog**: hundreds of strings that had quietly stayed English in the European languages are now translated, and UI that was previously hardcoded is fully localized too — the tunnel **Connect / Disconnect** status and buttons, the **Theme browser** and the *Manage themes* / *Download themes* buttons, the *View preset* section, and the DNS/health tooltips. Switching language updates the whole window live.
+
+**Escape hatch:** hold **Shift** while starting MasselGUARD to reset the interface language to the default (English) — handy if you land in a language you can't read. (The same Shift-at-startup reset already covers a bad font or theme, and there's a reminder of it under the language selector.)
+
+---
+
 ### Polish
 
-- **Six more languages.** MasselGUARD's interface is now available in **Italian, Portuguese (Brazil), Russian, Polish, Turkish, and Chinese (Simplified)** — joining English, Dutch, German, French, Spanish, and Japanese. Pick one under Settings → General → Interface language.
+- **A crisper settings icon.** The main-window gear is now a sharp vector icon instead of a faint text glyph — it stays crisp at any scale and picks up the accent colour on hover like the rest of the toolbar chrome.
 - **Usage rings on the tunnel row.** The status line dropped the live ↑↓ traffic figure (it added noise). In its place, a connected tunnel shows a compact set of **concentric usage rings** — **day** (innermost), **week** (middle), **month** (outermost). A ring appears automatically for each cap you've set (the old *Show in row* toggle is gone), fills **0 → 360°** as usage approaches the cap, turns **amber** near the limit and **red** once over it. Hover for the exact per-period breakdown, shown immediately.
 - **Smoother tunnel import.** The import file picker now defaults to an **All supported configs** filter, so `.conf`, `.mgconf`, and `.conf.dpapi` files all show at once — no more switching the filter to see encrypted files. And if the imported name already exists, you're asked to **Overwrite**, **Save as new name**, or **Cancel** instead of silently creating a second tunnel with the same name.
 - **No more duplicate WiFi rules list.** The rules list was showing in *two* places — the main window and Settings → WiFi. Settings now keeps only the automation settings (default action, open-network protection, trusted networks, manual mode, and the main-window rules panel/column toggles); manage the rules themselves on the main window.

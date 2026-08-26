@@ -100,11 +100,13 @@ Columns: **Tunnel** | **Type** | **Status** | **Rules** | **Action**
 
 - **Colour strip** — 4 px strip per row showing the tunnel's group colour
 - **Badges** — `⚡` (default action) and `🔓` (open network protection) after the tunnel name
-- **Status** — uptime for active tunnels: `● Connected  2h 34m`
+- **Status** — uptime for active tunnels: `● Connected  2h 34m`. When a data cap is set, the row also shows compact **usage rings** (day / week / month) — see §10
 - **Rules** — count of WiFi rules referencing this tunnel; click to highlight matching rules in the WiFi Rules panel. Rebuilds immediately on rule add/edit/delete
-- **Action** — Connect / Disconnect, centred
+- **Action** — Connect / Disconnect, centred (a 🛑 marker appears if a data cap disconnected the tunnel, until you next start it)
 
-**Toolbar buttons:** + Add | Edit | Import | **Defaults** | Delete
+**Toolbar buttons:** + Add | Edit | Import | **Export** | **Defaults** | Delete
+
+**Export** hands a selected tunnel to another device — see *Exporting a tunnel* in §5.
 
 ### Defaults button
 
@@ -157,6 +159,18 @@ Manage in **Settings → Tunnels**. Each group row has:
 ### Drag-to-reorder tunnels
 
 Drag tunnel rows to reorder within the current group. A 2 px Accent drop-line shows the insertion point.
+
+### Exporting a tunnel
+
+Select a tunnel and use the toolbar **Export** button to hand it to another device or keep a backup. Three formats:
+
+- **Plain file (`.conf`)** — a standard WireGuard config; import it into any WireGuard client, phone, or router.
+- **Encrypted file (`.mgconf`)** — password-protected with AES-256-GCM. Unlike the at-rest storage, it's **portable** — open it on any machine with the password. There's no recovery if the password is lost.
+- **QR code** — scan straight into the WireGuard mobile app.
+
+**Include MasselGUARD settings** (file formats only) bundles the tunnel's extras — group, notes, scripts, kill switch, auto-reconnect, and data caps — as readable `# MasselGUARD-…` comment lines that other WireGuard clients ignore, so the `.conf` stays universally importable. MasselGUARD restores them on import (the CLI too: `MasselGUARDcli import file.mgconf --password <pw>`).
+
+> The exported config contains the tunnel's **private key** — keep plain and QR exports private; use the encrypted format to share safely. Export is disabled when a managed policy locks *Tunnels*.
 
 ---
 
@@ -264,7 +278,7 @@ Adding, editing, or deleting a rule immediately refreshes both the WiFi Rules pa
 
 ### Language
 
-Language picker — changes take effect immediately. Six languages: English, Dutch, German, French, Spanish, Japanese.
+Language picker — changes take effect immediately. Twelve languages: English, Dutch, German, French, Spanish, Japanese, Italian, Portuguese (Brazil), Russian, Polish, Turkish, Chinese (Simplified). Hold **Shift** while starting MasselGUARD to reset the language to English.
 
 ### App mode
 
@@ -736,7 +750,7 @@ To return to the theme's own font: toggle **Override font** off.
 
 ## 26. Multiple languages
 
-English, Dutch, German, French, Spanish, Japanese. Change in Settings → General — the picker shows a country flag next to each language. Add a language: copy `lang\en.json`, translate, set the `_code`, `_language`, and `_flag` keys, and drop a matching 20×15 `<flag>.png` into `lang\flags\`.
+English, Dutch, German, French, Spanish, Japanese, Italian, Portuguese (Brazil), Russian, Polish, Turkish, Chinese (Simplified). Change in Settings → General — the picker shows a country flag next to each language, and a reminder that holding **Shift** at startup resets to English. Add a language: copy `lang\en.json`, translate, set the `_code`, `_language`, and `_flag` keys, and drop a matching 20×15 `<flag>.png` into `lang\flags\`.
 
 ---
 
@@ -811,8 +825,12 @@ Settings → Tunnels → Kill switch mode is set to **Always**, which forces the
 **Where do I see bandwidth usage?**
 In the activity log (Extended mode). After each disconnect a grey continuation line shows the session duration and bandwidth: `↳ 2h 14m  ·  ↑ 142 MB  ↓ 1.2 GB`. Switch to Extended in Settings → Advanced → Log level.
 
-**Can I get warned about data usage?**
-Yes. Edit a tunnel → **Options** → **DATA-USAGE WARNINGS** and set a **daily**, **weekly**, and/or **monthly** threshold in MB (0 = off). When the tunnel's usage for a period crosses its threshold you get a one-time log entry, a tray toast, and the tunnel's row is highlighted in amber (the usage figure turns amber, with a tooltip breaking down today / this week / this month). Each warning re-arms at the next period boundary. These are **warnings only** — the tunnel is not disconnected at the limit. Usage is drawn from the connection history, so keep **Settings → History → Capture → Connections** on for accurate totals.
+**Can I get warned about — or cut off at — data usage?**
+Yes. Edit a tunnel → **Options** → **DATA-USAGE WARNINGS** and set a **daily**, **weekly**, and/or **monthly** threshold in MB (0 = off). When usage for a period crosses its threshold you get a one-time log entry, a tray toast, and the row is highlighted in amber. A cap you set also draws a **usage ring** on the connected tunnel's row (day inner · week middle · month outer, filling 0→360°, amber near the limit and red once over) — hover for the exact breakdown.
+
+Ticking **Kill at cap** next to a threshold turns the warning into **enforcement**: the tunnel is disconnected the moment that period's usage is reached (with a sticky *Ignore & reconnect* toast and a 🛑 row marker), and connecting over the limit asks first. Trying to reconnect an over-cap tunnel via a rule shows an interactive Connect / Cancel toast. Editing the caps re-arms enforcement. Leave *Kill at cap* off for warning-only behaviour.
+
+The bottom info panel has a **Timeline ⇄ Data usage** switch that charts per-tunnel usage over the selected range, with a red marker where a cap was reached. Usage is drawn from the connection history, so keep **Settings → History → Capture → Connections** on for accurate totals. Estimates are not exact — MasselGUARD isn't responsible for inaccurate reporting or for tunnels being disconnected (or not) as a result.
 
 **The import settings dialog showed raw placeholder text instead of a warning.**
 Fixed in v3.3.0 — `SettingsImportVersionWarning` and `SettingsImportVersionNewer` are now present in all five language files.
@@ -906,7 +924,7 @@ MasselGUARD info "1.MasselinkVPN-Split-AG"
 ### Version output
 
 ```
-MasselGUARD v3.9.0  |  Adaptive Armadillo
+MasselGUARD v3.9.5  |  Selective Serval
 build:   2608200000
 arch:    x64
 Harold Masselink  |  https://masselink.net

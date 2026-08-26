@@ -570,7 +570,7 @@ Per arch (`x64`, `arm64`) BUILD.bat cleans `obj\`/`bin\`, cross-publishes GUI + 
 Banner printed during build:
 ```
   --------------------------------------------------
-  MasselGUARD  v3.9.0  |  Adaptive Armadillo
+  MasselGUARD  v3.9.5  |  Selective Serval
   Harold Masselink  |  https://masselink.net
   Building arch(es): x64 arm64
   --------------------------------------------------
@@ -779,7 +779,7 @@ dotnet publish -p:Version=%VERSION% -p:InformationalVersion=%VERSION%.%BUILD_NUM
 Assembly.GetEntryAssembly()
     ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
     ?.InformationalVersion;
-// → "3.9.0.2608200000"  (last 10 chars = build stamp)
+// → "3.9.5.2608200000"  (last 10 chars = build stamp)
 ```
 
 `Version.TryParse` handles 4-part versions for comparison. The version component (`Major.Minor.Patch`) is always static; only the build stamp changes between builds.
@@ -953,7 +953,7 @@ string updateStatus =
 
 Plain output:
 ```
-MasselGUARD v3.9.0  |  Adaptive Armadillo
+MasselGUARD v3.9.5  |  Selective Serval
 build:   2608200000
 arch:    x64
 Harold Masselink  |  https://masselink.net
@@ -991,14 +991,13 @@ JSON output adds `arch` and `update_status` fields alongside `version`, `codenam
 private static readonly Dictionary<string, string> _codenames =
     new(StringComparer.OrdinalIgnoreCase)
     {
-        { "3.7.0", "Chromatic Chameleon" },
-        { "3.7.1", "Chromatic Chameleon" },
         { "3.8.0", "Protective Pangolin" },
         { "3.9.0", "Adaptive Armadillo" },
+        { "3.9.5", "Selective Serval" },
     };
 ```
 
-`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"3.9.0 — Adaptive Armadillo"` or just `"3.9.0"`.
+`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"3.9.5 — Selective Serval"` or just `"3.9.5"`.
 
 Codenames are assigned per `Major.Minor.Patch` release only — not per build. Update the dictionary in `UpdateChecker.cs` **and** `BUILD.bat` when bumping `VERSION`.
 
