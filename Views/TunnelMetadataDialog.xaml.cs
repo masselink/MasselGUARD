@@ -17,7 +17,12 @@ namespace MasselGUARD.Views
         public bool   ResultIsOpenProtection   { get; private set; }
         public bool   ResultKillSwitch         { get; private set; }
         public bool   ResultAutoReconnect      { get; private set; }
+        public int    ResultDailyCapMB         { get; private set; }
+        public int    ResultWeeklyCapMB        { get; private set; }
         public int    ResultMonthlyCapMB       { get; private set; }
+        public bool   ResultDailyCapKill       { get; private set; }
+        public bool   ResultWeeklyCapKill      { get; private set; }
+        public bool   ResultMonthlyCapKill     { get; private set; }
 
         public TunnelMetadataDialog(string tunnelName, string currentGroup,
                                     string currentNotes, List<string> groups,
@@ -26,7 +31,12 @@ namespace MasselGUARD.Views
                                     bool isDefault = false, bool isOpenProtection = false,
                                     bool isKillSwitch = false, bool isGlobalAlways = false,
                                     bool isAutoReconnect = false, string autoReconnectMode = "off",
-                                    int existingMonthlyCapMB = 0)
+                                    int existingMonthlyCapMB = 0,
+                                    int existingDailyCapMB = 0, int existingWeeklyCapMB = 0,
+                                    bool existingDailyCapKill = false, bool existingWeeklyCapKill = false,
+                                    bool existingMonthlyCapKill = false,
+                                    long existingDailyUsedBytes = 0, long existingWeeklyUsedBytes = 0,
+                                    long existingMonthlyUsedBytes = 0)
         {
             InitializeComponent();
 
@@ -62,9 +72,16 @@ namespace MasselGUARD.Views
                 }
             }
 
-            // Monthly data cap
-            if (MonthlyCapBox != null)
-                MonthlyCapBox.Text = existingMonthlyCapMB.ToString();
+            // Data-usage warning thresholds + "show in row" flags
+            if (DailyCapBox   != null) DailyCapBox.Text   = existingDailyCapMB.ToString();
+            if (WeeklyCapBox  != null) WeeklyCapBox.Text  = existingWeeklyCapMB.ToString();
+            if (MonthlyCapBox != null) MonthlyCapBox.Text = existingMonthlyCapMB.ToString();
+            if (DailyCapKillChk   != null) DailyCapKillChk.IsChecked   = existingDailyCapKill;
+            if (WeeklyCapKillChk  != null) WeeklyCapKillChk.IsChecked  = existingWeeklyCapKill;
+            if (MonthlyCapKillChk != null) MonthlyCapKillChk.IsChecked = existingMonthlyCapKill;
+            if (DailyUsedLabel    != null) DailyUsedLabel.Text    = UsedText(existingDailyUsedBytes);
+            if (WeeklyUsedLabel   != null) WeeklyUsedLabel.Text   = UsedText(existingWeeklyUsedBytes);
+            if (MonthlyUsedLabel  != null) MonthlyUsedLabel.Text  = UsedText(existingMonthlyUsedBytes);
 
             // Auto-reconnect toggle
             if (AutoReconnectRow != null)
@@ -103,11 +120,24 @@ namespace MasselGUARD.Views
             ResultIsOpenProtection    = IsOpenProtectionToggle?.IsChecked == true;
             ResultKillSwitch          = KillSwitchToggle?.IsChecked       == true;
             ResultAutoReconnect       = AutoReconnectToggle?.IsChecked    == true;
-            ResultMonthlyCapMB        = int.TryParse(MonthlyCapBox?.Text?.Trim(), out var capv) && capv > 0 ? capv : 0;
+            ResultDailyCapMB          = CapMB(DailyCapBox);
+            ResultWeeklyCapMB         = CapMB(WeeklyCapBox);
+            ResultMonthlyCapMB        = CapMB(MonthlyCapBox);
+            ResultDailyCapKill        = DailyCapKillChk?.IsChecked   == true;
+            ResultWeeklyCapKill       = WeeklyCapKillChk?.IsChecked  == true;
+            ResultMonthlyCapKill      = MonthlyCapKillChk?.IsChecked == true;
             DialogResult = true;
         }
 
         private void CancelBtn_Click(object sender, RoutedEventArgs e) => Close();
+
+        /// <summary>Parse a cap TextBox to a non-negative MB value (0 = off / blank / invalid).</summary>
+        private static int CapMB(System.Windows.Controls.TextBox? box)
+            => int.TryParse(box?.Text?.Trim(), out var v) && v > 0 ? v : 0;
+
+        /// <summary>"· 320 MB used" for the period's current usage, or empty when none.</summary>
+        private static string UsedText(long bytes)
+            => bytes > 0 ? $"· {ViewModels.MainViewModel.FmtBytes(bytes)} used" : "";
 
         private void BrowseScript(System.Windows.Controls.TextBox pathBox)
         {

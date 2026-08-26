@@ -65,6 +65,20 @@
 
                 <!-- Trusted networks (SSID list lives in Settings) -->
                 <StackPanel x:Name="TrustedPanel" Visibility="Collapsed" Margin="0,0,0,12">
+                    <TextBlock Text="{Binding [RuleDialogTrustedWhenLabel], Source={x:Static local:Lang.Instance}}"
+                               FontFamily="{DynamicResource Theme.FontFamily}"
+                               FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4"/>
+                    <StackPanel Orientation="Vertical" Margin="0,0,0,10">
+                        <RadioButton x:Name="TrustedWhenUntrustedRadio" GroupName="TrustedWhen" IsChecked="True"
+                                     Content="{Binding [RuleDialogTrustedWhenUntrusted], Source={x:Static local:Lang.Instance}}"
+                                     Foreground="{DynamicResource TextPrimary}"
+                                     FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                     Margin="0,0,0,4"/>
+                        <RadioButton x:Name="TrustedWhenTrustedRadio" GroupName="TrustedWhen"
+                                     Content="{Binding [RuleDialogTrustedWhenTrusted], Source={x:Static local:Lang.Instance}}"
+                                     Foreground="{DynamicResource TextPrimary}"
+                                     FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"/>
+                    </StackPanel>
                     <Border Background="{DynamicResource Surface}"
                             BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
                             CornerRadius="{DynamicResource Theme.CornerRadius}"
@@ -100,13 +114,13 @@
                                FontFamily="{DynamicResource Theme.FontFamily}"
                                FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4"/>
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <ToggleButton x:Name="DayMon" Tag="1" Content="Mon" Width="42" FontSize="10" Margin="0,0,3,0" IsChecked="True"/>
-                        <ToggleButton x:Name="DayTue" Tag="2" Content="Tue" Width="42" FontSize="10" Margin="0,0,3,0" IsChecked="True"/>
-                        <ToggleButton x:Name="DayWed" Tag="3" Content="Wed" Width="42" FontSize="10" Margin="0,0,3,0" IsChecked="True"/>
-                        <ToggleButton x:Name="DayThu" Tag="4" Content="Thu" Width="42" FontSize="10" Margin="0,0,3,0" IsChecked="True"/>
-                        <ToggleButton x:Name="DayFri" Tag="5" Content="Fri" Width="42" FontSize="10" Margin="0,0,3,0" IsChecked="True"/>
-                        <ToggleButton x:Name="DaySat" Tag="6" Content="Sat" Width="42" FontSize="10" Margin="0,0,3,0"/>
-                        <ToggleButton x:Name="DaySun" Tag="0" Content="Sun" Width="42" FontSize="10"/>
+                        <ToggleButton x:Name="DayMon" Tag="1" Content="Mon" Width="42" FontSize="10" Margin="0,0,3,0" IsChecked="True" Style="{StaticResource DayToggleBtn}"/>
+                        <ToggleButton x:Name="DayTue" Tag="2" Content="Tue" Width="42" FontSize="10" Margin="0,0,3,0" IsChecked="True" Style="{StaticResource DayToggleBtn}"/>
+                        <ToggleButton x:Name="DayWed" Tag="3" Content="Wed" Width="42" FontSize="10" Margin="0,0,3,0" IsChecked="True" Style="{StaticResource DayToggleBtn}"/>
+                        <ToggleButton x:Name="DayThu" Tag="4" Content="Thu" Width="42" FontSize="10" Margin="0,0,3,0" IsChecked="True" Style="{StaticResource DayToggleBtn}"/>
+                        <ToggleButton x:Name="DayFri" Tag="5" Content="Fri" Width="42" FontSize="10" Margin="0,0,3,0" IsChecked="True" Style="{StaticResource DayToggleBtn}"/>
+                        <ToggleButton x:Name="DaySat" Tag="6" Content="Sat" Width="42" FontSize="10" Margin="0,0,3,0" Style="{StaticResource DayToggleBtn}"/>
+                        <ToggleButton x:Name="DaySun" Tag="0" Content="Sun" Width="42" FontSize="10" Style="{StaticResource DayToggleBtn}"/>
                     </StackPanel>
                     <Grid Margin="0,0,0,12">
                         <Grid.ColumnDefinitions>

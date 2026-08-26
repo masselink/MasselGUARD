@@ -190,13 +190,23 @@ namespace MasselGUARD.Services
         public (long rx, long tx) GetMonthlyUsage(string? tunnelName, DateTime monthUtc)
         {
             var start = new DateTime(monthUtc.Year, monthUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-            var end   = start.AddMonths(1);
+            return GetUsageInRange(tunnelName, start, start.AddMonths(1));
+        }
+
+        /// <summary>
+        /// Sum the closed-session Rx/Tx bytes for a tunnel (or all tunnels when
+        /// <paramref name="tunnelName"/> is null/empty) whose ConnectedAt falls in
+        /// the half-open UTC range [startUtc, endUtc). Used for day / week / month
+        /// data-usage accounting.
+        /// </summary>
+        public (long rx, long tx) GetUsageInRange(string? tunnelName, DateTime startUtc, DateTime endUtc)
+        {
             long rx = 0, tx = 0;
             lock (_lock)
             {
                 foreach (var e in _entries)
                 {
-                    if (e.ConnectedAt < start || e.ConnectedAt >= end) continue;
+                    if (e.ConnectedAt < startUtc || e.ConnectedAt >= endUtc) continue;
                     if (!string.IsNullOrEmpty(tunnelName) &&
                         !e.TunnelName.Equals(tunnelName, StringComparison.OrdinalIgnoreCase)) continue;
                     rx += e.SessionRxBytes;

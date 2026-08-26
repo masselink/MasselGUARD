@@ -19,8 +19,10 @@ namespace MasselGUARD.Views
 {
     public partial class ImportTunnelDialog : Window
     {
-        // Raised when a config is successfully parsed — name + raw config text + source + optional original file path
-        public event Action<string, string, string, string?>? TunnelImported;
+        // Raised when a config is successfully parsed — name + raw config text +
+        // source + optional original file path + optional embedded MasselGUARD
+        // settings (non-null only when the imported file carried them).
+        public event Action<string, string, string, string?, Services.TunnelExportService.TunnelSettings?>? TunnelImported;
 
         private readonly HashSet<string> _alreadyImported;
 
@@ -52,7 +54,10 @@ namespace MasselGUARD.Views
             var dlg = new OpenFileDialog
             {
                 Title  = Lang.T("ImportTitle"),
-                Filter = "WireGuard config (*.conf)|*.conf|Encrypted config (*.conf.dpapi)|*.conf.dpapi|All files (*.*)|*.*",
+                Filter = "All supported configs (*.conf;*.mgconf;*.conf.dpapi)|*.conf;*.mgconf;*.conf.dpapi"
+                       + "|WireGuard config (*.conf)|*.conf"
+                       + "|Encrypted config (*.mgconf;*.conf.dpapi)|*.mgconf;*.conf.dpapi"
+                       + "|All files (*.*)|*.*",
                 FilterIndex = 1,
                 Multiselect = false
             };
@@ -63,25 +68,62 @@ namespace MasselGUARD.Views
                 string text;
                 string filePath = dlg.FileName;
 
-                if (filePath.EndsWith(".conf.dpapi", StringComparison.OrdinalIgnoreCase))
+                if (filePath.EndsWith(Services.TunnelExportService.EncryptedExtension, StringComparison.OrdinalIgnoreCase))
+                {
+                    // Password-encrypted MasselGUARD export — prompt and decrypt.
+                    var bytes = File.ReadAllBytes(filePath);
+                    var pw = PasswordPromptWindow.Ask(this,
+                        Lang.T("ImportEncryptedTitle"), Lang.T("ImportEncryptedPrompt"));
+                    if (pw == null) return; // cancelled
+                    try
+                    {
+                        text = Services.TunnelExportService.Decrypt(bytes, pw);
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowStatus(Lang.T("ImportDecryptFailed", ex.Message), isError: true);
+                        return;
+                    }
+                }
+                else if (filePath.EndsWith(".conf.dpapi", StringComparison.OrdinalIgnoreCase))
                 {
                     var cipherBytes = File.ReadAllBytes(filePath);
                     var plainBytes = ProtectedData.Unprotect(
                         cipherBytes, null, DataProtectionScope.CurrentUser);
                     text = System.Text.Encoding.UTF8.GetString(plainBytes);
-
-                    var name = Path.GetFileNameWithoutExtension(
-                        Path.GetFileNameWithoutExtension(filePath));
-                    var storagePath = Services.TunnelService.SaveConfigToFile(name, text);
-                    TunnelImported?.Invoke(name, "", "local", storagePath);
                 }
                 else
                 {
                     text = File.ReadAllText(filePath, System.Text.Encoding.UTF8);
-                    var name = Path.GetFileNameWithoutExtension(filePath);
-                    var storagePath = Services.TunnelService.SaveConfigToFile(name, text);
-                    TunnelImported?.Invoke(name, "", "local", storagePath);
                 }
+
+                // Split out any embedded MasselGUARD settings before storing.
+                var (config, settings) = Services.TunnelExportService.ParseImportText(text);
+
+                var baseName = Path.GetFileNameWithoutExtension(filePath);
+                if (baseName.EndsWith(".conf", StringComparison.OrdinalIgnoreCase))
+                    baseName = Path.GetFileNameWithoutExtension(baseName); // strip .conf from .conf.dpapi
+
+                // Resolve a name collision — overwrite, save under a new name, or cancel.
+                // (MainWindow replaces an existing tunnel when the name matches, so
+                //  "overwrite" keeps the name and "rename" picks a fresh unique one.)
+                if (_alreadyImported.Contains(baseName))
+                {
+                    switch (AskDuplicate(baseName))
+                    {
+                        case DupChoice.Cancel:
+                            return;
+                        case DupChoice.Rename:
+                            var newName = AskNewName(baseName);
+                            if (string.IsNullOrEmpty(newName)) return;   // cancelled
+                            baseName = newName!;
+                            break;
+                        // DupChoice.Overwrite → keep baseName
+                    }
+                }
+
+                var storagePath = Services.TunnelService.SaveConfigToFile(baseName, config);
+                TunnelImported?.Invoke(baseName, "", "local", storagePath, settings);
                 Close();
             }
             catch (Exception ex)
@@ -105,7 +147,7 @@ namespace MasselGUARD.Views
             if (picker.ShowDialog() != true || picker.SelectedTunnels.Count == 0) return;
 
             foreach (var (name, _, path) in picker.SelectedTunnels)
-                TunnelImported?.Invoke(name, "", "wireguard", path);
+                TunnelImported?.Invoke(name, "", "wireguard", path, null);
 
             Close();
         }
@@ -157,10 +199,12 @@ namespace MasselGUARD.Views
             try
             {
                 ShowStatus(Lang.T("ImportQRFound"), isError: false);
-                // The QR content is the raw WireGuard config text.
+                // The QR content is the raw WireGuard config text (settings are
+                // parsed out too, in case it was a MasselGUARD-made payload).
                 var name = "QR-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
-                var storagePath = Services.TunnelService.SaveConfigToFile(name, picker.DecodedText!);
-                TunnelImported?.Invoke(name, "", "local", storagePath);
+                var (config, settings) = Services.TunnelExportService.ParseImportText(picker.DecodedText!);
+                var storagePath = Services.TunnelService.SaveConfigToFile(name, config);
+                TunnelImported?.Invoke(name, "", "local", storagePath, settings);
                 Close();
             }
             catch (Exception ex)
@@ -179,6 +223,93 @@ namespace MasselGUARD.Views
                     : (System.Windows.Media.SolidColorBrush)FindResource("TextMuted");
                 StatusLabel.Visibility = Visibility.Visible;
             });
+        }
+
+        // ── Duplicate-name resolution ─────────────────────────────────────────
+        private enum DupChoice { Overwrite, Rename, Cancel }
+
+        /// <summary>Themed 3-way prompt shown when the imported name already exists.</summary>
+        private DupChoice AskDuplicate(string name)
+        {
+            Brush Res(string k) => (Application.Current.Resources[k] as Brush) ?? Brushes.Gray;
+            var ff = Application.Current.Resources["Theme.FontFamily"] as FontFamily ?? new FontFamily("Segoe UI");
+
+            var win = new Window
+            {
+                WindowStyle = WindowStyle.None, AllowsTransparency = true, Background = Brushes.Transparent,
+                SizeToContent = SizeToContent.WidthAndHeight, ResizeMode = ResizeMode.NoResize,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Owner = this,
+            };
+            var result = DupChoice.Cancel;
+
+            var border = new Border
+            {
+                Background = Res("WindowBg"), BorderBrush = Res("Accent"), BorderThickness = new Thickness(1),
+                CornerRadius = Application.Current.Resources["Theme.CornerRadius"] is CornerRadius cr ? cr : new CornerRadius(6),
+                Padding = new Thickness(20),
+            };
+            var panel = new StackPanel { MaxWidth = 380 };
+            panel.Children.Add(new TextBlock
+            {
+                Text = Lang.T("ImportDuplicateTitle"), FontFamily = ff, FontSize = 13, FontWeight = FontWeights.Bold,
+                Foreground = Res("Accent"), Margin = new Thickness(0, 0, 0, 10),
+            });
+            panel.Children.Add(new TextBlock
+            {
+                Text = Lang.T("ImportDuplicateMsg", name), FontFamily = ff, FontSize = 11,
+                Foreground = Res("TextPrimary"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 16),
+            });
+
+            var btns = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            Button Mk(string key, string styleKey, Thickness margin) => new()
+            {
+                Content = Lang.T(key), Style = Application.Current.Resources[styleKey] as Style,
+                Padding = new Thickness(12, 6, 12, 6), Margin = margin,
+            };
+            var over   = Mk("BtnOverwrite", "DangerBtn",  new Thickness(0, 0, 8, 0));
+            var rename = Mk("BtnSaveAsNew", "FlatBtn",     new Thickness(0, 0, 8, 0));
+            var cancel = Mk("BtnCancel",    "PrimaryBtn",  new Thickness(0));
+            over.Click   += (_, _) => { result = DupChoice.Overwrite; win.Close(); };
+            rename.Click += (_, _) => { result = DupChoice.Rename;    win.Close(); };
+            cancel.Click += (_, _) => { result = DupChoice.Cancel;    win.Close(); };
+            btns.Children.Add(over); btns.Children.Add(rename); btns.Children.Add(cancel);
+            panel.Children.Add(btns);
+
+            border.Child = panel; win.Content = border;
+            win.ShowDialog();
+            return result;
+        }
+
+        /// <summary>Prompt for a new, unique tunnel name; loops until unique or cancelled.</summary>
+        private string? AskNewName(string original)
+        {
+            string suggestion = SuggestUniqueName(original);
+            string? error = null;
+            while (true)
+            {
+                var entered = TextPromptWindow.Ask(this,
+                    Lang.T("ImportRenameTitle"), Lang.T("ImportRenamePrompt"), suggestion, error);
+                if (entered == null) return null;               // cancelled
+                entered = entered.Trim();
+                if (entered.Length == 0) { error = Lang.T("ImportNameEmpty"); continue; }
+                if (_alreadyImported.Contains(entered))
+                {
+                    error = Lang.T("ImportNameTaken");
+                    suggestion = SuggestUniqueName(entered);
+                    continue;
+                }
+                return entered;
+            }
+        }
+
+        private string SuggestUniqueName(string name)
+        {
+            if (!_alreadyImported.Contains(name)) return name;
+            for (int i = 2; ; i++)
+            {
+                var candidate = $"{name} ({i})";
+                if (!_alreadyImported.Contains(candidate)) return candidate;
+            }
         }
 
         private void CloseBtn_Click(object sender, RoutedEventArgs e) => Close();
@@ -212,8 +343,11 @@ namespace MasselGUARD.Views
 
         public QrScreenCaptureWindow()
         {
-            // Plain system styling — never themed (this is a theme-agnostic capture tool).
-            foreach (var ty in new[] { typeof(Button), typeof(TextBlock), typeof(Thumb),
+            // The capture surface itself stays theme-agnostic (raw colours for the box,
+            // handles and backdrop). Buttons are deliberately left OUT of this reset so the
+            // Scan / Cancel buttons inherit the app's themed FlatBtn instead of raw Windows
+            // chrome on the dark toolbar.
+            foreach (var ty in new[] { typeof(TextBlock), typeof(Thumb),
                                        typeof(StackPanel), typeof(Border) })
                 Resources[ty] = new Style(ty);
 

@@ -112,6 +112,11 @@ namespace MasselGUARD.ViewModels
             // WiFi events are handled by MainWindow which calls InitialWifiCheck()
             // for both startup queries and live SsidChanged events.
             _log.EntryAdded   += OnLogEntry;
+            // Re-localize each tunnel row's status/button text on a live language switch.
+            Lang.Instance.LanguageChanged += (_, _) =>
+            {
+                foreach (var t in TunnelList) t.RefreshLocalized();
+            };
             // Initial state
             RebuildTunnelList();
             RefreshTunnelStatus();
@@ -237,31 +242,199 @@ namespace MasselGUARD.ViewModels
         private readonly HashSet<string> _dataCapWarned = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
-        /// Edge-triggered "monthly data cap reached" warning. Fires a one-time tray toast +
-        /// log line the first time a tunnel's month-to-date total crosses its configured cap.
-        /// Re-arms automatically next calendar month (the key includes yyyy-MM).
+        /// Edge-triggered data-usage warnings for the day / week / month caps. Each
+        /// fires a one-time tray toast + log line the first time the tunnel's
+        /// period-to-date total crosses that period's configured cap, and re-arms at
+        /// the next period boundary (the dedupe key encodes the period). Warnings
+        /// only — nothing is disconnected.
         /// </summary>
-        private void MaybeWarnDataCap(TunnelEntryViewModel t, long monthlyBytes)
+        private void MaybeWarnDataCaps(TunnelEntryViewModel t, long dayBytes, long weekBytes, long monthBytes, DateTime now)
         {
-            long capMB = t.StoredTunnel.MonthlyCapMB;
-            if (capMB <= 0) return;                                 // no cap set
-            if (monthlyBytes < capMB * 1_048_576L) return;          // under cap
+            // Skip the warning for periods that enforce (Kill): the kill toast supersedes
+            // it, so we don't flash a warn toast a beat before the disconnect toast.
+            if (!t.StoredTunnel.DailyCapKill)
+                WarnCap(t, t.StoredTunnel.DailyCapMB,   dayBytes,
+                        $"{t.Name}|D|{now:yyyy-MM-dd}", "Daily", "today");
+            if (!t.StoredTunnel.WeeklyCapKill)
+                WarnCap(t, t.StoredTunnel.WeeklyCapMB,  weekBytes,
+                        $"{t.Name}|W|{System.Globalization.ISOWeek.GetYear(now)}W{System.Globalization.ISOWeek.GetWeekOfYear(now):00}", "Weekly", "this week");
+            if (!t.StoredTunnel.MonthlyCapKill)
+                WarnCap(t, t.StoredTunnel.MonthlyCapMB, monthBytes,
+                        $"{t.Name}|M|{now:yyyy-MM}", "Monthly", "this month");
+        }
 
-            var key = $"{t.Name}|{DateTime.UtcNow:yyyy-MM}";
-            if (!_dataCapWarned.Add(key)) return;                   // already warned this month
+        private void WarnCap(TunnelEntryViewModel t, int capMB, long usedBytes,
+                             string dedupeKey, string label, string when)
+        {
+            if (capMB <= 0) return;                                  // period cap off
+            if (usedBytes < (long)capMB * 1_048_576L) return;        // under cap
+            if (!_dataCapWarned.Add(dedupeKey)) return;              // already warned this period
 
-            _log.Warn($"Monthly data cap reached for {t.Name}: " +
-                      $"{capMB} MB used this month.");
+            _log.Warn($"{label} data cap reached for {t.Name}: {capMB} MB used {when}.");
             if (_config.Config.ShowTrayPopupOnSwitch)
                 (Application.Current as App)?.ShowTrayNotification(
                     new Views.ToastNotification
                     {
                         Category   = "Data cap reached",
-                        Primary    = $"{t.Name}: monthly data cap reached",
-                        Secondary  = $"{capMB} MB used this month.",
+                        Primary    = $"{t.Name}: {label.ToLowerInvariant()} data cap reached",
+                        Secondary  = $"{capMB} MB used {when}.",
                         StripColor = "Warning",
                         DurationMs = _config.Config.NotificationDurationSeconds * 1000,
                     });
+        }
+
+        // ── Cap enforcement (kill at cap) ─────────────────────────────────────
+        /// <summary>Periods (name|letter|instance) the user chose to keep using past the cap.</summary>
+        private readonly HashSet<string> _capOverridden = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Periods already auto-disconnected this instance (avoids a double kill/toast).</summary>
+        private readonly HashSet<string> _capKilled = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>An over-budget, kill-enabled period that isn't currently overridden.</summary>
+        public sealed record CapKillInfo(string Letter, string PeriodWord, long UsedBytes, long CapBytes, string OverrideKey);
+
+        private (long day, long week, long month) PeriodUsage(TunnelEntryViewModel vm, DateTime now)
+        {
+            var dayStart   = now.Date;
+            var weekStart  = dayStart.AddDays(-(((int)dayStart.DayOfWeek + 6) % 7));
+            var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+            long live = vm.IsActive ? vm.SessionBytes : 0;
+            var (drx, dtx) = _history.GetUsageInRange(vm.Name, dayStart,   dayStart.AddDays(1));
+            var (wrx, wtx) = _history.GetUsageInRange(vm.Name, weekStart,  weekStart.AddDays(7));
+            var (mrx, mtx) = _history.GetUsageInRange(vm.Name, monthStart, monthStart.AddMonths(1));
+            return (drx + dtx + live, wrx + wtx + live, mrx + mtx + live);
+        }
+
+        /// <summary>
+        /// Returns the first period whose Kill is on and cap is reached (and not
+        /// already overridden this period), or null. Used to gate connects and to
+        /// auto-disconnect a running tunnel that crosses the line.
+        /// </summary>
+        public CapKillInfo? CapKillState(TunnelEntryViewModel vm)  => CapKillCore(vm, respectOverride: true);
+        /// <summary>Over-budget kill period ignoring the "ignore this period" override (for diagnostics).</summary>
+        private CapKillInfo? CapOverBudget(TunnelEntryViewModel vm) => CapKillCore(vm, respectOverride: false);
+
+        private CapKillInfo? CapKillCore(TunnelEntryViewModel vm, bool respectOverride)
+        {
+            var st  = vm.StoredTunnel;
+            if (!st.DailyCapKill && !st.WeeklyCapKill && !st.MonthlyCapKill) return null;
+
+            var now = DateTime.UtcNow;
+            var (day, week, month) = PeriodUsage(vm, now);
+
+            CapKillInfo? Check(bool kill, int capMB, long used, string letter, string word, string instance)
+            {
+                if (!kill || capMB <= 0) return null;
+                long cap = (long)capMB * 1_048_576L;
+                if (used < cap) return null;
+                string key = $"{vm.Name}|{letter}|{instance}";
+                return (respectOverride && _capOverridden.Contains(key)) ? null
+                    : new CapKillInfo(letter, word, used, cap, key);
+            }
+
+            return Check(st.DailyCapKill,   st.DailyCapMB,   day,   "d", "daily",   $"{now:yyyy-MM-dd}")
+                ?? Check(st.WeeklyCapKill,  st.WeeklyCapMB,  week,  "w", "weekly",  $"{System.Globalization.ISOWeek.GetYear(now)}W{System.Globalization.ISOWeek.GetWeekOfYear(now):00}")
+                ?? Check(st.MonthlyCapKill, st.MonthlyCapMB, month, "m", "monthly", $"{now:yyyy-MM}");
+        }
+
+        /// <summary>Forget any "ignore this period" override and kill marker for a tunnel — called
+        /// when its caps are edited, so reconfiguring re-arms enforcement.</summary>
+        public void ResetCapEnforcement(string name)
+        {
+            string prefix = name + "|";
+            _capOverridden.RemoveWhere(k => k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+            _capKilled.RemoveWhere(k => k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+            _capIgnoredLogged.RemoveWhere(k => k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+        }
+        private readonly HashSet<string> _capIgnoredLogged = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Mark every currently-over kill period for this tunnel as overridden (ignore the limit).</summary>
+        public void OverrideCap(TunnelEntryViewModel vm)
+        {
+            var now = DateTime.UtcNow;
+            var (day, week, month) = PeriodUsage(vm, now);
+            var st = vm.StoredTunnel;
+            void Maybe(bool kill, int capMB, long used, string letter, string instance)
+            {
+                if (kill && capMB > 0 && used >= (long)capMB * 1_048_576L)
+                    _capOverridden.Add($"{vm.Name}|{letter}|{instance}");
+            }
+            Maybe(st.DailyCapKill,   st.DailyCapMB,   day,   "d", $"{now:yyyy-MM-dd}");
+            Maybe(st.WeeklyCapKill,  st.WeeklyCapMB,  week,  "w", $"{System.Globalization.ISOWeek.GetYear(now)}W{System.Globalization.ISOWeek.GetWeekOfYear(now):00}");
+            Maybe(st.MonthlyCapKill, st.MonthlyCapMB, month, "m", $"{now:yyyy-MM}");
+        }
+
+        /// <summary>Disconnect an active tunnel that has crossed a kill-enabled cap.</summary>
+        private void MaybeKillOnCap(TunnelEntryViewModel t)
+        {
+            if (!t.IsActive) return;
+            var kill = CapKillState(t);
+            if (kill == null)
+            {
+                // Over a kill cap but kept up (the user chose to ignore it this period) — note it
+                // once so an "over budget yet connected" tunnel is never a silent mystery.
+                var over = CapOverBudget(t);
+                if (over != null && _capIgnoredLogged.Add(over.OverrideKey))
+                    _log.Info($"{t.Name}: over the {over.PeriodWord} cap but kept connected — limit ignored for this period.");
+                return;
+            }
+
+            // Enforce the disconnect on every poll while over budget. A WireGuard-for-Windows
+            // companion tunnel can be re-activated externally after we drop it, so a one-shot
+            // kill would let it drift back up; re-issuing the disconnect keeps it down. The
+            // warning + sticky toast still fire only once per period (below).
+            t.DisconnectCommand.Execute(null);   // marks intentional → no auto-reconnect
+            t.RefreshStatus();                   // reflect the drop in the row immediately
+            t.CapKilled = true;                  // row shows a stop marker until the next start
+
+            if (!_capKilled.Add(kill.OverrideKey)) return;   // already announced this period
+
+            _log.Warn($"Data cap reached — disconnecting {t.Name}: {kill.PeriodWord} " +
+                      $"{FmtBytes(kill.UsedBytes)} / {FmtBytes(kill.CapBytes)}.");
+
+            // Sticky, interactive confirmation — offer to ignore the cap and reconnect.
+            (Application.Current as App)?.ShowTrayNotification(new Views.ToastNotification
+            {
+                Category     = "Data cap reached",
+                Primary      = $"{t.Name}: disconnected — {kill.PeriodWord} cap reached",
+                Secondary    = $"{FmtBytes(kill.UsedBytes)} of {FmtBytes(kill.CapBytes)} used this period.",
+                StripColor   = "Danger",
+                Interactive  = true,
+                ConfirmLabel = "Ignore & reconnect",
+                CancelLabel  = "Dismiss",
+                OnConfirm    = () =>
+                {
+                    OverrideCap(t);
+                    t.PendingConnectSource = "Reconnected (cap ignored)";
+                    t.ConnectCommand.Execute(null);
+                    _log.Info($"Reconnected {t.Name} — {kill.PeriodWord} cap ignored for this period.");
+                },
+            });
+        }
+
+        /// <summary>Interactive toast for an automatic connect blocked by a reached cap.</summary>
+        public void ShowCapConnectToast(TunnelEntryViewModel vm, CapKillInfo kill, Action onConnect)
+        {
+            _log.Info($"Auto-connect held: {vm.Name} is over the {kill.PeriodWord} cap " +
+                      $"({FmtBytes(kill.UsedBytes)} / {FmtBytes(kill.CapBytes)}).");
+            (Application.Current as App)?.ShowTrayNotification(new Views.ToastNotification
+            {
+                Category     = "Data cap reached",
+                Primary      = $"{vm.Name}: over the {kill.PeriodWord} cap",
+                Secondary    = $"{FmtBytes(kill.UsedBytes)} of {FmtBytes(kill.CapBytes)} used this period. Connect anyway?",
+                StripColor   = "Danger",
+                Interactive  = true,
+                ConfirmLabel = "Connect",
+                CancelLabel  = "Cancel",
+                OnConfirm    = () => { OverrideCap(vm); onConnect(); },
+                OnCancel     = () => _log.Info($"Auto-connect cancelled for {vm.Name} (over {kill.PeriodWord} cap)."),
+            });
+        }
+
+        internal static string FmtBytes(long b)
+        {
+            if (b < 1_048_576)     return $"{b / 1024.0:F0} KB";
+            if (b < 1_073_741_824) return $"{b / 1_048_576.0:F1} MB";
+            return $"{b / 1_073_741_824.0:F2} GB";
         }
 
         /// <summary>
@@ -325,11 +498,22 @@ namespace MasselGUARD.ViewModels
                     t.UpdateDnsStatus(dns, dnsMitigated);
                     MaybeWarnDnsLeak(t, dns, dnsMitigated);
 
-                    // Monthly data usage = closed-session history for this month + live session.
-                    var (mrx, mtx) = _history.GetMonthlyUsage(t.Name, DateTime.UtcNow);
-                    long monthTotal = mrx + mtx + t.SessionBytes;
-                    t.UpdateMonthlyUsage(monthTotal);
-                    MaybeWarnDataCap(t, monthTotal);
+                    // Data usage per period = closed-session history for the calendar
+                    // day / week / month + the current live session.
+                    var now        = DateTime.UtcNow;
+                    var dayStart   = now.Date;                                              // UTC midnight
+                    var weekStart  = dayStart.AddDays(-(((int)dayStart.DayOfWeek + 6) % 7)); // Monday
+                    var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                    long live = t.SessionBytes;
+                    var (drx, dtx) = _history.GetUsageInRange(t.Name, dayStart,   dayStart.AddDays(1));
+                    var (wrx, wtx) = _history.GetUsageInRange(t.Name, weekStart,  weekStart.AddDays(7));
+                    var (mrx, mtx) = _history.GetUsageInRange(t.Name, monthStart, monthStart.AddMonths(1));
+                    long dayTotal   = drx + dtx + live;
+                    long weekTotal  = wrx + wtx + live;
+                    long monthTotal = mrx + mtx + live;
+                    t.UpdateUsage(dayTotal, weekTotal, monthTotal);
+                    MaybeWarnDataCaps(t, dayTotal, weekTotal, monthTotal, now);
+                    MaybeKillOnCap(t);   // disconnect if a kill-enabled cap is reached
 
                     // Local tunnel: if the kernel adapter is gone but we still think
                     // it's connected (IsRunning checks in-memory HashSet only),
@@ -435,6 +619,13 @@ namespace MasselGUARD.ViewModels
                         if (vm.IsActive || IsIntentionalDrop(vm)) { abort = true; connected = vm.IsActive; return; }
                         // Also abort if the setting was switched off while waiting.
                         if (!TunnelService.ShouldAutoReconnect(vm.StoredTunnel, _config.Config)) { abort = true; return; }
+                        // Don't auto-reconnect a tunnel that's over a kill-enabled cap.
+                        if (CapKillState(vm) != null)
+                        {
+                            abort = true;
+                            _log.Info($"[AutoReconnect] '{vm.Name}' is over its data cap — not reconnecting.");
+                            return;
+                        }
                         // Companion: the WireGuard client's deactivate stops the service first
                         // and deletes the SCM entry a moment later, so the entry check at
                         // drop time races the deletion. By now (≥5 s) the deletion is done —
@@ -545,23 +736,36 @@ namespace MasselGUARD.ViewModels
                 return;
             }
 
-            // Stop others first
+            // If a kill-enabled cap is already reached, hold the auto-connect and ask
+            // via an interactive toast (Connect / Cancel; defaults to Cancel if ignored).
+            var capKill = CapKillState(target);
+            if (capKill != null && !target.IsActive)
+            {
+                ShowCapConnectToast(target, capKill, () => ActivateTarget(target, result.Reason));
+                return;
+            }
+
+            ActivateTarget(target, result.Reason);
+        }
+
+        /// <summary>Stop other tunnels, connect <paramref name="target"/>, and toast the switch.</summary>
+        private void ActivateTarget(TunnelEntryViewModel target, string reason)
+        {
             foreach (var t in TunnelList.Where(t => t.IsActive && t != target))
                 t.DisconnectCommand.Execute(null);
 
             if (!target.IsActive)
             {
-                // Tag the connect source so it's recorded correctly in history.
-                target.PendingConnectSource = result.Reason;
+                target.PendingConnectSource = reason;   // tag source for history
                 target.ConnectCommand.Execute(null);
             }
 
             if (_config.Config.ShowTrayPopupOnSwitch)
             {
                 int ms = _config.Config.NotificationDurationSeconds * 1000;
-                bool isRule    = result.Reason.StartsWith("Rule:");
-                bool isOpen    = result.Reason.StartsWith("Open network");
-                bool isDefault = result.Reason.StartsWith("Default");
+                bool isRule    = reason.StartsWith("Rule:");
+                bool isOpen    = reason.StartsWith("Open network");
+                bool isDefault = reason.StartsWith("Default");
                 string category = isRule    ? "WiFi Rule Matched"
                                 : isOpen    ? "Open Network Protection"
                                 : isDefault ? "Default Action"
@@ -569,15 +773,12 @@ namespace MasselGUARD.ViewModels
                 string stripKey = isOpen    ? "Success"
                                 : isDefault ? "Warning"
                                 :             "Accent";
-                // Extract rule name from reason if available
-                string primary = target.Name;
-                string secondary = result.Reason;
                 (Application.Current as App)?.ShowTrayNotification(
                     new Views.ToastNotification
                     {
                         Category   = category,
-                        Primary    = primary,
-                        Secondary  = secondary,
+                        Primary    = target.Name,
+                        Secondary  = reason,
                         StripColor = stripKey,
                         DurationMs = ms,
                     });

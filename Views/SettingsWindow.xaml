@@ -132,24 +132,28 @@
                                     </ComboBox>
                                 </Grid>
                             </Border>
+                            <TextBlock Text="{Binding [SettingsLanguageResetHint], Source={x:Static local:Lang.Instance}}"
+                                       FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                       Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                       Margin="2,-12,0,16"/>
 
                             <!-- View preset -->
-                            <TextBlock Text="View preset" Style="{StaticResource SettingsSectionHeader}"/>
+                            <TextBlock Text="{Binding [ViewPresetHeader], Source={x:Static local:Lang.Instance}}" Style="{StaticResource SettingsSectionHeader}"/>
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
                                 <StackPanel>
-                                    <TextBlock Text="Re-apply a bundle of panel-visibility settings (timeline, activity log, WiFi rules panel/column) — each one stays individually editable below and in Tunnels/WiFi/History."
+                                    <TextBlock Text="{Binding [ViewPresetDesc], Source={x:Static local:Lang.Instance}}"
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
                                                Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,10"/>
                                     <StackPanel Orientation="Horizontal">
-                                        <Button Content="Simple" Style="{StaticResource FlatBtn}"
+                                        <Button Content="{Binding [ViewPresetSimple], Source={x:Static local:Lang.Instance}}" Style="{StaticResource FlatBtn}"
                                                 FontSize="10" Padding="12,5" Click="PresetSimple_Click"
-                                                ToolTip="Tunnels and WiFi rules only — no timeline, no activity log"/>
-                                        <Button Content="Manual" Style="{StaticResource FlatBtn}"
+                                                ToolTip="{Binding [ViewPresetSimpleTip], Source={x:Static local:Lang.Instance}}"/>
+                                        <Button Content="{Binding [ViewPresetManual], Source={x:Static local:Lang.Instance}}" Style="{StaticResource FlatBtn}"
                                                 FontSize="10" Padding="12,5" Margin="6,0,0,0" Click="PresetManual_Click"
-                                                ToolTip="Tunnels and activity log — no timeline; turns off WiFi automation, so the rules panel/column are hidden"/>
-                                        <Button Content="Expert" Style="{StaticResource FlatBtn}"
+                                                ToolTip="{Binding [ViewPresetManualTip], Source={x:Static local:Lang.Instance}}"/>
+                                        <Button Content="{Binding [ViewPresetExpert], Source={x:Static local:Lang.Instance}}" Style="{StaticResource FlatBtn}"
                                                 FontSize="10" Padding="12,5" Margin="6,0,0,0" Click="PresetExpert_Click"
-                                                ToolTip="Everything visible"/>
+                                                ToolTip="{Binding [ViewPresetExpertTip], Source={x:Static local:Lang.Instance}}"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -413,163 +417,12 @@
 
                         </StackPanel>
 
-                        <!-- ══ WIFI PAGE (rules + default action + open network) ══ -->
+                        <!-- ══ WIFI PAGE (default action + open network + trusted) ══ -->
+                        <!-- The WiFi rules list lives on the main window; it is intentionally
+                             NOT duplicated here — this page only has the automation settings. -->
                         <StackPanel x:Name="PageWifi" Visibility="Collapsed">
 
-                            <!-- Rules list (top) -->
-                            <TextBlock Text="{Binding [SettingsSectionRules], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SettingsSectionHeader}"/>
-                            <StackPanel x:Name="AutomationPanel">
-                                <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
-                                    <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="*"/>
-                                        </Grid.RowDefinitions>
-
-                                        <!-- Column header bar -->
-                                        <Border Grid.Row="0"
-                                                Background="{DynamicResource Surface}"
-                                                BorderBrush="{DynamicResource BorderColor}"
-                                                BorderThickness="0,0,0,1"
-                                                CornerRadius="{DynamicResource Theme.CornerRadiusTop}">
-                                            <Grid Margin="8,5">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="3*"/>
-                                                    <ColumnDefinition Width="2*"/>
-                                                    <ColumnDefinition Width="1.5*"/>
-                                                    <ColumnDefinition Width="40"/>
-                                                    <ColumnDefinition Width="2*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0"
-                                                           Text="{Binding [RuleColName],   Source={x:Static local:Lang.Instance}}"
-                                                           FontFamily="{DynamicResource Theme.FontFamily}"
-                                                           FontSize="10" Foreground="{DynamicResource TextMuted}"/>
-                                                <TextBlock Grid.Column="1"
-                                                           Text="{Binding [RuleColSsid],   Source={x:Static local:Lang.Instance}}"
-                                                           FontFamily="{DynamicResource Theme.FontFamily}"
-                                                           FontSize="10" Foreground="{DynamicResource TextMuted}"/>
-                                                <TextBlock Grid.Column="2"
-                                                           Text="{Binding [RuleColAction], Source={x:Static local:Lang.Instance}}"
-                                                           FontFamily="{DynamicResource Theme.FontFamily}"
-                                                           FontSize="10" Foreground="{DynamicResource TextMuted}"/>
-                                                <TextBlock Grid.Column="3"
-                                                           Text="{Binding [RuleColCount],  Source={x:Static local:Lang.Instance}}"
-                                                           FontFamily="{DynamicResource Theme.FontFamily}"
-                                                           FontSize="10" Foreground="{DynamicResource TextMuted}"
-                                                           HorizontalAlignment="Center"/>
-                                                <TextBlock Grid.Column="4"
-                                                           Text="{Binding [RuleColTunnel], Source={x:Static local:Lang.Instance}}"
-                                                           FontFamily="{DynamicResource Theme.FontFamily}"
-                                                           FontSize="10" Foreground="{DynamicResource TextMuted}"/>
-                                            </Grid>
-                                        </Border>
-
-                                        <!-- Rule rows -->
-                                        <ListView Grid.Row="1" x:Name="RulesListView"
-                                                  MinHeight="40" MaxHeight="200"
-                                                  Background="Transparent" BorderThickness="0"
-                                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                                  SelectionChanged="RulesListView_SelectionChanged">
-                                            <ListView.ItemContainerStyle>
-                                                <Style TargetType="ListViewItem">
-                                                    <Setter Property="Background"               Value="Transparent"/>
-                                                    <Setter Property="BorderThickness"          Value="0"/>
-                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                                    <Setter Property="Padding"                  Value="0"/>
-                                                    <Setter Property="Margin"                   Value="0,0,0,1"/>
-                                                    <Style.Triggers>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter Property="Background" Value="{DynamicResource ListHover}"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsSelected" Value="True">
-                                                            <Setter Property="Background" Value="{DynamicResource ListSelected}"/>
-                                                        </Trigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </ListView.ItemContainerStyle>
-                                            <ListView.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Grid Margin="8,3">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="3*"/>
-                                                            <ColumnDefinition Width="2*"/>
-                                                            <ColumnDefinition Width="1.5*"/>
-                                                            <ColumnDefinition Width="40"/>
-                                                            <ColumnDefinition Width="2*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <StackPanel Grid.Column="0" Orientation="Horizontal"
-                                                                    Opacity="{Binding RowOpacity}">
-                                                            <TextBlock Text="{Binding DisabledIcon}"
-                                                                       Foreground="{DynamicResource TextMuted}"
-                                                                       FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                                       VerticalAlignment="Center"/>
-                                                            <TextBlock Text="{Binding RuleName}"
-                                                                       Foreground="{DynamicResource TextPrimary}"
-                                                                       FontFamily="{DynamicResource Theme.FontFamily}"
-                                                                       FontSize="{DynamicResource Theme.FontSize}"
-                                                                       VerticalAlignment="Center"
-                                                                       TextTrimming="CharacterEllipsis"/>
-                                                        </StackPanel>
-                                                        <TextBlock Grid.Column="1"
-                                                                   Opacity="{Binding RowOpacity}"
-                                                                   Text="{Binding SsidDisplay}"
-                                                                   Foreground="{DynamicResource TextMuted}"
-                                                                   FontFamily="{DynamicResource Theme.FontFamily}"
-                                                                   FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                                   VerticalAlignment="Center"
-                                                                   TextTrimming="CharacterEllipsis"/>
-                                                        <TextBlock Grid.Column="2"
-                                                                   Opacity="{Binding RowOpacity}"
-                                                                   Text="{Binding ActionLabel}"
-                                                                   Foreground="{DynamicResource TextMuted}"
-                                                                   FontFamily="{DynamicResource Theme.FontFamily}"
-                                                                   FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                                   VerticalAlignment="Center"/>
-                                                        <TextBlock Grid.Column="3"
-                                                                   Opacity="{Binding RowOpacity}"
-                                                                   Text="{Binding ExecutionCount}"
-                                                                   Foreground="{DynamicResource TextMuted}"
-                                                                   FontFamily="{DynamicResource Theme.FontFamily}"
-                                                                   FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                                   HorizontalAlignment="Center"
-                                                                   VerticalAlignment="Center"/>
-                                                        <TextBlock Grid.Column="4"
-                                                                   Opacity="{Binding RowOpacity}"
-                                                                   Text="{Binding TunnelDisplay}"
-                                                                   Foreground="{DynamicResource TextMuted}"
-                                                                   FontFamily="{DynamicResource Theme.FontFamily}"
-                                                                   FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                                   VerticalAlignment="Center"
-                                                                   TextTrimming="CharacterEllipsis"/>
-                                                    </Grid>
-                                                </DataTemplate>
-                                            </ListView.ItemTemplate>
-                                        </ListView>
-                                    </Grid>
-                                </Border>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                    <Button x:Name="AddRuleBtn"
-                                            Content="{Binding [BtnAddRule], Source={x:Static local:Lang.Instance}}"
-                                            Style="{StaticResource SuccessBtn}" FontSize="10" Padding="10,3"
-                                            Click="AddRule_Click"/>
-                                    <Button Content="{Binding [BtnEditRule], Source={x:Static local:Lang.Instance}}"
-                                            Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
-                                            Margin="6,0,0,0" Click="EditRule_Click"
-                                            x:Name="EditBtn" IsEnabled="False"/>
-                                    <Button Content="{Binding [BtnDeleteRule], Source={x:Static local:Lang.Instance}}"
-                                            Style="{StaticResource DangerBtn}" FontSize="10" Padding="10,3"
-                                            Margin="6,0,0,0" Click="DeleteRule_Click"
-                                            x:Name="DeleteBtn" IsEnabled="False"/>
-                                    <Button Content="{Binding [BtnDisableRule], Source={x:Static local:Lang.Instance}}"
-                                            Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
-                                            Margin="6,0,0,0" Click="RuleToggle_Click"
-                                            x:Name="RuleToggleBtn" IsEnabled="False"/>
-                                </StackPanel>
-                            </StackPanel>
-
-                            <!-- Automation settings (below rules) -->
+                            <!-- Automation settings -->
                             <TextBlock Text="{Binding [SettingsSectionMode], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource SettingsSectionHeader}"/>
 
@@ -796,17 +649,17 @@
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
                                     <Button Grid.Column="1" x:Name="ManageThemesBtn"
-                                            Content="Manage themes…" Style="{StaticResource FlatBtn}"
+                                            Content="{Binding [BtnManageThemes], Source={x:Static local:Lang.Instance}}" Style="{StaticResource FlatBtn}"
                                             FontSize="10" Padding="12,5" Margin="8,0,0,0"
                                             VerticalAlignment="Stretch"
                                             Click="OpenThemeBuilder_Click"
-                                            ToolTip="Open the Theme Manager — create, edit, duplicate, import/export, download and delete themes"/>
+                                            ToolTip="{Binding [ManageThemesTip], Source={x:Static local:Lang.Instance}}"/>
                                     <Button Grid.Column="2" x:Name="DownloadThemesBtn"
-                                            Content="Download themes…" Style="{StaticResource FlatBtn}"
+                                            Content="{Binding [BtnDownloadThemes], Source={x:Static local:Lang.Instance}}" Style="{StaticResource FlatBtn}"
                                             FontSize="10" Padding="12,5" Margin="6,0,0,0"
                                             VerticalAlignment="Stretch"
                                             Click="DownloadThemes_Click"
-                                            ToolTip="Open the Theme Manager's community theme browser directly"/>
+                                            ToolTip="{Binding [DownloadThemesTip], Source={x:Static local:Lang.Instance}}"/>
                                     <TextBlock Grid.Column="3" x:Name="ThemeUpdatesBadge"
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9" FontWeight="Bold"
                                                Foreground="{DynamicResource Accent}"

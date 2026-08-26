@@ -13,8 +13,10 @@ namespace MasselGUARD.Views
         public string ResultName   { get; private set; } = "";
         public string ResultSsid   { get; private set; } = "";
         public string ResultTunnel { get; private set; } = "";
-        /// <summary>"wifi" | "schedule" — which trigger type the user chose.</summary>
+        /// <summary>"wifi" | "schedule" | "trusted" — which trigger type the user chose.</summary>
         public string ResultKind      { get; private set; } = "wifi";
+        /// <summary>For a trusted rule: "untrusted" (activate off-list) or "trusted" (activate on-list).</summary>
+        public string ResultTrustedWhen { get; private set; } = "untrusted";
         public string ResultStartTime { get; private set; } = "09:00";
         public string ResultEndTime   { get; private set; } = "17:00";
         public List<int> ResultDays   { get; private set; } = new();
@@ -36,7 +38,8 @@ namespace MasselGUARD.Views
                           string existingKind   = "wifi",
                           string existingStart  = "09:00",
                           string existingEnd    = "17:00",
-                          List<int>? existingDays = null)
+                          List<int>? existingDays = null,
+                          string existingTrustedWhen = "untrusted")
         {
             InitializeComponent();
             _currentSsid  = currentSsid;
@@ -74,6 +77,10 @@ namespace MasselGUARD.Views
                 _nameManuallyEdited = !string.IsNullOrEmpty(existingName);
                 NameBox.Text        = existingName;
                 TypeTrustedRadio.IsChecked = true;    // fires RuleType_Changed → shows TrustedPanel
+                if (string.Equals(existingTrustedWhen, "trusted", System.StringComparison.OrdinalIgnoreCase))
+                    TrustedWhenTrustedRadio.IsChecked = true;
+                else
+                    TrustedWhenUntrustedRadio.IsChecked = true;
             }
 
             if (editMode) DialogTitle.Text = Lang.T("RuleDialogEditTitle");
@@ -323,16 +330,10 @@ namespace MasselGUARD.Views
 
             if (trusted)
             {
-                // The trusted-SSID list itself lives in Settings; the rule only needs the
-                // tunnel to bring up on an untrusted network.
-                if (string.IsNullOrEmpty(ResultTunnel))
-                {
-                    MessageBox.Show(
-                        Lang.T("RuleDialogTunnelRequired"),
-                        Lang.T("RuleDialogValidationTitle"),
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
+                // The trusted-SSID list itself lives in Settings; the rule carries the
+                // direction (on-list vs off-list) and the tunnel to bring up on its side
+                // (an empty tunnel = disconnect, consistent with the other rule kinds).
+                ResultTrustedWhen = TrustedWhenTrustedRadio?.IsChecked == true ? "trusted" : "untrusted";
                 ResultSsid   = "";
                 ResultName   = NameBox.Text.Trim();   // empty → RuleName auto-summarises
                 DialogResult = true;

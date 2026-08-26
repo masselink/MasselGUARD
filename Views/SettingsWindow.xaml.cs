@@ -35,8 +35,7 @@ namespace MasselGUARD.Views
             _vm   = new SettingsViewModel(main.ConfigSvc, main.LogSvc);
 
             // Wire ViewModel dialog requests
-            _vm.AddRuleRequested    += OnAddRule;
-            _vm.EditRuleRequested   += OnEditRule;
+            // (Rule add/edit requests are handled on the main window now, not here.)
             _vm.ExportRequested     += OnExportSettings;
             _vm.ImportRequested     += OnImportSettings;
             _vm.ModeChanged         += _ => { _main.ApplyManualMode(); RefreshCurrentTab(); };
@@ -191,7 +190,7 @@ namespace MasselGUARD.Views
             L(DefaultTunnelBox, "DefaultTunnel");
             L(OpenWifiTunnelBox, "OpenWifiTunnel");
             L(TrustedNetworksBox, "TrustedNetworks"); D(AddCurrentTrustedBtn, "TrustedNetworks");
-            L(AddRuleBtn, "Rules"); D(EditBtn, "Rules"); D(DeleteBtn, "Rules"); D(RuleToggleBtn, "Rules");
+            // (WiFi rules list moved to the main window — no rule buttons to gate here.)
 
             // Tunnels
             L(ArModeOff, "AutoReconnectMode"); D(ArModePerTunnel, "AutoReconnectMode"); D(ArModeAlways, "AutoReconnectMode");
@@ -1212,18 +1211,9 @@ namespace MasselGUARD.Views
             if (ShowRulesColumnToggle != null)
                 ShowRulesColumnToggle.IsChecked = cfg.ShowTunnelRulesColumn;
 
-            // Rules
-            if (RulesListView != null)
-                RulesListView.ItemsSource = cfg.Rules;
-
-            // Manual mode
+            // Manual mode (the WiFi rules list itself lives on the main window)
             if (ManualModeToggle != null)
                 ManualModeToggle.IsChecked = cfg.ManualMode;
-            if (AutomationPanel != null)
-            {
-                AutomationPanel.IsEnabled = !cfg.ManualMode;
-                AutomationPanel.Opacity   = cfg.ManualMode ? 0.4 : 1.0;
-            }
 
             // WiFi default action radios
             if (ActionNone     != null) ActionNone.IsChecked     = cfg.DefaultAction == "none" || string.IsNullOrEmpty(cfg.DefaultAction);
@@ -1349,86 +1339,10 @@ namespace MasselGUARD.Views
             if (_loading) return;
             bool on = ManualModeToggle?.IsChecked == true;
             _vm.DisableWifiRules = on;
-            // Dim the WiFi rules section when disabled
-            if (AutomationPanel != null) AutomationPanel.Opacity = on ? 0.4 : 1.0;
-            if (AutomationPanel != null) AutomationPanel.IsEnabled = !on;
         }
 
-        private void OnAddRule()
-        {
-            var dlg = new RuleDialog(_main.WifiSvc.CurrentSsid,
-                tunnels: _main.GetTunnelNames()) { Owner = this };
-            if (dlg.ShowDialog() != true) return;
-            var rule = new TunnelRule
-            {
-                Kind      = dlg.ResultKind,
-                Ssid      = dlg.ResultSsid,
-                Tunnel    = dlg.ResultTunnel,
-                StartTime = dlg.ResultStartTime,
-                EndTime   = dlg.ResultEndTime,
-                Days      = dlg.ResultDays,
-            };
-            _vm.AddRule(rule);
-            RefreshAutomationControls();
-        }
-
-        private void OnEditRule(TunnelRule rule)
-        {
-            var dlg = new RuleDialog(_main.WifiSvc.CurrentSsid,
-                existingName:   rule.Name,
-                existingSsid:   rule.Ssid,
-                existingTunnel: rule.Tunnel,
-                executionCount: rule.ExecutionCount,   // shows the trigger counter row
-                tunnels:        _main.GetTunnelNames(),
-                existingKind:   rule.Kind,
-                existingStart:  rule.StartTime,
-                existingEnd:    rule.EndTime,
-                existingDays:   rule.Days) { Owner = this };
-            if (dlg.ShowDialog() != true) return;
-            rule.Kind      = dlg.ResultKind;
-            rule.Ssid      = dlg.ResultSsid;
-            rule.Tunnel    = dlg.ResultTunnel;
-            rule.StartTime = dlg.ResultStartTime;
-            rule.EndTime   = dlg.ResultEndTime;
-            rule.Days      = dlg.ResultDays;
-            if (dlg.ResultNewCounterValue >= 0)
-                rule.ExecutionCount = dlg.ResultNewCounterValue;
-            _vm.UpdateRule(rule);
-            RefreshAutomationControls();
-        }
-
-        private void AddRule_Click(object sender, RoutedEventArgs e)    => _vm.AddRuleCommand.Execute(null);
-        private void EditRule_Click(object sender, RoutedEventArgs e)   => _vm.EditRuleCommand.Execute(null);
-        private void DeleteRule_Click(object sender, RoutedEventArgs e) => _vm.DeleteRuleCommand.Execute(null);
-
-        private void SaveRules_Click(object sender, RoutedEventArgs e)  => _vm.SaveRulesCommand.Execute(null);
-
-        private void RulesListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            _vm.SelectedRule = RulesListView?.SelectedItem as TunnelRule;
-            bool has = _vm.SelectedRule != null;
-            if (EditBtn   != null) EditBtn.IsEnabled   = has;
-            if (DeleteBtn != null) DeleteBtn.IsEnabled = has;
-            if (RuleToggleBtn != null)
-            {
-                RuleToggleBtn.IsEnabled = has;
-                bool enabled = _vm.SelectedRule?.Enabled ?? true;
-                RuleToggleBtn.Content = Lang.T(enabled ? "BtnDisableRule" : "BtnEnableRule");
-            }
-        }
-
-        // Enable/disable the selected rule. Grey-out + icon update via bindings on the
-        // (live config) rule instance; persist immediately.
-        private void RuleToggle_Click(object sender, RoutedEventArgs e)
-        {
-            if (_vm.SelectedRule is not TunnelRule rule) return;
-            rule.Enabled = !rule.Enabled;
-            _main.SaveConfigPublic(rule.Enabled
-                ? $"Rule enabled: {rule.RuleName}"
-                : $"Rule disabled: {rule.RuleName}");
-            if (RuleToggleBtn != null)
-                RuleToggleBtn.Content = Lang.T(rule.Enabled ? "BtnDisableRule" : "BtnEnableRule");
-        }
+        // The WiFi rules list (add/edit/delete/enable) lives on the main window;
+        // Settings no longer duplicates it, so the rule list handlers were removed.
 
         // ── Advanced tab ──────────────────────────────────────────────────────
         private void PopulateLogLevelPicker()

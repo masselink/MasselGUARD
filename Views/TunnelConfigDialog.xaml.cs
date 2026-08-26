@@ -22,7 +22,12 @@ namespace MasselGUARD.Views
         public bool    ResultIsOpenProtection  { get; private set; }
         public bool    ResultKillSwitch        { get; private set; }
         public bool    ResultAutoReconnect     { get; private set; }
+        public int     ResultDailyCapMB        { get; private set; }
+        public int     ResultWeeklyCapMB       { get; private set; }
         public int     ResultMonthlyCapMB      { get; private set; }
+        public bool    ResultDailyCapKill      { get; private set; }
+        public bool    ResultWeeklyCapKill     { get; private set; }
+        public bool    ResultMonthlyCapKill    { get; private set; }
 
         private readonly string? _originalName;
 
@@ -34,7 +39,12 @@ namespace MasselGUARD.Views
                                   List<string>? groupNames = null,
                                   bool isKillSwitch = false, bool isGlobalAlways = false,
                                   bool isAutoReconnect = false, string autoReconnectMode = "off",
-                                  int existingMonthlyCapMB = 0)
+                                  int existingMonthlyCapMB = 0,
+                                  int existingDailyCapMB = 0, int existingWeeklyCapMB = 0,
+                                  bool existingDailyCapKill = false, bool existingWeeklyCapKill = false,
+                                  bool existingMonthlyCapKill = false,
+                                  long existingDailyUsedBytes = 0, long existingWeeklyUsedBytes = 0,
+                                  long existingMonthlyUsedBytes = 0)
         {
             InitializeComponent();
             _originalName = existingName;
@@ -88,9 +98,16 @@ namespace MasselGUARD.Views
                 }
             }
 
-            // Skip validation toggle
-            if (MonthlyCapBox != null)
-                MonthlyCapBox.Text = existingMonthlyCapMB.ToString();
+            // Data-usage warning thresholds + "show in row" flags
+            if (DailyCapBox   != null) DailyCapBox.Text   = existingDailyCapMB.ToString();
+            if (WeeklyCapBox  != null) WeeklyCapBox.Text  = existingWeeklyCapMB.ToString();
+            if (MonthlyCapBox != null) MonthlyCapBox.Text = existingMonthlyCapMB.ToString();
+            if (DailyCapKillChk   != null) DailyCapKillChk.IsChecked   = existingDailyCapKill;
+            if (WeeklyCapKillChk  != null) WeeklyCapKillChk.IsChecked  = existingWeeklyCapKill;
+            if (MonthlyCapKillChk != null) MonthlyCapKillChk.IsChecked = existingMonthlyCapKill;
+            if (DailyUsedLabel    != null) DailyUsedLabel.Text    = UsedText(existingDailyUsedBytes);
+            if (WeeklyUsedLabel   != null) WeeklyUsedLabel.Text   = UsedText(existingWeeklyUsedBytes);
+            if (MonthlyUsedLabel  != null) MonthlyUsedLabel.Text  = UsedText(existingMonthlyUsedBytes);
 
             // Auto-reconnect toggle
             if (AutoReconnectRow != null)
@@ -194,9 +211,82 @@ namespace MasselGUARD.Views
         }
 
         // ── When switching to raw tab — sync fields → raw ─────────────────────
+        // Raw shows the WireGuard config AND the MasselGUARD settings as readable
+        // "# MasselGUARD-<Key>:" comment lines, so Raw is a full editable view.
         private void TabRaw_GotFocus(object sender, RoutedEventArgs e)
         {
-            RawBox.Text = BuildConfigFromFields();
+            RawBox.Text = Services.TunnelExportService.BuildExportText(
+                BuildConfigFromFields(), DialogSettings());
+        }
+
+        /// <summary>Snapshot the MasselGUARD settings the dialog manages, for the Raw view / round-trip.</summary>
+        private Services.TunnelExportService.TunnelSettings DialogSettings()
+        {
+            bool? auto = AutoReconnectRow?.Visibility == Visibility.Visible
+                ? AutoReconnectToggle?.IsChecked == true
+                : (bool?)null;
+            return new Services.TunnelExportService.TunnelSettings
+            {
+                Group                = GroupPicker.SelectedItem as string,
+                KillSwitch           = KillSwitchToggle?.IsChecked == true,
+                AutoReconnect        = auto,
+                DailyCapMB           = CapMB(DailyCapBox),
+                WeeklyCapMB          = CapMB(WeeklyCapBox),
+                MonthlyCapMB         = CapMB(MonthlyCapBox),
+                PreConnectScript     = CaptureScript(PreConnectBox,     PreConnectEmbedBox,     PreConnectEmbed),
+                PostConnectScript    = CaptureScript(PostConnectBox,    PostConnectEmbedBox,    PostConnectEmbed),
+                PreDisconnectScript  = CaptureScript(PreDisconnectBox,  PreDisconnectEmbedBox,  PreDisconnectEmbed),
+                PostDisconnectScript = CaptureScript(PostDisconnectBox, PostDisconnectEmbedBox, PostDisconnectEmbed),
+            };
+        }
+
+        /// <summary>
+        /// Apply settings parsed from the Raw tab back onto the form controls, so
+        /// editing them in Raw round-trips. A setting absent from the Raw text is
+        /// left unchanged (absent ≠ "clear"). Globally-controlled toggles are not
+        /// overridden.
+        /// </summary>
+        private void ApplySettingsToControls(Services.TunnelExportService.TunnelSettings s)
+        {
+            if (s.Group != null)
+            {
+                if (!GroupPicker.Items.Contains(s.Group)) GroupPicker.Items.Add(s.Group);
+                GroupPicker.SelectedItem = s.Group;
+            }
+            if (s.KillSwitch.HasValue && KillSwitchToggle is { IsEnabled: true })
+                KillSwitchToggle.IsChecked = s.KillSwitch.Value;
+            if (s.AutoReconnect.HasValue && AutoReconnectToggle is { IsEnabled: true }
+                && AutoReconnectRow?.Visibility == Visibility.Visible)
+                AutoReconnectToggle.IsChecked = s.AutoReconnect.Value;
+            if (s.DailyCapMB.HasValue   && DailyCapBox   != null) DailyCapBox.Text   = s.DailyCapMB.Value.ToString();
+            if (s.WeeklyCapMB.HasValue  && WeeklyCapBox  != null) WeeklyCapBox.Text  = s.WeeklyCapMB.Value.ToString();
+            if (s.MonthlyCapMB.HasValue && MonthlyCapBox != null) MonthlyCapBox.Text = s.MonthlyCapMB.Value.ToString();
+
+            if (s.PreConnectScript     != null) ReloadScript(PreConnectBox,     PreConnectEmbedBox,     PreConnectEmbed,     s.PreConnectScript);
+            if (s.PostConnectScript    != null) ReloadScript(PostConnectBox,    PostConnectEmbedBox,    PostConnectEmbed,    s.PostConnectScript);
+            if (s.PreDisconnectScript  != null) ReloadScript(PreDisconnectBox,  PreDisconnectEmbedBox,  PreDisconnectEmbed,  s.PreDisconnectScript);
+            if (s.PostDisconnectScript != null) ReloadScript(PostDisconnectBox, PostDisconnectEmbedBox, PostDisconnectEmbed, s.PostDisconnectScript);
+        }
+
+        /// <summary>Parse a cap TextBox to a non-negative MB value (0 = off / blank / invalid).</summary>
+        private static int CapMB(System.Windows.Controls.TextBox? box)
+            => int.TryParse(box?.Text?.Trim(), out var v) && v > 0 ? v : 0;
+
+        /// <summary>"· 320 MB used" for the period's current usage, or empty when none.</summary>
+        private static string UsedText(long bytes)
+            => bytes > 0 ? $"· {ViewModels.MainViewModel.FmtBytes(bytes)} used" : "";
+
+        private static void ReloadScript(
+            System.Windows.Controls.TextBox pathBox,
+            System.Windows.Controls.TextBox embedBox,
+            System.Windows.Controls.Primitives.ToggleButton embedToggle,
+            string value)
+        {
+            pathBox.Text        = "";
+            embedBox.Text       = "";
+            embedToggle.IsChecked = false;
+            embedBox.Visibility = Visibility.Collapsed;
+            LoadScript(pathBox, embedBox, embedToggle, value);
         }
 
         // ── Generate WireGuard private key (Curve25519) ───────────────────────
@@ -213,9 +303,17 @@ namespace MasselGUARD.Views
         // ── Validate and save ─────────────────────────────────────────────────
         private void SaveBtn_Click(object sender, RoutedEventArgs e)
         {
-            // If on raw tab, parse raw back to fields first for validation
+            // If on raw tab, split off the MasselGUARD settings, parse the config
+            // back to fields (for validation), and apply the settings to the form
+            // controls — Raw is authoritative for what it contains.
+            string? rawConfig = null;
             if (TabRaw.IsSelected)
-                ParseConfigToFields(RawBox.Text);
+            {
+                var (cfg, settings) = Services.TunnelExportService.ParseImportText(RawBox.Text);
+                rawConfig = cfg;
+                ParseConfigToFields(cfg);
+                if (settings != null) ApplySettingsToControls(settings);
+            }
 
             var name = NameBox.Text.Trim();
             if (string.IsNullOrEmpty(name))
@@ -238,7 +336,9 @@ namespace MasselGUARD.Views
             }
 
             ResultName   = name;
-            ResultConfig = TabRaw.IsSelected ? RawBox.Text : BuildConfigFromFields();
+            // Store only the clean WireGuard config — the MasselGUARD settings live
+            // in the StoredTunnel fields (captured below from the controls).
+            ResultConfig = TabRaw.IsSelected ? rawConfig! : BuildConfigFromFields();
             ResultGroup  = GroupPicker.SelectedItem as string ?? "";
             ResultPreConnectScript     = CaptureScript(PreConnectBox,     PreConnectEmbedBox,     PreConnectEmbed);
             ResultPostConnectScript    = CaptureScript(PostConnectBox,    PostConnectEmbedBox,    PostConnectEmbed);
@@ -248,7 +348,12 @@ namespace MasselGUARD.Views
             ResultIsOpenProtection = IsOpenProtectionToggle?.IsChecked == true;
             ResultKillSwitch       = KillSwitchToggle?.IsChecked       == true;
             ResultAutoReconnect    = AutoReconnectToggle?.IsChecked    == true;
-            ResultMonthlyCapMB     = int.TryParse(MonthlyCapBox?.Text?.Trim(), out var capv) && capv > 0 ? capv : 0;
+            ResultDailyCapMB   = CapMB(DailyCapBox);
+            ResultWeeklyCapMB  = CapMB(WeeklyCapBox);
+            ResultMonthlyCapMB = CapMB(MonthlyCapBox);
+            ResultDailyCapKill   = DailyCapKillChk?.IsChecked   == true;
+            ResultWeeklyCapKill  = WeeklyCapKillChk?.IsChecked  == true;
+            ResultMonthlyCapKill = MonthlyCapKillChk?.IsChecked == true;
             DialogResult = true;
         }
 

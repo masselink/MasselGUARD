@@ -20,6 +20,7 @@ namespace MasselGUARD.Models
         private string _endTime       = "17:00";
         private List<int> _days       = new() { 1, 2, 3, 4, 5 }; // Mon–Fri
         private bool   _enabled       = true;
+        private string _trustedWhen   = "untrusted";
 
         public string Name
         {
@@ -94,11 +95,32 @@ namespace MasselGUARD.Models
             set => SetField(ref _networkType, value);
         }
 
+        /// <summary>
+        /// For Kind=="trusted", which side of the trusted-network list activates
+        /// this rule's tunnel:
+        ///   "untrusted" — activate when the current SSID is NOT on the trusted
+        ///                 list (protect on public networks; typically a full tunnel).
+        ///   "trusted"   — activate when the current SSID IS on the list (bring a
+        ///                 tunnel up only on known networks; e.g. a split tunnel).
+        /// The rule fires only on its matching side; the other side falls through
+        /// to the next rule and finally the Default action. Ignored for other kinds.
+        /// </summary>
+        public string TrustedWhen
+        {
+            get => _trustedWhen;
+            set { SetField(ref _trustedWhen, value); OnPropertyChanged(nameof(SsidDisplay)); OnPropertyChanged(nameof(RuleName)); }
+        }
+
+        /// <summary>True when this trusted rule fires on networks that ARE on the list.</summary>
+        [JsonIgnore]
+        public bool TrustedWhenOnList =>
+            string.Equals(_trustedWhen, "trusted", System.StringComparison.OrdinalIgnoreCase);
+
 
         [JsonIgnore]
         public string SsidDisplay =>
             _kind == "schedule" ? $"⏰ {ScheduleSummary}"
-          : _kind == "trusted"  ? "🛡 Untrusted networks"
+          : _kind == "trusted"  ? (TrustedWhenOnList ? "🛡 Trusted networks" : "🛡 Untrusted networks")
           : (string.IsNullOrEmpty(_ssid) ? "—" : $"📶 {_ssid}");   // 📶 matches the footer's current-SSID icon
 
         [JsonIgnore]
@@ -115,7 +137,10 @@ namespace MasselGUARD.Models
                 if (_kind == "schedule")
                     return $"{ScheduleSummary} \u2192 {(string.IsNullOrEmpty(_tunnel) ? "disconnect" : _tunnel)}";
                 if (_kind == "trusted")
-                    return $"Untrusted network \u2192 {(string.IsNullOrEmpty(_tunnel) ? "disconnect" : _tunnel)}";
+                {
+                    var side = TrustedWhenOnList ? "Trusted network" : "Untrusted network";
+                    return $"{side} \u2192 {(string.IsNullOrEmpty(_tunnel) ? "disconnect" : _tunnel)}";
+                }
                 var ssid   = string.IsNullOrEmpty(_ssid)   ? "\u2014"          : _ssid;
                 var target = string.IsNullOrEmpty(_tunnel) ? "disconnect" : _tunnel;
                 return $"{ssid} \u2192 {target}";

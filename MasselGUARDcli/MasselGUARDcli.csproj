@@ -20,10 +20,10 @@
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
     <!-- Default versions for IDE / dotnet build without BUILD.bat. -->
-    <Version>3.9.0</Version>
-    <AssemblyVersion>3.9.0.0</AssemblyVersion>
-    <FileVersion>3.9.0.0</FileVersion>
-    <InformationalVersion>3.9.0</InformationalVersion>
+    <Version>3.9.5</Version>
+    <AssemblyVersion>3.9.5.0</AssemblyVersion>
+    <FileVersion>3.9.5.0</FileVersion>
+    <InformationalVersion>3.9.5</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -46,6 +46,7 @@
     <Compile Include="..\Services\LogService.cs" />
     <Compile Include="..\Services\ScriptService.cs" />
     <Compile Include="..\Services\TunnelService.cs" />
+    <Compile Include="..\Services\TunnelExportService.cs" />
     <Compile Include="..\Cli\CliOutput.cs" />
     <Compile Include="..\Cli\CliRunner.cs" />
     <Compile Include="..\Cli\WireGuardConf.cs" />
