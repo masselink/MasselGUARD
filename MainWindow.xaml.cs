@@ -1282,6 +1282,8 @@ namespace MasselGUARD
             _vm.RebuildTunnelList();
             RebuildTunnelGroups();
             UpdateFooterLabel();
+            UpdateStatusBarCentre();  // footer ⚡/🔓 labels can change via Settings → Default action / Open network
+            NotifyAllBadges();        // and the ⚡/🔓 badges behind tunnel names
             RefreshUpdateBadge();
         }
 
@@ -2236,6 +2238,7 @@ namespace MasselGUARD
             var corner    = (CornerRadius)FindResource("Theme.CornerRadius");
 
             var tunnelNames = _vm.TunnelList.Select(t => t.Name).ToList();
+            string clearItem = Lang.T("BehaviourClear");
 
             // ── Build popup window ────────────────────────────────────────────
             var popup = new Window
@@ -2277,7 +2280,7 @@ namespace MasselGUARD
             };
             var hdrTb = new System.Windows.Controls.TextBlock
             {
-                Text = "Defaults", FontFamily = fontFam,
+                Text = Lang.T("BtnDefaults"), FontFamily = fontFam,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = accent,
             };
@@ -2287,7 +2290,7 @@ namespace MasselGUARD
 
             // Helper to make a picker row
             System.Windows.Controls.ComboBox MakeRow(string emoji, string label,
-                string currentValue, bool addClearOption)
+                string currentValue, bool addClearOption, string? extraItem = null)
             {
                 var row = new System.Windows.Controls.Border
                     { Padding = new Thickness(14, 10, 14, 6) };
@@ -2309,10 +2312,13 @@ namespace MasselGUARD
                     FontFamily = fontFam, VerticalAlignment = VerticalAlignment.Center,
                 };
                 cb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
-                if (addClearOption) cb.Items.Add("— clear —");
+                if (addClearOption) cb.Items.Add(clearItem);
+                if (extraItem != null) cb.Items.Add(extraItem);
                 foreach (var t in tunnelNames) cb.Items.Add(t);
-                cb.SelectedItem = tunnelNames.Contains(currentValue) ? currentValue
-                    : (addClearOption ? "— clear —" : null);
+                cb.SelectedItem =
+                    (extraItem != null && currentValue == extraItem) ? extraItem
+                    : tunnelNames.Contains(currentValue) ? currentValue
+                    : (addClearOption ? clearItem : null);
                 Grid.SetColumn(cb, 1);
 
                 g.Children.Add(lbl);
@@ -2322,12 +2328,20 @@ namespace MasselGUARD
                 return cb;
             }
 
-            string curDefault = ConfigSvc.Config.DefaultAction == "activate"
-                ? ConfigSvc.Config.DefaultTunnel : "";
+            // The default picker can represent all three DefaultAction states — a tunnel
+            // (activate), "— clear —" (none), or this sentinel (disconnect all) — so opening
+            // the popup on a "disconnect" default and saving no longer silently downgrades it.
+            string disconnectItem = "🚫 " + Lang.T("DefaultActionDisconnect");
+            string curDefault = ConfigSvc.Config.DefaultAction switch
+            {
+                "activate"   => ConfigSvc.Config.DefaultTunnel,
+                "disconnect" => disconnectItem,
+                _            => "",
+            };
             string curOpen    = ConfigSvc.Config.OpenWifiTunnel;
 
-            var defaultPicker = MakeRow("⚡", "Default action tunnel",    curDefault, true);
-            var openPicker    = MakeRow("🔓", "Open network protection", curOpen,    true);
+            var defaultPicker = MakeRow("⚡", Lang.T("BehaviourDefaultAction"),   curDefault, true, disconnectItem);
+            var openPicker    = MakeRow("🔓", Lang.T("BehaviourOpenProtection"), curOpen,    true);
 
             // Separator
             panel.Children.Add(new System.Windows.Controls.Border
@@ -2343,14 +2357,14 @@ namespace MasselGUARD
 
             var btnCancel = new System.Windows.Controls.Button
             {
-                Content = "Cancel", FontFamily = fontFam,
+                Content = Lang.T("BtnCancel"), FontFamily = fontFam,
                 Style = (Style)Application.Current.Resources["FlatBtn"],
                 Padding = new Thickness(14,5,14,5), Margin = new Thickness(0,0,8,0),
             };
             btnCancel.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
             var btnSave = new System.Windows.Controls.Button
             {
-                Content = "Save", FontFamily = fontFam,
+                Content = Lang.T("BtnSave"), FontFamily = fontFam,
                 Style = (Style)Application.Current.Resources["PrimaryBtn"],
                 Padding = new Thickness(14,5,14,5),
             };
@@ -2371,7 +2385,12 @@ namespace MasselGUARD
                 var defSel  = defaultPicker.SelectedItem as string ?? "";
                 var openSel = openPicker.SelectedItem   as string ?? "";
 
-                if (defSel == "— clear —" || string.IsNullOrEmpty(defSel))
+                if (defSel == disconnectItem)
+                {
+                    ConfigSvc.Config.DefaultAction = "disconnect";
+                    ConfigSvc.Config.DefaultTunnel = "";
+                }
+                else if (defSel == clearItem || string.IsNullOrEmpty(defSel))
                 {
                     ConfigSvc.Config.DefaultAction = "none";
                     ConfigSvc.Config.DefaultTunnel = "";
@@ -2382,7 +2401,7 @@ namespace MasselGUARD
                     ConfigSvc.Config.DefaultTunnel = defSel;
                 }
 
-                ConfigSvc.Config.OpenWifiTunnel = openSel == "— clear —" ? "" : openSel;
+                ConfigSvc.Config.OpenWifiTunnel = openSel == clearItem ? "" : openSel;
 
                 ConfigSvc.Save();
                 NotifyAllBadges();
