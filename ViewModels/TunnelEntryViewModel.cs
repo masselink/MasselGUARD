@@ -356,8 +356,10 @@ namespace MasselGUARD.ViewModels
         public bool WeekCapSet  => WeeklyCapBytes  > 0;
         public bool MonthCapSet => MonthlyCapBytes > 0;
 
+        // Rings show whenever a cap is configured — even when disconnected, where the
+        // CapRings control renders them greyed (Active=false) but at real usage.
         public System.Windows.Visibility CapRingsVisibility =>
-            IsActive && AnyCapConfigured ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+            AnyCapConfigured ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
 
         /// <summary>Per-period breakdown for the rings' hover tooltip (set periods only).</summary>
         public string CapRingsTooltip

@@ -428,8 +428,13 @@
                                                                    ToolTip="Open network protection tunnel"
                                                                    Visibility="{Binding OpenBadgeVis}"/>
                                                     </StackPanel>
-                                                    <!-- Status  |  ↑↓ traffic  |  DNS leak (all inline) -->
-                                                    <StackPanel Grid.Column="1"
+                                                    <!-- Status  |  ↑↓ traffic  |  DNS leak (left) · usage rings (pinned right) -->
+                                                    <Grid Grid.Column="1" VerticalAlignment="Center">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0"
                                                                 Orientation="Horizontal"
                                                                 VerticalAlignment="Center">
                                                         <!-- Status dot — colour reflects health/traffic when active
@@ -455,12 +460,15 @@
                                                                    VerticalAlignment="Center"
                                                                    Visibility="{Binding DnsLeakVisibility}"
                                                                    ToolTip="{Binding DnsLeakTooltip}"/>
-                                                        <!-- Data-cap usage rings — day (inner) · week · month (outer);
-                                                             each ring drawn only when its cap is set. Hover = breakdown. -->
-                                                        <views:CapRings Width="28" Height="28"
-                                                                        Margin="8,0,0,0"
+                                                    </StackPanel>
+                                                        <!-- Data-cap usage rings — day · week · month, each drawn only when its cap
+                                                             is set (d/w/m centre glyph). Pinned in its own right-hand Grid cell with a
+                                                             fixed left gap, so the growing uptime text never shifts it. Hover = breakdown. -->
+                                                        <views:CapRings Grid.Column="1"
+                                                                        Margin="14,0,2,0"
                                                                         VerticalAlignment="Center"
                                                                         Visibility="{Binding CapRingsVisibility}"
+                                                                        Active="{Binding IsActive}"
                                                                         DayFraction="{Binding DayCapFraction}"
                                                                         WeekFraction="{Binding WeekCapFraction}"
                                                                         MonthFraction="{Binding MonthCapFraction}"
@@ -470,7 +478,7 @@
                                                                         ToolTip="{Binding CapRingsTooltip}"
                                                                         ToolTipService.InitialShowDelay="0"
                                                                         ToolTipService.BetweenShowDelay="0"/>
-                                                    </StackPanel>
+                                                    </Grid>
                                                     <!-- Rules hit count -->
                                                     <TextBlock Grid.Column="2"
                                                                Text="{Binding RuleCount}"

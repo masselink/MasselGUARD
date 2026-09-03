@@ -488,23 +488,29 @@ namespace MasselGUARD.ViewModels
 
                 if (!nowActive) _dnsLeakWarned.Remove(t.Name);   // re-arm the DNS-leak warning
 
-                if (doStatsPoll && nowActive)
+                if (doStatsPoll)
                 {
-                    var stats = TunnelDll.GetTrafficStats(t.Name);
-                    t.UpdateStats(stats);
-                    var dns = TunnelDll.CheckDnsLeak(t.Name);
-                    // Prevention state (machine-wide) — a set leak becomes "contained".
-                    bool dnsMitigated = Services.DnsLeakService.IsSmartNameResolutionDisabled();
-                    t.UpdateDnsStatus(dns, dnsMitigated);
-                    MaybeWarnDnsLeak(t, dns, dnsMitigated);
+                    TunnelDll.TunnelStats stats = default;
+                    if (nowActive)
+                    {
+                        stats = TunnelDll.GetTrafficStats(t.Name);
+                        t.UpdateStats(stats);
+                        var dns = TunnelDll.CheckDnsLeak(t.Name);
+                        // Prevention state (machine-wide) — a set leak becomes "contained".
+                        bool dnsMitigated = Services.DnsLeakService.IsSmartNameResolutionDisabled();
+                        t.UpdateDnsStatus(dns, dnsMitigated);
+                        MaybeWarnDnsLeak(t, dns, dnsMitigated);
+                    }
 
                     // Data usage per period = closed-session history for the calendar
-                    // day / week / month + the current live session.
+                    // day / week / month + the current live session. Computed for EVERY
+                    // tunnel (not just active) so the row's cap rings stay visible —
+                    // greyed — while disconnected, still showing real usage-to-date.
                     var now        = DateTime.UtcNow;
                     var dayStart   = now.Date;                                              // UTC midnight
                     var weekStart  = dayStart.AddDays(-(((int)dayStart.DayOfWeek + 6) % 7)); // Monday
                     var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-                    long live = t.SessionBytes;
+                    long live = nowActive ? t.SessionBytes : 0;
                     var (drx, dtx) = _history.GetUsageInRange(t.Name, dayStart,   dayStart.AddDays(1));
                     var (wrx, wtx) = _history.GetUsageInRange(t.Name, weekStart,  weekStart.AddDays(7));
                     var (mrx, mtx) = _history.GetUsageInRange(t.Name, monthStart, monthStart.AddMonths(1));
@@ -512,21 +518,25 @@ namespace MasselGUARD.ViewModels
                     long weekTotal  = wrx + wtx + live;
                     long monthTotal = mrx + mtx + live;
                     t.UpdateUsage(dayTotal, weekTotal, monthTotal);
-                    MaybeWarnDataCaps(t, dayTotal, weekTotal, monthTotal, now);
-                    MaybeKillOnCap(t);   // disconnect if a kill-enabled cap is reached
 
-                    // Local tunnel: if the kernel adapter is gone but we still think
-                    // it's connected (IsRunning checks in-memory HashSet only),
-                    // the adapter must have dropped (e.g. after sleep/wake).
-                    bool localDrop = t.IsLocal && !stats.AdapterFound
-                        && t.ConnectedAt.HasValue
-                        && (DateTime.UtcNow - t.ConnectedAt.Value).TotalSeconds > 30;
-                    if (localDrop && !IsIntentionalDrop(t)
-                        && TunnelService.ShouldAutoReconnect(t.StoredTunnel, _config.Config))
+                    if (nowActive)
                     {
-                        TunnelDll.ForceMarkDisconnected(t.Name);
-                        t.RefreshStatus(); // now shows disconnected
-                        _ = AutoReconnectAsync(t);
+                        MaybeWarnDataCaps(t, dayTotal, weekTotal, monthTotal, now);
+                        MaybeKillOnCap(t);   // disconnect if a kill-enabled cap is reached
+
+                        // Local tunnel: if the kernel adapter is gone but we still think
+                        // it's connected (IsRunning checks in-memory HashSet only),
+                        // the adapter must have dropped (e.g. after sleep/wake).
+                        bool localDrop = t.IsLocal && !stats.AdapterFound
+                            && t.ConnectedAt.HasValue
+                            && (DateTime.UtcNow - t.ConnectedAt.Value).TotalSeconds > 30;
+                        if (localDrop && !IsIntentionalDrop(t)
+                            && TunnelService.ShouldAutoReconnect(t.StoredTunnel, _config.Config))
+                        {
+                            TunnelDll.ForceMarkDisconnected(t.Name);
+                            t.RefreshStatus(); // now shows disconnected
+                            _ = AutoReconnectAsync(t);
+                        }
                     }
                 }
 

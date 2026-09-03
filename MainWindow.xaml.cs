@@ -2238,7 +2238,8 @@ namespace MasselGUARD
             var corner    = (CornerRadius)FindResource("Theme.CornerRadius");
 
             var tunnelNames = _vm.TunnelList.Select(t => t.Name).ToList();
-            string clearItem = Lang.T("BehaviourClear");
+            string clearItem = Lang.T("BehaviourClear");        // 🔓 row: "disable this feature"
+            string noneItem  = Lang.T("DefaultActionNone");     // ⚡ row: "Do nothing" (matches Settings)
 
             // ── Build popup window ────────────────────────────────────────────
             var popup = new Window
@@ -2290,7 +2291,7 @@ namespace MasselGUARD
 
             // Helper to make a picker row
             System.Windows.Controls.ComboBox MakeRow(string emoji, string label,
-                string currentValue, bool addClearOption, string? extraItem = null)
+                string currentValue, string? emptyItem, string? extraItem = null)
             {
                 var row = new System.Windows.Controls.Border
                     { Padding = new Thickness(14, 10, 14, 6) };
@@ -2312,13 +2313,13 @@ namespace MasselGUARD
                     FontFamily = fontFam, VerticalAlignment = VerticalAlignment.Center,
                 };
                 cb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
-                if (addClearOption) cb.Items.Add(clearItem);
+                if (emptyItem != null) cb.Items.Add(emptyItem);
                 if (extraItem != null) cb.Items.Add(extraItem);
                 foreach (var t in tunnelNames) cb.Items.Add(t);
                 cb.SelectedItem =
                     (extraItem != null && currentValue == extraItem) ? extraItem
                     : tunnelNames.Contains(currentValue) ? currentValue
-                    : (addClearOption ? clearItem : null);
+                    : emptyItem;
                 Grid.SetColumn(cb, 1);
 
                 g.Children.Add(lbl);
@@ -2340,8 +2341,8 @@ namespace MasselGUARD
             };
             string curOpen    = ConfigSvc.Config.OpenWifiTunnel;
 
-            var defaultPicker = MakeRow("⚡", Lang.T("BehaviourDefaultAction"),   curDefault, true, disconnectItem);
-            var openPicker    = MakeRow("🔓", Lang.T("BehaviourOpenProtection"), curOpen,    true);
+            var defaultPicker = MakeRow("⚡", Lang.T("BehaviourDefaultAction"),   curDefault, noneItem, disconnectItem);
+            var openPicker    = MakeRow("🔓", Lang.T("BehaviourOpenProtection"), curOpen,    clearItem);
 
             // Separator
             panel.Children.Add(new System.Windows.Controls.Border
@@ -2390,7 +2391,7 @@ namespace MasselGUARD
                     ConfigSvc.Config.DefaultAction = "disconnect";
                     ConfigSvc.Config.DefaultTunnel = "";
                 }
-                else if (defSel == clearItem || string.IsNullOrEmpty(defSel))
+                else if (defSel == noneItem || string.IsNullOrEmpty(defSel))
                 {
                     ConfigSvc.Config.DefaultAction = "none";
                     ConfigSvc.Config.DefaultTunnel = "";
