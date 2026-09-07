@@ -241,3 +241,11 @@ Update `VERSION` / `CODENAME` in both `BUILD.bat` and `UpdateChecker.cs` when bu
 Tunnel configs are stored as individual DPAPI-encrypted `.conf.dpapi` files in `%APPDATA%\MasselGUARD\tunnels\` (`CurrentUser` scope). `config.json` never contains key material. Existing inline-encrypted configs are migrated to files automatically on first launch. Plaintext temp file during connection is locked to `SYSTEM + Administrators + owner` from byte 0, deleted within ~200 ms.
 
 `%APPDATA%\MasselGUARD\` is restricted to the current user only (removes inherited Administrators read access). Applied on first Settings save after installation.
+
+---
+
+## License
+
+MasselGUARD's own source code is licensed under the **MIT License** — see [`LICENSE`](LICENSE).
+
+It also bundles third-party components (the WireGuard native DLLs) that remain under their own licenses — see [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md). **WireGuard** is a registered trademark of Jason A. Donenfeld; MasselGUARD is an independent project, not affiliated with or endorsed by WireGuard LLC.
