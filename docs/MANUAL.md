@@ -967,3 +967,11 @@ switch ($LASTEXITCODE) {
     1 { Write-Host "Failed." }
 }
 ```
+
+---
+
+## License
+
+MasselGUARD is free, open-source software released under the **MIT License** — you may use, copy, modify, and redistribute it. The full text is in the `LICENSE` file in the project root.
+
+MasselGUARD bundles the WireGuard native libraries, which remain under their own licenses; see `THIRD-PARTY-NOTICES.md`. **WireGuard** is a registered trademark of Jason A. Donenfeld — MasselGUARD is an independent project, not affiliated with or endorsed by WireGuard LLC.
