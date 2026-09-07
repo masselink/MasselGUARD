@@ -25,8 +25,10 @@ namespace MasselGUARD.Services
         ///   1. Manual mode → do nothing (all automation off).
         ///   2. Open-network protection (open/passwordless network + OpenWifiTunnel set).
         ///   3. SSID rules — an enabled "wifi" rule whose SSID equals the current network.
-        ///   4. Trusted-network auto-protect — an enabled "trusted" rule (with a tunnel):
-        ///      trusted SSID → disconnect, otherwise → activate its tunnel.
+        ///   4. Trusted-network rules — enabled "trusted" rules, each firing only on its
+        ///      side of the trusted list (TrustedWhen "trusted" = on the list, "untrusted"
+        ///      = not on it); first match activates its tunnel / disconnects. Non-matching
+        ///      side falls through.
         ///   5. Default action — activate DefaultTunnel / disconnect / none.
         /// Schedule ("time") rules are evaluated separately on a timer (see EvaluateSchedules).
         /// </summary>
@@ -62,20 +64,27 @@ namespace MasselGUARD.Services
                     $"Rule: {ssid} → {match.Tunnel}");
             }
 
-            // 3. Trusted-network auto-protect (broad policy — explicit SSID rules above win).
-            //    Enabled simply by the presence of a "trusted"-kind rule with a tunnel; that
-            //    rule lives in the WiFi rules list and carries its own trigger counter.
-            var trustedRule = cfg.Rules.FirstOrDefault(r =>
-                r.Enabled && r.Kind == "trusted" && !string.IsNullOrEmpty(r.Tunnel));
-            if (trustedRule != null)
+            // 3. Trusted-network rules — each fires only on its matching side of the
+            //    shared TrustedNetworks list; the other side falls through to the next
+            //    rule and finally the Default. This lets one rule bring a tunnel up on
+            //    known networks (TrustedWhen="trusted", e.g. a split tunnel) and another
+            //    protect on public ones (TrustedWhen="untrusted", a full tunnel).
+            //    Explicit SSID rules above still win. An empty Tunnel = disconnect.
+            bool? isTrusted = null;
+            foreach (var r in cfg.Rules)
             {
-                trustedRule.ExecutionCount++;
-                bool isTrusted = cfg.TrustedNetworks.Any(s =>
+                if (!r.Enabled || r.Kind != "trusted") continue;
+                isTrusted ??= cfg.TrustedNetworks.Any(s =>
                     string.Equals(s, ssid, StringComparison.OrdinalIgnoreCase));
-                return isTrusted
-                    ? new(ActionKind.Disconnect, null, $"Trusted network: {ssid}")
-                    : new(ActionKind.Activate, trustedRule.Tunnel,
-                          $"Untrusted network protection: {ssid}");
+
+                bool sideMatches = r.TrustedWhenOnList ? isTrusted.Value : !isTrusted.Value;
+                if (!sideMatches) continue;
+
+                r.ExecutionCount++;
+                string side = isTrusted.Value ? "Trusted network" : "Untrusted network";
+                return string.IsNullOrEmpty(r.Tunnel)
+                    ? new(ActionKind.Disconnect, null, $"{side}: {ssid} → disconnect")
+                    : new(ActionKind.Activate, r.Tunnel, $"{side}: {ssid} → {r.Tunnel}");
             }
 
             // 4. Default action

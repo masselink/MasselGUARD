@@ -4,9 +4,9 @@ setlocal enabledelayedexpansion
 
 rem ── Build number: YYMMDDHHMM ────────────────────────────────────────────────
 for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyMMddHHmm"') do set BUILD_NUM=%%a
-set VERSION=3.9.0
+set VERSION=3.9.5
 rem Update CODENAME here AND in UpdateChecker.cs when bumping VERSION.
-set CODENAME=Adaptive Armadillo
+set CODENAME=Selective Serval
 
 rem ── Opt out of .NET CLI telemetry ────────────────────────────────────────────
 set DOTNET_CLI_TELEMETRY_OPTOUT=1
@@ -120,21 +120,23 @@ echo  =======================================================
 echo.
 
 rem ── Pre-flight: fail if a target exe is locked by a running process ──────────
+rem A running .exe cannot be deleted or overwritten -- but it CAN be renamed, so the
+rem old ren-based probe missed it and the build failed later at the bundle/zip step
+rem while still leaving a STALE exe behind. Probe by deleting instead (we rebuild it
+rem anyway): if the file survives the delete, it is in use -- fail now, clearly.
 if exist "%OUT%\MasselGUARD.exe" (
-    ren "%OUT%\MasselGUARD.exe" "MasselGUARD.exe.__chk" >nul 2>&1
-    if errorlevel 1 (
-        echo   BUILD FAILED -- %ARCH% MasselGUARD.exe is still running. Close it first.
+    del /f /q "%OUT%\MasselGUARD.exe" >nul 2>&1
+    if exist "%OUT%\MasselGUARD.exe" (
+        echo   BUILD FAILED -- %ARCH% MasselGUARD.exe is running. Close MasselGUARD ^(including the tray icon^) and retry.
         endlocal & exit /b 1
     )
-    ren "%OUT%\MasselGUARD.exe.__chk" "MasselGUARD.exe" >nul 2>&1
 )
 if exist "%OUT%\MasselGUARDcli.exe" (
-    ren "%OUT%\MasselGUARDcli.exe" "MasselGUARDcli.exe.__chk" >nul 2>&1
-    if errorlevel 1 (
-        echo   BUILD FAILED -- %ARCH% MasselGUARDcli.exe is still running. Close it first.
+    del /f /q "%OUT%\MasselGUARDcli.exe" >nul 2>&1
+    if exist "%OUT%\MasselGUARDcli.exe" (
+        echo   BUILD FAILED -- %ARCH% MasselGUARDcli.exe is running. Close it and retry.
         endlocal & exit /b 1
     )
-    ren "%OUT%\MasselGUARDcli.exe.__chk" "MasselGUARDcli.exe" >nul 2>&1
 )
 
 rem ── Clean intermediates (per-arch: obj\ caches the previous RID) ─────────────
@@ -156,6 +158,10 @@ dotnet publish "%~dp0MasselGUARD.csproj" -c Release -r %RID% --self-contained fa
     -p:AssemblyVersion=%VERSION%.0 ^
     -p:FileVersion=%VERSION%.0 ^
     -p:InformationalVersion=%VERSION%.%BUILD_NUM%
+if errorlevel 1 (
+    echo   BUILD FAILED -- MasselGUARD publish failed for %ARCH% ^(see errors above^).
+    endlocal & exit /b 1
+)
 if not exist "%OUT%\MasselGUARD.exe" (
     echo   BUILD FAILED -- MasselGUARD.exe not produced for %ARCH%.
     endlocal & exit /b 1
@@ -170,6 +176,10 @@ dotnet publish "%~dp0MasselGUARDcli\MasselGUARDcli.csproj" -c Release -r %RID% -
     -p:AssemblyVersion=%VERSION%.0 ^
     -p:FileVersion=%VERSION%.0 ^
     -p:InformationalVersion=%VERSION%.%BUILD_NUM%
+if errorlevel 1 (
+    echo   BUILD FAILED -- MasselGUARDcli publish failed for %ARCH% ^(see errors above^).
+    endlocal & exit /b 1
+)
 if not exist "%OUT%\MasselGUARDcli.exe" (
     echo   BUILD FAILED -- MasselGUARDcli.exe not produced for %ARCH%.
     endlocal & exit /b 1
@@ -213,13 +223,18 @@ if exist "%OUT%\*.pdb" (
 )
 
 rem ── Package release zip: dist\MasselGUARD-<arch>.zip ────────────────────────
+rem Delete any stale zip first so the existence check reflects THIS run only, then
+rem fail the build if packaging did not produce it (a missing release asset is fatal).
 echo   Packaging dist\MasselGUARD-%ARCH%.zip ...
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "Compress-Archive -Path '%OUT%\*' -DestinationPath '%DIST%\MasselGUARD-%ARCH%.zip' -Force"
+if exist "%DIST%\MasselGUARD-%ARCH%.zip" del /f /q "%DIST%\MasselGUARD-%ARCH%.zip" >nul 2>&1
+rem Retry the zip: cloud sync (OneDrive) / AV can briefly lock a freshly-copied
+rem file in dist\%ARCH%\lang\ right as Compress-Archive reads it. Ride it out.
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$src='%OUT%\*'; $dst='%DIST%\MasselGUARD-%ARCH%.zip'; for($i=1;$i -le 8;$i++){ try { Compress-Archive -Path $src -DestinationPath $dst -Force -ErrorAction Stop; break } catch { if($i -eq 8){ throw }; Write-Host ('  zip source locked (attempt ' + $i + '/8) - retrying in 3s...'); Start-Sleep -Seconds 3 } }"
 if exist "%DIST%\MasselGUARD-%ARCH%.zip" (
     echo   OK  dist\MasselGUARD-%ARCH%.zip
 ) else (
-    echo   WARNING: could not create MasselGUARD-%ARCH%.zip
+    echo   BUILD FAILED -- could not create MasselGUARD-%ARCH%.zip for %ARCH%.
+    endlocal & exit /b 1
 )
 
 echo.

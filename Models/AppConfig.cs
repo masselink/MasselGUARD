@@ -143,6 +143,8 @@ namespace MasselGUARD.Models
         public bool ShowWifiInChart          { get; set; } = true;
         /// <summary>1 = last 24 h, 7 = last 7 days, 31 = last 31 days.</summary>
         public int  InfoTimeRangeDays        { get; set; } = 1;
+        /// <summary>Which view the bottom info panel shows: "timeline" or "usage".</summary>
+        public string InfoPanelMode          { get; set; } = "timeline";
 
         // Legacy — kept for JSON backwards-compat deserialization only; not used by code.
         // The setter migrates old configs to the two new bools.

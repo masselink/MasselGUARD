@@ -24,6 +24,16 @@ namespace MasselGUARD.Views
         public string? StripColor { get; init; }
 
         public int DurationMs { get; init; } = 5000;
+
+        // ── Interactive mode (Confirm / Cancel buttons) ───────────────────────
+        /// <summary>When true, the toast shows Confirm/Cancel buttons and does not auto-dismiss
+        /// (a long safety timeout still fires <see cref="OnCancel"/> so it can't linger forever).</summary>
+        public bool     Interactive  { get; init; } = false;
+        public string   ConfirmLabel { get; init; } = "OK";
+        public string   CancelLabel  { get; init; } = "Cancel";
+        public Action?  OnConfirm    { get; init; }
+        /// <summary>Fired once if the toast is dismissed any way other than Confirm (button, ✕, or timeout).</summary>
+        public Action?  OnCancel     { get; init; }
     }
 
     /// <summary>
@@ -36,10 +46,17 @@ namespace MasselGUARD.Views
     internal sealed class ToastWindow : Window
     {
         private readonly DispatcherTimer _timer;
+        private readonly ToastNotification _n;
         private bool _closing = false;
+        private bool _answered = false;
+
+        /// <summary>True while an interactive toast is still waiting for Confirm/Cancel —
+        /// used so routine toasts don't dismiss a decision the user hasn't made yet.</summary>
+        public bool AwaitingDecision => _n.Interactive && !_answered;
 
         public ToastWindow(ToastNotification n)
         {
+            _n = n;
             WindowStyle        = WindowStyle.None;
             AllowsTransparency = true;
             Background         = Brushes.Transparent;
@@ -196,7 +213,7 @@ namespace MasselGUARD.Views
             };
             closeBtn.MouseEnter += (_, _) => closeBtn.Foreground = textPri;
             closeBtn.MouseLeave += (_, _) => closeBtn.Foreground = textMuted;
-            closeBtn.Click      += (_, _) => DismissNow();
+            closeBtn.Click      += (_, _) => { if (n.Interactive) Cancel(); else DismissNow(); };
             Grid.SetColumn(closeBtn, 4);
             headerRow.Children.Add(closeBtn);
 
@@ -236,18 +253,74 @@ namespace MasselGUARD.Views
                 });
             }
 
+            // ── Interactive buttons (Confirm / Cancel) ────────────────────────
+            if (n.Interactive)
+            {
+                var btnRow = new StackPanel
+                {
+                    Orientation         = Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Margin              = new Thickness(0, 2, 12, 12),
+                };
+                Button Btn(string text, string styleKey) => new()
+                {
+                    Content  = text,
+                    Style    = Application.Current?.Resources[styleKey] as Style,
+                    FontSize = 11,
+                    Padding  = new Thickness(14, 5, 14, 5),
+                    Margin   = new Thickness(8, 0, 0, 0),
+                };
+                var cancelBtn  = Btn(n.CancelLabel,  "FlatBtn");
+                var confirmBtn = Btn(n.ConfirmLabel, "PrimaryBtn");
+                cancelBtn.Click  += (_, _) => Cancel();
+                confirmBtn.Click += (_, _) => Confirm();
+                btnRow.Children.Add(cancelBtn);
+                btnRow.Children.Add(confirmBtn);
+                content.Children.Add(btnRow);
+            }
+
             rootGrid.Children.Add(content);
             rootGrid.Children.Add(strip);
             outer.Child = rootGrid;
             Content = outer;
 
-            MouseLeftButtonDown += (_, _) => DismissNow();
+            // A body click dismisses a normal toast; interactive ones must be answered.
+            MouseLeftButtonDown += (_, _) => { if (!n.Interactive) DismissNow(); };
 
+            // Interactive toasts don't auto-dismiss on the normal duration — a long
+            // safety timeout counts as Cancel so they can't linger forever.
             Loaded += (_, _) => { PositionWindow(); SlideIn(); };
 
-            _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(n.DurationMs) };
-            _timer.Tick += (_, _) => DismissNow();
+            int dur = n.Interactive ? 120_000 : n.DurationMs;
+            _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(dur) };
+            _timer.Tick += (_, _) => { if (n.Interactive) Cancel(); else DismissNow(); };
             _timer.Start();
+
+            // Any close that wasn't an explicit Confirm counts as Cancel.
+            Closed += (_, _) =>
+            {
+                if (_n.Interactive && !_answered)
+                {
+                    _answered = true;
+                    try { _n.OnCancel?.Invoke(); } catch { }
+                }
+            };
+        }
+
+        private void Confirm()
+        {
+            if (_answered) return;
+            _answered = true;
+            try { _n.OnConfirm?.Invoke(); } catch { }
+            DismissNow();
+        }
+
+        private void Cancel()
+        {
+            if (_answered) return;
+            _answered = true;
+            try { _n.OnCancel?.Invoke(); } catch { }
+            DismissNow();
         }
 
         // ── Shield icon ───────────────────────────────────────────────────────

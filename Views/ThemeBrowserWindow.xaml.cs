@@ -43,10 +43,10 @@ namespace MasselGUARD.Views
 
         private async Task LoadAsync()
         {
-            SetCenter("Loading themes…");
+            SetCenter(Lang.T("ThemeBrowserLoading"));
             ThemeManifest manifest;
             try { manifest = await ThemeDownloadService.FetchManifestAsync(_repoUrl); }
-            catch (Exception ex) { SetCenter($"Could not load themes.\n\n{ex.Message}"); return; }
+            catch (Exception ex) { SetCenter(Lang.T("ThemeBrowserLoadError", ex.Message)); return; }
 
             _items.Clear();
             var sharedRoot        = ThemeManager.SharedThemeRoot;
@@ -65,7 +65,7 @@ namespace MasselGUARD.Views
                 });
             }
 
-            if (_items.Count == 0) { SetCenter("No themes found in this repository."); return; }
+            if (_items.Count == 0) { SetCenter(Lang.T("ThemeBrowserEmpty")); return; }
 
             BuildTagChips();
             _view = new ListCollectionView(_items) { Filter = FilterItem };
@@ -215,23 +215,21 @@ namespace MasselGUARD.Views
             if (it.IsInstalled)
             {
                 var message = it.UpdateAvailable
-                    ? $"A newer version of '{it.Name}' is available. Updating will overwrite your local copy — " +
-                      "any changes you made to it will be lost.\n\nContinue?"
-                    : $"'{it.Name}' is already installed. Redownloading will overwrite your local copy — " +
-                      "any changes you made to it will be lost.\n\nContinue?";
-                var title = it.UpdateAvailable ? "Update theme" : "Redownload theme";
+                    ? Lang.T("ThemeBrowserUpdateMsg", it.Name)
+                    : Lang.T("ThemeBrowserRedownloadMsg", it.Name);
+                var title = it.UpdateAvailable ? Lang.T("ThemeBrowserUpdateTitle") : Lang.T("ThemeBrowserRedownloadTitle");
                 if (!ThemedMessageDialog.Confirm(this, message, title)) return;
             }
 
             it.Busy = true;
-            StatusText.Text = $"Installing {it.Name}…";
+            StatusText.Text = Lang.T("ThemeBrowserInstalling", it.Name);
             try
             {
                 var n = await ThemeDownloadService.InstallThemeAsync(it.RawBase, it.Entry, ThemeManager.SharedThemeRoot);
                 it.IsInstalled     = true;
                 it.UpdateAvailable = false;   // just installed the latest version
                 AnyInstalled       = true;
-                StatusText.Text = $"Installed {it.Name} ({n} file(s)).";
+                StatusText.Text = Lang.T("ThemeBrowserInstalled", it.Name, n);
 
                 // If this theme is the one currently active, its FontFamily/asset resources
                 // may still reference the files we just overwrote — a private font in
@@ -352,10 +350,10 @@ namespace MasselGUARD.Views
         }
 
         public bool   CanInstall  => !_busy;
-        public string InstallLabel => _busy ? "Installing…"
-            : !_installed        ? "Install"
-            : _updateAvailable   ? "Update"
-            : "Reinstall";
+        public string InstallLabel => _busy ? Lang.T("ThemeBtnInstalling")
+            : !_installed        ? Lang.T("ThemeBtnInstall")
+            : _updateAvailable   ? Lang.T("ThemeBtnUpdate")
+            : Lang.T("ThemeBtnReinstall");
 
         public event PropertyChangedEventHandler? PropertyChanged;
         private void OnPC(string n) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));

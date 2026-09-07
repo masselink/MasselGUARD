@@ -41,6 +41,9 @@ namespace MasselGUARD.ViewModels
                 OnPropertyChanged(nameof(StatusColor));
                 OnPropertyChanged(nameof(NameColor));
                 OnPropertyChanged(nameof(TrafficVisibility));
+                OnPropertyChanged(nameof(CapRingsVisibility));
+                OnPropertyChanged(nameof(CapHighlightVisibility));
+                if (value) CapKilled = false;   // the next start clears the kill marker
                 ConnectCommand.RaiseCanExecuteChanged();
                 DisconnectCommand.RaiseCanExecuteChanged();
             }
@@ -116,9 +119,9 @@ namespace MasselGUARD.ViewModels
 
         public string DnsLeakTooltip => _dnsStatus switch
         {
-            TunnelDll.DnsLeakStatus.Secure        => "DNS routed through tunnel — protected",
-            TunnelDll.DnsLeakStatus.PotentialLeak => "Other adapters have DNS servers — possible DNS leak",
-            TunnelDll.DnsLeakStatus.NotConfigured => "No DNS configured in tunnel — queries bypass VPN",
+            TunnelDll.DnsLeakStatus.Secure        => Lang.T("DnsTipSecure"),
+            TunnelDll.DnsLeakStatus.PotentialLeak => Lang.T("DnsTipLeak"),
+            TunnelDll.DnsLeakStatus.NotConfigured => Lang.T("DnsTipNotConfigured"),
             _                                     => "",
         };
 
@@ -165,9 +168,9 @@ namespace MasselGUARD.ViewModels
         // empty tooltip popup while disconnected / (dis)connecting.
         public string? HealthTooltip => _health switch
         {
-            TunnelHealth.Healthy => "Tunnel healthy — adapter up and passing traffic",
-            TunnelHealth.Idle    => "Tunnel up — no recent traffic (idle)",
-            TunnelHealth.Down    => "Tunnel adapter is down or missing while marked active",
+            TunnelHealth.Healthy => Lang.T("HealthHealthy"),
+            TunnelHealth.Idle    => Lang.T("HealthIdle"),
+            TunnelHealth.Down    => Lang.T("HealthDown"),
             _                    => null,
         };
 
@@ -214,10 +217,10 @@ namespace MasselGUARD.ViewModels
         // The leading dot lives in StatusDot / StatusDotColor (a separate coloured element),
         // so StatusText itself carries no glyph.
         public string StatusText =>
-            _isConnecting    ? "Connecting…"    :
-            _isDisconnecting ? "Disconnecting…" :
-            IsActive         ? UptimeDisplay    :
-            IsAvailable      ? "Disconnected"   : "Unavailable";
+            _isConnecting    ? Lang.T("StatusConnecting")    :
+            _isDisconnecting ? Lang.T("StatusDisconnecting") :
+            IsActive         ? UptimeDisplay                 :
+            IsAvailable      ? Lang.T("StatusDisconnected")  : Lang.T("StatusUnavailable");
 
         /// <summary>The status dot glyph shown in front of the status text.
         /// Active tunnels show ● (or ▲ when the adapter is down); ◌ while (dis)connecting,
@@ -278,43 +281,163 @@ namespace MasselGUARD.ViewModels
             }
         }
 
-        // ── Monthly data usage ────────────────────────────────────────────────
-        private long _monthlyBytes;
+        // ── Data-usage warnings (day / week / month) ──────────────────────────
+        private long _dayBytes, _weekBytes, _monthlyBytes;
 
         /// <summary>Current session's total bytes (rx+tx) — used for live cap accounting.</summary>
         public long SessionBytes => _rxBytes + _txBytes;
 
-        /// <summary>Configured monthly cap in bytes; 0 = unlimited.</summary>
+        /// <summary>Configured caps in bytes; 0 = no cap for that period.</summary>
+        public long DailyCapBytes   => (long)StoredTunnel.DailyCapMB   * 1_048_576L;
+        public long WeeklyCapBytes  => (long)StoredTunnel.WeeklyCapMB  * 1_048_576L;
         public long MonthlyCapBytes => (long)StoredTunnel.MonthlyCapMB * 1_048_576L;
 
+        /// <summary>Period-to-date usage in bytes (history + live session), for cap enforcement.</summary>
+        public long DayUsageBytes   => _dayBytes;
+        public long WeekUsageBytes  => _weekBytes;
+        public long MonthUsageBytes => _monthlyBytes;
+
+        /// <summary>True when any period is configured (so usage is worth showing).</summary>
+        private bool AnyCapConfigured =>
+            StoredTunnel.DailyCapMB > 0 || StoredTunnel.WeeklyCapMB > 0 || StoredTunnel.MonthlyCapMB > 0;
+
+        // The row's inline usage figure stays month-to-date; the tooltip breaks out
+        // whichever caps are configured, and the highlight/colour react to any breach.
         public string MonthlyUsageDisplay =>
             StoredTunnel.MonthlyCapMB > 0
                 ? $"▤ {FormatBytes(_monthlyBytes)} / {FormatBytes(MonthlyCapBytes)}"
                 : $"▤ {FormatBytes(_monthlyBytes)}";
 
-        public string MonthlyUsageTooltip =>
-            StoredTunnel.MonthlyCapMB > 0
-                ? $"This month: {FormatBytes(_monthlyBytes)} of {FormatBytes(MonthlyCapBytes)} cap"
-                : $"This month: {FormatBytes(_monthlyBytes)}";
+        public string MonthlyUsageTooltip
+        {
+            get
+            {
+                var sb = new System.Text.StringBuilder();
+                void Line(string label, long used, long cap, int capMB)
+                {
+                    if (sb.Length > 0) sb.Append('\n');
+                    sb.Append(capMB > 0
+                        ? $"{label}: {FormatBytes(used)} of {FormatBytes(cap)} cap{(cap > 0 && used >= cap ? "  ⚠ over" : "")}"
+                        : $"{label}: {FormatBytes(used)}");
+                }
+                Line("Today",      _dayBytes,     DailyCapBytes,   StoredTunnel.DailyCapMB);
+                Line("This week",  _weekBytes,    WeeklyCapBytes,  StoredTunnel.WeeklyCapMB);
+                Line("This month", _monthlyBytes, MonthlyCapBytes, StoredTunnel.MonthlyCapMB);
+                return sb.ToString();
+            }
+        }
 
         public System.Windows.Visibility MonthlyUsageVisibility =>
-            IsActive && (_monthlyBytes > 0 || StoredTunnel.MonthlyCapMB > 0)
+            IsActive && (_monthlyBytes > 0 || AnyCapConfigured)
                 ? System.Windows.Visibility.Visible
                 : System.Windows.Visibility.Collapsed;
 
-        public System.Windows.Media.Brush MonthlyUsageColor =>
-            (MonthlyCapBytes > 0 && _monthlyBytes >= MonthlyCapBytes)
-                ? ThemeBrush("Danger")
-                : ThemeBrush("TextMuted");
+        /// <summary>Over any configured cap — drives the usage colour and the row highlight.</summary>
+        public bool IsOverCap =>
+            (DailyCapBytes   > 0 && _dayBytes     >= DailyCapBytes)   ||
+            (WeeklyCapBytes  > 0 && _weekBytes    >= WeeklyCapBytes)  ||
+            (MonthlyCapBytes > 0 && _monthlyBytes >= MonthlyCapBytes);
 
-        /// <summary>Called each stats poll with the month-to-date total (history + live session).</summary>
-        public void UpdateMonthlyUsage(long monthlyBytes)
+        public System.Windows.Media.Brush MonthlyUsageColor =>
+            IsOverCap ? ThemeBrush("WarningColor") : ThemeBrush("TextMuted");
+
+        // ── Cap usage rings — shown in the row when connected ──────────────────
+        // Three concentric arcs (day inner · week middle · month outer). A ring is
+        // drawn only when that period's cap is set; each fills 0→360° as usage → cap.
+        // The <see cref="Views.CapRings"/> control turns a ring amber near the limit
+        // and red once over it, and the hover tooltip breaks the numbers out.
+        private static double Frac(long used, long cap) => cap > 0 ? (double)used / cap : 0.0;
+
+        public double DayCapFraction   => Frac(_dayBytes,     DailyCapBytes);
+        public double WeekCapFraction  => Frac(_weekBytes,    WeeklyCapBytes);
+        public double MonthCapFraction => Frac(_monthlyBytes, MonthlyCapBytes);
+
+        public bool DayCapSet   => DailyCapBytes   > 0;
+        public bool WeekCapSet  => WeeklyCapBytes  > 0;
+        public bool MonthCapSet => MonthlyCapBytes > 0;
+
+        // Rings show whenever a cap is configured — even when disconnected, where the
+        // CapRings control renders them greyed (Active=false) but at real usage.
+        public System.Windows.Visibility CapRingsVisibility =>
+            AnyCapConfigured ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+
+        /// <summary>Per-period breakdown for the rings' hover tooltip (set periods only).</summary>
+        public string CapRingsTooltip
         {
-            _monthlyBytes = monthlyBytes;
+            get
+            {
+                var sb = new System.Text.StringBuilder();
+                void Line(string label, long used, long cap)
+                {
+                    if (cap <= 0) return;
+                    if (sb.Length > 0) sb.Append('\n');
+                    int pct = (int)System.Math.Round(100.0 * used / cap);
+                    sb.Append($"{label}: {FormatBytes(used)} / {FormatBytes(cap)} ({pct}%){(used >= cap ? "  ⚠ over" : "")}");
+                }
+                Line("Day",   _dayBytes,     DailyCapBytes);
+                Line("Week",  _weekBytes,    WeeklyCapBytes);
+                Line("Month", _monthlyBytes, MonthlyCapBytes);
+                return sb.ToString();
+            }
+        }
+
+        /// <summary>Left accent strip on the tunnel row — amber while over a cap, else invisible.</summary>
+        public System.Windows.Media.Brush CapHighlightBrush =>
+            IsOverCap ? ThemeBrush("WarningColor") : System.Windows.Media.Brushes.Transparent;
+
+        public System.Windows.Visibility CapHighlightVisibility =>
+            IsOverCap && IsActive ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+
+        // ── Cap-kill marker (shown after Connect until the next start) ─────────
+        private bool _capKilled;
+        /// <summary>True after enforcement disconnected this tunnel at a cap; cleared on the next connect.</summary>
+        public bool CapKilled
+        {
+            get => _capKilled;
+            set
+            {
+                if (SetField(ref _capKilled, value))
+                    OnPropertyChanged(nameof(CapKilledVisibility));
+            }
+        }
+
+        public System.Windows.Visibility CapKilledVisibility =>
+            _capKilled ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+
+        public string CapKilledTooltip => Lang.T("CapKilledTooltip");
+
+        /// <summary>Re-raise the localized row strings so a live language switch updates them.</summary>
+        public void RefreshLocalized()
+        {
+            OnPropertyChanged(nameof(StatusText));
+            OnPropertyChanged(nameof(ButtonLabel));
+            OnPropertyChanged(nameof(ButtonTooltip));
+            OnPropertyChanged(nameof(HealthTooltip));
+            OnPropertyChanged(nameof(DnsLeakTooltip));
+            OnPropertyChanged(nameof(CapKilledTooltip));
+        }
+
+        /// <summary>Called each stats poll with period-to-date totals (history + live session).</summary>
+        public void UpdateUsage(long dayBytes, long weekBytes, long monthBytes)
+        {
+            _dayBytes     = dayBytes;
+            _weekBytes    = weekBytes;
+            _monthlyBytes = monthBytes;
             OnPropertyChanged(nameof(MonthlyUsageDisplay));
             OnPropertyChanged(nameof(MonthlyUsageTooltip));
             OnPropertyChanged(nameof(MonthlyUsageVisibility));
+            OnPropertyChanged(nameof(IsOverCap));
             OnPropertyChanged(nameof(MonthlyUsageColor));
+            OnPropertyChanged(nameof(DayCapFraction));
+            OnPropertyChanged(nameof(WeekCapFraction));
+            OnPropertyChanged(nameof(MonthCapFraction));
+            OnPropertyChanged(nameof(DayCapSet));
+            OnPropertyChanged(nameof(WeekCapSet));
+            OnPropertyChanged(nameof(MonthCapSet));
+            OnPropertyChanged(nameof(CapRingsVisibility));
+            OnPropertyChanged(nameof(CapRingsTooltip));
+            OnPropertyChanged(nameof(CapHighlightBrush));
+            OnPropertyChanged(nameof(CapHighlightVisibility));
         }
 
         private static string FormatBytes(long bytes)
@@ -329,30 +452,31 @@ namespace MasselGUARD.ViewModels
         {
             get
             {
-                if (!IsActive || _connectedAt == null) return "Connected";
+                var c = Lang.T("StatusConnected");
+                if (!IsActive || _connectedAt == null) return c;
                 var elapsed = DateTime.UtcNow - _connectedAt.Value;
                 if (elapsed.TotalSeconds < 60)
-                    return $"Connected  {(int)elapsed.TotalSeconds}s";
+                    return $"{c}  {(int)elapsed.TotalSeconds}s";
                 if (elapsed.TotalMinutes < 60)
-                    return $"Connected  {(int)elapsed.TotalMinutes}m {elapsed.Seconds:D2}s";
+                    return $"{c}  {(int)elapsed.TotalMinutes}m {elapsed.Seconds:D2}s";
                 if (elapsed.TotalHours < 24)
-                    return $"Connected  {(int)elapsed.TotalHours}h {elapsed.Minutes:D2}m";
+                    return $"{c}  {(int)elapsed.TotalHours}h {elapsed.Minutes:D2}m";
                 var days = (int)elapsed.TotalDays;
-                return $"Connected  {days}d {elapsed.Hours:D2}h {elapsed.Minutes:D2}m";
+                return $"{c}  {days}d {elapsed.Hours:D2}h {elapsed.Minutes:D2}m";
             }
         }
         public string ButtonLabel =>
-            _isConnecting    ? "Connecting…"    :
-            _isDisconnecting ? "Disconnecting…" :
-            IsActive         ? "Disconnect"     : "Connect";
+            _isConnecting    ? Lang.T("StatusConnecting")    :
+            _isDisconnecting ? Lang.T("StatusDisconnecting") :
+            IsActive         ? Lang.T("BtnDisconnect")       : Lang.T("BtnConnect");
 
         public bool ButtonEnabled =>
             !_isConnecting && !_isDisconnecting && (IsAvailable || IsActive);
 
         public string ButtonTooltip =>
-            _isConnecting    ? $"Connecting {Name}…"    :
-            _isDisconnecting ? $"Disconnecting {Name}…" :
-            IsActive         ? $"Disconnect {Name}"     : $"Connect {Name}";
+            _isConnecting    ? Lang.T("BtnTipConnecting", Name)    :
+            _isDisconnecting ? Lang.T("BtnTipDisconnecting", Name) :
+            IsActive         ? Lang.T("BtnTipDisconnect", Name)    : Lang.T("BtnTipConnect", Name);
 
         public System.Windows.Media.Brush NameColor   => ThemeBrush(IsActive ? "Accent" : "TextPrimary");
         public System.Windows.Media.Brush TypeColor   => ThemeBrush("TextMuted");

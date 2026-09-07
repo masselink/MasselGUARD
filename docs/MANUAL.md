@@ -1,6 +1,6 @@
 # MasselGUARD — User Manual
 
-**Version 3.9.0 — Adaptive Armadillo**
+**Version 3.9.5 — Selective Serval**
 
 ---
 
@@ -84,7 +84,7 @@ Runs on first launch and when starting a newer version than the last wizard run.
 
 **Step 5 — Startup:** How MasselGUARD is installed, whether it starts automatically with Windows, and confirm disconnect on exit.
 
-**Step 6 — WiFi:** Explains how WiFi rules, the default action, and open network protection work together (rules themselves are created after the wizard, in Settings → WiFi). Disable WiFi rules toggle. Show WiFi rules panel toggle. **Skipped entirely** (both Next and Back) if WiFi rules were already disabled in Step 2/3 — nothing left to configure there.
+**Step 6 — WiFi:** Explains how WiFi rules, the default action, and open network protection work together (rules themselves are created after the wizard, on the main window). Disable WiFi rules toggle. Show WiFi rules panel toggle. **Skipped entirely** (both Next and Back) if WiFi rules were already disabled in Step 2/3 — nothing left to configure there.
 
 **Step 7 — Behavior:** Auto-reconnect mode (Off / Per tunnel / Always), DNS leak indicator, history capture (connections / WiFi), tray notifications.
 
@@ -100,11 +100,13 @@ Columns: **Tunnel** | **Type** | **Status** | **Rules** | **Action**
 
 - **Colour strip** — 4 px strip per row showing the tunnel's group colour
 - **Badges** — `⚡` (default action) and `🔓` (open network protection) after the tunnel name
-- **Status** — uptime for active tunnels: `● Connected  2h 34m`
+- **Status** — uptime for active tunnels: `● Connected  2h 34m`. When a data cap is set, the row also shows compact **usage rings** (day / week / month) — see §10
 - **Rules** — count of WiFi rules referencing this tunnel; click to highlight matching rules in the WiFi Rules panel. Rebuilds immediately on rule add/edit/delete
-- **Action** — Connect / Disconnect, centred
+- **Action** — Connect / Disconnect, centred (a 🛑 marker appears if a data cap disconnected the tunnel, until you next start it)
 
-**Toolbar buttons:** + Add | Edit | Import | **Defaults** | Delete
+**Toolbar buttons:** + Add | Edit | Import | **Export** | **Defaults** | Delete
+
+**Export** hands a selected tunnel to another device — see *Exporting a tunnel* in §5.
 
 ### Defaults button
 
@@ -158,6 +160,18 @@ Manage in **Settings → Tunnels**. Each group row has:
 
 Drag tunnel rows to reorder within the current group. A 2 px Accent drop-line shows the insertion point.
 
+### Exporting a tunnel
+
+Select a tunnel and use the toolbar **Export** button to hand it to another device or keep a backup. Three formats:
+
+- **Plain file (`.conf`)** — a standard WireGuard config; import it into any WireGuard client, phone, or router.
+- **Encrypted file (`.mgconf`)** — password-protected with AES-256-GCM. Unlike the at-rest storage, it's **portable** — open it on any machine with the password. There's no recovery if the password is lost.
+- **QR code** — scan straight into the WireGuard mobile app.
+
+**Include MasselGUARD settings** (file formats only) bundles the tunnel's extras — group, notes, scripts, kill switch, auto-reconnect, and data caps — as readable `# MasselGUARD-…` comment lines that other WireGuard clients ignore, so the `.conf` stays universally importable. MasselGUARD restores them on import (the CLI too: `MasselGUARDcli import file.mgconf --password <pw>`).
+
+> The exported config contains the tunnel's **private key** — keep plain and QR exports private; use the encrypted format to share safely. Export is disabled when a managed policy locks *Tunnels*.
+
 ---
 
 ## 6. Connecting and disconnecting
@@ -174,7 +188,7 @@ Active tunnels show elapsed uptime: `< 1 min` → `Xs`, `< 1 h` → `Xm YYs`, `<
 
 What happens when connecting to WiFi with no matching rule. Options: Do nothing / Disconnect all / Activate a tunnel. The assigned tunnel shows `⚡` in the list and `⚡ TunnelName` in the footer.
 
-> **Default action vs. Trusted networks.** Both are catch-alls, but a *Trusted-networks* rule is evaluated **before** the default action and gives two outcomes (connect on untrusted networks, disconnect on trusted) instead of one. While such a rule is enabled the default action only applies when WiFi drops entirely. Full precedence and comparison: **§8 → Rule evaluation order**.
+> **Default action vs. Trusted networks.** Both are catch-alls, but a *Trusted-networks* rule is evaluated **before** the default action and reacts to whether you're on a trusted SSID. Each trusted rule covers one direction (activate when *not* on the list, or when *on* it) and only acts on that side — the default action still fills the side it doesn't cover. Full precedence and comparison: **§8 → Rule evaluation order**.
 
 ### Open network protection
 
@@ -204,7 +218,11 @@ Activates automatically on **passwordless** WiFi before any SSID rule. The assig
 
 - **WiFi network (SSID)** — fires when you join that exact named network.
 - **Schedule** — fires during a day-of-week + time window (e.g. Work 09:00–18:00, Mon–Fri). Schedule rules are checked on a one-minute timer, independent of WiFi changes; overnight windows such as 22:00–06:00 are supported.
-- **Trusted networks** — a single broad policy: connect the chosen tunnel on any WiFi network that is **not** in your trusted list, and disconnect on a **trusted** one. The trusted-SSID list is managed in **Settings → WiFi → Trusted networks** (one SSID per line, or use *Add current WiFi network*). The whole list shares this one action.
+- **Trusted networks** — reacts to your trusted-SSID list, in **one of two directions** you pick per rule:
+    - **When NOT on a trusted network** — activate the chosen tunnel on any network that is *not* on the list (e.g. a **full tunnel** on public WiFi). This is the classic "protect me on untrusted networks".
+    - **When on a trusted network** — activate the chosen tunnel only on networks that *are* on the list (e.g. a **split tunnel** you bring up at home or work).
+
+    A trusted rule acts **only on its own side**; the other side falls through to your other rules and the Default action. Add **two** trusted rules to cover both directions (one tunnel on trusted, another on untrusted). Leave the tunnel empty to *disconnect* on that side instead. The trusted-SSID list is shared by all trusted rules and is managed in **Settings → WiFi → Trusted networks** (one SSID per line, or use *Add current WiFi network*).
 
 ### Rule evaluation order
 
@@ -213,22 +231,22 @@ On every WiFi change the engine walks these steps and **stops at the first match
 1. **Manual mode** — if WiFi automation is off, nothing happens.
 2. **Open network protection** — on an open (passwordless) network with a tunnel assigned, that tunnel is activated before any rule.
 3. **WiFi-SSID rules** — an *enabled* WiFi rule whose SSID equals the current network. (Drag to reorder; first match wins.)
-4. **Trusted-network protection** — if an *enabled* Trusted-networks rule exists: **untrusted** network → connect its tunnel; **trusted** network → disconnect.
+4. **Trusted-network rules** — each *enabled* Trusted-networks rule is checked in list order; a rule matches only when the current network is on **its** side of the trusted list (its *not-on-list* or *on-list* direction). The first match connects its tunnel (or disconnects). A rule whose side doesn't match is skipped, so evaluation continues.
 5. **Default action** — the fallback (do nothing / disconnect / activate a tunnel).
 
 Schedule rules run on their own timer rather than in this WiFi chain. When WiFi drops **entirely** (no network at all), only *Default action = Disconnect* applies — nothing can classify a network that isn't there.
 
 #### Default action vs. Trusted networks
 
-Both are catch-alls for a network that no specific rule matched — the difference is how many outcomes they produce:
+Both are catch-alls for a network that no specific rule matched — the difference is that a trusted rule looks at *which* network you're on:
 
-| | **Default action** | **Trusted-network protection** |
+| | **Default action** | **Trusted-network rule** |
 |---|---|---|
-| Decides based on | Nothing — same result for every unmatched network | Whether the SSID is in your trusted list |
-| Outcomes | **One** (none / disconnect / connect a fixed tunnel) | **Two** (untrusted → connect · trusted → disconnect) |
+| Decides based on | Nothing — same result for every unmatched network | Whether the SSID is in your trusted list (and the rule's direction) |
+| Fires on | Every unmatched network | Only its side (on-list *or* not-on-list) |
 | Runs when WiFi drops completely | Yes | No (no SSID to classify) |
 
-Because trusted-network protection sits **above** default action, while an enabled Trusted-networks rule exists it handles every named network and the **default action never fires** for one — default action then only matters when WiFi drops entirely. In effect trusted protection is a more expressive default action: *"default = connect X"* is the same as a trusted rule with an empty trusted list, and *"default = disconnect"* is a trusted rule where every network is trusted. Use trusted protection when you want "VPN on everything except my home/office WiFi"; use plain default action when one blanket outcome is enough.
+A trusted rule only ever acts on its own side, so the **Default still applies** to the side it doesn't cover. Common setups: one *not-on-list → full-tunnel* rule = "VPN on everything except my home/office WiFi" (Default handles the trusted side); add an *on-list → split-tunnel* rule as well to bring a different tunnel up at home/work. Two rules, one shared list, both directions covered — and the Default fills any gap.
 
 ### Enable / disable a rule
 
@@ -260,7 +278,7 @@ Adding, editing, or deleting a rule immediately refreshes both the WiFi Rules pa
 
 ### Language
 
-Language picker — changes take effect immediately. Six languages: English, Dutch, German, French, Spanish, Japanese.
+Language picker — changes take effect immediately. Twelve languages: English, Dutch, German, French, Spanish, Japanese, Italian, Portuguese (Brazil), Russian, Polish, Turkish, Chinese (Simplified). Hold **Shift** while starting MasselGUARD to reset the language to English.
 
 ### App mode
 
@@ -323,15 +341,14 @@ Changes deferred until Save.
 
 Everything that controls what happens when your network changes. For the exact precedence see **§8 → Rule evaluation order** (open network → SSID rules → trusted-network → default action).
 
-**Layout (top to bottom):**
-1. Rules list — **Add / Edit / Delete** and **Enable / Disable** buttons (the last reflects the selected rule's state)
-2. **Disable WiFi rules** toggle — pauses all automation
-3. **Default action** picker: None / Disconnect / Activate tunnel — the fallback when no rule matches. Same as the Defaults button popup but deferred to Settings Save
-4. **Open network protection** tunnel picker — activated on an unsecured (open) WiFi network, before any SSID rule or default action
-5. **Trusted networks** — the safe-SSID list for a *Trusted networks* rule (one SSID per line; **Add current WiFi network** appends the network you're on, skipping duplicates). Enabling the feature and choosing its tunnel is done in the rule itself, not here — see §8
-6. Display — **Hide WiFi rules on main window** and **Show Rules column** in tunnel list toggles
+The **rules list itself lives on the main window** (add / edit / delete / enable there) — it is not duplicated here. This page holds the automation *settings* around it.
 
-Rules changes save via the main Save button.
+**Layout (top to bottom):**
+1. **Disable WiFi rules** toggle — pauses all automation
+2. **Default action** picker: None / Disconnect / Activate tunnel — the fallback when no rule matches. Same as the Defaults button popup but deferred to Settings Save
+3. **Open network protection** tunnel picker — activated on an unsecured (open) WiFi network, before any SSID rule or default action
+4. **Trusted networks** — the safe-SSID list for a *Trusted networks* rule (one SSID per line; **Add current WiFi network** appends the network you're on, skipping duplicates). Enabling the feature and choosing its tunnel is done in the rule itself, not here — see §8
+5. Display — **Hide WiFi rules on main window** and **Show Rules column** in tunnel list toggles
 
 ---
 
@@ -733,7 +750,7 @@ To return to the theme's own font: toggle **Override font** off.
 
 ## 26. Multiple languages
 
-English, Dutch, German, French, Spanish, Japanese. Change in Settings → General — the picker shows a country flag next to each language. Add a language: copy `lang\en.json`, translate, set the `_code`, `_language`, and `_flag` keys, and drop a matching 20×15 `<flag>.png` into `lang\flags\`.
+English, Dutch, German, French, Spanish, Japanese, Italian, Portuguese (Brazil), Russian, Polish, Turkish, Chinese (Simplified). Change in Settings → General — the picker shows a country flag next to each language, and a reminder that holding **Shift** at startup resets to English. Add a language: copy `lang\en.json`, translate, set the `_code`, `_language`, and `_flag` keys, and drop a matching 20×15 `<flag>.png` into `lang\flags\`.
 
 ---
 
@@ -758,7 +775,7 @@ Fixed — `_vm.RebuildTunnelList()` now called after every rule add/edit/delete.
 Yes — drag rows in the WiFi Rules panel on the main window.
 
 **Where is the WiFi rules Save button?**
-Removed. All settings (including rules) save when the main Settings Save button is pressed.
+There isn't one — rules are managed on the main window and each add / edit / delete / enable saves immediately. (The Settings → WiFi page no longer duplicates the rules list; it only holds the automation settings, which save on the Settings Save button.)
 
 **Can I drag a tunnel into a different group?**
 Yes — drag the tunnel row and drop it onto the target group tab.
@@ -807,6 +824,13 @@ Settings → Tunnels → Kill switch mode is set to **Always**, which forces the
 
 **Where do I see bandwidth usage?**
 In the activity log (Extended mode). After each disconnect a grey continuation line shows the session duration and bandwidth: `↳ 2h 14m  ·  ↑ 142 MB  ↓ 1.2 GB`. Switch to Extended in Settings → Advanced → Log level.
+
+**Can I get warned about — or cut off at — data usage?**
+Yes. Edit a tunnel → **Options** → **DATA-USAGE WARNINGS** and set a **daily**, **weekly**, and/or **monthly** threshold in MB (0 = off). When usage for a period crosses its threshold you get a one-time log entry, a tray toast, and the row is highlighted in amber. A cap you set also draws a **usage ring** on the connected tunnel's row (day inner · week middle · month outer, filling 0→360°, amber near the limit and red once over) — hover for the exact breakdown.
+
+Ticking **Kill at cap** next to a threshold turns the warning into **enforcement**: the tunnel is disconnected the moment that period's usage is reached (with a sticky *Ignore & reconnect* toast and a 🛑 row marker), and connecting over the limit asks first. Trying to reconnect an over-cap tunnel via a rule shows an interactive Connect / Cancel toast. Editing the caps re-arms enforcement. Leave *Kill at cap* off for warning-only behaviour.
+
+The bottom info panel has a **Timeline ⇄ Data usage** switch that charts per-tunnel usage over the selected range, with a red marker where a cap was reached. Usage is drawn from the connection history, so keep **Settings → History → Capture → Connections** on for accurate totals. Estimates are not exact — MasselGUARD isn't responsible for inaccurate reporting or for tunnels being disconnected (or not) as a result.
 
 **The import settings dialog showed raw placeholder text instead of a warning.**
 Fixed in v3.3.0 — `SettingsImportVersionWarning` and `SettingsImportVersionNewer` are now present in all five language files.
@@ -900,7 +924,7 @@ MasselGUARD info "1.MasselinkVPN-Split-AG"
 ### Version output
 
 ```
-MasselGUARD v3.9.0  |  Adaptive Armadillo
+MasselGUARD v3.9.5  |  Selective Serval
 build:   2608200000
 arch:    x64
 Harold Masselink  |  https://masselink.net

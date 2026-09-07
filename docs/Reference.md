@@ -1,6 +1,6 @@
 # MasselGUARD — Technical reference
 
-Developer/technical reference for v3.9.0 — Adaptive Armadillo. For end-user instructions see [`Manual.md`](Manual.md).
+Developer/technical reference for v3.9.5 — Selective Serval. For end-user instructions see [`Manual.md`](Manual.md).
 
 ---
 
@@ -570,7 +570,7 @@ Per arch (`x64`, `arm64`) BUILD.bat cleans `obj\`/`bin\`, cross-publishes GUI + 
 Banner printed during build:
 ```
   --------------------------------------------------
-  MasselGUARD  v3.9.0  |  Adaptive Armadillo
+  MasselGUARD  v3.9.5  |  Selective Serval
   Harold Masselink  |  https://masselink.net
   Building arch(es): x64 arm64
   --------------------------------------------------
@@ -717,6 +717,8 @@ public int    ExecutionCount { get; set; } = 0;    // incremented by RuleEngine 
 
 `RuleEngine.EvaluateWifi` increments `match.ExecutionCount++` before returning a result. Config is saved by the caller after rule execution.
 
+**Directional trusted rules.** A `trusted`-kind `TunnelRule` carries `TrustedWhen` (`"untrusted"` | `"trusted"`; `TrustedWhenOnList` is the parsed bool). In `EvaluateWifi` step 4 the engine loops every enabled trusted rule and a rule matches only on its side of `AppConfig.TrustedNetworks` (`TrustedWhenOnList ? isTrusted : !isTrusted`); the first match activates its tunnel (empty `Tunnel` → disconnect), and the non-matching side falls through to the Default action. Two rules therefore cover both directions against one shared SSID list. The field serialises with the rule (managed-preset "Rules" export/import carries it automatically).
+
 `WifiRuleRow` display class auto-generates `RuleName` when `rule.Name` is empty:
 ```csharp
 var autoName = string.IsNullOrEmpty(r.Tunnel)
@@ -777,7 +779,7 @@ dotnet publish -p:Version=%VERSION% -p:InformationalVersion=%VERSION%.%BUILD_NUM
 Assembly.GetEntryAssembly()
     ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
     ?.InformationalVersion;
-// → "3.9.0.2608200000"  (last 10 chars = build stamp)
+// → "3.9.5.2608200000"  (last 10 chars = build stamp)
 ```
 
 `Version.TryParse` handles 4-part versions for comparison. The version component (`Major.Minor.Patch`) is always static; only the build stamp changes between builds.
@@ -951,7 +953,7 @@ string updateStatus =
 
 Plain output:
 ```
-MasselGUARD v3.9.0  |  Adaptive Armadillo
+MasselGUARD v3.9.5  |  Selective Serval
 build:   2608200000
 arch:    x64
 Harold Masselink  |  https://masselink.net
@@ -989,14 +991,13 @@ JSON output adds `arch` and `update_status` fields alongside `version`, `codenam
 private static readonly Dictionary<string, string> _codenames =
     new(StringComparer.OrdinalIgnoreCase)
     {
-        { "3.7.0", "Chromatic Chameleon" },
-        { "3.7.1", "Chromatic Chameleon" },
         { "3.8.0", "Protective Pangolin" },
         { "3.9.0", "Adaptive Armadillo" },
+        { "3.9.5", "Selective Serval" },
     };
 ```
 
-`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"3.9.0 — Adaptive Armadillo"` or just `"3.9.0"`.
+`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"3.9.5 — Selective Serval"` or just `"3.9.5"`.
 
 Codenames are assigned per `Major.Minor.Patch` release only — not per build. Update the dictionary in `UpdateChecker.cs` **and** `BUILD.bat` when bumping `VERSION`.
 

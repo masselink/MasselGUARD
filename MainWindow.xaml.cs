@@ -940,6 +940,10 @@ namespace MasselGUARD
             bool tunnelsLocked = ConfigSvc.TunnelsLocked;
             EditTunnelBtn.IsEnabled   = _vm.SelectedTunnel != null && !tunnelsLocked;
             DeleteTunnelBtn.IsEnabled = _vm.SelectedTunnel != null && !tunnelsLocked;
+            // Export exposes the config (incl. private key), so a managed lock on
+            // Tunnels disables it too — a locked/kiosk install must not exfiltrate.
+            if (ExportTunnelBtn != null)
+                ExportTunnelBtn.IsEnabled = _vm.SelectedTunnel != null && !tunnelsLocked;
             DeleteTunnelBtn.Visibility = _vm.SelectedTunnel != null
                 ? Visibility.Visible : Visibility.Collapsed;
             if (_vm.SelectedTunnel != null)
@@ -957,9 +961,23 @@ namespace MasselGUARD
                 btn.DataContext is TunnelEntryViewModel entry)
             {
                 if (entry.IsActive)
+                {
                     entry.DisconnectCommand.Execute(null);
+                }
                 else
+                {
+                    // Manual connect over a "kill at cap" limit → ask before ignoring it.
+                    var kill = _vm.CapKillState(entry);
+                    if (kill != null)
+                    {
+                        var msg = Lang.T("CapConnectConfirmMsg", entry.Name,
+                            ViewModels.MainViewModel.FmtBytes(kill.UsedBytes),
+                            ViewModels.MainViewModel.FmtBytes(kill.CapBytes));
+                        if (!ShowThemedYesNo(msg, Lang.T("CapConnectConfirmTitle"))) return;
+                        _vm.OverrideCap(entry);
+                    }
                     entry.ConnectCommand.Execute(null);
+                }
 
                 _vm.RefreshTunnelStatus();
                 UpdateTunnelLabel();
@@ -999,6 +1017,43 @@ namespace MasselGUARD
             new Views.QrExportWindow(stored.Name, config) { Owner = this }.ShowDialog();
         }
 
+        // ── Export selected tunnel (plain / encrypted / QR) ───────────────────
+        private void ExportTunnel_Click(object sender, RoutedEventArgs e)
+        {
+            // Managed lock on Tunnels forbids exporting configs (private keys).
+            if (ConfigSvc.TunnelsLocked) return;
+
+            var stored = _vm.SelectedTunnel?.StoredTunnel;
+            if (stored == null) return;
+
+            // Only local tunnels carry a config MasselGUARD can export; companion
+            // tunnels are managed by the WireGuard app and have nothing stored here.
+            if (stored.Source != "local")
+            {
+                MessageBox.Show(Lang.T("QrExportUnavailable"),
+                    Lang.T("ExportTunnelTitle", stored.Name),
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            string config;
+            try { config = Services.TunnelService.DecryptConfig(stored); }
+            catch (Exception ex)
+            {
+                LogSvc.Warn($"Tunnel export failed: {ex.Message}");
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(config))
+            {
+                MessageBox.Show(Lang.T("QrExportUnavailable"),
+                    Lang.T("ExportTunnelTitle", stored.Name),
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            new Views.TunnelExportWindow(stored, config) { Owner = this }.ShowDialog();
+        }
+
         // ── Dialog dispatchers (called by ViewModel events) ───────────────────
         private void OnAddTunnel()
         {
@@ -1022,13 +1077,36 @@ namespace MasselGUARD
                 PostDisconnectScript= dlg.ResultPostDisconnectScript,
                 KillSwitch          = dlg.ResultKillSwitch,
                 AutoReconnect       = arMode != "always" && dlg.ResultAutoReconnect,
+                DailyCapMB          = dlg.ResultDailyCapMB,
+                WeeklyCapMB         = dlg.ResultWeeklyCapMB,
                 MonthlyCapMB        = dlg.ResultMonthlyCapMB,
+                DailyCapKill        = dlg.ResultDailyCapKill,
+                WeeklyCapKill       = dlg.ResultWeeklyCapKill,
+                MonthlyCapKill      = dlg.ResultMonthlyCapKill,
             };
             ConfigSvc.Config.Tunnels.Add(stored);
             ConfigSvc.Save();
             LogSvc.Ok($"Tunnel added: {stored.Name}");
             _vm.RebuildTunnelList();
             RebuildTunnelGroups();
+        }
+
+        /// <summary>Period-to-date usage (bytes) for a tunnel: history for the calendar
+        /// day / week / month + the live session if it's currently active. Shown in the
+        /// tunnel editor's data-usage section.</summary>
+        private (long day, long week, long month) PeriodUsedBytes(string name)
+        {
+            var now        = DateTime.UtcNow;
+            var dayStart   = now.Date;
+            var weekStart  = dayStart.AddDays(-(((int)dayStart.DayOfWeek + 6) % 7));
+            var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+            var (drx, dtx) = HistorySvc.GetUsageInRange(name, dayStart,   dayStart.AddDays(1));
+            var (wrx, wtx) = HistorySvc.GetUsageInRange(name, weekStart,  weekStart.AddDays(7));
+            var (mrx, mtx) = HistorySvc.GetUsageInRange(name, monthStart, monthStart.AddMonths(1));
+            var vm = _vm.TunnelList.FirstOrDefault(t =>
+                t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            long live = vm?.IsActive == true ? vm.SessionBytes : 0;
+            return (drx + dtx + live, wrx + wtx + live, mrx + mtx + live);
         }
 
         private void OnEditTunnel(StoredTunnel stored)
@@ -1041,6 +1119,7 @@ namespace MasselGUARD
             bool arAlways       = arMode == "always";
 
             var groupNames = ConfigSvc.Config.TunnelGroups.Select(g => g.Name).ToList();
+            var (usedDay, usedWeek, usedMonth) = PeriodUsedBytes(stored.Name);
             var dlg = stored.Source == "local"
                 ? (Window)new Views.TunnelConfigDialog(
                     stored.Name, Services.TunnelService.DecryptConfig(stored), stored.Group,
@@ -1051,7 +1130,15 @@ namespace MasselGUARD
                     isGlobalAlways: isGlobalAlways,
                     isAutoReconnect: stored.AutoReconnect || arAlways,
                     autoReconnectMode: arMode,
-                    existingMonthlyCapMB: stored.MonthlyCapMB)
+                    existingMonthlyCapMB: stored.MonthlyCapMB,
+                    existingDailyCapMB: stored.DailyCapMB,
+                    existingWeeklyCapMB: stored.WeeklyCapMB,
+                    existingDailyCapKill: stored.DailyCapKill,
+                    existingWeeklyCapKill: stored.WeeklyCapKill,
+                    existingMonthlyCapKill: stored.MonthlyCapKill,
+                    existingDailyUsedBytes: usedDay,
+                    existingWeeklyUsedBytes: usedWeek,
+                    existingMonthlyUsedBytes: usedMonth)
                     { Owner = this }
                 : new Views.TunnelMetadataDialog(
                     stored.Name, stored.Group, stored.Notes,
@@ -1063,7 +1150,15 @@ namespace MasselGUARD
                     isGlobalAlways: isGlobalAlways,
                     isAutoReconnect: stored.AutoReconnect || arAlways,
                     autoReconnectMode: arMode,
-                    existingMonthlyCapMB: stored.MonthlyCapMB)
+                    existingMonthlyCapMB: stored.MonthlyCapMB,
+                    existingDailyCapMB: stored.DailyCapMB,
+                    existingWeeklyCapMB: stored.WeeklyCapMB,
+                    existingDailyCapKill: stored.DailyCapKill,
+                    existingWeeklyCapKill: stored.WeeklyCapKill,
+                    existingMonthlyCapKill: stored.MonthlyCapKill,
+                    existingDailyUsedBytes: usedDay,
+                    existingWeeklyUsedBytes: usedWeek,
+                    existingMonthlyUsedBytes: usedMonth)
                     { Owner = this };
 
             if (dlg.ShowDialog() != true) return;
@@ -1091,7 +1186,12 @@ namespace MasselGUARD
                 newOpen    = tcd.ResultIsOpenProtection;
                 if (!isGlobalAlways) stored.KillSwitch    = tcd.ResultKillSwitch;
                 if (!arAlways)      stored.AutoReconnect = tcd.ResultAutoReconnect;
+                stored.DailyCapMB     = tcd.ResultDailyCapMB;
+                stored.WeeklyCapMB    = tcd.ResultWeeklyCapMB;
                 stored.MonthlyCapMB   = tcd.ResultMonthlyCapMB;
+                stored.DailyCapKill   = tcd.ResultDailyCapKill;
+                stored.WeeklyCapKill  = tcd.ResultWeeklyCapKill;
+                stored.MonthlyCapKill = tcd.ResultMonthlyCapKill;
             }
             else if (dlg is Views.TunnelMetadataDialog tmd)
             {
@@ -1105,7 +1205,12 @@ namespace MasselGUARD
                 newOpen    = tmd.ResultIsOpenProtection;
                 if (!isGlobalAlways) stored.KillSwitch    = tmd.ResultKillSwitch;
                 if (!arAlways)      stored.AutoReconnect = tmd.ResultAutoReconnect;
+                stored.DailyCapMB     = tmd.ResultDailyCapMB;
+                stored.WeeklyCapMB    = tmd.ResultWeeklyCapMB;
                 stored.MonthlyCapMB   = tmd.ResultMonthlyCapMB;
+                stored.DailyCapKill   = tmd.ResultDailyCapKill;
+                stored.WeeklyCapKill  = tmd.ResultWeeklyCapKill;
+                stored.MonthlyCapKill = tmd.ResultMonthlyCapKill;
             }
             else return;
 
@@ -1126,6 +1231,10 @@ namespace MasselGUARD
                 ConfigSvc.Config.OpenWifiTunnel = stored.Name;
             else if (isOpen)
                 ConfigSvc.Config.OpenWifiTunnel = "";
+
+            // Editing the caps re-arms enforcement: forget any "ignore this period" override
+            // or stop marker so the new limits take effect from a clean slate.
+            _vm.ResetCapEnforcement(stored.Name);
 
             ConfigSvc.Save();
             _vm.RebuildTunnelList();
@@ -1173,6 +1282,8 @@ namespace MasselGUARD
             _vm.RebuildTunnelList();
             RebuildTunnelGroups();
             UpdateFooterLabel();
+            UpdateStatusBarCentre();  // footer ⚡/🔓 labels can change via Settings → Default action / Open network
+            NotifyAllBadges();        // and the ⚡/🔓 badges behind tunnel names
             RefreshUpdateBadge();
         }
 
@@ -1198,10 +1309,32 @@ namespace MasselGUARD
             var dlg = new Views.ImportTunnelDialog(alreadyImported, ConfigSvc.Config.Mode)
                 { Owner = this };
             string? lastImported = null;
-            dlg.TunnelImported += (name, cfg2, src, path) =>
+            dlg.TunnelImported += (name, cfg2, src, path, settings) =>
             {
                 var st = new StoredTunnel { Name=name, Source=src, Path=path };
-                ConfigSvc.Config.Tunnels.Add(st);
+                // Restore any MasselGUARD settings that travelled with the import.
+                settings?.ApplyTo(st);
+                // A global "always" kill-switch/auto-reconnect owns those flags —
+                // don't let an imported per-tunnel value fight the global policy.
+                if (ConfigSvc.Config.KillSwitchMode == "always")    st.KillSwitch    = false;
+                if (ConfigSvc.Config.AutoReconnectMode == "always") st.AutoReconnect = false;
+
+                // Replace an existing tunnel with the same name (import "overwrite");
+                // otherwise add. The import dialog only reuses a name when the user
+                // chose Overwrite, so a name match here means replace-in-place.
+                var existing = ConfigSvc.Config.Tunnels
+                    .FirstOrDefault(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                if (existing != null)
+                {
+                    if (!string.IsNullOrEmpty(existing.Path) && existing.Path != st.Path
+                        && System.IO.File.Exists(existing.Path))
+                        try { System.IO.File.Delete(existing.Path); } catch { }
+                    ConfigSvc.Config.Tunnels[ConfigSvc.Config.Tunnels.IndexOf(existing)] = st;
+                }
+                else
+                {
+                    ConfigSvc.Config.Tunnels.Add(st);
+                }
                 lastImported = name;
             };
             dlg.ShowDialog();
@@ -2015,13 +2148,14 @@ namespace MasselGUARD
             if (dlg.ShowDialog() != true) return;
             var rule = new Models.TunnelRule
             {
-                Kind      = dlg.ResultKind,
-                Name      = dlg.ResultName,
-                Ssid      = dlg.ResultSsid,
-                Tunnel    = dlg.ResultTunnel,
-                StartTime = dlg.ResultStartTime,
-                EndTime   = dlg.ResultEndTime,
-                Days      = dlg.ResultDays,
+                Kind        = dlg.ResultKind,
+                Name        = dlg.ResultName,
+                Ssid        = dlg.ResultSsid,
+                Tunnel      = dlg.ResultTunnel,
+                StartTime   = dlg.ResultStartTime,
+                EndTime     = dlg.ResultEndTime,
+                Days        = dlg.ResultDays,
+                TrustedWhen = dlg.ResultTrustedWhen,
             };
             ConfigSvc.Config.Rules.Add(rule);
             LogSvc.Ok($"Rule added: {rule.RuleName}");
@@ -2046,16 +2180,18 @@ namespace MasselGUARD
                 existingKind:   rule.Kind,
                 existingStart:  rule.StartTime,
                 existingEnd:    rule.EndTime,
-                existingDays:   rule.Days)
+                existingDays:   rule.Days,
+                existingTrustedWhen: rule.TrustedWhen)
                 { Owner = this };
             if (dlg.ShowDialog() != true) return;
-            rule.Kind      = dlg.ResultKind;
-            rule.Name      = dlg.ResultName;
-            rule.Ssid      = dlg.ResultSsid;
-            rule.Tunnel    = dlg.ResultTunnel;
-            rule.StartTime = dlg.ResultStartTime;
-            rule.EndTime   = dlg.ResultEndTime;
-            rule.Days      = dlg.ResultDays;
+            rule.Kind        = dlg.ResultKind;
+            rule.Name        = dlg.ResultName;
+            rule.Ssid        = dlg.ResultSsid;
+            rule.Tunnel      = dlg.ResultTunnel;
+            rule.StartTime   = dlg.ResultStartTime;
+            rule.EndTime     = dlg.ResultEndTime;
+            rule.Days        = dlg.ResultDays;
+            rule.TrustedWhen = dlg.ResultTrustedWhen;
             if (dlg.ResultNewCounterValue >= 0) rule.ExecutionCount = dlg.ResultNewCounterValue;
             LogSvc.Ok($"Rule updated: {rule.RuleName}");
             if (dlg.ResultNewCounterValue >= 0)
@@ -2102,6 +2238,8 @@ namespace MasselGUARD
             var corner    = (CornerRadius)FindResource("Theme.CornerRadius");
 
             var tunnelNames = _vm.TunnelList.Select(t => t.Name).ToList();
+            string clearItem = Lang.T("BehaviourClear");        // 🔓 row: "disable this feature"
+            string noneItem  = Lang.T("DefaultActionNone");     // ⚡ row: "Do nothing" (matches Settings)
 
             // ── Build popup window ────────────────────────────────────────────
             var popup = new Window
@@ -2143,7 +2281,7 @@ namespace MasselGUARD
             };
             var hdrTb = new System.Windows.Controls.TextBlock
             {
-                Text = "Defaults", FontFamily = fontFam,
+                Text = Lang.T("BtnDefaults"), FontFamily = fontFam,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = accent,
             };
@@ -2153,7 +2291,7 @@ namespace MasselGUARD
 
             // Helper to make a picker row
             System.Windows.Controls.ComboBox MakeRow(string emoji, string label,
-                string currentValue, bool addClearOption)
+                string currentValue, string? emptyItem, string? extraItem = null)
             {
                 var row = new System.Windows.Controls.Border
                     { Padding = new Thickness(14, 10, 14, 6) };
@@ -2175,10 +2313,13 @@ namespace MasselGUARD
                     FontFamily = fontFam, VerticalAlignment = VerticalAlignment.Center,
                 };
                 cb.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
-                if (addClearOption) cb.Items.Add("— clear —");
+                if (emptyItem != null) cb.Items.Add(emptyItem);
+                if (extraItem != null) cb.Items.Add(extraItem);
                 foreach (var t in tunnelNames) cb.Items.Add(t);
-                cb.SelectedItem = tunnelNames.Contains(currentValue) ? currentValue
-                    : (addClearOption ? "— clear —" : null);
+                cb.SelectedItem =
+                    (extraItem != null && currentValue == extraItem) ? extraItem
+                    : tunnelNames.Contains(currentValue) ? currentValue
+                    : emptyItem;
                 Grid.SetColumn(cb, 1);
 
                 g.Children.Add(lbl);
@@ -2188,12 +2329,20 @@ namespace MasselGUARD
                 return cb;
             }
 
-            string curDefault = ConfigSvc.Config.DefaultAction == "activate"
-                ? ConfigSvc.Config.DefaultTunnel : "";
+            // The default picker can represent all three DefaultAction states — a tunnel
+            // (activate), "— clear —" (none), or this sentinel (disconnect all) — so opening
+            // the popup on a "disconnect" default and saving no longer silently downgrades it.
+            string disconnectItem = "🚫 " + Lang.T("DefaultActionDisconnect");
+            string curDefault = ConfigSvc.Config.DefaultAction switch
+            {
+                "activate"   => ConfigSvc.Config.DefaultTunnel,
+                "disconnect" => disconnectItem,
+                _            => "",
+            };
             string curOpen    = ConfigSvc.Config.OpenWifiTunnel;
 
-            var defaultPicker = MakeRow("⚡", "Default action tunnel",    curDefault, true);
-            var openPicker    = MakeRow("🔓", "Open network protection", curOpen,    true);
+            var defaultPicker = MakeRow("⚡", Lang.T("BehaviourDefaultAction"),   curDefault, noneItem, disconnectItem);
+            var openPicker    = MakeRow("🔓", Lang.T("BehaviourOpenProtection"), curOpen,    clearItem);
 
             // Separator
             panel.Children.Add(new System.Windows.Controls.Border
@@ -2209,14 +2358,14 @@ namespace MasselGUARD
 
             var btnCancel = new System.Windows.Controls.Button
             {
-                Content = "Cancel", FontFamily = fontFam,
+                Content = Lang.T("BtnCancel"), FontFamily = fontFam,
                 Style = (Style)Application.Current.Resources["FlatBtn"],
                 Padding = new Thickness(14,5,14,5), Margin = new Thickness(0,0,8,0),
             };
             btnCancel.SetResourceReference(FontSizeProperty, "Theme.FontSize.Small");
             var btnSave = new System.Windows.Controls.Button
             {
-                Content = "Save", FontFamily = fontFam,
+                Content = Lang.T("BtnSave"), FontFamily = fontFam,
                 Style = (Style)Application.Current.Resources["PrimaryBtn"],
                 Padding = new Thickness(14,5,14,5),
             };
@@ -2237,7 +2386,12 @@ namespace MasselGUARD
                 var defSel  = defaultPicker.SelectedItem as string ?? "";
                 var openSel = openPicker.SelectedItem   as string ?? "";
 
-                if (defSel == "— clear —" || string.IsNullOrEmpty(defSel))
+                if (defSel == disconnectItem)
+                {
+                    ConfigSvc.Config.DefaultAction = "disconnect";
+                    ConfigSvc.Config.DefaultTunnel = "";
+                }
+                else if (defSel == noneItem || string.IsNullOrEmpty(defSel))
                 {
                     ConfigSvc.Config.DefaultAction = "none";
                     ConfigSvc.Config.DefaultTunnel = "";
@@ -2248,7 +2402,7 @@ namespace MasselGUARD
                     ConfigSvc.Config.DefaultTunnel = defSel;
                 }
 
-                ConfigSvc.Config.OpenWifiTunnel = openSel == "— clear —" ? "" : openSel;
+                ConfigSvc.Config.OpenWifiTunnel = openSel == clearItem ? "" : openSel;
 
                 ConfigSvc.Save();
                 NotifyAllBadges();
@@ -3561,9 +3715,12 @@ namespace MasselGUARD
         {
             var cfg = ConfigSvc.Config;
 
-            // Panel is visible when at least one layer has both capture and display enabled.
+            // Panel is visible when at least one layer has both capture and display
+            // enabled, or when the Data-usage view is selected (it needs connection
+            // history stored, not the timeline display toggle).
             bool panelVisible = (cfg.ShowTimeline     && cfg.StoreConnectionHistory)
-                             || (cfg.ShowWifiInChart   && cfg.StoreWifiHistory);
+                             || (cfg.ShowWifiInChart   && cfg.StoreWifiHistory)
+                             || (UsageMode             && cfg.StoreConnectionHistory);
             InfoSectionBorder.Visibility = panelVisible ? Visibility.Visible : Visibility.Collapsed;
 
             // Sync range toggle buttons with persisted config
@@ -3571,6 +3728,11 @@ namespace MasselGUARD
             if (Range24hBtn != null) Range24hBtn.IsChecked  = rangeDays == 1;
             if (Range7dBtn  != null) Range7dBtn.IsChecked   = rangeDays == 7;
             if (Range31dBtn != null) Range31dBtn.IsChecked  = rangeDays == 31;
+
+            // Sync the Timeline/Usage view toggle + nav-button visibility
+            if (ModeUsageBtn    != null) ModeUsageBtn.IsChecked    = UsageMode;
+            if (ModeTimelineBtn != null) ModeTimelineBtn.IsChecked = !UsageMode;
+            SetNavButtonsVisible(!UsageMode);
 
             if (panelVisible)
                 RefreshInfoSection();
@@ -3619,7 +3781,280 @@ namespace MasselGUARD
 
         // ── Chart rendering ───────────────────────────────────────────────────
 
-        private void RenderChart() => RenderChartCore();
+        private bool UsageMode => ConfigSvc.Config.InfoPanelMode == "usage";
+
+        private void RenderChart()
+        {
+            if (UsageMode) RenderUsageChart();
+            else           RenderChartCore();
+        }
+
+        // ── Data-usage bar chart (Timeline ⇄ Data usage toggle) ─────────────────
+        private sealed class UsageBucket
+        {
+            public DateTime Start;
+            public DateTime End;
+            public readonly Dictionary<string, long> ByTunnel = new(StringComparer.OrdinalIgnoreCase);
+            public long Total { get { long s = 0; foreach (var v in ByTunnel.Values) s += v; return s; } }
+        }
+        private readonly List<UsageBucket> _usageBuckets = new();
+
+        /// <summary>
+        /// Renders per-bucket data usage as stacked bars over the selected range.
+        /// 24h → hourly buckets, 7d / 31d → daily buckets; each bucket is coloured
+        /// per tunnel (same palette as the timeline). Bytes are attributed to the
+        /// bucket of a session's ConnectedAt (matching the cap accounting); the live
+        /// session's bytes land in the current bucket. The selected range doubles as
+        /// the cap period, so the legend shows progress toward each tunnel's
+        /// day / week / month cap.
+        /// </summary>
+        private void RenderUsageChart()
+        {
+            TimelineCanvas.Children.Clear();
+            ChartOverlayCanvas.Children.Clear();
+            LegendPanel.Children.Clear();
+            WifiLegendPanel.Children.Clear();
+            WifiLegendContainer.Visibility = Visibility.Collapsed;
+            _chartData.Clear();
+            _chartColors.Clear();
+            _usageBuckets.Clear();
+            _navIndex = -1;
+
+            double W = TimelineCanvas.ActualWidth;
+            if (W < 20) return;
+
+            int rangeDays = ConfigSvc.Config.InfoTimeRangeDays;   // 1 / 7 / 31
+            var now = DateTime.Now;
+
+            // ── Build buckets ─────────────────────────────────────────────────
+            int count; TimeSpan unit; DateTime first;
+            if (rangeDays == 1)
+            {
+                count = 24; unit = TimeSpan.FromHours(1);
+                var hourFloor = new DateTime(now.Year, now.Month, now.Day, now.Hour, 0, 0);
+                first = hourFloor - TimeSpan.FromHours(count - 1);
+            }
+            else
+            {
+                count = rangeDays; unit = TimeSpan.FromDays(1);
+                first = now.Date - TimeSpan.FromDays(count - 1);
+            }
+            for (int i = 0; i < count; i++)
+            {
+                var bs = first + TimeSpan.FromTicks(unit.Ticks * i);
+                _usageBuckets.Add(new UsageBucket { Start = bs, End = bs + unit });
+            }
+            var rangeStart = _usageBuckets[0].Start;
+            var rangeEnd   = _usageBuckets[^1].End;
+            int BucketIndex(DateTime t)
+                => (t < rangeStart || t >= rangeEnd) ? -1 : (int)((t - rangeStart).Ticks / unit.Ticks);
+
+            // ── Tunnels present + colours ─────────────────────────────────────
+            var entries = HistorySvc.Entries
+                .Where(e => e.ConnectedAt >= rangeStart && e.ConnectedAt < rangeEnd)
+                .ToList();
+            var tunnelNames = entries.Select(e => e.TunnelName)
+                .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(n => n).ToList();
+            foreach (var tvm in _vm.TunnelList.Where(t => t.IsActive))
+                if (!tunnelNames.Contains(tvm.Name, StringComparer.OrdinalIgnoreCase))
+                    tunnelNames.Add(tvm.Name);
+            foreach (var name in tunnelNames)
+                _chartColors[name] = TimelinePaletteColor(ColorIndexFor(_chartColorIndex, name), wifi: false);
+
+            // ── Fill buckets: closed sessions at their ConnectedAt bucket ─────
+            foreach (var e in entries)
+            {
+                if (_hiddenChartTunnels.Contains(e.TunnelName)) continue;
+                int bi = BucketIndex(e.ConnectedAt);
+                if (bi < 0) continue;
+                long bytes = e.SessionRxBytes + e.SessionTxBytes;
+                if (bytes <= 0) continue;
+                var d = _usageBuckets[bi].ByTunnel;
+                d.TryGetValue(e.TunnelName, out var cur);
+                d[e.TunnelName] = cur + bytes;
+            }
+            // Live session → current (last) bucket
+            foreach (var tvm in _vm.TunnelList.Where(t => t.IsActive))
+            {
+                if (_hiddenChartTunnels.Contains(tvm.Name)) continue;
+                if (_prevStats.TryGetValue(tvm.Name, out var lv))
+                {
+                    long bytes = lv.rx + lv.tx;
+                    if (bytes <= 0) continue;
+                    var d = _usageBuckets[^1].ByTunnel;
+                    d.TryGetValue(tvm.Name, out var cur);
+                    d[tvm.Name] = cur + bytes;
+                }
+            }
+
+            // ── Geometry ──────────────────────────────────────────────────────
+            const double axisH  = 18;
+            const double chartH = 120;
+            TimelineCanvas.Height = chartH + axisH;
+
+            // Lines are per-tunnel (not stacked), so scale to the largest single value.
+            long maxSingle = 0;
+            foreach (var b in _usageBuckets)
+                foreach (var kv in b.ByTunnel)
+                    if (!_hiddenChartTunnels.Contains(kv.Key) && kv.Value > maxSingle) maxSingle = kv.Value;
+            bool empty = maxSingle <= 0;
+            if (maxSingle <= 0) maxSingle = 1;
+
+            var gridBrush = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromArgb(28, 128, 128, 128));
+            var tickBrush = (System.Windows.Media.Brush)FindResource("TextMuted");
+
+            // Baseline + a faint mid gridline + max-value label
+            TimelineCanvas.Children.Add(new System.Windows.Shapes.Line
+            {
+                X1 = 0, Y1 = chartH, X2 = W, Y2 = chartH, Stroke = gridBrush, StrokeThickness = 1,
+            });
+            TimelineCanvas.Children.Add(new System.Windows.Shapes.Line
+            {
+                X1 = 0, Y1 = chartH / 2, X2 = W, Y2 = chartH / 2, Stroke = gridBrush, StrokeThickness = 1,
+                StrokeDashArray = new System.Windows.Media.DoubleCollection { 3, 3 },
+            });
+            if (!empty)
+            {
+                var maxLbl = new TextBlock { Text = FormatInfoBytes(maxSingle), FontSize = 8, Foreground = tickBrush };
+                System.Windows.Controls.Canvas.SetLeft(maxLbl, 2);
+                System.Windows.Controls.Canvas.SetTop(maxLbl, 0);
+                TimelineCanvas.Children.Add(maxLbl);
+            }
+
+            // ── Lines with dots — one series per tunnel ───────────────────────
+            double slot = W / count;
+            double CenterX(int i) => i * slot + slot / 2.0;
+            double YFor(long v)  => chartH - v / (double)maxSingle * chartH;
+
+            foreach (var name in tunnelNames)
+            {
+                if (_hiddenChartTunnels.Contains(name)) continue;
+                var stroke = new System.Windows.Media.SolidColorBrush(_chartColors[name]);
+
+                // Line through every bucket centre (zeros sit on the baseline).
+                if (count > 1)
+                {
+                    var pts = new System.Windows.Media.PointCollection(count);
+                    for (int i = 0; i < count; i++)
+                    {
+                        _usageBuckets[i].ByTunnel.TryGetValue(name, out var v);
+                        pts.Add(new System.Windows.Point(CenterX(i), YFor(v)));
+                    }
+                    TimelineCanvas.Children.Add(new System.Windows.Shapes.Polyline
+                    {
+                        Points = pts, Stroke = stroke, StrokeThickness = 1.6,
+                        StrokeLineJoin = System.Windows.Media.PenLineJoin.Round,
+                    });
+                }
+
+                // Dots only where there is usage, so the markers mean something.
+                const double dotR = 5.0;
+                for (int i = 0; i < count; i++)
+                {
+                    if (!_usageBuckets[i].ByTunnel.TryGetValue(name, out var v) || v <= 0) continue;
+                    var dot = new System.Windows.Shapes.Ellipse { Width = dotR, Height = dotR, Fill = stroke };
+                    System.Windows.Controls.Canvas.SetLeft(dot, CenterX(i) - dotR / 2);
+                    System.Windows.Controls.Canvas.SetTop(dot, YFor(v) - dotR / 2);
+                    TimelineCanvas.Children.Add(dot);
+                }
+            }
+
+            // ── Limit markers — a red ring on the bucket where cumulative usage
+            //    first reached the cap for this range. The line then either drops
+            //    (killed) or continues (limit overruled), which the eye reads off. ──
+            string rangeWord = rangeDays == 1 ? "daily" : rangeDays == 7 ? "weekly" : "monthly";
+            var dangerBrush = (System.Windows.Media.Brush)FindResource("Danger");
+            foreach (var name in tunnelNames)
+            {
+                if (_hiddenChartTunnels.Contains(name)) continue;
+                var stored = ConfigSvc.Config.Tunnels
+                    .FirstOrDefault(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                if (stored == null) continue;
+                int capMB = rangeDays == 1 ? stored.DailyCapMB
+                          : rangeDays == 7 ? stored.WeeklyCapMB
+                          :                  stored.MonthlyCapMB;
+                if (capMB <= 0) continue;
+                long capBytes = (long)capMB * 1_048_576L;
+
+                long cum = 0; int hitBucket = -1;
+                for (int i = 0; i < count; i++)
+                {
+                    _usageBuckets[i].ByTunnel.TryGetValue(name, out var v);
+                    cum += v;
+                    if (cum >= capBytes) { hitBucket = i; break; }
+                }
+                if (hitBucket < 0) continue;
+
+                _usageBuckets[hitBucket].ByTunnel.TryGetValue(name, out var hv);
+                double mx = CenterX(hitBucket), my = YFor(hv);
+                const double ringR = 11.0;
+                var ring = new System.Windows.Shapes.Ellipse
+                {
+                    Width = ringR, Height = ringR,
+                    Stroke = dangerBrush, StrokeThickness = 2,
+                    Fill = System.Windows.Media.Brushes.Transparent,
+                    ToolTip = $"{name}: {rangeWord} limit reached ({FormatInfoBytes(capBytes)})",
+                };
+                System.Windows.Controls.Canvas.SetLeft(ring, mx - ringR / 2);
+                System.Windows.Controls.Canvas.SetTop(ring, my - ringR / 2);
+                TimelineCanvas.Children.Add(ring);
+            }
+
+            // ── Axis labels ───────────────────────────────────────────────────
+            int labelEvery = rangeDays == 1 ? 4 : rangeDays == 7 ? 1 : 5;
+            for (int i = 0; i < count; i += labelEvery)
+            {
+                var b   = _usageBuckets[i];
+                var lbl = rangeDays == 1 ? b.Start.ToString("HH:mm") : b.Start.ToString("ddd d");
+                var tb  = new TextBlock { Text = lbl, FontSize = 8, Foreground = tickBrush };
+                tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                double cx = i * slot + slot / 2.0;
+                System.Windows.Controls.Canvas.SetLeft(tb, Math.Clamp(cx - tb.DesiredSize.Width / 2, 0, Math.Max(0, W - tb.DesiredSize.Width)));
+                System.Windows.Controls.Canvas.SetTop(tb, chartH + 2);
+                TimelineCanvas.Children.Add(tb);
+            }
+
+            // ── Legend: tunnel name + colour swatch (usage lives on the chart) ─
+            foreach (var name in tunnelNames)
+            {
+                bool hidden = _hiddenChartTunnels.Contains(name);
+                var  color  = _chartColors[name];
+
+                var dot = new System.Windows.Shapes.Rectangle
+                {
+                    Width = 8, Height = 8, RadiusX = 2, RadiusY = 2,
+                    Fill = new System.Windows.Media.SolidColorBrush(color),
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                var nameTb = new TextBlock
+                {
+                    Text = name, FontSize = 9,
+                    Foreground = tickBrush,
+                    Margin = new Thickness(3, 0, 10, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                var item = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center,
+                    Opacity = hidden ? 0.35 : 1.0, Cursor = System.Windows.Input.Cursors.Hand,
+                    Margin = new Thickness(0, 0, 2, 0),
+                };
+                item.Children.Add(dot);
+                item.Children.Add(nameTb);
+                var capturedName = name;
+                item.MouseLeftButtonUp += (_, _) =>
+                {
+                    if (_hiddenChartTunnels.Contains(capturedName)) _hiddenChartTunnels.Remove(capturedName);
+                    else _hiddenChartTunnels.Add(capturedName);
+                    RenderChart();
+                };
+                LegendPanel.Children.Add(item);
+            }
+
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render,
+                new Action(UpdateLegendScrollMarkers));
+        }
 
         private void RenderChartCore()
         {
@@ -4087,9 +4522,150 @@ namespace MasselGUARD
 
         // ── Chart hover (crosshair + tooltip) ────────────────────────────────
 
+        private bool _usageHeightApplied;
+        private const double UsageExtraHeight = 100;
+
+        // Switch between Timeline and Data-usage views.
+        private void InfoMode_Changed(object sender, RoutedEventArgs e)
+        {
+            // Fires while the XAML is still being parsed (ModeTimelineBtn's default
+            // IsChecked), before ChartOverlayCanvas exists — bail until the panel's
+            // controls are built. ApplyInfoSectionMode does the real sync afterwards.
+            if (ConfigSvc?.Config == null || ChartOverlayCanvas == null) return;
+            ConfigSvc.Config.InfoPanelMode = ModeUsageBtn?.IsChecked == true ? "usage" : "timeline";
+            ConfigSvc.Save();
+            SetNavButtonsVisible(!UsageMode);
+            ApplyUsageWindowHeight();
+            ChartOverlayCanvas.Children.Clear();
+            RefreshInfoSection();
+        }
+
+        /// <summary>
+        /// The Data-usage view is taller than the timeline, which would squeeze the
+        /// tunnel list. Grow the window by <see cref="UsageExtraHeight"/> while it is
+        /// shown and shrink back on return, so the list keeps its size. No-op when
+        /// maximized (there's already room).
+        /// </summary>
+        private void ApplyUsageWindowHeight()
+        {
+            if (WindowState != WindowState.Normal) return;
+            if (UsageMode && !_usageHeightApplied)
+            {
+                Height = Math.Min(Height + UsageExtraHeight, System.Windows.SystemParameters.WorkArea.Height);
+                _usageHeightApplied = true;
+            }
+            else if (!UsageMode && _usageHeightApplied)
+            {
+                Height = Math.Max(MinHeight, Height - UsageExtraHeight);
+                _usageHeightApplied = false;
+            }
+        }
+
+        private void SetNavButtonsVisible(bool visible)
+        {
+            var v = visible ? Visibility.Visible : Visibility.Collapsed;
+            if (ChartPrevBtn  != null) ChartPrevBtn.Visibility  = v;
+            if (ChartNextBtn  != null) ChartNextBtn.Visibility  = v;
+            if (ChartNavLabel != null) ChartNavLabel.Visibility = v;
+        }
+
+        // Hover for the data-usage chart: highlight the bucket column and show a
+        // per-tunnel breakdown for that hour/day.
+        private void UsageHover(System.Windows.Input.MouseEventArgs e)
+        {
+            ChartOverlayCanvas.Children.Clear();
+            double W = TimelineCanvas.ActualWidth;
+            double H = TimelineCanvas.ActualHeight;
+            if (W < 4 || _usageBuckets.Count == 0) return;
+
+            var    pos   = e.GetPosition(TimelineCanvas);
+            int    count = _usageBuckets.Count;
+            double slot  = W / count;
+            int    idx   = Math.Clamp((int)(Math.Clamp(pos.X, 0, W) / slot), 0, count - 1);
+            var    b     = _usageBuckets[idx];
+
+            // Column highlight
+            var hi = new System.Windows.Shapes.Rectangle
+            {
+                Width = slot, Height = Math.Max(0, H - 18),
+                Fill = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(28, 255, 255, 255)),
+            };
+            System.Windows.Controls.Canvas.SetLeft(hi, idx * slot);
+            System.Windows.Controls.Canvas.SetTop(hi, 0);
+            ChartOverlayCanvas.Children.Add(hi);
+
+            int rangeDays = ConfigSvc.Config.InfoTimeRangeDays;
+            var tipStack = new StackPanel { Margin = new Thickness(8, 6, 8, 6) };
+            tipStack.Children.Add(new TextBlock
+            {
+                Text = rangeDays == 1 ? $"{b.Start:HH:mm}–{b.End:HH:mm}" : b.Start.ToString("ddd dd MMM"),
+                FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Foreground = (System.Windows.Media.Brush)FindResource("TextPrimary"),
+                Margin = new Thickness(0, 0, 0, 4),
+            });
+
+            if (b.Total <= 0)
+            {
+                tipStack.Children.Add(new TextBlock
+                {
+                    Text = "No data", FontSize = 9,
+                    Foreground = (System.Windows.Media.Brush)FindResource("TextMuted"),
+                });
+            }
+            else
+            {
+                foreach (var kv in b.ByTunnel.OrderByDescending(k => k.Value))
+                {
+                    if (_hiddenChartTunnels.Contains(kv.Key) || kv.Value <= 0) continue;
+                    var col = _chartColors.TryGetValue(kv.Key, out var c) ? c : System.Windows.Media.Colors.Gray;
+                    var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 1, 0, 1) };
+                    row.Children.Add(new System.Windows.Shapes.Rectangle
+                    {
+                        Width = 7, Height = 7, RadiusX = 1, RadiusY = 1,
+                        Fill = new System.Windows.Media.SolidColorBrush(col),
+                        VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0),
+                    });
+                    row.Children.Add(new TextBlock
+                    {
+                        Text = $"{kv.Key}   {FormatInfoBytes(kv.Value)}", FontSize = 9,
+                        Foreground = (System.Windows.Media.Brush)FindResource("TextMuted"),
+                        VerticalAlignment = VerticalAlignment.Center,
+                    });
+                    tipStack.Children.Add(row);
+                }
+                tipStack.Children.Add(new TextBlock
+                {
+                    Text = $"Total   {FormatInfoBytes(b.Total)}", FontSize = 9, FontWeight = FontWeights.SemiBold,
+                    Foreground = (System.Windows.Media.Brush)FindResource("TextPrimary"),
+                    Margin = new Thickness(0, 2, 0, 0),
+                });
+            }
+
+            var tipBorder = new Border
+            {
+                Background      = (System.Windows.Media.Brush)FindResource("CardBg"),
+                BorderBrush     = (System.Windows.Media.Brush)FindResource("BorderColor"),
+                BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(4),
+                Child           = tipStack,
+            };
+            tipBorder.Measure(new Size(600, 400));
+            double bW = tipBorder.DesiredSize.Width, bH = tipBorder.DesiredSize.Height;
+            double overlayW = ChartOverlayCanvas.ActualWidth, overlayH = ChartOverlayCanvas.ActualHeight;
+            double xPos = idx * slot + slot + 8;
+            if (xPos + bW > overlayW) xPos = idx * slot - bW - 8;
+            xPos = Math.Clamp(xPos, 0, Math.Max(0, overlayW - bW));
+            double yPos = Math.Clamp(pos.Y + 6, 0, Math.Max(0, overlayH - bH - 2));
+            System.Windows.Controls.Canvas.SetLeft(tipBorder, xPos);
+            System.Windows.Controls.Canvas.SetTop(tipBorder, yPos);
+            ChartOverlayCanvas.Children.Add(tipBorder);
+        }
+
         private void TimelineCanvas_MouseMove(object sender,
             System.Windows.Input.MouseEventArgs e)
         {
+            if (UsageMode) { UsageHover(e); return; }
+
             if (_navIndex >= 0)
             {
                 _navIndex = -1;

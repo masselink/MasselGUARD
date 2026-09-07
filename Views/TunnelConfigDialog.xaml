@@ -180,29 +180,10 @@
                             <TextBlock Text="{Binding [TunnelDialogKeepalive], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource FormLabel}"/>
                             <TextBox x:Name="KeepaliveBox" Margin="0,0,0,10" FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"/>
-                        </StackPanel>
-                    </ScrollViewer>
-                </TabItem>
 
-                <!-- Raw config tab -->
-                <TabItem x:Name="TabRaw"
-                         Header="{Binding [TunnelDialogTabRaw], Source={x:Static local:Lang.Instance}}"
-                         GotFocus="TabRaw_GotFocus">
-                    <Grid Margin="12">
-                        <TextBox x:Name="RawBox"
-                                 AcceptsReturn="True" AcceptsTab="True"
-                                 FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                                 VerticalScrollBarVisibility="Auto"
-                                 HorizontalScrollBarVisibility="Auto"
-                                 TextWrapping="NoWrap"
-                                 VerticalAlignment="Stretch"/>
-                    </Grid>
-                </TabItem>
-                <!-- Scripts tab -->
-                <TabItem x:Name="TabScripts"
-                         Header="{Binding [TunnelDialogTabScripts], Source={x:Static local:Lang.Instance}}">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="12">
-                        <StackPanel>
+                            <!-- SCRIPTS -->
+                            <TextBlock Text="{Binding [TunnelScriptsHeader], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SectionLabel}" Margin="0,8,0,8"/>
                             <TextBlock Text="{Binding [TunnelScriptsInfo], Source={x:Static local:Lang.Instance}}"
                                        FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
                                        Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
@@ -338,68 +319,123 @@
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>
+
+                <!-- Options tab — behaviour toggles + data cap (moved out of the footer) -->
+                <TabItem x:Name="TabOptions"
+                         Header="{Binding [TunnelDialogTabOptions], Source={x:Static local:Lang.Instance}}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,16">
+                        <StackPanel>
+                            <!-- Default action -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                <ToggleButton x:Name="IsDefaultToggle"
+                                              Style="{StaticResource ToggleSwitch}"
+                                              Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="⚡ Default action"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12"
+                                           Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <!-- Open network protection -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                <ToggleButton x:Name="IsOpenProtectionToggle"
+                                              Style="{StaticResource ToggleSwitch}"
+                                              Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                <TextBlock Text="🔓 Open network protection"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12"
+                                           Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <!-- Kill switch -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                <ToggleButton x:Name="KillSwitchToggle"
+                                              Style="{StaticResource ToggleSwitch}"
+                                              Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="KillSwitchToggleLabel" Text="🔒 Kill switch"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12"
+                                           Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <!-- Auto-reconnect -->
+                            <StackPanel x:Name="AutoReconnectRow" Orientation="Horizontal" Margin="0,0,0,14">
+                                <ToggleButton x:Name="AutoReconnectToggle"
+                                              Style="{StaticResource ToggleSwitch}"
+                                              Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="AutoReconnectToggleLabel" Text="🔄 Auto-reconnect"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12"
+                                           Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <!-- Data-usage warnings (day / week / month) -->
+                            <TextBlock Text="{Binding [TunnelDialogDataCapsHeader], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SectionLabel}" Margin="0,12,0,6"/>
+                            <TextBlock Text="{Binding [TunnelDialogDataCapsHint], Source={x:Static local:Lang.Instance}}"
+                                       FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                       Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                       Margin="0,0,0,8"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="{Binding [TunnelDialogCapDaily], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12" Width="150"
+                                           Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                                <TextBox x:Name="DailyCapBox" Width="80" FontSize="11" Text="0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="DailyUsedLabel" FontSize="10" Foreground="{DynamicResource TextMuted}"
+                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                <CheckBox x:Name="DailyCapKillChk" Margin="12,0,0,0"
+                                          FontSize="11" VerticalAlignment="Center"
+                                          Content="{Binding [TunnelDialogCapKill], Source={x:Static local:Lang.Instance}}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="{Binding [TunnelDialogCapWeekly], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12" Width="150"
+                                           Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                                <TextBox x:Name="WeeklyCapBox" Width="80" FontSize="11" Text="0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="WeeklyUsedLabel" FontSize="10" Foreground="{DynamicResource TextMuted}"
+                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                <CheckBox x:Name="WeeklyCapKillChk" Margin="12,0,0,0"
+                                          FontSize="11" VerticalAlignment="Center"
+                                          Content="{Binding [TunnelDialogCapKill], Source={x:Static local:Lang.Instance}}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding [TunnelDialogCapMonthly], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12" Width="150"
+                                           Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                                <TextBox x:Name="MonthlyCapBox" Width="80" FontSize="11" Text="0" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="MonthlyUsedLabel" FontSize="10" Foreground="{DynamicResource TextMuted}"
+                                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                <CheckBox x:Name="MonthlyCapKillChk" Margin="12,0,0,0"
+                                          FontSize="11" VerticalAlignment="Center"
+                                          Content="{Binding [TunnelDialogCapKill], Source={x:Static local:Lang.Instance}}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Raw config tab -->
+                <TabItem x:Name="TabRaw"
+                         Header="{Binding [TunnelDialogTabRaw], Source={x:Static local:Lang.Instance}}"
+                         GotFocus="TabRaw_GotFocus">
+                    <Grid Margin="12">
+                        <TextBox x:Name="RawBox"
+                                 AcceptsReturn="True" AcceptsTab="True"
+                                 FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 TextWrapping="NoWrap"
+                                 VerticalAlignment="Stretch"/>
+                    </Grid>
+                </TabItem>
             </TabControl>
 
-            <!-- Button bar -->
+            <!-- Button bar — toggles now live on the Options tab -->
             <Border Grid.Row="3" Background="{DynamicResource Surface}" CornerRadius="{DynamicResource Theme.CornerRadiusBottom}">
-                <Grid Margin="16,10">
-                    <!-- Left: toggles stacked vertically -->
-                    <StackPanel HorizontalAlignment="Left" VerticalAlignment="Center">
-                        <!-- Row 1: Default + Open network protection -->
-                        <StackPanel Orientation="Horizontal">
-                            <ToggleButton x:Name="IsDefaultToggle"
-                                          Style="{StaticResource ToggleSwitch}"
-                                          Margin="0,0,6,0"/>
-                            <TextBlock Text="⚡ Default action"
-                                       FontSize="10" Foreground="{DynamicResource TextMuted}"
-                                       VerticalAlignment="Center" Margin="0,0,16,0"/>
-                            <ToggleButton x:Name="IsOpenProtectionToggle"
-                                          Style="{StaticResource ToggleSwitch}"
-                                          Margin="0,0,6,0"/>
-                            <TextBlock Text="🔓 Open network protection"
-                                       FontSize="10" Foreground="{DynamicResource TextMuted}"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                        <!-- Row 2: Kill switch -->
-                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                            <ToggleButton x:Name="KillSwitchToggle"
-                                          Style="{StaticResource ToggleSwitch}"
-                                          Margin="0,0,6,0"/>
-                            <TextBlock x:Name="KillSwitchToggleLabel"
-                                       Text="🔒 Kill switch"
-                                       FontSize="10" Foreground="{DynamicResource TextMuted}"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                        <!-- Row 3: Auto-reconnect -->
-                        <StackPanel x:Name="AutoReconnectRow" Orientation="Horizontal" Margin="0,6,0,0">
-                            <ToggleButton x:Name="AutoReconnectToggle"
-                                          Style="{StaticResource ToggleSwitch}"
-                                          Margin="0,0,6,0"/>
-                            <TextBlock x:Name="AutoReconnectToggleLabel"
-                                       Text="🔄 Auto-reconnect"
-                                       FontSize="10" Foreground="{DynamicResource TextMuted}"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                        <!-- Row 4: Monthly data cap -->
-                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                            <TextBlock Text="▤ Monthly data cap (MB, 0 = none):"
-                                       FontSize="10" Foreground="{DynamicResource TextMuted}"
-                                       VerticalAlignment="Center" Margin="0,0,6,0"/>
-                            <TextBox x:Name="MonthlyCapBox" Width="80" FontSize="10"
-                                     Text="0" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </StackPanel>
-                    <!-- Right: Cancel + Save -->
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
-                                VerticalAlignment="Center">
-                        <Button Content="{Binding [BtnCancel], Source={x:Static local:Lang.Instance}}"
-                                Style="{StaticResource FlatBtn}" Padding="20,6" Margin="0,0,8,0"
-                                Click="CancelBtn_Click"/>
-                        <Button Content="{Binding [BtnSaveTunnel], Source={x:Static local:Lang.Instance}}"
-                                Style="{StaticResource PrimaryBtn}" Padding="20,6"
-                                Click="SaveBtn_Click"/>
-                    </StackPanel>
-                </Grid>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                            VerticalAlignment="Center" Margin="16,10">
+                    <Button Content="{Binding [BtnCancel], Source={x:Static local:Lang.Instance}}"
+                            Style="{StaticResource FlatBtn}" Padding="20,6" Margin="0,0,8,0"
+                            Click="CancelBtn_Click"/>
+                    <Button Content="{Binding [BtnSaveTunnel], Source={x:Static local:Lang.Instance}}"
+                            Style="{StaticResource PrimaryBtn}" Padding="20,6"
+                            Click="SaveBtn_Click"/>
+                </StackPanel>
             </Border>
         </Grid>
     </Border>
