@@ -1,8 +1,6 @@
-## v3.9.5-beta — Selective Serval
+## v3.9.5 — Selective Serval
 
-_Beta release._ This cycle is about **rules, portability, and languages**.
-
----
+This cycle is about **rules, portability, and languages**.
 
 ### Trusted-network rules now work in both directions
 
