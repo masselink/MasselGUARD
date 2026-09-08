@@ -574,10 +574,10 @@ namespace MasselGUARD
         private static void InstallAndStart(string serviceName, string tunnelName,
             string confPath, Action<string> log)
         {
-            // Use MainModule.FileName — same as working WireGuardClient.
-            // Environment.ProcessPath is unreliable in some publish configs.
-            string exePath = Process.GetCurrentProcess().MainModule?.FileName
-                ?? throw new InvalidOperationException("Cannot determine exe path.");
+            // The tunnel service must be hosted by the GUI executable, which handles /service.
+            string exePath = Path.Combine(ExeDir, "MasselGUARD.exe");
+            if (!File.Exists(exePath))
+                throw new FileNotFoundException("MasselGUARD.exe not found.", exePath);
 
             // Both paths must be quoted in case they contain spaces.
             string binaryPath = $"\"{exePath}\" /service \"{confPath}\"";
