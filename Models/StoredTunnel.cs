@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace MasselGUARD.Models
@@ -58,5 +59,24 @@ namespace MasselGUARD.Models
         public bool DailyCapKill   { get; set; } = false;
         public bool WeeklyCapKill  { get; set; } = false;
         public bool MonthlyCapKill { get; set; } = false;
+
+        // Local UI preference: hide the usage rings for this tunnel's row even when a
+        // cap is set (warnings/enforcement still apply). Not exported — display-only.
+        public bool HideCapRing { get; set; } = false;
+
+        // ── Split tunneling (4.0.0) ──────────────────────────────────────────
+        // See docs/SplitTunneling-Design.md. Route/IP-based split is a pure
+        // AllowedIPs rewrite (Services/CidrMath.cs); per-app (SplitApps) is
+        // reserved for a later WinDivert backend and is inert in 4.0.0.
+        /// <summary>"off" (AllowedIPs verbatim) | "exclude" (full tunnel minus SplitRanges)
+        /// | "include" (only SplitRanges routed through the tunnel).</summary>
+        public string SplitMode { get; set; } = "off";
+        /// <summary>IPv4/IPv6 CIDRs (or bare IPs) defining the split set; meaning depends
+        /// on SplitMode. Empty with a non-off mode = no-op (falls back to base).</summary>
+        public List<string> SplitRanges { get; set; } = new();
+        /// <summary>Forward-looking per-app split (absolute exe paths). Serialized and
+        /// round-tripped in 4.0.0 but UNUSED/hidden — reserved so the WinDivert backend
+        /// needs no schema change.</summary>
+        public List<string> SplitApps { get; set; } = new();
     }
 }

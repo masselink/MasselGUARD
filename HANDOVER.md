@@ -1,104 +1,126 @@
 # MasselGUARD — Session Handover
 
-**Project:** MasselGUARD — WireGuard tunnel manager for Windows (.NET 10; WinExe GUI + `MasselGUARDcli.exe` console).
-**Current version:** **3.9.0 — Adaptive Armadillo** (native x64 + ARM64 release; user-facing notes in `docs/WHATSNEW.md`). Bumped in code + docs (3.8.0 was never shipped — folded in).
+**Project:** MasselGUARD — WireGuard tunnel manager for Windows (.NET 10; WinExe GUI `MasselGUARD.exe` + `MasselGUARDcli.exe` console).
+**Ships from:** **3.9.5 — Selective Serval** (final, not beta; `docs/WHATSNEW.md` keeps its beta label by choice). 12 languages at **728-key parity**; cap rings redesigned (equal self-sizing rings, d/w/m glyphs, greyed-when-disconnected, pinned so the uptime text can't shove them); Behaviour popup + About page localized.
+**Target:** **4.0.0 — Forking Fox** _("fork" = splitting traffic)._ **Version bump DONE** — code + docs now report 4.0.0 (§4 complete bar the GitHub tag/release).
+**Headline:** **Split tunneling** — route/IP-based in 4.0.0; per-app split phased to a later 4.x (§2).
 **Branch:** `dev`
-**Last updated:** 2026-08-20
+**Status:** 4.0.0 in planning. **Licensing groundwork + About-page credits DONE** (§5–6); **both carry-over fixes (§3) DONE** this session (cap-killed marker coloured; per-tunnel Hide-cap-ring flag, lang key ×12, both builds clean). **Split-tunneling design (§2) DONE** → [`docs/SplitTunneling-Design.md`](docs/SplitTunneling-Design.md). **Split code steps 1–6 DONE:** `Services/CidrMath.cs` (set math) + `SplitTunnelBackend.cs` (`RouteBasedBackend`, conf-rewrite) wired into `TunnelService.Connect` (after decrypt, before validate; fail-safe); `StoredTunnel` split fields + `Models/SplitConfig.cs`; kill-switch exclude-bypass allow-rules; **Split tab in `TunnelConfigDialog`** (mode radios + ranges list + greyed Apps, validated) with **11 lang keys ×12 (parity 739)**; **export/import round-trip** (`TunnelExportService` SplitMode/SplitRanges comment lines; GUI+CLI import restore; Raw-tab reflect) + **CLI `info`** surfacing. Hidden `MasselGUARDcli selftest` = **35/35 green** (18 CidrMath + 11 backend + 6 export); all builds clean. **Step 7 DONE** — docs (WHATSNEW/MANUAL §5/CLIManual/Reference §43/CLAUDE.md) + **4.0.0 version bump** across `UpdateChecker.cs`, `BUILD.bat`, both `.csproj`, all doc headers; `version` → `v4.0.0 | Forking Fox`. **Also this session:** `MasselGUARDcli help`/`version`/`selftest` now run **without elevation** (`Program.cs` `IsNonElevatedCommand`; verified from a non-elevated shell — driver commands still gated). **Split tunneling is feature-complete + version cut.** ⚠️ Still to do (manual/release): (1) **manually test split on a live tunnel** (assistant can't run the elevated app); (2) build the ARM64 `tunnel.dll` (outstanding from 3.9.0); (3) tag/release `4.0.0` with **both** arch zips.
 
-> ⚠️ **Build status: NOT build-verified by the assistant.** Everything below is code-complete but the user runs `BUILD.bat` and manual-tests. Two cross-project traps surfaced this cycle and were fixed — keep them in mind if a build error appears:
-> 1. **Models are shared with the CLI and must be WPF-free.** `System.Windows.*` in a `Models/*.cs` breaks the CLI build (hit it with `TunnelRule` using `System.Windows.Visibility`).
-> 2. **The CLI lists shared `Services/*.cs` explicitly** in `MasselGUARDcli/MasselGUARDcli.csproj` (it does *not* glob Services; it *does* glob Models). A new shared Service must be added there (hit it with `PresetService.cs` → CS0103 in the CLI only). The GUI globs `**/*.cs`, so it never notices.
-
----
-
-## What shipped in 3.9.0 (this cycle)
-
-> ✅ **Version bumped to 3.9.0 — Adaptive Armadillo** in code: `UpdateChecker.CurrentVersion` + `_codenames` (`{ "3.9.0", "Adaptive Armadillo" }`), `BUILD.bat` `VERSION`/`CODENAME`, and both `.csproj` default `<Version>`/`<AssemblyVersion>`/`<FileVersion>`/`<InformationalVersion>`. Docs already matched. Build banner + About + CLI now report 3.9.0.
-
-### 1. Native x64 + ARM64 (headline)
-- Both `.csproj`: `<RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>` + a conditional default `RuntimeIdentifier` (IDE → win-x64; BUILD.bat overrides).
-- **`BUILD.bat [x64|arm64|all]`** — loops arches (default both), cross-publishes GUI+CLI framework-dependent single-file to `dist\<arch>\`, copies `lang\` + `wireguard-deps\<arch>\*.dll`, zips `dist\MasselGUARD-<arch>.zip`. Cleans obj/bin per arch. **Verified**: GUI *and* CLI cross-publish to native ARM64 (PE `0xAA64`) from this x64 host; both projects compile clean.
-- Native DLLs reorganised into `wireguard-deps\<arch>\` (x64 populated; `arm64\PLACEHOLDER.txt`). `tunnelbuild\tunnelbuild.bat` now **prompts** for arch (or takes `x64|arm64|all`) and writes straight into `wireguard-deps\<arch>\`; `get-wireguard-dlls.ps1 -Arch` extracts the arch `wireguard.dll` and PE-verifies the built `tunnel.dll`.
-- **STILL TODO (needs a machine/toolchain I don't have): build the ARM64 `tunnel.dll`** — Go+CGO cross-build requiring llvm-mingw `aarch64-w64-mingw32-clang`. Until then `BUILD.bat arm64` produces the app but arm64 local tunnels are disabled (companion works).
-- `UpdateChecker`: `ArchMoniker` + arch-aware release-asset pick (`MasselGUARD-<arch>.zip`, legacy `MasselGUARD.zip` fallback for x64).
-- `TunnelDll.ValidateDlls()`: gates on arch first — `ArchSupportError()` (emulated x64-on-ARM64) + a PE machine-type check per DLL before the P/Invoke. New PE-reader helpers (`ReadPeMachine`, `ExpectedMachine`).
-- **`WireGuardNtMinBytes` is now arch-aware** (const → computed property). The wireguard-NT `wireguard.dll` size differs by arch (official v1.1: amd64 ~1321 KB, **arm64 ~667 KB**, x86 ~1857 KB); the old flat 900 KB floor wrongly rejected the genuine arm64 dll ("appears to be the WireGuard-for-Windows version"). Floor is now 500 KB for arm64, 900 KB otherwise. Same fix mirrored in `get-wireguard-dlls.ps1` (`$wgMinKb` — cache-validity check + final warning).
-- Arch surfaced in CLI `version` (plain + `arch` JSON field) and Settings → About build line.
-- **One-click "switch to ARM64" notice** — at startup, when `TunnelDll.ArchSupportError() != null` (emulated x64-on-ARM64) and `!AppConfig.ArmSwitchDismissed`, `MainWindow.OfferArm64SwitchAsync()` shows a themed 3-button prompt (`ShowArm64SwitchPrompt` → Download / Later / Don't remind me). "Download" calls `UpdateChecker.FetchLatestReleaseAsync(forceArch:"arm64")` then reuses `UpdateChecker.UpdateAsync` (download → extract → robocopy over install → relaunch; the relaunched native arm64 exe starts arm64). `UpdateChecker` now takes `forceArch` and `AssetCandidates(arch)`. 7 new lang keys (`Arm64Notice*`) added to all 6 files. New config flag `AppConfig.ArmSwitchDismissed`.
-- **Release now needs BOTH `MasselGUARD-x64.zip` and `MasselGUARD-arm64.zip` uploaded.**
-
-### 2. Rule-name fix
-- `RuleDialog`: the editable tunnel ComboBox's `SelectionChanged` read `TunnelBox.Text`, which still holds the *previous* value during the event → auto-generated name stuck at "SSID → disconnect" after picking a tunnel. Now reads the freshly-selected item and passes it to `AutoGenerateName(tunnelOverride)`.
-
-### 3. Themes (separate `MasselGUARD-themes` repo, sibling checkout)
-- 8 new themes with **background images + theme-matched fonts**: aurora-borealis, nebula, ocean-depth, alpine-fog, synthwave-sunset, circuit, carbon-fiber, topographic. Backgrounds generated procedurally (System.Drawing). Orbitron + JetBrains Mono (OFL) shipped for synthwave/circuit. `index.json` updated (now 21 themes). **Preview screenshots pending (user will create).**
-
-### 4. Docs
-- New WHATSNEW 3.9.0 entry; README requirements/downloads/build/CLI updated; MANUAL, CLIManual, Reference version headers + arch content; CLAUDE.md build section + a new x64/ARM64 design bullet.
+> ⚠️ **Standing build traps (carry every cycle):**
+> 1. **`Models/*.cs` must stay WPF-free** — shared with the CLI; a `System.Windows.*` reference breaks the CLI build.
+> 2. **The CLI lists shared `Services/*.cs` explicitly** in `MasselGUARDcli/MasselGUARDcli.csproj` (it globs Models, not Services). A new shared Service must be added there or it's CS0103 in the CLI only.
+> 3. **Lang files:** any new key goes into **all 12** `lang/*.json`, then validate each with the app's exact parser — `[System.Text.Json.JsonDocument]::Parse` — not just PowerShell `ConvertFrom-Json` (which tolerates raw control chars the app rejects). Keep full key parity + `{0}` placeholder integrity. (A `[ \t]*` regex can trip the shell sandbox — a plain string-replace insert is the reliable fallback.)
+> 4. **Native DLLs** live in `wireguard-deps\<arch>\`; a release needs **both** `MasselGUARD-x64.zip` and `MasselGUARD-arm64.zip`. ARM64 `tunnel.dll` still needs the llvm-mingw aarch64 toolchain (outstanding from 3.9.0).
+> 5. User runs `BUILD.bat` and manual-tests (elevated app — the assistant does not run it). Assistant only `dotnet build`-verifies.
 
 ---
 
-## What shipped in 3.8.0 (previous cycle)
+## 1. Release name — ✅ Forking Fox
 
-> Version was bumped in `UpdateChecker.cs` (`CurrentVersion` + `_codenames`) and `BUILD.bat` (`VERSION` + `CODENAME`) for 3.8.0.
-
-### 1. WiFi rules — new trigger types + on/off + polish
-- **`TunnelRule.Kind`** = `"wifi"` | `"schedule"` | `"trusted"` (default wifi; old rules deserialize as wifi). Added `StartTime`/`EndTime`/`Days` (schedule) and `Enabled` (default true) + display helpers (`ScheduleSummary`, `SsidDisplay` with 📶/⏰/🛡 icons, `DisabledIcon` = `"⊘ "`, `RowOpacity`).
-- **`RuleEngine`** precedence (`EvaluateWifi`): ManualMode → open-network → **enabled wifi SSID rule** → **enabled trusted rule** (untrusted→connect, trusted→disconnect) → default action. Schedules run on their own timer via `EvaluateSchedules` (called from `MainViewModel.CheckSchedules`, throttled to minute boundaries). Disabled rules skipped everywhere.
-- **Trusted networks** driven entirely by the `trusted`-kind rule (its existence + tunnel = enabled). Safe-SSID list lives in `AppConfig.TrustedNetworks`, edited in Settings → WiFi (+ "Add current WiFi network" button).
-- **Enable/Disable** via a button below each rules list (label follows selection); disabled rows grey out + `⊘`. Both the main-window panel and Settings list.
-- **`RuleDialog`** got a WiFi/Schedule/Trusted **trigger-type selector** + day/time controls + a trusted info line.
-- **Fixed:** main-window `WifiRuleRow` now carries the actual `TunnelRule` reference; edit/delete operate on it (was matching by SSID → broke trusted/schedule). Add supports all kinds.
-
-### 2. Managed preset — `.masselguard` policy (headline)
-- **One unified `.masselguard`** file = flat full-settings snapshot (`PresetService.PolicyFields`, enums as strings) + optional **`Locked`** object `{ blocks:[…], settings:[…] }` + optional `PolicyName`.
-- **Two roles by location:** imported (`ConfigService.Import` → `PresetService.ApplyAll`) = apply all, editable; **any `*.masselguard` next to the exe** (`PresetService.FindPresetFile`) → `ApplyLocked` forces + locks only the `Locked` items, everything else ignored. Not a policy if it locks nothing.
-- **Enforcement:** `ConfigService.ApplyPreset()` at end of `Load()` (both paths); `Save()` re-asserts (`_presetObj`). Fails open on a bad file. `IsLocked(field)` / `TunnelsLocked` / `PolicyName` / `HasManagedPreset` drive the UI. Regular `Export`/`Import` also route through `PresetService` (so plain "Export settings" is now a full snapshot).
-- **UI lock:** `SettingsWindow.ApplyPresetLocks()` (runs last in `ShowTab`) greys locked controls + 🔒 tooltip + shows the banner (`ManagedBanner`). `MainWindow.ApplyPolicyGating()` + selection handlers gate rule/tunnel Add/Edit/Delete.
-- **Export dialog** (`Views/ExportPresetWindow.cs`): grouped **per-setting** checklist (section header selects all its items) + policy name → writes `Locked.settings`. Button lives in **Settings → Advanced → Import/Export** (next to Export/Import).
-- **Themes:** a locked theme not installed → `MainWindow.TryInstallPresetThemeAsync` fetches from the shared-themes repo (`ThemeDownloadService.DownloadAsync`), else system colours.
-- **Install:** managed install offers to copy the `.masselguard` into the install folder.
-
-### 3. Live tunnel health
-`TunnelEntryViewModel` derives `TunnelHealth` (Healthy/Idle/Down) from adapter up-state + traffic movement in `UpdateStats`; shown as ●/▲ next to status in `MainWindow.xaml`. (Honest note in code: a real WireGuard handshake age would need pipe IPC we don't do.)
-
-### 4. Data usage & caps
-`HistoryService.GetMonthlyUsage` aggregates the Rx/Tx already recorded. `StoredTunnel.MonthlyCapMB` (edited in both tunnel dialogs). `MainViewModel` poll pushes month-to-date to the row (`MonthlyUsageDisplay`) and fires a once-per-month cap warning (`MaybeWarnDataCap`).
-
-### 5. QR export
-Right-click a **local** tunnel → "Show QR code" → `Views/QrExportWindow.cs` (ZXing `BarcodeWriter`, Save-PNG, private-key warning). Context menu added to the tunnel row template.
-
-### 6. Fixes
-- **DNS-leak inline icon** now hidden when prevention is active (`_dnsMitigated` computed once per poll, passed to both the icon and the toast). Matches the toast/log suppression.
-- **Config validation** — "Skip config validation" toggle restored on Settings → Tunnels (off by default = validating); View presets re-assert it on. Per-tunnel skip removed (`AppConfig.SkipTunnelValidation` is the only bypass).
-
-### Localization
-All new UI strings translated across **en/nl/de/fr/es/ja** (**465 keys each**, JSON-validated). Files are edited via targeted regex (no BOM, Japanese kept as real characters, key order preserved) — see the pattern used this session if you add keys.
+Codename convention is **[Adjective + Animal], alliterative**, adjective hinting at the headline (Chromatic Chameleon → theming, Protective Pangolin → config locking, Adaptive Armadillo → multi-arch, Selective Serval → rules). **Forking Fox** ties "fork" to splitting traffic. (Fallbacks considered: Parallel Panther, Branching Badger, Quantum Quokka, Boundless Bison, Pioneering Puma.)
 
 ---
 
-## Key files touched
-- `Models/`: `TunnelRule.cs` (kinds/schedule/enabled), `StoredTunnel.cs` (MonthlyCapMB), `AppConfig.cs` (TrustedNetworks; SkipTunnelValidation kept), `Preset.cs` (**now an empty placeholder — safe to delete from the project**).
-- `Services/`: `RuleEngine.cs`, `ConfigService.cs`, `PresetService.cs` (**new; in CLI csproj**), `HistoryService.cs`, `TunnelService.cs` (validation).
-- `ViewModels/`: `MainViewModel.cs` (scheduler, cap warn, HistoryService injected), `TunnelEntryViewModel.cs` (health, usage, dns-mitigated).
-- `Views/`: `SettingsWindow.xaml(.cs)` (lots — rules, trusted, validation, preset, ApplyPresetLocks, banner), `MainWindow.xaml(.cs)` (rules panel, health dot, usage, QR menu, policy gating, theme install, install copy), `RuleDialog.xaml(.cs)`, `TunnelConfigDialog`/`TunnelMetadataDialog` (cap), `QrExportWindow.cs` (new), `ExportPresetWindow.cs` (new).
-- `MasselGUARDcli/MasselGUARDcli.csproj` (added `PresetService.cs`).
-- `lang/*.json` (6), `docs/MANUAL.md`, `docs/WHATSNEW.md`, `README.md`, `CLAUDE.md`, `UpdateChecker.cs`, `BUILD.bat`.
+## 2. Headline feature — ✅ Split tunneling
+
+> **✅ Full design written** → [`docs/SplitTunneling-Design.md`](docs/SplitTunneling-Design.md) (data model, effective-`AllowedIPs` CIDR-math, kill-switch/DNS coupling, backend abstraction, editor UI, export round-trip, WinDivert seams, 13-step build order). The summary below stays; the doc is authoritative. **Key finding:** MasselGUARD never touches the route table — `tunnel.dll` programs routes purely from `AllowedIPs`, so route-based split is a pure `AllowedIPs` rewrite on the plaintext `.conf` before `TunnelService.Connect` writes the temp file. **Next code step:** `CidrMath.cs` + unit tests (design §13).
+
+Route/IP-based split ships in 4.0.0; **per-app split is phased to a later 4.x**. Options B–E (kept for reference) are at the end of this section.
+
+### The two mechanisms
+| | Route / IP-based (**4.0.0**) | Per-app (**later 4.x, via WinDivert**) |
+|---|---|---|
+| Splits by | destination IP range (`AllowedIPs` / route table) | process (which app) |
+| How | manage the tunnel's `AllowedIPs` — `0.0.0.0/0` **minus** excluded ranges, or an explicit include list; adjust the route table | **bundle WinDivert** (its `.sys` is MS-signed) + user-mode steering: match each flow to its PID, re-inject on the chosen interface |
+| Own kernel driver / signing? | **No** | **No** — stand on WinDivert's already-signed driver |
+| Effort / risk | medium | high (integration + licensing, not signing) |
+
+### Per-app feasibility (yes, without signing our own driver)
+- WireGuard/wireguard-NT routes **only by destination IP** — no per-process concept, so per-app needs packet-level steering by process.
+- **Chosen path: WinDivert.** Its kernel driver ships **Microsoft-signed**, so we bundle the signed binary and steer in **user mode** (connection→PID table → re-inject on tunnel vs physical interface). No EV cert, no WHQL, no self-signed driver. **exclude-apps** is the tractable first flavour; **include-apps** is harder.
+- **Alternative:** **WinpkFilter / Windows Packet Filter** — a commercially-licensed, already-signed NDIS driver (what WireSock uses). Licence fee, avoids GPL/LGPL copyleft. A user-mode **WFP block filter** can hard-block an app but not reroute — only a partial substitute.
+- **Ruled out:** our **own** unsigned kernel driver (Driver Signature Enforcement blocks it) and test-signing.
+- **Licensing:** WinDivert is **LGPLv3 / GPLv3** — obligations in §5. Consider moving per-app onto **userspace WireGuard (wireguard-go)** for a cleaner packet path (WireSock-style) — bigger change.
+- **Decision:** ship route/IP-based split in 4.0.0; build the data model + steering abstraction (below) so the WinDivert backend slots in later without reworking config or UI.
+
+### Plan for 4.0.0 (route/IP-based) + WinDivert groundwork
+- **Data model (design once, for both backends):** per-tunnel split config on `StoredTunnel` — `SplitMode` (`off`/`exclude`/`include`) + `SplitRanges` (IP/CIDR list) **and** a forward-looking `SplitApps` (app paths; unused/hidden in 4.0.0 but serialized so the schema doesn't change when WinDivert lands). WPF-free. Round-trips through `TunnelExportService`.
+- **Steering abstraction (key prep):** an `ISplitTunnelBackend` interface with a `RouteBasedBackend` (4.0.0 — effective `AllowedIPs` + routes) and a future `WinDivertBackend` (per-app). Engine picks the backend from `SplitMode`/whether app rules exist.
+- **Engine (4.0.0):** compute effective `AllowedIPs` from base config + `SplitRanges` (`0.0.0.0/0` minus excludes, or explicit includes); manage routes on connect/disconnect. Design **together with** the kill switch (excluded ranges must survive a kill) and DNS (leak handling).
+- **UI:** a "Split tunneling" section/tab in the tunnel editor — mode selector + range list; a disabled/"coming in 4.x" **Apps** sub-list so the layout is final now.
+- **CLI:** surface split config in `info` + import/export.
+- **WinDivert prep (no dependency added in 4.0.0):** reserve a future `windivert\<arch>\` layout (WinDivert ships x64/arm64 `.dll`+`.sys`); do the §5 licensing groundwork **before** adding the dependency.
+
+### Options not taken (reference)
+- **B — WFP kill switch / firewall hardening:** machine-wide kill switch at the WFP layer. Shares plumbing with per-app split — good 4.x companion. Effort medium-high; fail-safe design critical.
+- **C — Provider onboarding / location presets:** one-click import from providers + "connect to a location". Lower kernel risk, more product.
+- **D — Cross-device config sync:** encrypted sync of tunnels+settings via a shared folder. Conflict handling is the hard part.
+- **E — Usage & analytics 2.0:** grow the 3.9.5 usage chart into a full dashboard. Low risk, but weak as a solo 4.0 headline.
+
+> **Next step:** ✅ done — design is in [`docs/SplitTunneling-Design.md`](docs/SplitTunneling-Design.md). Begin coding at design §13 step 1 (`CidrMath.cs` + tests).
 
 ---
 
-## ⏭ Follow-ups / known gaps (none blocking)
-1. **`Models/Preset.cs`** is an empty comment file (couldn't delete via tooling) — remove it from the project when you next touch the csproj.
-2. **Unused lang keys** left behind: `SettingsPresetSection`, `SettingsPresetInfo` (section removed), `PresetExportNeedBlock` (reused as the "pick ≥1" message — actually still used). Prune the first two if you like.
-3. **`ApplyPresetLocks` control map** covers the common Settings controls incl. notifications/display. A locked setting with **no** mapped control is still *forced* (enforced) but won't visually grey — a couple of niche `PolicyFields` (`DefaultGroup`, `HideEmptyGroups`) aren't in the export dialog either. Add mappings/dialog rows if you want them surfaced.
-4. **Theme auto-install** uses `DownloadAsync` (fetches the whole repo). Could be narrowed to a single theme via the manifest APIs (`FetchManifestAsync` + `InstallThemeAsync`) if the bulk download is undesirable.
-5. **`TunnelsLocked`** only triggers if a *hand-authored* preset lists `Tunnels` in `Locked` — the export never offers tunnels, so the tunnel Add/Edit/Delete gating is effectively dormant by default. Intentional (tunnels are per-site).
-6. *(resolved in 3.9.0 cycle — CLAUDE.md build section updated; its "Current version" line tracks the code, still 3.8.0 until the 3.9.0 bump.)*
+## 3. Carry-over fixes to include in 4.0.0 — ✅ BOTH DONE
+
+### Fix 3.1 — 🛑 cap-killed marker is not coloured — ✅ DONE
+Added `Foreground="{DynamicResource Danger}"` to the marker `TextBlock` ([MainWindow.xaml:505](MainWindow.xaml:505)). The ⚡/🔓 badges already tint via `Foreground` in this app (glyphs render monochrome), so the emoji-colour caveat didn't bite — kept consistent with them. (If a future theme/font ever renders 🛑 as a colour emoji that ignores `Foreground`, swap for a vector `Path`/`Ellipse` `Fill="{DynamicResource Danger}"`.)
+
+### Fix 3.2 — per-tunnel "Hide cap ring" — ✅ DONE
+1. `StoredTunnel.HideCapRing` (bool, default `false`) — threaded through both dialogs (Result prop + `existingHideCapRing` ctor arg + `MainWindow` add/edit) like the `*CapKill` flags. **Not exported** (local UI pref — deliberately left out of `TunnelExportService.TunnelSettings`).
+2. `CapRingsVisibility => AnyCapConfigured && !StoredTunnel.HideCapRing` ([TunnelEntryViewModel.cs:361](ViewModels/TunnelEntryViewModel.cs:361)). Re-evaluated on edit via `RebuildTunnelList()`.
+3. A **"Hide usage ring"** `CheckBox` below the monthly row in the DATA-USAGE section of both `TunnelConfigDialog.xaml` + `TunnelMetadataDialog.xaml`. New lang key `TunnelDialogHideCapRing` ×12; the orphaned `TunnelDialogCapShow` ("Show in row", from the removed per-period toggle) stripped from all 12 — net parity back to **728**, all JsonDocument-validated. GUI + CLI builds clean.
 
 ---
 
-## Working agreements (from this project)
-- **User runs `BUILD.bat`** and manual-tests; the assistant does **not** auto-build (per `memory/no-auto-builds.md`).
-- When bumping version, update **both** `UpdateChecker.cs` and `BUILD.bat` (see CLAUDE.md).
-- Keep all six `lang/*.json` complete (translate new keys, don't leave English placeholders) — the user asked for this explicitly.
-- New shared `Services/*.cs` → add to the CLI csproj; keep `Models/*.cs` WPF-free.
+## 4. Version-bump checklist (do once, at cut)
+
+4.0.0 is numeric-clean (a `-beta` suffix breaks `UpdateChecker.ParseVersion`). Update **all** of:
+- `UpdateChecker.cs` — `CurrentVersion = "4.0.0"` **and** `_codenames["4.0.0"] = "Forking Fox"`.
+- `BUILD.bat` — `set VERSION=4.0.0` **and** `set CODENAME=Forking Fox`.
+- `MasselGUARD.csproj` **and** `MasselGUARDcli.csproj` — `<Version>`/`<AssemblyVersion>`/`<FileVersion>`/`<InformationalVersion>` → `4.0.0` / `4.0.0.0`.
+- Docs headers: `CLAUDE.md`, `docs/MANUAL.md`, `docs/CLIManual.md`, `docs/Reference.md`, `README.md`.
+- `docs/WHATSNEW.md` — new `## v4.0.0 — Forking Fox` entry (drop the beta framing this cycle).
+- GitHub release/tag = `4.0.0` (user's manual step).
+
+---
+
+## 5. Licensing & attribution — groundwork ✅ DONE (one verify item remains)
+
+> Not legal advice. Authoritative sources: the exact upstream `LICENSE` files and the FSF LGPL/GPL FAQ. Lawyer for anything commercial-facing.
+
+**Done this session** (the "no LICENSE / no attribution" gap is closed):
+- **`LICENSE`** — MIT, `Copyright (c) 2026 Harold Masselink`.
+- **`THIRD-PARTY-NOTICES.md`** — WireGuard trademark + the two bundled DLLs + .NET + a WinDivert placeholder (LGPL path).
+- License notes added to `README.md`, `docs/MANUAL.md` (user-facing), `docs/Reference.md` (§42, technical).
+- Credit + license copyright decision: an **AI can't hold copyright** → copyright is Harold Masselink only; AI disclosure is optional (README, not LICENSE).
+
+**Remaining before a public release:**
+1. **Verify `wireguard.dll` (wireguard-nt) exact licence + prebuilt-DLL redistribution terms** upstream ([git.zx2c4.com/wireguard-nt](https://git.zx2c4.com/wireguard-nt)). `tunnel.dll` (wireguard-windows/-go) is MIT — clean. This is the one open licensing item.
+2. **When WinDivert is bundled (4.x):** it's dual **LGPLv3 / GPLv3**. Take the **LGPLv3** path — dynamic-link an **unmodified** `WinDivert.dll`, ship its `LICENSE` + the LGPL & GPL texts, preserve the user's ability to replace the DLL (LGPL §4). Add Basil (basil00) to the About credits + a notice entry. (A permissive MIT app **must** use the LGPL path, not GPL.) Some AV engines flag WinDivert's `.sys` — plan an allowlisting note.
+
+---
+
+## 6. Also done this session (3.9.5 final + 4.0.0 prep)
+
+- **3.9.5 finalized** as `3.9.5` (not beta) — code was already numeric; only the GitHub tag/WHATSNEW carried `-beta`, and WHATSNEW keeps it by choice.
+- **`BUILD.bat`** now copies `LICENSE` → `dist\<arch>\LICENSE.txt` and `THIRD-PARTY-NOTICES.md` into each arch dir, so both land in every release zip.
+- **About page (`Views/SettingsWindow.xaml` + `.cs`)** — new **Credits** block (MasselGUARD — Harold Masselink · WireGuard — Jason A. Donenfeld / WireGuard LLC · .NET — Microsoft), WireGuard trademark line, **"Licensed under the MIT License."** with **View license** / **Third-party notices** links (`LicenseLink_Click`/`NoticesLink_Click` → open the bundled file next to the exe, fallback to GitHub in dev via `OpenLocalOrUrl`).
+- **About page fully localized** — 11 new keys ×12 langs (`AboutBy`, `AboutWhatsNew`, `AboutReleaseNotesError`, `AboutThemeUpdatesTooltip`, `AboutCredits`, `AboutTrademark`, `AboutLicensedMit`, `AboutViewLicense`, `AboutThirdPartyNotices`, `AboutThemeUpdateOne`, `AboutThemeUpdateMany`). Proper nouns kept literal. Parity now **728**; `dotnet build` clean.
+
+---
+
+## 7. State at handover (from 3.9.5)
+- **Cap rings** (`Views/CapRings.cs`) — equal horizontal rings; font-derived diameter (`RingDiameter()` from `Theme.FontSize`, `MeasureOverride` self-sizes); ink-centred d/w/m glyphs (localized `CapRingDay/Week/Month`); greyed via `Active` DP when disconnected; pinned in a right-hand Grid cell so the uptime text can't shove it.
+- Usage computed for **all** tunnels each stats poll (not just active) so disconnected rings show real usage — [`MainViewModel`](ViewModels/MainViewModel.cs:491).
+- **Behaviour popup** (formerly "Defaults"): localized, `Do nothing / 🚫 Disconnect all tunnels / <tunnel>`; footer + row badges sync on both Settings and popup paths.
+- Enforcement model (kill-at-cap, overrides, toasts) unchanged — `CLAUDE.md` "Data-usage warnings" bullet.
+
+---
+
+## 8. Prior releases (condensed)
+- **3.9.5 — Selective Serval** (current): 6 new languages → 12 total; localization backlog closed; cap usage rings + chart; kill-at-cap enforcement; directional trusted-network rules; tunnel export (`.mgconf`/QR).
+- **3.9.0 — Adaptive Armadillo:** native **x64 + ARM64** (per-arch `dist\<arch>\` zips; `wireguard-deps\<arch>\`; arch-aware update/validation). **Outstanding:** build the ARM64 `tunnel.dll` (Go+CGO, needs llvm-mingw aarch64).
+- **3.8.0 — Protective Pangolin:** never shipped standalone — folded into 3.9.0. WiFi rule kinds, `.masselguard` managed preset, health dot, data caps, QR export.
+- **3.7.1 — Chromatic Chameleon:** last release actually shipped before the 3.8/3.9 line (installs in the wild are ≤3.7.1 → keep shipping the legacy `MasselGUARD.zip` x64 bridge).

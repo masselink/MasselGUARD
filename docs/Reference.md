@@ -1,6 +1,6 @@
 # MasselGUARD — Technical reference
 
-Developer/technical reference for v3.9.5 — Selective Serval. For end-user instructions see [`Manual.md`](Manual.md).
+Developer/technical reference for v4.0.0 — Forking Fox. For end-user instructions see [`Manual.md`](Manual.md).
 
 ---
 
@@ -570,7 +570,7 @@ Per arch (`x64`, `arm64`) BUILD.bat cleans `obj\`/`bin\`, cross-publishes GUI + 
 Banner printed during build:
 ```
   --------------------------------------------------
-  MasselGUARD  v3.9.5  |  Selective Serval
+  MasselGUARD  v4.0.0  |  Forking Fox
   Harold Masselink  |  https://masselink.net
   Building arch(es): x64 arm64
   --------------------------------------------------
@@ -779,7 +779,7 @@ dotnet publish -p:Version=%VERSION% -p:InformationalVersion=%VERSION%.%BUILD_NUM
 Assembly.GetEntryAssembly()
     ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
     ?.InformationalVersion;
-// → "3.9.5.2608200000"  (last 10 chars = build stamp)
+// → "4.0.0.2608200000"  (last 10 chars = build stamp)
 ```
 
 `Version.TryParse` handles 4-part versions for comparison. The version component (`Major.Minor.Patch`) is always static; only the build stamp changes between builds.
@@ -953,7 +953,7 @@ string updateStatus =
 
 Plain output:
 ```
-MasselGUARD v3.9.5  |  Selective Serval
+MasselGUARD v4.0.0  |  Forking Fox
 build:   2608200000
 arch:    x64
 Harold Masselink  |  https://masselink.net
@@ -994,10 +994,11 @@ private static readonly Dictionary<string, string> _codenames =
         { "3.8.0", "Protective Pangolin" },
         { "3.9.0", "Adaptive Armadillo" },
         { "3.9.5", "Selective Serval" },
+        { "4.0.0", "Forking Fox" },
     };
 ```
 
-`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"3.9.5 — Selective Serval"` or just `"3.9.5"`.
+`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"4.0.0 — Forking Fox"` or just `"4.0.0"`.
 
 Codenames are assigned per `Major.Minor.Patch` release only — not per build. Update the dictionary in `UpdateChecker.cs` **and** `BUILD.bat` when bumping `VERSION`.
 
@@ -1027,3 +1028,25 @@ MasselGUARD's own source is **MIT** (`LICENSE`, repo root). Bundled third-party 
 - **WinDivert** — reserved for future per-app split tunneling (a later 4.x; **not yet bundled**); dual **LGPLv3 / GPLv3**, intended via the **LGPLv3** dynamic-link path. Compliance checklist in `HANDOVER-4.0.0.md` §6.
 
 **WireGuard** is a registered trademark of Jason A. Donenfeld; MasselGUARD is an independent project, not affiliated with or endorsed by WireGuard LLC. When adding, removing, or updating a bundled component, update `THIRD-PARTY-NOTICES.md` in the same change.
+
+---
+
+## 43. Split tunneling (4.0.0)
+
+Route/IP-based split tunneling. Full design in [`SplitTunneling-Design.md`](SplitTunneling-Design.md); this is the implementation summary.
+
+**Key fact:** MasselGUARD never programs the routing table — `tunnel.dll` (wireguard-NT) derives all routes from the peer's `AllowedIPs`. Route-based split is therefore a **pure `AllowedIPs` rewrite** on the plaintext `.conf`, with no route-table code and no new kernel surface.
+
+**Data model** (`Models/StoredTunnel.cs`, WPF-free): `SplitMode` (`"off"` | `"exclude"` | `"include"`), `SplitRanges` (`List<string>` of CIDRs/IPs), and a reserved-but-inert `SplitApps` (per-app placeholder for the future WinDivert backend). `Models/SplitConfig.cs` is the backend-facing DTO (`From(StoredTunnel)`, `HasRouteSplit`, `HasAppSplit`).
+
+**Core math** (`Services/CidrMath.cs`): `ComputeEffectiveAllowedIPs(base, mode, ranges)`. `exclude` = base minus the ranges via per-family CIDR set subtraction (binary block splitting — the standard WireGuard AllowedIPs calculator); `include` = the ranges intersected with the base; `off` = base verbatim. IPv4/IPv6 computed independently, output v4-first and sorted. Pure/unit-testable — covered by `MasselGUARDcli selftest`.
+
+**Backend abstraction** (`Services/SplitTunnelBackend.cs`): `ISplitTunnelBackend` with `RouteBasedBackend` (4.0.0) and a future `WinDivertBackend` (per-app). `ApplyToConfig` reads the first `[Peer]`'s `AllowedIPs`, computes the effective set, and patches it back with `Cli.WireGuardConf.Patch`. Per-app hooks (`OnConnected`/`OnDisconnected`) are no-ops here.
+
+**Connect wiring** (`Services/TunnelService.cs`): the rewrite runs **after decrypt, before validation** in `Connect`, so the config that gets validated and written already reflects the split. No-op unless `SplitConfig.HasRouteSplit`; any error fails safe (connects with the original config).
+
+**Kill-switch coupling** (`Services/KillSwitchService.cs`): in `exclude` mode the excluded ranges must reach the physical NIC, but the WFP kill switch blocks all non-tunnel outbound. `Enable(tunnel, endpointIp, bypassRanges)` adds `MasselGUARD_KS_Allow_Split_<tunnel>_<i>` allow-rules for those ranges, tracked by exact name (tunnel names can prefix one another) and removed precisely; `CleanupStaleRules` already prefix-scans all `MasselGUARD_KS_` rules. Fed from `RouteBasedBackend.KillSwitchBypassRanges`.
+
+**UI** (`Views/TunnelConfigDialog`): a **Split** tab (local tunnels only) — mode radios, a ranges box (one CIDR per line, validated on save), and a disabled Apps preview. Threaded through `existingSplit*` ctor args + `ResultSplit*`; `SplitApps` is preserved untouched on edit.
+
+**Persistence & portability:** `SplitMode`/`SplitRanges` round-trip through `TunnelExportService` as `# MasselGUARD-SplitMode:` / `# MasselGUARD-SplitRanges:` comment lines (`SplitApps` excluded — unused). CLI `info` surfaces them (`Split:` line / `split_mode`+`split_ranges` JSON).

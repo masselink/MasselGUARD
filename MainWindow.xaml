@@ -503,6 +503,7 @@
                                                                 FontSize="{DynamicResource Theme.FontSize.Small}"
                                                                 Style="{StaticResource FlatBtn}"/>
                                                         <TextBlock Text="🛑"
+                                                                   Foreground="{DynamicResource Danger}"
                                                                    FontSize="{DynamicResource Theme.FontSize.Small}"
                                                                    VerticalAlignment="Center"
                                                                    Margin="5,0,0,0"

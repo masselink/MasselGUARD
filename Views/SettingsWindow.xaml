@@ -1638,7 +1638,7 @@
                                             CornerRadius="4" Padding="10,6" Margin="0,0,0,10"
                                             Cursor="Hand" Visibility="Collapsed"
                                             MouseLeftButtonUp="DownloadThemes_Click"
-                                            ToolTip="Click to open Community themes and update">
+                                            ToolTip="{Binding [AboutThemeUpdatesTooltip], Source={x:Static local:Lang.Instance}}">
                                         <TextBlock x:Name="AboutThemeUpdatesLabel"
                                                    FontFamily="{DynamicResource Theme.FontFamily}"
                                                    FontSize="10" FontWeight="SemiBold"
@@ -1701,9 +1701,10 @@
                                        Style="{StaticResource SettingsSectionHeader}"/>
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
                                 <StackPanel>
-                                    <TextBlock Text="by Harold Masselink"
-                                               FontFamily="{DynamicResource Theme.FontFamily}"
-                                               FontSize="10" Foreground="{DynamicResource TextMuted}"/>
+                                    <TextBlock FontFamily="{DynamicResource Theme.FontFamily}"
+                                               FontSize="10" Foreground="{DynamicResource TextMuted}">
+                                        <Run Text="{Binding [AboutBy], Source={x:Static local:Lang.Instance}, Mode=OneWay}"/><Run Text=" Harold Masselink"/>
+                                    </TextBlock>
                                     <TextBlock x:Name="GithubLink"
                                                Text="github.com/masselink/MasselGUARD"
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
@@ -1711,11 +1712,52 @@
                                                Cursor="Hand" TextDecorations="Underline"
                                                Margin="0,4,0,0"
                                                MouseLeftButtonUp="GithubLink_Click"/>
+
+                                    <!-- Credits -->
+                                    <Border Height="1" Background="{DynamicResource BorderColor}" Margin="0,10,0,10"/>
+                                    <TextBlock Text="{Binding [AboutCredits], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}"
+                                               FontSize="10" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,4"/>
+                                    <TextBlock FontFamily="{DynamicResource Theme.FontFamily}"
+                                               FontSize="10" Foreground="{DynamicResource TextMuted}"
+                                               TextWrapping="Wrap">
+                                        <Run Text="MasselGUARD — Harold Masselink"/><LineBreak/>
+                                        <Run Text="WireGuard — Jason A. Donenfeld / WireGuard LLC"/><LineBreak/>
+                                        <Run Text=".NET runtime — Microsoft"/>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding [AboutTrademark], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}"
+                                               FontSize="9" Foreground="{DynamicResource TextMuted}"
+                                               TextWrapping="Wrap" Margin="0,4,0,0"/>
+
+                                    <!-- License -->
+                                    <Border Height="1" Background="{DynamicResource BorderColor}" Margin="0,10,0,10"/>
+                                    <TextBlock Text="{Binding [AboutLicensedMit], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}"
+                                               FontSize="10" Foreground="{DynamicResource TextMuted}"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <TextBlock x:Name="LicenseLink"
+                                                   Text="{Binding [AboutViewLicense], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource Accent}"
+                                                   Cursor="Hand" TextDecorations="Underline"
+                                                   MouseLeftButtonUp="LicenseLink_Click"/>
+                                        <TextBlock Text="   ·   "
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextMuted}"/>
+                                        <TextBlock x:Name="NoticesLink"
+                                                   Text="{Binding [AboutThirdPartyNotices], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource Accent}"
+                                                   Cursor="Hand" TextDecorations="Underline"
+                                                   MouseLeftButtonUp="NoticesLink_Click"/>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
 
                             <!-- What's New -->
-                            <TextBlock Text="What's New"
+                            <TextBlock Text="{Binding [AboutWhatsNew], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource SettingsSectionHeader}"/>
                             <Border Style="{StaticResource SettingsCard}">
                                 <Grid Height="220">
@@ -1743,7 +1785,7 @@
                                                    HorizontalAlignment="Center"
                                                    Foreground="{DynamicResource TextMuted}"
                                                    Margin="0,0,0,10"/>
-                                        <TextBlock Text="Could not load release notes."
+                                        <TextBlock Text="{Binding [AboutReleaseNotesError], Source={x:Static local:Lang.Instance}}"
                                                    FontFamily="{DynamicResource Theme.FontFamily}"
                                                    FontSize="11" FontWeight="SemiBold"
                                                    Foreground="{DynamicResource TextMuted}"

@@ -357,9 +357,11 @@ namespace MasselGUARD.ViewModels
         public bool MonthCapSet => MonthlyCapBytes > 0;
 
         // Rings show whenever a cap is configured — even when disconnected, where the
-        // CapRings control renders them greyed (Active=false) but at real usage.
+        // CapRings control renders them greyed (Active=false) but at real usage. The
+        // per-tunnel HideCapRing flag suppresses them regardless (warn/enforce still run).
         public System.Windows.Visibility CapRingsVisibility =>
-            AnyCapConfigured ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+            AnyCapConfigured && !StoredTunnel.HideCapRing
+                ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
 
         /// <summary>Per-period breakdown for the rings' hover tooltip (set periods only).</summary>
         public string CapRingsTooltip

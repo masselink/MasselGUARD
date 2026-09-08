@@ -1790,10 +1790,9 @@ namespace MasselGUARD.Views
                 AboutThemeUpdatesRow.Visibility = n > 0 ? Visibility.Visible : Visibility.Collapsed;
                 if (n > 0)
                 {
-                    AboutThemeUpdatesLabel.Text = (n == 1
-                        ? $"🎨 A theme update is available ({themeUpdates[0]})"
-                        : $"🎨 {n} theme updates are available ({string.Join(", ", themeUpdates)})")
-                        + " — click to open Community themes and update.";
+                    AboutThemeUpdatesLabel.Text = n == 1
+                        ? Lang.T("AboutThemeUpdateOne", themeUpdates[0])
+                        : Lang.T("AboutThemeUpdateMany", n, string.Join(", ", themeUpdates));
                 }
             }
 
@@ -2156,6 +2155,28 @@ namespace MasselGUARD.Views
         {
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
                 "https://masselink.net/") { UseShellExecute = true }); }
+            catch { }
+        }
+
+        // Open the bundled licence / notices (shipped next to the exe by BUILD.bat);
+        // fall back to the GitHub copy in dev builds where they aren't alongside the exe.
+        private void LicenseLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+            => OpenLocalOrUrl("LICENSE.txt",
+                "https://github.com/masselink/MasselGUARD/blob/main/LICENSE");
+
+        private void NoticesLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+            => OpenLocalOrUrl("THIRD-PARTY-NOTICES.md",
+                "https://github.com/masselink/MasselGUARD/blob/main/THIRD-PARTY-NOTICES.md");
+
+        private static void OpenLocalOrUrl(string fileName, string fallbackUrl)
+        {
+            try
+            {
+                var local = System.IO.Path.Combine(System.AppContext.BaseDirectory, fileName);
+                string target = System.IO.File.Exists(local) ? local : fallbackUrl;
+                System.Diagnostics.Process.Start(
+                    new System.Diagnostics.ProcessStartInfo(target) { UseShellExecute = true });
+            }
             catch { }
         }
 

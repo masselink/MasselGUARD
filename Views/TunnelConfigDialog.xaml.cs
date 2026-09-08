@@ -28,6 +28,9 @@ namespace MasselGUARD.Views
         public bool    ResultDailyCapKill      { get; private set; }
         public bool    ResultWeeklyCapKill     { get; private set; }
         public bool    ResultMonthlyCapKill    { get; private set; }
+        public bool    ResultHideCapRing       { get; private set; }
+        public string  ResultSplitMode         { get; private set; } = "off";
+        public System.Collections.Generic.List<string> ResultSplitRanges { get; private set; } = new();
 
         private readonly string? _originalName;
 
@@ -42,7 +45,10 @@ namespace MasselGUARD.Views
                                   int existingMonthlyCapMB = 0,
                                   int existingDailyCapMB = 0, int existingWeeklyCapMB = 0,
                                   bool existingDailyCapKill = false, bool existingWeeklyCapKill = false,
-                                  bool existingMonthlyCapKill = false,
+                                  bool existingMonthlyCapKill = false, bool existingHideCapRing = false,
+                                  string? existingSplitMode = null,
+                                  System.Collections.Generic.List<string>? existingSplitRanges = null,
+                                  System.Collections.Generic.List<string>? existingSplitApps = null,
                                   long existingDailyUsedBytes = 0, long existingWeeklyUsedBytes = 0,
                                   long existingMonthlyUsedBytes = 0)
         {
@@ -105,6 +111,18 @@ namespace MasselGUARD.Views
             if (DailyCapKillChk   != null) DailyCapKillChk.IsChecked   = existingDailyCapKill;
             if (WeeklyCapKillChk  != null) WeeklyCapKillChk.IsChecked  = existingWeeklyCapKill;
             if (MonthlyCapKillChk != null) MonthlyCapKillChk.IsChecked = existingMonthlyCapKill;
+            if (HideCapRingChk    != null) HideCapRingChk.IsChecked    = existingHideCapRing;
+
+            // Split tunneling
+            var splitMode = (existingSplitMode ?? "off").Trim().ToLowerInvariant();
+            if (SplitModeExcludeRadio != null && splitMode == "exclude") SplitModeExcludeRadio.IsChecked = true;
+            else if (SplitModeIncludeRadio != null && splitMode == "include") SplitModeIncludeRadio.IsChecked = true;
+            else if (SplitModeOffRadio != null) SplitModeOffRadio.IsChecked = true;
+            if (SplitRangesBox != null && existingSplitRanges != null)
+                SplitRangesBox.Text = string.Join("\r\n", existingSplitRanges);
+            if (SplitAppsBox != null && existingSplitApps != null)
+                SplitAppsBox.Text = string.Join("\r\n", existingSplitApps);
+            UpdateSplitEnabled();
             if (DailyUsedLabel    != null) DailyUsedLabel.Text    = UsedText(existingDailyUsedBytes);
             if (WeeklyUsedLabel   != null) WeeklyUsedLabel.Text   = UsedText(existingWeeklyUsedBytes);
             if (MonthlyUsedLabel  != null) MonthlyUsedLabel.Text  = UsedText(existingMonthlyUsedBytes);
@@ -266,6 +284,18 @@ namespace MasselGUARD.Views
             if (s.PostConnectScript    != null) ReloadScript(PostConnectBox,    PostConnectEmbedBox,    PostConnectEmbed,    s.PostConnectScript);
             if (s.PreDisconnectScript  != null) ReloadScript(PreDisconnectBox,  PreDisconnectEmbedBox,  PreDisconnectEmbed,  s.PreDisconnectScript);
             if (s.PostDisconnectScript != null) ReloadScript(PostDisconnectBox, PostDisconnectEmbedBox, PostDisconnectEmbed, s.PostDisconnectScript);
+
+            // Split tunneling
+            if (s.SplitMode != null)
+            {
+                var mode = s.SplitMode.Trim().ToLowerInvariant();
+                if (mode == "exclude" && SplitModeExcludeRadio != null) SplitModeExcludeRadio.IsChecked = true;
+                else if (mode == "include" && SplitModeIncludeRadio != null) SplitModeIncludeRadio.IsChecked = true;
+                else if (SplitModeOffRadio != null) SplitModeOffRadio.IsChecked = true;
+            }
+            if (s.SplitRanges != null && SplitRangesBox != null)
+                SplitRangesBox.Text = string.Join("\r\n", s.SplitRanges);
+            UpdateSplitEnabled();
         }
 
         /// <summary>Parse a cap TextBox to a non-negative MB value (0 = off / blank / invalid).</summary>
@@ -354,10 +384,68 @@ namespace MasselGUARD.Views
             ResultDailyCapKill   = DailyCapKillChk?.IsChecked   == true;
             ResultWeeklyCapKill  = WeeklyCapKillChk?.IsChecked  == true;
             ResultMonthlyCapKill = MonthlyCapKillChk?.IsChecked == true;
+            ResultHideCapRing    = HideCapRingChk?.IsChecked    == true;
+
+            // Split tunneling — capture mode + ranges (validated when a mode is active).
+            ResultSplitMode = SplitModeExcludeRadio?.IsChecked == true ? "exclude"
+                            : SplitModeIncludeRadio?.IsChecked == true ? "include"
+                            : "off";
+            var splitRanges = ParseSplitRanges(SplitRangesBox?.Text);
+            if (ResultSplitMode != "off")
+            {
+                var bad = splitRanges.FirstOrDefault(r => !IsValidCidr(r));
+                if (bad != null)
+                {
+                    Tabs.SelectedItem = TabSplit;
+                    MessageBox.Show(Lang.T("SplitInvalidRange", bad), Lang.T("TunnelValidationTitle"),
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    SplitRangesBox?.Focus();
+                    return;
+                }
+            }
+            ResultSplitRanges = splitRanges;
             DialogResult = true;
         }
 
         private void CancelBtn_Click(object sender, RoutedEventArgs e) => DialogResult = false;
+
+        // ── Split tunneling helpers ─────────────────────────────────────────────
+
+        private void SplitMode_Changed(object sender, RoutedEventArgs e) => UpdateSplitEnabled();
+
+        /// <summary>Ranges box is only editable when a split mode is active (not "off").</summary>
+        private void UpdateSplitEnabled()
+        {
+            if (SplitRangesBox == null) return;
+            bool active = SplitModeExcludeRadio?.IsChecked == true
+                       || SplitModeIncludeRadio?.IsChecked == true;
+            SplitRangesBox.IsEnabled = active;
+        }
+
+        /// <summary>Splits the ranges TextBox into trimmed, non-empty tokens (one per line;
+        /// commas also accepted).</summary>
+        private static List<string> ParseSplitRanges(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return new List<string>();
+            return text.Split(new[] { '\r', '\n', ',' }, StringSplitOptions.RemoveEmptyEntries)
+                       .Select(s => s.Trim())
+                       .Where(s => s.Length > 0)
+                       .ToList();
+        }
+
+        /// <summary>Light CIDR / bare-IP check for split ranges (matches CidrMath's parser).</summary>
+        private static bool IsValidCidr(string token)
+        {
+            token = token.Trim();
+            if (token.Length == 0) return false;
+            var slash = token.IndexOf('/');
+            var ipPart = slash < 0 ? token : token[..slash];
+            if (!System.Net.IPAddress.TryParse(ipPart, out var ip)) return false;
+            if (slash < 0) return true;                      // bare host is fine
+            if (!int.TryParse(token[(slash + 1)..], out var prefix)) return false;
+            int max = ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6 ? 128 : 32;
+            return prefix >= 0 && prefix <= max;
+        }
 
         // ── Script helpers ────────────────────────────────────────────────────
         private const string EmbedPrefix = "@embed:";

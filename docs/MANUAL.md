@@ -1,6 +1,6 @@
 # MasselGUARD — User Manual
 
-**Version 3.9.5 — Selective Serval**
+**Version 4.0.0 — Forking Fox**
 
 ---
 
@@ -168,9 +168,27 @@ Select a tunnel and use the toolbar **Export** button to hand it to another devi
 - **Encrypted file (`.mgconf`)** — password-protected with AES-256-GCM. Unlike the at-rest storage, it's **portable** — open it on any machine with the password. There's no recovery if the password is lost.
 - **QR code** — scan straight into the WireGuard mobile app.
 
-**Include MasselGUARD settings** (file formats only) bundles the tunnel's extras — group, notes, scripts, kill switch, auto-reconnect, and data caps — as readable `# MasselGUARD-…` comment lines that other WireGuard clients ignore, so the `.conf` stays universally importable. MasselGUARD restores them on import (the CLI too: `MasselGUARDcli import file.mgconf --password <pw>`).
+**Include MasselGUARD settings** (file formats only) bundles the tunnel's extras — group, notes, scripts, kill switch, auto-reconnect, data caps, and split-tunnel settings — as readable `# MasselGUARD-…` comment lines that other WireGuard clients ignore, so the `.conf` stays universally importable. MasselGUARD restores them on import (the CLI too: `MasselGUARDcli import file.mgconf --password <pw>`).
 
 > The exported config contains the tunnel's **private key** — keep plain and QR exports private; use the encrypted format to share safely. Export is disabled when a managed policy locks *Tunnels*.
+
+---
+
+### Split tunneling
+
+By default a tunnel is a **full tunnel** — all your traffic goes through it. On a **local tunnel's** editor, the **Split** tab lets you route only *some* traffic through it, by destination IP range:
+
+- **Off** — route everything through the tunnel (the default).
+- **Exclude these ranges** — a full tunnel *except* the ranges you list. Use this to keep specific destinations on your normal connection — a local printer or NAS (`192.168.1.0/24`), or a service you don't want tunnelled.
+- **Only these ranges** — the reverse: only the listed ranges go through the tunnel; everything else uses your normal connection. Use this for a split VPN that reaches just a few subnets or services.
+
+Enter ranges **one per line**, in CIDR notation (`10.0.0.0/8`, `192.168.1.0/24`) or as a single address (`10.0.0.5`, treated as a `/32`). **IPv4 and IPv6** are both supported. MasselGUARD works out the tunnel's effective routes automatically — you don't edit any route tables. An invalid entry is flagged when you save.
+
+Notes:
+- Split tunneling applies to **local** tunnels (the ones MasselGUARD builds). Companion WireGuard-for-Windows tunnels are managed by that app and have no Split tab.
+- With a **kill switch** active, *Exclude* ranges are still allowed out over your normal connection (they're not blocked) — so excluded traffic keeps working while the rest is protected.
+- Split settings **travel with an export** (they're part of the *Include MasselGUARD settings* extras) and are shown by `MasselGUARDcli info <name>`.
+- The **Apps** area on the Split tab is a preview of a future feature — *per-app* split (choose by application, not IP) — and is not active yet.
 
 ---
 
@@ -924,7 +942,7 @@ MasselGUARD info "1.MasselinkVPN-Split-AG"
 ### Version output
 
 ```
-MasselGUARD v3.9.5  |  Selective Serval
+MasselGUARD v4.0.0  |  Forking Fox
 build:   2608200000
 arch:    x64
 Harold Masselink  |  https://masselink.net

@@ -1083,6 +1083,9 @@ namespace MasselGUARD
                 DailyCapKill        = dlg.ResultDailyCapKill,
                 WeeklyCapKill       = dlg.ResultWeeklyCapKill,
                 MonthlyCapKill      = dlg.ResultMonthlyCapKill,
+                HideCapRing         = dlg.ResultHideCapRing,
+                SplitMode           = dlg.ResultSplitMode,
+                SplitRanges         = dlg.ResultSplitRanges,
             };
             ConfigSvc.Config.Tunnels.Add(stored);
             ConfigSvc.Save();
@@ -1136,6 +1139,10 @@ namespace MasselGUARD
                     existingDailyCapKill: stored.DailyCapKill,
                     existingWeeklyCapKill: stored.WeeklyCapKill,
                     existingMonthlyCapKill: stored.MonthlyCapKill,
+                    existingHideCapRing: stored.HideCapRing,
+                    existingSplitMode: stored.SplitMode,
+                    existingSplitRanges: stored.SplitRanges,
+                    existingSplitApps: stored.SplitApps,
                     existingDailyUsedBytes: usedDay,
                     existingWeeklyUsedBytes: usedWeek,
                     existingMonthlyUsedBytes: usedMonth)
@@ -1156,6 +1163,7 @@ namespace MasselGUARD
                     existingDailyCapKill: stored.DailyCapKill,
                     existingWeeklyCapKill: stored.WeeklyCapKill,
                     existingMonthlyCapKill: stored.MonthlyCapKill,
+                    existingHideCapRing: stored.HideCapRing,
                     existingDailyUsedBytes: usedDay,
                     existingWeeklyUsedBytes: usedWeek,
                     existingMonthlyUsedBytes: usedMonth)
@@ -1192,6 +1200,9 @@ namespace MasselGUARD
                 stored.DailyCapKill   = tcd.ResultDailyCapKill;
                 stored.WeeklyCapKill  = tcd.ResultWeeklyCapKill;
                 stored.MonthlyCapKill = tcd.ResultMonthlyCapKill;
+                stored.HideCapRing    = tcd.ResultHideCapRing;
+                stored.SplitMode      = tcd.ResultSplitMode;
+                stored.SplitRanges    = tcd.ResultSplitRanges;
             }
             else if (dlg is Views.TunnelMetadataDialog tmd)
             {
@@ -1211,6 +1222,7 @@ namespace MasselGUARD
                 stored.DailyCapKill   = tmd.ResultDailyCapKill;
                 stored.WeeklyCapKill  = tmd.ResultWeeklyCapKill;
                 stored.MonthlyCapKill = tmd.ResultMonthlyCapKill;
+                stored.HideCapRing    = tmd.ResultHideCapRing;
             }
             else return;
 

@@ -405,6 +405,67 @@
                                           FontSize="11" VerticalAlignment="Center"
                                           Content="{Binding [TunnelDialogCapKill], Source={x:Static local:Lang.Instance}}"/>
                             </StackPanel>
+                            <CheckBox x:Name="HideCapRingChk" Margin="0,10,0,0"
+                                      FontSize="11" VerticalAlignment="Center"
+                                      Content="{Binding [TunnelDialogHideCapRing], Source={x:Static local:Lang.Instance}}"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Split tunneling tab (local tunnels only) -->
+                <TabItem x:Name="TabSplit"
+                         Header="{Binding [TunnelDialogTabSplit], Source={x:Static local:Lang.Instance}}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,16">
+                        <StackPanel>
+                            <TextBlock Text="{Binding [SplitSectionHeader], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SectionLabel}" Margin="0,0,0,6"/>
+                            <TextBlock Text="{Binding [SplitSectionHint], Source={x:Static local:Lang.Instance}}"
+                                       FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                       Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                       Margin="0,0,0,10"/>
+
+                            <!-- Mode -->
+                            <StackPanel>
+                                <RadioButton x:Name="SplitModeOffRadio" GroupName="SplitMode" IsChecked="True"
+                                             Content="{Binding [SplitModeOff], Source={x:Static local:Lang.Instance}}"
+                                             Foreground="{DynamicResource TextPrimary}"
+                                             FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                             Margin="0,0,0,4" Checked="SplitMode_Changed"/>
+                                <RadioButton x:Name="SplitModeExcludeRadio" GroupName="SplitMode"
+                                             Content="{Binding [SplitModeExclude], Source={x:Static local:Lang.Instance}}"
+                                             Foreground="{DynamicResource TextPrimary}"
+                                             FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                             Margin="0,0,0,4" Checked="SplitMode_Changed"/>
+                                <RadioButton x:Name="SplitModeIncludeRadio" GroupName="SplitMode"
+                                             Content="{Binding [SplitModeInclude], Source={x:Static local:Lang.Instance}}"
+                                             Foreground="{DynamicResource TextPrimary}"
+                                             FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                             Margin="0,0,0,4" Checked="SplitMode_Changed"/>
+                            </StackPanel>
+
+                            <!-- Ranges -->
+                            <TextBlock Text="{Binding [SplitRangesLabel], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SectionLabel}" Margin="0,12,0,4"/>
+                            <TextBlock Text="{Binding [SplitRangesHint], Source={x:Static local:Lang.Instance}}"
+                                       FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                       Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                       Margin="0,0,0,6"/>
+                            <TextBox x:Name="SplitRangesBox" IsEnabled="False"
+                                     AcceptsReturn="True" MinHeight="90" MaxHeight="160"
+                                     FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                     VerticalScrollBarVisibility="Auto" TextWrapping="NoWrap"/>
+
+                            <!-- Apps (coming in a later 4.x) -->
+                            <TextBlock Text="{Binding [SplitAppsLabel], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SectionLabel}" Margin="0,14,0,4"/>
+                            <TextBlock Text="{Binding [SplitAppsComingSoon], Source={x:Static local:Lang.Instance}}"
+                                       FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9" FontStyle="Italic"
+                                       Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                       Margin="0,0,0,6"/>
+                            <TextBox x:Name="SplitAppsBox" IsEnabled="False"
+                                     AcceptsReturn="True" MinHeight="50" MaxHeight="90"
+                                     FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                     VerticalScrollBarVisibility="Auto" TextWrapping="NoWrap"/>
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>

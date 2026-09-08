@@ -169,7 +169,7 @@ MasselGUARD includes a full CLI for scripting and automation. Requires Administr
 MasselGUARD version
 ```
 ```
-MasselGUARD v3.9.5  |  Selective Serval
+MasselGUARD v4.0.0  |  Forking Fox
 build:   2608200000
 arch:    x64
 Harold Masselink  |  https://masselink.net
@@ -215,7 +215,7 @@ Requires the .NET 10 SDK. With no argument, `BUILD.bat` builds **both** architec
 Banner:
 ```
   --------------------------------------------------
-  MasselGUARD  v3.9.5  |  Selective Serval
+  MasselGUARD  v4.0.0  |  Forking Fox
   Harold Masselink  |  https://masselink.net
   Building arch(es): x64 arm64
   --------------------------------------------------

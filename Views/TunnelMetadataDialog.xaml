@@ -142,6 +142,9 @@
                               FontSize="11" VerticalAlignment="Center"
                               Content="{Binding [TunnelDialogCapKill], Source={x:Static local:Lang.Instance}}"/>
                 </StackPanel>
+                <CheckBox x:Name="HideCapRingChk" Margin="0,10,0,0"
+                          FontSize="11" VerticalAlignment="Center"
+                          Content="{Binding [TunnelDialogHideCapRing], Source={x:Static local:Lang.Instance}}"/>
 
                 <!-- Notes -->
                 <TextBlock Text="{Binding [TunnelDialogNotes], Source={x:Static local:Lang.Instance}}"

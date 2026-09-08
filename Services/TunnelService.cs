@@ -36,6 +36,9 @@ namespace MasselGUARD.Services
         private readonly ScriptService      _scripts;
         private readonly HistoryService     _history;
         private readonly KillSwitchService? _ks;
+        // Route/IP-based split backend (4.0.0). Stateless; a future WinDivert backend
+        // would be selected here per SplitConfig. See docs/SplitTunneling-Design.md §4.
+        private readonly ISplitTunnelBackend _splitBackend = new RouteBasedBackend();
         private readonly System.Collections.Generic.Dictionary<string, DateTime>      _connectTimes = new();
         /// <summary>Byte counts snapshotted at connect time, for session-delta reporting on disconnect.</summary>
         private readonly System.Collections.Generic.Dictionary<string, (long rx, long tx)> _connectBytes = new();
@@ -150,6 +153,30 @@ namespace MasselGUARD.Services
                 return false;
             }
 
+            // Split tunneling — rewrite AllowedIPs before validating/writing so wireguard-NT
+            // programs the split routes. No-op unless the tunnel has a route-based split
+            // configured (SplitMode != off with ranges). See docs/SplitTunneling-Design.md.
+            var split = Models.SplitConfig.From(stored);
+            if (split.HasRouteSplit)
+            {
+                try
+                {
+                    var rewritten = _splitBackend.ApplyToConfig(plaintext, split);
+                    if (!ReferenceEquals(rewritten, plaintext) && rewritten != plaintext)
+                    {
+                        plaintext = rewritten;
+                        _log.Debug($"Split ({split.Mode}) applied to {stored.Name}: " +
+                                   $"{split.Ranges.Count} range(s).");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Fail safe: on any split-computation error, connect with the original config
+                    // rather than blocking the tunnel entirely.
+                    _log.Warn($"Split tunneling skipped for {stored.Name}: {ex.Message}");
+                }
+            }
+
             // Validate before writing — tunnel.dll exits with code 2 for any parse error.
             // Active by default; only the global bypass switch can turn it off.
             if (!cfg.SkipTunnelValidation)
@@ -207,9 +234,12 @@ namespace MasselGUARD.Services
                         regKey?.SetValue("DisplayName", $"WireGuard Tunnel: MasselGUARD - {stored.Name}");
                     }
                     catch { /* non-critical */ }
-                    // Enable kill switch after the tunnel adapter is up
+                    // Enable kill switch after the tunnel adapter is up. In exclude-mode split
+                    // the excluded ranges must stay reachable off-tunnel, so allow them past the
+                    // global block (design §6). Empty for include/off.
                     if (_ks != null && ShouldKillSwitch(stored, cfg))
-                        _ks.Enable(stored.Name, KillSwitchService.ParseEndpointIp(plaintext));
+                        _ks.Enable(stored.Name, KillSwitchService.ParseEndpointIp(plaintext),
+                                   _splitBackend.KillSwitchBypassRanges(split));
                     return true;
                 }
                 _log.Warn($"TunnelDll: {err}"); return false;
