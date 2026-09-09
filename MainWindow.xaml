@@ -362,6 +362,8 @@
                                             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                                             <Setter Property="Padding" Value="0"/>
                                             <Setter Property="Margin" Value="0,0,0,1"/>
+                                            <!-- Bars-style caps make every row a fixed taller height (rings = 0 = natural). -->
+                                            <Setter Property="MinHeight" Value="{Binding RowMinHeight}"/>
                                             <EventSetter Event="PreviewMouseLeftButtonDown"
                                                          Handler="TunnelItem_MouseDown"/>
                                             <Style.Triggers>
@@ -478,6 +480,21 @@
                                                                         ToolTip="{Binding CapRingsTooltip}"
                                                                         ToolTipService.InitialShowDelay="0"
                                                                         ToolTipService.BetweenShowDelay="0"/>
+                                                        <!-- Bars variant — same data, taller layout; shown when CapIndicatorStyle = bars. -->
+                                                        <views:CapBars Grid.Column="1"
+                                                                       Margin="14,0,2,0"
+                                                                       VerticalAlignment="Center"
+                                                                       Visibility="{Binding CapBarsVisibility}"
+                                                                       Active="{Binding IsActive}"
+                                                                       DayFraction="{Binding DayCapFraction}"
+                                                                       WeekFraction="{Binding WeekCapFraction}"
+                                                                       MonthFraction="{Binding MonthCapFraction}"
+                                                                       DaySet="{Binding DayCapSet}"
+                                                                       WeekSet="{Binding WeekCapSet}"
+                                                                       MonthSet="{Binding MonthCapSet}"
+                                                                       ToolTip="{Binding CapRingsTooltip}"
+                                                                       ToolTipService.InitialShowDelay="0"
+                                                                       ToolTipService.BetweenShowDelay="0"/>
                                                     </Grid>
                                                     <!-- Rules hit count -->
                                                     <TextBlock Grid.Column="2"
@@ -494,12 +511,14 @@
                                                                MouseLeftButtonDown="RuleCount_Click"/>
                                                     <!-- Connect / Disconnect button + cap-kill marker -->
                                                     <StackPanel Grid.Column="3" Orientation="Horizontal"
-                                                                HorizontalAlignment="Center">
+                                                                HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center">
                                                         <Button Content="{Binding ButtonLabel}"
                                                                 IsEnabled="{Binding ButtonEnabled}"
                                                                 ToolTip="{Binding ButtonTooltip}"
                                                                 Click="TunnelToggle_Click"
                                                                 Padding="6,2"
+                                                                VerticalAlignment="Center"
                                                                 FontSize="{DynamicResource Theme.FontSize.Small}"
                                                                 Style="{StaticResource FlatBtn}"/>
                                                         <TextBlock Text="🛑"

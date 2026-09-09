@@ -14,13 +14,15 @@ List the ranges one per line in **CIDR notation** (`192.168.1.0/24`) or as a sin
 
 It plays correctly with the **kill switch**: in *Exclude* mode the excluded ranges are still allowed out over your normal connection instead of being blocked. Your split settings also **travel with an exported tunnel** (`.conf` / `.mgconf`) and show up in `MasselGUARDcli info`.
 
-> **Coming later:** *per-app* split tunneling (choose by application rather than IP range). The **Apps** area is visible in the Split tab now as a preview — it arrives in a later 4.x update.
+> **Coming later:** *per-app* split tunneling (choose by application rather than IP range) — planned for a later 4.x update.
 
 ### Also in this release
 
 - **Cap-killed marker is now red.** When *Kill at cap* disconnects a tunnel, the 🛑 marker by its Connect button is properly coloured.
-- **Hide a tunnel's usage ring.** A new **Hide usage ring** option in the tunnel editor's DATA-USAGE section hides that tunnel's row rings while keeping the warnings/enforcement working.
+- **Usage indicator: bars or rings.** Each tunnel's data-cap usage now shows on its row as slim horizontal **bars** (day / week / month, colour-coded, with the exact breakdown on hover) — the new default. Prefer the original compact **rings**? Switch it in Settings → Tunnels → Display.
+- **Hide a usage ring per period.** Each period (daily / weekly / monthly) in the tunnel editor's DATA-USAGE section now has its own **Hide ring** checkbox, so you can show just the monthly ring, for example. The current-usage figures are also column-aligned now.
 - **`MasselGUARDcli help` and `version` no longer need Administrator.** Informational commands run in any terminal; only commands that actually touch the tunnel driver require elevation.
+- **Fixed: connecting a local tunnel from the CLI.** `MasselGUARDcli connect <name>` failed for local tunnels because the tunnel service was launched with the wrong host executable and exited immediately; it now starts correctly. Thanks to **Sven Grewe ([@qoreQyaS](https://github.com/qoreQyaS))** for the fix ([#47](https://github.com/masselink/MasselGUARD/pull/47)).
 
 ---
 

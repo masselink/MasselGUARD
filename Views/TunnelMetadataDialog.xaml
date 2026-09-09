@@ -114,8 +114,11 @@
                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Width="150"
                                Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                     <TextBox x:Name="DailyCapBox" Width="80" FontSize="11" Text="0" VerticalAlignment="Center"/>
-                    <TextBlock x:Name="DailyUsedLabel" FontSize="10" Foreground="{DynamicResource TextMuted}"
-                               VerticalAlignment="Center" Margin="8,0,0,0"/>
+                    <TextBlock x:Name="DailyUsedLabel" Width="120" FontSize="10" Foreground="{DynamicResource TextMuted}"
+                               VerticalAlignment="Center" Margin="8,0,0,0" TextTrimming="CharacterEllipsis"/>
+                    <CheckBox x:Name="DailyHideRingChk" Margin="12,0,0,0"
+                              FontSize="11" VerticalAlignment="Center"
+                              Content="{Binding [TunnelDialogHideRing], Source={x:Static local:Lang.Instance}}"/>
                     <CheckBox x:Name="DailyCapKillChk" Margin="12,0,0,0"
                               FontSize="11" VerticalAlignment="Center"
                               Content="{Binding [TunnelDialogCapKill], Source={x:Static local:Lang.Instance}}"/>
@@ -125,8 +128,11 @@
                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Width="150"
                                Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                     <TextBox x:Name="WeeklyCapBox" Width="80" FontSize="11" Text="0" VerticalAlignment="Center"/>
-                    <TextBlock x:Name="WeeklyUsedLabel" FontSize="10" Foreground="{DynamicResource TextMuted}"
-                               VerticalAlignment="Center" Margin="8,0,0,0"/>
+                    <TextBlock x:Name="WeeklyUsedLabel" Width="120" FontSize="10" Foreground="{DynamicResource TextMuted}"
+                               VerticalAlignment="Center" Margin="8,0,0,0" TextTrimming="CharacterEllipsis"/>
+                    <CheckBox x:Name="WeeklyHideRingChk" Margin="12,0,0,0"
+                              FontSize="11" VerticalAlignment="Center"
+                              Content="{Binding [TunnelDialogHideRing], Source={x:Static local:Lang.Instance}}"/>
                     <CheckBox x:Name="WeeklyCapKillChk" Margin="12,0,0,0"
                               FontSize="11" VerticalAlignment="Center"
                               Content="{Binding [TunnelDialogCapKill], Source={x:Static local:Lang.Instance}}"/>
@@ -136,15 +142,15 @@
                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Width="150"
                                Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                     <TextBox x:Name="MonthlyCapBox" Width="80" FontSize="11" Text="0" VerticalAlignment="Center"/>
-                    <TextBlock x:Name="MonthlyUsedLabel" FontSize="10" Foreground="{DynamicResource TextMuted}"
-                               VerticalAlignment="Center" Margin="8,0,0,0"/>
+                    <TextBlock x:Name="MonthlyUsedLabel" Width="120" FontSize="10" Foreground="{DynamicResource TextMuted}"
+                               VerticalAlignment="Center" Margin="8,0,0,0" TextTrimming="CharacterEllipsis"/>
+                    <CheckBox x:Name="MonthlyHideRingChk" Margin="12,0,0,0"
+                              FontSize="11" VerticalAlignment="Center"
+                              Content="{Binding [TunnelDialogHideRing], Source={x:Static local:Lang.Instance}}"/>
                     <CheckBox x:Name="MonthlyCapKillChk" Margin="12,0,0,0"
                               FontSize="11" VerticalAlignment="Center"
                               Content="{Binding [TunnelDialogCapKill], Source={x:Static local:Lang.Instance}}"/>
                 </StackPanel>
-                <CheckBox x:Name="HideCapRingChk" Margin="0,10,0,0"
-                          FontSize="11" VerticalAlignment="Center"
-                          Content="{Binding [TunnelDialogHideCapRing], Source={x:Static local:Lang.Instance}}"/>
 
                 <!-- Notes -->
                 <TextBlock Text="{Binding [TunnelDialogNotes], Source={x:Static local:Lang.Instance}}"

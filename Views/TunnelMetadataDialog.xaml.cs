@@ -23,7 +23,9 @@ namespace MasselGUARD.Views
         public bool   ResultDailyCapKill       { get; private set; }
         public bool   ResultWeeklyCapKill      { get; private set; }
         public bool   ResultMonthlyCapKill     { get; private set; }
-        public bool   ResultHideCapRing        { get; private set; }
+        public bool   ResultDailyCapHideRing   { get; private set; }
+        public bool   ResultWeeklyCapHideRing  { get; private set; }
+        public bool   ResultMonthlyCapHideRing { get; private set; }
 
         public TunnelMetadataDialog(string tunnelName, string currentGroup,
                                     string currentNotes, List<string> groups,
@@ -35,7 +37,9 @@ namespace MasselGUARD.Views
                                     int existingMonthlyCapMB = 0,
                                     int existingDailyCapMB = 0, int existingWeeklyCapMB = 0,
                                     bool existingDailyCapKill = false, bool existingWeeklyCapKill = false,
-                                    bool existingMonthlyCapKill = false, bool existingHideCapRing = false,
+                                    bool existingMonthlyCapKill = false,
+                                    bool existingDailyCapHideRing = false, bool existingWeeklyCapHideRing = false,
+                                    bool existingMonthlyCapHideRing = false,
                                     long existingDailyUsedBytes = 0, long existingWeeklyUsedBytes = 0,
                                     long existingMonthlyUsedBytes = 0)
         {
@@ -80,7 +84,9 @@ namespace MasselGUARD.Views
             if (DailyCapKillChk   != null) DailyCapKillChk.IsChecked   = existingDailyCapKill;
             if (WeeklyCapKillChk  != null) WeeklyCapKillChk.IsChecked  = existingWeeklyCapKill;
             if (MonthlyCapKillChk != null) MonthlyCapKillChk.IsChecked = existingMonthlyCapKill;
-            if (HideCapRingChk    != null) HideCapRingChk.IsChecked    = existingHideCapRing;
+            if (DailyHideRingChk   != null) DailyHideRingChk.IsChecked   = existingDailyCapHideRing;
+            if (WeeklyHideRingChk  != null) WeeklyHideRingChk.IsChecked  = existingWeeklyCapHideRing;
+            if (MonthlyHideRingChk != null) MonthlyHideRingChk.IsChecked = existingMonthlyCapHideRing;
             if (DailyUsedLabel    != null) DailyUsedLabel.Text    = UsedText(existingDailyUsedBytes);
             if (WeeklyUsedLabel   != null) WeeklyUsedLabel.Text   = UsedText(existingWeeklyUsedBytes);
             if (MonthlyUsedLabel  != null) MonthlyUsedLabel.Text  = UsedText(existingMonthlyUsedBytes);
@@ -128,7 +134,9 @@ namespace MasselGUARD.Views
             ResultDailyCapKill        = DailyCapKillChk?.IsChecked   == true;
             ResultWeeklyCapKill       = WeeklyCapKillChk?.IsChecked  == true;
             ResultMonthlyCapKill      = MonthlyCapKillChk?.IsChecked == true;
-            ResultHideCapRing         = HideCapRingChk?.IsChecked    == true;
+            ResultDailyCapHideRing    = DailyHideRingChk?.IsChecked   == true;
+            ResultWeeklyCapHideRing   = WeeklyHideRingChk?.IsChecked  == true;
+            ResultMonthlyCapHideRing  = MonthlyHideRingChk?.IsChecked == true;
             DialogResult = true;
         }
 

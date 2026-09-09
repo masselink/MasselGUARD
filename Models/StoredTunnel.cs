@@ -60,9 +60,12 @@ namespace MasselGUARD.Models
         public bool WeeklyCapKill  { get; set; } = false;
         public bool MonthlyCapKill { get; set; } = false;
 
-        // Local UI preference: hide the usage rings for this tunnel's row even when a
-        // cap is set (warnings/enforcement still apply). Not exported — display-only.
-        public bool HideCapRing { get; set; } = false;
+        // Local UI preference: hide an individual period's usage ring on the tunnel's row
+        // even when that period's cap is set (warnings/enforcement still apply). Per-ring so
+        // you can show e.g. only the monthly ring. Not exported — display-only.
+        public bool DailyCapHideRing   { get; set; } = false;
+        public bool WeeklyCapHideRing  { get; set; } = false;
+        public bool MonthlyCapHideRing { get; set; } = false;
 
         // ── Split tunneling (4.0.0) ──────────────────────────────────────────
         // See docs/SplitTunneling-Design.md. Route/IP-based split is a pure

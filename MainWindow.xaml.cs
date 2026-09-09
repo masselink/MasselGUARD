@@ -1083,7 +1083,9 @@ namespace MasselGUARD
                 DailyCapKill        = dlg.ResultDailyCapKill,
                 WeeklyCapKill       = dlg.ResultWeeklyCapKill,
                 MonthlyCapKill      = dlg.ResultMonthlyCapKill,
-                HideCapRing         = dlg.ResultHideCapRing,
+                DailyCapHideRing    = dlg.ResultDailyCapHideRing,
+                WeeklyCapHideRing   = dlg.ResultWeeklyCapHideRing,
+                MonthlyCapHideRing  = dlg.ResultMonthlyCapHideRing,
                 SplitMode           = dlg.ResultSplitMode,
                 SplitRanges         = dlg.ResultSplitRanges,
             };
@@ -1139,7 +1141,9 @@ namespace MasselGUARD
                     existingDailyCapKill: stored.DailyCapKill,
                     existingWeeklyCapKill: stored.WeeklyCapKill,
                     existingMonthlyCapKill: stored.MonthlyCapKill,
-                    existingHideCapRing: stored.HideCapRing,
+                    existingDailyCapHideRing: stored.DailyCapHideRing,
+                    existingWeeklyCapHideRing: stored.WeeklyCapHideRing,
+                    existingMonthlyCapHideRing: stored.MonthlyCapHideRing,
                     existingSplitMode: stored.SplitMode,
                     existingSplitRanges: stored.SplitRanges,
                     existingSplitApps: stored.SplitApps,
@@ -1163,7 +1167,9 @@ namespace MasselGUARD
                     existingDailyCapKill: stored.DailyCapKill,
                     existingWeeklyCapKill: stored.WeeklyCapKill,
                     existingMonthlyCapKill: stored.MonthlyCapKill,
-                    existingHideCapRing: stored.HideCapRing,
+                    existingDailyCapHideRing: stored.DailyCapHideRing,
+                    existingWeeklyCapHideRing: stored.WeeklyCapHideRing,
+                    existingMonthlyCapHideRing: stored.MonthlyCapHideRing,
                     existingDailyUsedBytes: usedDay,
                     existingWeeklyUsedBytes: usedWeek,
                     existingMonthlyUsedBytes: usedMonth)
@@ -1200,7 +1206,9 @@ namespace MasselGUARD
                 stored.DailyCapKill   = tcd.ResultDailyCapKill;
                 stored.WeeklyCapKill  = tcd.ResultWeeklyCapKill;
                 stored.MonthlyCapKill = tcd.ResultMonthlyCapKill;
-                stored.HideCapRing    = tcd.ResultHideCapRing;
+                stored.DailyCapHideRing   = tcd.ResultDailyCapHideRing;
+                stored.WeeklyCapHideRing  = tcd.ResultWeeklyCapHideRing;
+                stored.MonthlyCapHideRing = tcd.ResultMonthlyCapHideRing;
                 stored.SplitMode      = tcd.ResultSplitMode;
                 stored.SplitRanges    = tcd.ResultSplitRanges;
             }
@@ -1222,7 +1230,9 @@ namespace MasselGUARD
                 stored.DailyCapKill   = tmd.ResultDailyCapKill;
                 stored.WeeklyCapKill  = tmd.ResultWeeklyCapKill;
                 stored.MonthlyCapKill = tmd.ResultMonthlyCapKill;
-                stored.HideCapRing    = tmd.ResultHideCapRing;
+                stored.DailyCapHideRing   = tmd.ResultDailyCapHideRing;
+                stored.WeeklyCapHideRing  = tmd.ResultWeeklyCapHideRing;
+                stored.MonthlyCapHideRing = tmd.ResultMonthlyCapHideRing;
             }
             else return;
 

@@ -131,7 +131,7 @@ namespace MasselGUARD.Views
             TabBtnAbout.Tag      = tab == "About"      ? "Active" : null;
 
             if (tab == "General")    { RefreshGroupList(); RefreshModeStatusBox(); SyncStartWithWindows(); SyncConfirmOnClose(); }
-            if (tab == "Tunnels")    { RefreshGroupList(); SyncArMode(); SyncKsMode(); SyncSkipTunnelValidation(); }
+            if (tab == "Tunnels")    { RefreshGroupList(); SyncArMode(); SyncKsMode(); SyncSkipTunnelValidation(); SyncCapStyle(); }
             if (tab == "Wifi")       RefreshAutomationControls();
             if (tab == "Appearance") PopulateThemePicker();
             if (tab == "History")    RefreshHistoryTab();
@@ -2108,6 +2108,23 @@ namespace MasselGUARD.Views
                 _draft.KillSwitchMode = tag;
         }
 
+        private void SyncCapStyle()
+        {
+            if (CapStyleRings == null || CapStyleBars == null) return;
+            _loading = true;
+            var style = _draft.CapIndicatorStyle ?? "rings";
+            CapStyleBars.IsChecked  = style == "bars";
+            CapStyleRings.IsChecked = style != "bars";
+            _loading = false;
+        }
+
+        private void CapStyle_Changed(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (_loading) return;
+            if (sender is System.Windows.Controls.RadioButton rb && rb.Tag is string tag)
+                _draft.CapIndicatorStyle = tag;
+        }
+
         private void SyncSkipTunnelValidation()
         {
             if (SkipTunnelValidationToggle == null) return;
@@ -2288,6 +2305,7 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.DnsLeakWarnToast    = _draft.DnsLeakWarnToast;
             _main.ConfigSvc.Config.KillSwitchMode      = _draft.KillSwitchMode;
             _main.ConfigSvc.Config.SkipTunnelValidation = _draft.SkipTunnelValidation;
+            _main.ConfigSvc.Config.CapIndicatorStyle   = _draft.CapIndicatorStyle;
             _main.ConfigSvc.Config.TrustedNetworks     = _draft.TrustedNetworks;
             _main.ConfigSvc.Config.FontOverrideEnabled    = _draft.FontOverrideEnabled;
             _main.ConfigSvc.Config.FontOverrideFamily    = _draft.FontOverrideFamily;

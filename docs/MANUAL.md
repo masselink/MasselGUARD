@@ -184,11 +184,13 @@ By default a tunnel is a **full tunnel** — all your traffic goes through it. O
 
 Enter ranges **one per line**, in CIDR notation (`10.0.0.0/8`, `192.168.1.0/24`) or as a single address (`10.0.0.5`, treated as a `/32`). **IPv4 and IPv6** are both supported. MasselGUARD works out the tunnel's effective routes automatically — you don't edit any route tables. An invalid entry is flagged when you save.
 
+The Split tab shows a live **Effective AllowedIPs (preview)** underneath: *Base* is the `AllowedIPs` from the Fields tab, and *Effective* is what the tunnel will actually route once your split is applied — it updates as you change the mode or ranges, so you can see exactly what will be tunnelled before you save.
+
 Notes:
 - Split tunneling applies to **local** tunnels (the ones MasselGUARD builds). Companion WireGuard-for-Windows tunnels are managed by that app and have no Split tab.
 - With a **kill switch** active, *Exclude* ranges are still allowed out over your normal connection (they're not blocked) — so excluded traffic keeps working while the rest is protected.
 - Split settings **travel with an export** (they're part of the *Include MasselGUARD settings* extras) and are shown by `MasselGUARDcli info <name>`.
-- The **Apps** area on the Split tab is a preview of a future feature — *per-app* split (choose by application, not IP) — and is not active yet.
+- *Per-app* split (choosing by application instead of IP range) is planned for a later 4.x update and is not in this version yet.
 
 ---
 

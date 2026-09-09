@@ -352,16 +352,33 @@ namespace MasselGUARD.ViewModels
         public double WeekCapFraction  => Frac(_weekBytes,    WeeklyCapBytes);
         public double MonthCapFraction => Frac(_monthlyBytes, MonthlyCapBytes);
 
-        public bool DayCapSet   => DailyCapBytes   > 0;
-        public bool WeekCapSet  => WeeklyCapBytes  > 0;
-        public bool MonthCapSet => MonthlyCapBytes > 0;
+        // A period's ring is shown when its cap is set AND its per-ring hide flag is off.
+        // These feed CapRings.DaySet/WeekSet/MonthSet, so a hidden ring simply isn't drawn
+        // (its warning/enforcement still runs). Rings show even when disconnected — the
+        // CapRings control renders them greyed (Active=false) but at real usage.
+        public bool DayCapSet   => DailyCapBytes   > 0 && !StoredTunnel.DailyCapHideRing;
+        public bool WeekCapSet  => WeeklyCapBytes  > 0 && !StoredTunnel.WeeklyCapHideRing;
+        public bool MonthCapSet => MonthlyCapBytes > 0 && !StoredTunnel.MonthlyCapHideRing;
 
-        // Rings show whenever a cap is configured — even when disconnected, where the
-        // CapRings control renders them greyed (Active=false) but at real usage. The
-        // per-tunnel HideCapRing flag suppresses them regardless (warn/enforce still run).
+        // At least one period's ring/bar is shown (cap set and not per-ring-hidden).
+        public bool AnyRingShown => DayCapSet || WeekCapSet || MonthCapSet;
+
+        // Global style: rings (compact) vs bars (taller, fixed row height). AppConfig.CapIndicatorStyle.
+        private bool CapStyleIsBars =>
+            string.Equals(_config?.Config?.CapIndicatorStyle, "bars", System.StringComparison.OrdinalIgnoreCase);
+
+        // The rings control shows only in rings-style; the bars control only in bars-style.
         public System.Windows.Visibility CapRingsVisibility =>
-            AnyCapConfigured && !StoredTunnel.HideCapRing
+            !CapStyleIsBars && AnyRingShown
                 ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+        public System.Windows.Visibility CapBarsVisibility =>
+            CapStyleIsBars && AnyRingShown
+                ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+
+        // In bars-style every row is a fixed height so the list stays uniform even for tunnels
+        // with fewer (or no) caps. The thin stacked bars (~24px) need only a little more than a
+        // ring row. Rings-style keeps the natural compact height.
+        public double RowMinHeight => CapStyleIsBars ? 34.0 : 0.0;
 
         /// <summary>Per-period breakdown for the rings' hover tooltip (set periods only).</summary>
         public string CapRingsTooltip
@@ -436,7 +453,9 @@ namespace MasselGUARD.ViewModels
             OnPropertyChanged(nameof(DayCapSet));
             OnPropertyChanged(nameof(WeekCapSet));
             OnPropertyChanged(nameof(MonthCapSet));
+            OnPropertyChanged(nameof(AnyRingShown));
             OnPropertyChanged(nameof(CapRingsVisibility));
+            OnPropertyChanged(nameof(CapBarsVisibility));
             OnPropertyChanged(nameof(CapRingsTooltip));
             OnPropertyChanged(nameof(CapHighlightBrush));
             OnPropertyChanged(nameof(CapHighlightVisibility));
