@@ -572,6 +572,7 @@
   "HealthHealthy": "Tunnel gezond — adapter actief en verkeer wordt doorgegeven",
   "HealthIdle": "Tunnel actief — geen recent verkeer (inactief)",
   "HealthDown": "Tunneladapter is uit of ontbreekt terwijl deze als actief is gemarkeerd",
+  "HandshakeLast": "Laatste handshake: {0} geleden",
   "DnsTipSecure": "DNS via de tunnel gerouteerd — beschermd",
   "DnsTipLeak": "Andere adapters hebben DNS-servers — mogelijke DNS-lek",
   "DnsTipNotConfigured": "Geen DNS geconfigureerd in de tunnel — query's omzeilen de VPN",

@@ -12,6 +12,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.MemoryMappedFiles;
+using System.IO.Pipes;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.ServiceProcess;
@@ -443,6 +444,12 @@ namespace MasselGUARD
             public long RxBytes;
             /// <summary>Cumulative bytes sent since the adapter was created.</summary>
             public long TxBytes;
+            /// <summary>Most recent WireGuard handshake (UTC), when read from the management pipe;
+            /// null when only the NetworkInterface fallback was available (no handshake there).</summary>
+            public DateTime? LastHandshakeUtc;
+            /// <summary>True when the figures came from the WireGuard UAPI pipe (accurate, incl. IPv6,
+            /// with a real handshake) rather than the NetworkInterface fallback.</summary>
+            public bool FromWireGuard;
         }
 
         /// <summary>
@@ -472,6 +479,75 @@ namespace MasselGUARD
                 };
             }
             catch { return default; }
+        }
+
+        /// <summary>
+        /// Combined per-tunnel stats: prefer the WireGuard UAPI pipe (accurate tx/rx incl. IPv6 +
+        /// last handshake, for both local and companion tunnels), fall back to
+        /// <see cref="GetTrafficStats"/> (NetworkInterface, IPv4-only, no handshake) when the pipe
+        /// isn't readable. Always safe — the pipe read is read-only.
+        /// </summary>
+        public static TunnelStats GetStats(string tunnelName)
+        {
+            var wg = GetWireGuardStats(tunnelName);
+            return wg.FromWireGuard ? wg : GetTrafficStats(tunnelName);
+        }
+
+        /// <summary>
+        /// Reads tx/rx bytes and last-handshake from the WireGuard management pipe via the
+        /// cross-platform UAPI (<c>get=1</c>). Read-only IPC — cannot destroy the adapter (unlike
+        /// <c>WireGuardGetConfiguration</c> + Open/Close, whose Close deletes the adapter on the last
+        /// handle). Returns a zeroed struct (<c>FromWireGuard=false</c>) when no pipe answers, so the
+        /// caller falls back to <see cref="GetTrafficStats"/>. tx = sent (↑), rx = received (↓).
+        /// </summary>
+        public static TunnelStats GetWireGuardStats(string tunnelName)
+        {
+            // Local tunnels (tunnel.dll service) expose \\.\pipe\WireGuard\<name>; WireGuard-for-
+            // Windows companions use the ProtectedPrefix path. Try both; benign on failure.
+            foreach (var pipeName in new[]
+                     {
+                         $@"WireGuard\{tunnelName}",
+                         $@"ProtectedPrefix\Administrators\WireGuard\{tunnelName}",
+                     })
+            {
+                try
+                {
+                    using var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut);
+                    pipe.Connect(200);
+                    var req = Encoding.ASCII.GetBytes("get=1\n\n");
+                    pipe.Write(req, 0, req.Length);
+                    pipe.Flush();
+
+                    long rx = 0, tx = 0, hsSec = 0;
+                    using var reader = new StreamReader(pipe, Encoding.ASCII, false, 1024, leaveOpen: true);
+                    string? line;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        if (line.Length == 0) break;              // blank line ends the response
+                        int eq = line.IndexOf('=');
+                        if (eq <= 0) continue;
+                        var key = line.AsSpan(0, eq);
+                        var val = line.AsSpan(eq + 1);
+                        if      (key.SequenceEqual("rx_bytes")) { if (long.TryParse(val, out var r)) rx += r; }
+                        else if (key.SequenceEqual("tx_bytes")) { if (long.TryParse(val, out var t)) tx += t; }
+                        else if (key.SequenceEqual("last_handshake_time_sec"))
+                        { if (long.TryParse(val, out var s) && s > hsSec) hsSec = s; }
+                    }
+
+                    return new TunnelStats
+                    {
+                        AdapterFound     = true,
+                        AdapterUp        = true,
+                        RxBytes          = rx,
+                        TxBytes          = tx,
+                        LastHandshakeUtc = hsSec > 0
+                            ? DateTimeOffset.FromUnixTimeSeconds(hsSec).UtcDateTime : (DateTime?)null,
+                        FromWireGuard    = true,
+                    };
+                }
+                catch { /* pipe missing / busy / no access — try next path, then fall back */ }
+            }
+            return default;
         }
 
         /// <summary>

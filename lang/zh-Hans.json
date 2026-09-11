@@ -572,6 +572,7 @@
   "HealthHealthy": "隧道正常——适配器已启用并正在传输流量",
   "HealthIdle": "隧道已启用——近期无流量（空闲）",
   "HealthDown": "隧道适配器已关闭或缺失，但仍标记为活动",
+  "HandshakeLast": "上次握手：{0}前",
   "DnsTipSecure": "DNS 通过隧道路由——受保护",
   "DnsTipLeak": "其他适配器有 DNS 服务器——可能存在 DNS 泄漏",
   "DnsTipNotConfigured": "隧道中未配置 DNS——查询绕过 VPN",

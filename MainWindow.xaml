@@ -433,40 +433,58 @@
                                                     <!-- Status  |  ↑↓ traffic  |  DNS leak (left) · usage rings (pinned right) -->
                                                     <Grid Grid.Column="1" VerticalAlignment="Center">
                                                         <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>   <!-- status dot + text -->
+                                                            <ColumnDefinition Width="Auto"/>   <!-- traffic (fixed width) -->
+                                                            <ColumnDefinition Width="Auto"/>   <!-- DNS leak badge -->
+                                                            <ColumnDefinition Width="*"/>       <!-- spacer -->
+                                                            <ColumnDefinition Width="Auto"/>   <!-- usage rings / bars (pinned right) -->
                                                         </Grid.ColumnDefinitions>
-                                                    <StackPanel Grid.Column="0"
-                                                                Orientation="Horizontal"
-                                                                VerticalAlignment="Center">
-                                                        <!-- Status dot — colour reflects health/traffic when active
-                                                             (green healthy · amber idle · red down) -->
-                                                        <TextBlock Text="{Binding StatusDot}"
-                                                                   Foreground="{Binding StatusDotColor}"
-                                                                   FontSize="{DynamicResource Theme.FontSize}"
-                                                                   VerticalAlignment="Center"
-                                                                   Margin="0,0,4,0"
-                                                                   ToolTip="{Binding HealthTooltip}"/>
-                                                        <TextBlock Text="{Binding StatusText}"
-                                                                   Foreground="{Binding StatusColor}"
-                                                                   FontSize="{DynamicResource Theme.FontSize}"
-                                                                   VerticalAlignment="Center"/>
-                                                        <TextBlock Text="  |  "
-                                                                   Foreground="{DynamicResource TextMuted}"
-                                                                   FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                                   VerticalAlignment="Center"
-                                                                   Visibility="{Binding DnsLeakVisibility}"/>
-                                                        <TextBlock Text="{Binding DnsLeakDisplay}"
-                                                                   Foreground="{Binding DnsLeakColor}"
-                                                                   FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                                   VerticalAlignment="Center"
-                                                                   Visibility="{Binding DnsLeakVisibility}"
-                                                                   ToolTip="{Binding DnsLeakTooltip}"/>
-                                                    </StackPanel>
+                                                        <!-- Status dot + text -->
+                                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <!-- Status dot — colour reflects health/traffic when active. -->
+                                                            <TextBlock Text="{Binding StatusDot}"
+                                                                       Foreground="{Binding StatusDotColor}"
+                                                                       FontSize="{DynamicResource Theme.FontSize}"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,4,0"
+                                                                       ToolTip="{Binding HealthTooltip}"/>
+                                                            <TextBlock Text="{Binding StatusText}"
+                                                                       Foreground="{Binding StatusColor}"
+                                                                       FontSize="{DynamicResource Theme.FontSize}"
+                                                                       VerticalAlignment="Center"/>
+                                                        </StackPanel>
+                                                        <!-- Live per-tunnel traffic (↑ tx  ↓ rx) in its own fixed-width slot, so it
+                                                             always has room next to the status and isn't squeezed by the usage bars. -->
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                                                                    Visibility="{Binding TrafficVisibility}">
+                                                            <TextBlock Text="  |  "
+                                                                       Foreground="{DynamicResource TextMuted}"
+                                                                       FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                       VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding TrafficDisplay}"
+                                                                       Width="132"
+                                                                       Foreground="{DynamicResource TextMuted}"
+                                                                       FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                       VerticalAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                        </StackPanel>
+                                                        <!-- DNS leak badge -->
+                                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                                                    Visibility="{Binding DnsLeakVisibility}">
+                                                            <TextBlock Text="  |  "
+                                                                       Foreground="{DynamicResource TextMuted}"
+                                                                       FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                       VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding DnsLeakDisplay}"
+                                                                       Foreground="{Binding DnsLeakColor}"
+                                                                       FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                       VerticalAlignment="Center"
+                                                                       ToolTip="{Binding DnsLeakTooltip}"/>
+                                                        </StackPanel>
                                                         <!-- Data-cap usage rings — day · week · month, each drawn only when its cap
                                                              is set (d/w/m centre glyph). Pinned in its own right-hand Grid cell with a
                                                              fixed left gap, so the growing uptime text never shifts it. Hover = breakdown. -->
-                                                        <views:CapRings Grid.Column="1"
+                                                        <views:CapRings Grid.Column="4"
                                                                         Margin="14,0,2,0"
                                                                         VerticalAlignment="Center"
                                                                         Visibility="{Binding CapRingsVisibility}"
@@ -481,7 +499,7 @@
                                                                         ToolTipService.InitialShowDelay="0"
                                                                         ToolTipService.BetweenShowDelay="0"/>
                                                         <!-- Bars variant — same data, taller layout; shown when CapIndicatorStyle = bars. -->
-                                                        <views:CapBars Grid.Column="1"
+                                                        <views:CapBars Grid.Column="4"
                                                                        Margin="14,0,2,0"
                                                                        VerticalAlignment="Center"
                                                                        Visibility="{Binding CapBarsVisibility}"

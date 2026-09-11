@@ -572,6 +572,7 @@
   "HealthHealthy": "Tunnel healthy — adapter up and passing traffic",
   "HealthIdle": "Tunnel up — no recent traffic (idle)",
   "HealthDown": "Tunnel adapter is down or missing while marked active",
+  "HandshakeLast": "Last handshake: {0} ago",
   "DnsTipSecure": "DNS routed through tunnel — protected",
   "DnsTipLeak": "Other adapters have DNS servers — possible DNS leak",
   "DnsTipNotConfigured": "No DNS configured in tunnel — queries bypass VPN",

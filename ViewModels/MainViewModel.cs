@@ -493,7 +493,9 @@ namespace MasselGUARD.ViewModels
                     TunnelDll.TunnelStats stats = default;
                     if (nowActive)
                     {
-                        stats = TunnelDll.GetTrafficStats(t.Name);
+                        // Prefer the WireGuard UAPI pipe (accurate bytes + last handshake);
+                        // falls back to the NetworkInterface reading when the pipe isn't readable.
+                        stats = TunnelDll.GetStats(t.Name);
                         t.UpdateStats(stats);
                         var dns = TunnelDll.CheckDnsLeak(t.Name);
                         // Prevention state (machine-wide) — a set leak becomes "contained".

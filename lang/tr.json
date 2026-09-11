@@ -572,6 +572,7 @@
   "HealthHealthy": "Tünel sağlıklı — adaptör çalışıyor ve trafiği geçiriyor",
   "HealthIdle": "Tünel çalışıyor — son zamanlarda trafik yok (boşta)",
   "HealthDown": "Etkin olarak işaretlenmiş olmasına rağmen tünel adaptörü kapalı veya eksik",
+  "HandshakeLast": "Son handshake: {0} önce",
   "DnsTipSecure": "DNS tünel üzerinden yönlendiriliyor — korumalı",
   "DnsTipLeak": "Diğer adaptörlerde DNS sunucuları var — olası DNS sızıntısı",
   "DnsTipNotConfigured": "Tünelde DNS yapılandırılmamış — sorgular VPN'i atlıyor",

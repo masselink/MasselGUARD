@@ -153,26 +153,53 @@ namespace MasselGUARD.ViewModels
         }
 
         // ── Tunnel health ─────────────────────────────────────────────────────
-        // Derived from the adapter state + traffic movement observed on each stats
-        // poll. (A true WireGuard handshake age would need pipe IPC the app does not
-        // yet do; adapter-up + traffic movement is a reliable "is it actually alive".)
+        // Preferred signal: the real WireGuard last-handshake age from the UAPI pipe
+        // (< ~3 min = alive). Falls back to adapter-up + traffic movement when the pipe
+        // isn't readable (older path / companion / no access).
         public enum TunnelHealth { Unknown, Healthy, Idle, Down }
 
         private TunnelHealth _health = TunnelHealth.Unknown;
         private DateTime _lastTrafficMoveUtc = DateTime.MinValue;
+        private DateTime? _lastHandshakeUtc;   // from the WireGuard UAPI pipe; null on the fallback
 
         // Health/traffic is shown by colouring the single status dot (StatusDot /
         // StatusDotColor) in front of the status text — there is no separate dot.
         // HealthTooltip is surfaced on that dot.
         // null (not "") when there's nothing to say, so the always-visible dot shows no
         // empty tooltip popup while disconnected / (dis)connecting.
-        public string? HealthTooltip => _health switch
+        public string? HealthTooltip
         {
-            TunnelHealth.Healthy => Lang.T("HealthHealthy"),
-            TunnelHealth.Idle    => Lang.T("HealthIdle"),
-            TunnelHealth.Down    => Lang.T("HealthDown"),
-            _                    => null,
-        };
+            get
+            {
+                string? baseTip = _health switch
+                {
+                    TunnelHealth.Healthy => Lang.T("HealthHealthy"),
+                    TunnelHealth.Idle    => Lang.T("HealthIdle"),
+                    TunnelHealth.Down    => Lang.T("HealthDown"),
+                    _                    => null,
+                };
+                var hs = HandshakeDisplay;
+                if (string.IsNullOrEmpty(hs)) return baseTip;
+                var line = Lang.T("HandshakeLast", hs);
+                return baseTip == null ? line : $"{baseTip}\n{line}";
+            }
+        }
+
+        /// <summary>Relative age of the last WireGuard handshake, e.g. "12s", "3m" — empty when
+        /// unknown (inactive, or the fallback stats path with no handshake data).</summary>
+        public string HandshakeDisplay
+        {
+            get
+            {
+                if (!IsActive || _lastHandshakeUtc is not DateTime hs) return "";
+                var age = DateTime.UtcNow - hs;
+                if (age.TotalSeconds < 0)     return "0s";
+                if (age.TotalSeconds < 60)    return $"{(int)age.TotalSeconds}s";
+                if (age.TotalMinutes < 60)    return $"{(int)age.TotalMinutes}m";
+                if (age.TotalHours   < 24)    return $"{(int)age.TotalHours}h";
+                return $"{(int)age.TotalDays}d";
+            }
+        }
 
         private void SetHealth(TunnelHealth h)
         {
@@ -265,16 +292,26 @@ namespace MasselGUARD.ViewModels
             bool moved = stats.RxBytes != _rxBytes || stats.TxBytes != _txBytes;
             _rxBytes = stats.RxBytes;
             _txBytes = stats.TxBytes;
+            _lastHandshakeUtc = stats.LastHandshakeUtc;
             OnPropertyChanged(nameof(TrafficDisplay));
             OnPropertyChanged(nameof(TrafficVisibility));
+            OnPropertyChanged(nameof(HandshakeDisplay));
+            OnPropertyChanged(nameof(HealthTooltip));
 
-            // Derive health from adapter state + traffic movement.
             if (!IsActive)
                 SetHealth(TunnelHealth.Unknown);
             else if (!stats.AdapterFound || !stats.AdapterUp)
                 SetHealth(TunnelHealth.Down);
+            else if (_lastHandshakeUtc is DateTime hs)
+            {
+                // Authoritative: a WireGuard handshake within ~3 min means the peer is alive;
+                // older than that (no recent traffic) is "idle", not down.
+                double ageSec = (DateTime.UtcNow - hs).TotalSeconds;
+                SetHealth(ageSec <= 180 ? TunnelHealth.Healthy : TunnelHealth.Idle);
+            }
             else
             {
+                // Fallback (no handshake data): adapter-up + traffic movement.
                 if (moved) _lastTrafficMoveUtc = DateTime.UtcNow;
                 bool recent = (DateTime.UtcNow - _lastTrafficMoveUtc).TotalSeconds < 30;
                 SetHealth(recent ? TunnelHealth.Healthy : TunnelHealth.Idle);
@@ -473,17 +510,19 @@ namespace MasselGUARD.ViewModels
         {
             get
             {
-                var c = Lang.T("StatusConnected");
-                if (!IsActive || _connectedAt == null) return c;
+                // The green status dot already conveys "connected", so the row shows just the
+                // uptime — this frees room for the traffic figures. (The word is kept only for
+                // the brief moment before the connect timestamp is set.)
+                if (!IsActive || _connectedAt == null) return Lang.T("StatusConnected");
                 var elapsed = DateTime.UtcNow - _connectedAt.Value;
                 if (elapsed.TotalSeconds < 60)
-                    return $"{c}  {(int)elapsed.TotalSeconds}s";
+                    return $"{(int)elapsed.TotalSeconds}s";
                 if (elapsed.TotalMinutes < 60)
-                    return $"{c}  {(int)elapsed.TotalMinutes}m {elapsed.Seconds:D2}s";
+                    return $"{(int)elapsed.TotalMinutes}m {elapsed.Seconds:D2}s";
                 if (elapsed.TotalHours < 24)
-                    return $"{c}  {(int)elapsed.TotalHours}h {elapsed.Minutes:D2}m";
+                    return $"{(int)elapsed.TotalHours}h {elapsed.Minutes:D2}m";
                 var days = (int)elapsed.TotalDays;
-                return $"{c}  {days}d {elapsed.Hours:D2}h {elapsed.Minutes:D2}m";
+                return $"{days}d {elapsed.Hours:D2}h {elapsed.Minutes:D2}m";
             }
         }
         public string ButtonLabel =>
@@ -609,8 +648,11 @@ namespace MasselGUARD.ViewModels
                 OnPropertyChanged(nameof(DnsLeakColor));
                 _rxBytes = 0;
                 _txBytes = 0;
+                _lastHandshakeUtc = null;
                 OnPropertyChanged(nameof(TrafficDisplay));
                 OnPropertyChanged(nameof(TrafficVisibility));
+                OnPropertyChanged(nameof(HandshakeDisplay));
+                OnPropertyChanged(nameof(HealthTooltip));
                 SetHealth(TunnelHealth.Unknown);
             }
 
@@ -653,6 +695,7 @@ namespace MasselGUARD.ViewModels
             OnPropertyChanged(nameof(DnsLeakColor));
             _rxBytes   = 0;
             _txBytes   = 0;
+            _lastHandshakeUtc = null;
             IsDisconnecting = true;
             try
             {

@@ -19,6 +19,8 @@ Each arch publishes natively (framework-dependent single-file) into `dist\<arch>
 Current version: **4.0.0 — Forking Fox**
 When bumping version, update **both** `UpdateChecker.cs` (`CurrentVersion` + `_codenames`) **and** `BUILD.bat` (`VERSION` + `CODENAME`).
 
+**On every new public release**, also update the **Scoop bucket** (separate repo `masselink/MasselGUARD-scoop`, local checkout `../MasselGUARD-scoop`): bump `version` and refresh **both** SHA256 hashes (`64bit` + `arm64`) in `bucket/masselguard.json` to match the new `MasselGUARD-x64.zip` / `MasselGUARD-arm64.zip` release assets. The manifest's `checkver: "github"` + per-arch `autoupdate` templates let the Excavator CI (`.github/workflows/excavator.yml`) do this automatically once the release is published, but verify it landed (or run `checkver -u` manually). The bucket builds on @qoreQyaS's original manifest (issue #49) and extends it with ARM64, a CLI `PATH` shim (`bin: MasselGUARDcli.exe`), and a GUI shortcut.
+
 ## Key design decisions
 
 - **Two exe split** — `MasselGUARD.exe` is `WinExe` so Windows never allocates a console (no flash). `MasselGUARDcli.exe` is `Exe` so terminals wait for it. Source is shared via `<Compile Include>` links from `MasselGUARDcli/MasselGUARDcli.csproj`.

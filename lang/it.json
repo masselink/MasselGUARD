@@ -572,6 +572,7 @@
   "HealthHealthy": "Tunnel integro — adattatore attivo e traffico in transito",
   "HealthIdle": "Tunnel attivo — nessun traffico recente (inattivo)",
   "HealthDown": "L'adattatore del tunnel è inattivo o mancante pur essendo contrassegnato come attivo",
+  "HandshakeLast": "Ultimo handshake: {0} fa",
   "DnsTipSecure": "DNS instradato attraverso il tunnel — protetto",
   "DnsTipLeak": "Altri adattatori hanno server DNS — possibile fuga DNS",
   "DnsTipNotConfigured": "Nessun DNS configurato nel tunnel — le query aggirano la VPN",
