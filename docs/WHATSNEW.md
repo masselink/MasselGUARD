@@ -2,6 +2,8 @@
 
 The headline is **split tunneling** — decide, per tunnel, which traffic goes *through* the tunnel and which bypasses it.
 
+![The "Forking Fox" theme — MasselGUARD 4.0.0's signature look](images/forking-fox-theme.png)
+
 ### Split tunneling (route / IP-based)
 
 Every local tunnel's editor now has a **Split** tab with three modes:
@@ -28,8 +30,6 @@ It plays correctly with the **kill switch**: in *Exclude* mode the excluded rang
 - **Hide a usage ring per period.** Each period (daily / weekly / monthly) in the tunnel editor's DATA-USAGE section now has its own **Hide ring** checkbox, so you can show just the monthly ring, for example. The current-usage figures are also column-aligned now.
 - **`MasselGUARDcli help` and `version` no longer need Administrator.** Informational commands run in any terminal; only commands that actually touch the tunnel driver require elevation.
 - **Fixed: connecting a local tunnel from the CLI.** `MasselGUARDcli connect <name>` failed for local tunnels because the tunnel service was launched with the wrong host executable and exited immediately; it now starts correctly. Thanks to **Sven Grewe ([@qoreQyaS](https://github.com/qoreQyaS))** for the fix ([#47](https://github.com/masselink/MasselGUARD/pull/47)).
-
-![The "Forking Fox" theme — MasselGUARD 4.0.0's signature look](images/forking-fox-theme.png)
 
 ---
 
