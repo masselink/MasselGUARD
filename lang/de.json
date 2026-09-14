@@ -1,4 +1,7 @@
 {
+  "CloudSyncTitle": "Cloud-synchronisierter Speicherort",
+  "CloudSyncWarning": "MasselGUARD wird aus einem cloud-synchronisierten Ordner (OneDrive) ausgeführt:\n{0}\n\nLokale WireGuard-Tunnel laufen als LocalSystem-Dienst, der nicht auf Dateien in Ihrem persönlichen OneDrive-Ordner zugreifen kann, sodass ein lokaler Tunnel nicht startet (\"Element not found\").\n\nVerschieben Sie MasselGUARD in einen normalen lokalen Ordner (z. B. C:\\MasselGUARD oder Program Files) und starten Sie es von dort. Companion-Tunnel (WireGuard für Windows) sind nicht betroffen.",
+  "CloudSyncLog": "Wird aus einem cloud-synchronisierten Ordner ausgeführt ({0}). Lokale Tunnel können nicht starten, da der LocalSystem-Dienst nicht auf diesen Speicherort zugreifen kann. Verschieben Sie MasselGUARD in einen normalen lokalen Ordner (z. B. C:\\MasselGUARD oder Program Files).",
   "PresetExportLockLabel": "Zu sperrende Einstellungen (erzwungen neben der exe):",
   "InstallCopyPreset": "Neben der App wurde eine verwaltete Richtliniendatei gefunden. In den Installationsordner kopieren, damit die installierte Kopie gesperrt bleibt?",
   "SettingsManagedBanner": "🔒 Einige Einstellungen sind durch die Richtlinie {0} gesperrt.",

@@ -48,6 +48,28 @@ namespace MasselGUARD.ViewModels
             private set => SetField(ref _activeTunnelName, value);
         }
 
+        // ── Combined live traffic (all active tunnels) — shown in the info-panel header ──
+        private string _combinedTrafficDisplay = "";
+        public string CombinedTrafficDisplay
+        {
+            get => _combinedTrafficDisplay;
+            private set => SetField(ref _combinedTrafficDisplay, value);
+        }
+
+        private string _combinedTrafficTooltip = "";
+        public string CombinedTrafficTooltip
+        {
+            get => _combinedTrafficTooltip;
+            private set => SetField(ref _combinedTrafficTooltip, value);
+        }
+
+        private System.Windows.Visibility _combinedTrafficVisibility = System.Windows.Visibility.Collapsed;
+        public System.Windows.Visibility CombinedTrafficVisibility
+        {
+            get => _combinedTrafficVisibility;
+            private set => SetField(ref _combinedTrafficVisibility, value);
+        }
+
         private TunnelEntryViewModel? _selectedTunnel;
         public  TunnelEntryViewModel? SelectedTunnel
         {
@@ -574,6 +596,39 @@ namespace MasselGUARD.ViewModels
 
             var active = TunnelList.FirstOrDefault(t => t.IsActive);
             ActiveTunnelName = active?.Name ?? "Not connected";
+
+            if (doStatsPoll) UpdateCombinedTraffic();
+        }
+
+        /// <summary>
+        /// Sums live upload/download bytes across all active tunnels for the combined figure in
+        /// the info-panel header; the tooltip lists the per-tunnel breakdown. Hidden when nothing
+        /// is active or no traffic has moved yet.
+        /// </summary>
+        private void UpdateCombinedTraffic()
+        {
+            long totalTx = 0, totalRx = 0;
+            var sb = new System.Text.StringBuilder();
+            foreach (var t in TunnelList)
+            {
+                if (!t.IsActive) continue;
+                totalTx += t.TxBytesLive;
+                totalRx += t.RxBytesLive;
+                sb.AppendLine($"{t.Name}:  ↑ {TunnelEntryViewModel.FormatBytes(t.TxBytesLive)}" +
+                              $"  ↓ {TunnelEntryViewModel.FormatBytes(t.RxBytesLive)}");
+            }
+
+            if (totalTx > 0 || totalRx > 0)
+            {
+                CombinedTrafficDisplay = $"↑ {TunnelEntryViewModel.FormatBytes(totalTx)}" +
+                                         $"  ↓ {TunnelEntryViewModel.FormatBytes(totalRx)}";
+                CombinedTrafficTooltip = sb.ToString().TrimEnd();
+                CombinedTrafficVisibility = System.Windows.Visibility.Visible;
+            }
+            else
+            {
+                CombinedTrafficVisibility = System.Windows.Visibility.Collapsed;
+            }
         }
 
         /// <summary>

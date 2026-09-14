@@ -1,4 +1,7 @@
 {
+  "CloudSyncTitle": "Cloud-synced location",
+  "CloudSyncWarning": "MasselGUARD is running from a cloud-synced folder (OneDrive):\n{0}\n\nLocal WireGuard tunnels run as a LocalSystem service, which cannot access files in your personal OneDrive folder, so a local tunnel fails to start (\"Element not found\").\n\nMove MasselGUARD to a normal local folder (e.g. C:\\MasselGUARD or Program Files) and run it from there. Companion (WireGuard for Windows) tunnels are unaffected.",
+  "CloudSyncLog": "Running from a cloud-synced folder ({0}). Local tunnels cannot start because the LocalSystem service can't access this location. Move MasselGUARD to a normal local folder (e.g. C:\\MasselGUARD or Program Files).",
   "PresetExportLockLabel": "Settings to lock (enforced when placed next to the exe):",
   "InstallCopyPreset": "A managed policy file was found next to the app. Copy it into the install folder so the installed copy stays locked?",
   "SettingsManagedBanner": "🔒 Some settings are locked by the {0} policy.",

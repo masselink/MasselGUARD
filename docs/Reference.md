@@ -586,7 +586,15 @@ Update `VERSION`/`CODENAME` in both `BUILD.bat` **and** `UpdateChecker.cs` (`_co
 
 ### tunnelbuild\tunnelbuild.bat
 
-Builds the per-architecture native DLLs into `wireguard-deps\<arch>\`. Run with no argument it **prompts** for x64 / arm64 / both; or pass `x64` / `arm64` / `all`. Requires Go 1.21+ and git; `wireguard.dll` is extracted from the wireguard-NT zip's arch subfolder (download.wireguard.com/wireguard-nt/), `tunnel.dll` is compiled from wireguard-windows. x64 uses gcc/MinGW; **arm64 `tunnel.dll` is a Go+CGO cross-build requiring an aarch64 Windows toolchain** (llvm-mingw's `aarch64-w64-mingw32-clang`). `get-wireguard-dlls.ps1` PE-verifies each produced DLL's machine type so a wrong-arch build can't slip through.
+Builds the per-architecture native DLLs into `wireguard-deps\<arch>\`. Run with no argument it **prompts** for x64 / arm64 / both / **check**; or pass `x64` / `arm64` / `all` (optionally `force`), or `check [install]`. It orchestrates `get-wireguard-dlls.ps1`, which **downloads** `wireguard.dll` (wireguard-NT, per-arch, from download.wireguard.com/wireguard-nt/) and **builds** `tunnel.dll` from a fresh `wireguard-windows` clone.
+
+- **Hermetic build** — `wireguard-windows`'s own `build.bat` downloads its *own* Go + llvm-mingw toolchain (x86/amd64/arm64) into `.deps` and sets `GOROOT`/`GOARCH`/`CC` itself, so **no system Go or C compiler is required** — only **git**, **curl** and **tar** (curl + tar ship with Windows 10 1803+/11). It builds all three arches every run; the script keeps the one whose PE machine matches the target.
+- **Cache-first** — a DLL is only (re)built when missing or the wrong arch; otherwise "Already cached". **`force`** sets the cached DLL aside as `.forcebak` (auto-restored if the rebuild fails) and rebuilds from scratch.
+- **wireguard-tools mirror** — `wireguard-windows`'s build.bat fetches wireguard-tools from `git.zx2c4.com`'s cgit snapshot, which curl-schannel drops on some networks ("server closed abruptly"). `Repair-WgToolsDownload` rewrites that one line to the **GitHub mirror** (`github.com/WireGuard/wireguard-tools/archive/<commit>.zip`) with a dynamically computed SHA256 so build.bat's integrity check still passes.
+- **`check [install]`** — `check-deps.ps1` validates git/curl/tar + TCP reach to download.wireguard.com and github.com, reports what's buildable, and (with `install`) winget-installs missing git.
+- **Robustness** — hashing uses .NET `SHA256` and extraction uses `tar` (not the `Get-FileHash` / `Expand-Archive` cmdlets, which can be missing in locked-down PowerShell hosts). `get-wireguard-dlls.ps1` PE-verifies each produced DLL's machine type so a wrong-arch build can't slip through.
+
+> The built DLLs (and the whole app) **must not run from a OneDrive/cloud-synced path** — the local-tunnel service runs as LocalSystem and can't read per-user cloud folders; MasselGUARD warns at startup if it detects this.
 
 ### Architecture support (x64 / ARM64)
 

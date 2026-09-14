@@ -78,7 +78,7 @@ namespace MasselGUARD.Views
             foreach (var p in periods) if (p.Set) n++;
             if (n == 0) return;
 
-            double bw    = Math.Min(BarWidth, w);
+            double bw    = w;   // fill the control's actual width (it stretches into its cell)
             double total = n * BarHeight + (n - 1) * BarGap;
             double y     = (h - total) / 2;                 // vertically centre the stack
             var trackBrush = new SolidColorBrush(TrackColor()); trackBrush.Freeze();

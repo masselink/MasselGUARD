@@ -1,4 +1,7 @@
 {
+  "CloudSyncTitle": "クラウド同期された場所",
+  "CloudSyncWarning": "MasselGUARD はクラウド同期フォルダー (OneDrive) から実行されています:\n{0}\n\nローカルの WireGuard トンネルは LocalSystem サービスとして実行され、個人用の OneDrive フォルダー内のファイルにアクセスできないため、ローカルトンネルの開始に失敗します (\"Element not found\")。\n\nMasselGUARD を通常のローカルフォルダー (例: C:\\MasselGUARD または Program Files) に移動して、そこから実行してください。コンパニオントンネル (WireGuard for Windows) は影響を受けません。",
+  "CloudSyncLog": "クラウド同期フォルダーから実行されています ({0})。LocalSystem サービスがこの場所にアクセスできないため、ローカルトンネルを開始できません。MasselGUARD を通常のローカルフォルダー (例: C:\\MasselGUARD または Program Files) に移動してください。",
   "PresetExportLockLabel": "ロックする設定（exeの隣に置くと適用）:",
   "InstallCopyPreset": "アプリの隣に管理ポリシーファイルが見つかりました。インストール先フォルダーにコピーして、インストール済みのコピーをロックされたままにしますか？",
   "SettingsManagedBanner": "🔒 一部の設定はポリシー「{0}」によってロックされています。",

@@ -324,6 +324,11 @@ namespace MasselGUARD.ViewModels
         /// <summary>Current session's total bytes (rx+tx) — used for live cap accounting.</summary>
         public long SessionBytes => _rxBytes + _txBytes;
 
+        /// <summary>Live session upload / download bytes — summed across active tunnels for the
+        /// combined traffic figure in the info panel.</summary>
+        public long TxBytesLive => _txBytes;
+        public long RxBytesLive => _rxBytes;
+
         /// <summary>Configured caps in bytes; 0 = no cap for that period.</summary>
         public long DailyCapBytes   => (long)StoredTunnel.DailyCapMB   * 1_048_576L;
         public long WeeklyCapBytes  => (long)StoredTunnel.WeeklyCapMB  * 1_048_576L;
@@ -498,7 +503,7 @@ namespace MasselGUARD.ViewModels
             OnPropertyChanged(nameof(CapHighlightVisibility));
         }
 
-        private static string FormatBytes(long bytes)
+        internal static string FormatBytes(long bytes)
         {
             if (bytes < 1024)               return $"{bytes} B";
             if (bytes < 1_048_576)          return $"{bytes / 1024.0:F1} KB";

@@ -414,29 +414,6 @@
                                 </Grid>
                             </Border>
 
-                            <!-- Data-cap usage indicator: rings (compact) vs bars (taller) -->
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding [SettingsCapIndicatorTitle], Source={x:Static local:Lang.Instance}}"
-                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                                               Foreground="{DynamicResource TextPrimary}"/>
-                                    <TextBlock Text="{Binding [SettingsCapIndicatorDesc], Source={x:Static local:Lang.Instance}}"
-                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
-                                               Margin="0,2,0,8"/>
-                                    <StackPanel Orientation="Horizontal">
-                                        <RadioButton x:Name="CapStyleRings" GroupName="CapStyle" Tag="rings"
-                                                     Content="{Binding [SettingsCapIndicatorRings], Source={x:Static local:Lang.Instance}}"
-                                                     Style="{StaticResource PillRadio}"
-                                                     Checked="CapStyle_Changed"/>
-                                        <RadioButton x:Name="CapStyleBars" GroupName="CapStyle" Tag="bars"
-                                                     Content="{Binding [SettingsCapIndicatorBars], Source={x:Static local:Lang.Instance}}"
-                                                     Style="{StaticResource PillRadio}" Margin="6,0,0,0"
-                                                     Checked="CapStyle_Changed"/>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-
                         </StackPanel>
 
                         <!-- ══ WIFI PAGE (default action + open network + trusted) ══ -->
@@ -868,6 +845,30 @@
                                               Width="80" FontSize="11" Margin="12,0,0,0"
                                               SelectionChanged="NotifDuration_Changed"/>
                                 </Grid>
+                            </Border>
+
+                            <!-- Data-cap usage indicator: rings (compact) vs bars (taller). A display
+                                 choice for the tunnel list — placed under Notifications. -->
+                            <TextBlock Text="{Binding [SettingsCapIndicatorTitle], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"
+                                       Margin="0,16,0,4"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding [SettingsCapIndicatorDesc], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,0,0,8"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton x:Name="CapStyleRings" GroupName="CapStyle" Tag="rings"
+                                                     Content="{Binding [SettingsCapIndicatorRings], Source={x:Static local:Lang.Instance}}"
+                                                     Style="{StaticResource PillRadio}"
+                                                     Checked="CapStyle_Changed"/>
+                                        <RadioButton x:Name="CapStyleBars" GroupName="CapStyle" Tag="bars"
+                                                     Content="{Binding [SettingsCapIndicatorBars], Source={x:Static local:Lang.Instance}}"
+                                                     Style="{StaticResource PillRadio}" Margin="6,0,0,0"
+                                                     Checked="CapStyle_Changed"/>
+                                    </StackPanel>
+                                </StackPanel>
                             </Border>
 
                             <!-- Interface -->

@@ -1,4 +1,7 @@
 {
+  "CloudSyncTitle": "云同步位置",
+  "CloudSyncWarning": "MasselGUARD 正在从云同步文件夹 (OneDrive) 运行:\n{0}\n\n本地 WireGuard 隧道以 LocalSystem 服务的形式运行，无法访问您个人 OneDrive 文件夹中的文件，因此本地隧道无法启动 (\"Element not found\")。\n\n请将 MasselGUARD 移动到普通的本地文件夹 (例如 C:\\MasselGUARD 或 Program Files) 并从那里运行。配套隧道 (WireGuard for Windows) 不受影响。",
+  "CloudSyncLog": "正在从云同步文件夹运行 ({0})。LocalSystem 服务无法访问此位置，因此本地隧道无法启动。请将 MasselGUARD 移动到普通的本地文件夹 (例如 C:\\MasselGUARD 或 Program Files)。",
   "PresetExportLockLabel": "要锁定的设置（放在 exe 旁边时强制生效）：",
   "InstallCopyPreset": "在应用旁边找到了托管策略文件。是否将其复制到安装文件夹，以便已安装的副本保持锁定？",
   "SettingsManagedBanner": "🔒 部分设置已被策略 {0} 锁定。",

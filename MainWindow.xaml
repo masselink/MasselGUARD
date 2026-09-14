@@ -124,23 +124,36 @@
                             <!-- Separator -->
                             <Rectangle Width="1" Height="16" VerticalAlignment="Center"
                                        Margin="4,0" Fill="{DynamicResource BorderColor}"/>
-                            <!-- Chrome — all at the same visual size -->
-                            <Button Content="─" FontSize="14" Padding="12,0"
+                            <!-- Chrome — crisp vector glyphs (uniform 10×10) instead of text
+                                 characters, which rendered at inconsistent sizes/baselines. -->
+                            <Button Padding="12,0"
                                     Style="{StaticResource ChromeBtn}"
                                     VerticalAlignment="Stretch"
                                     Click="MinimizeBtn_Click"
-                                    ToolTip="Minimize"/>
+                                    ToolTip="Minimize">
+                                <Path Width="10" Height="10"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1" Data="M0,5 H10"/>
+                            </Button>
                             <Button x:Name="MaximizeBtn"
-                                    Content="□" FontSize="13" Padding="12,0"
+                                    Padding="12,0"
                                     Style="{StaticResource ChromeBtn}"
                                     VerticalAlignment="Stretch"
                                     Click="MaximizeBtn_Click"
-                                    ToolTip="Maximize"/>
-                            <Button Content="✕" FontSize="11" Padding="12,0"
+                                    ToolTip="Maximize">
+                                <Path Width="10" Height="10"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1" Data="M0.5,0.5 H9.5 V9.5 H0.5 Z"/>
+                            </Button>
+                            <Button Padding="12,0"
                                     Style="{StaticResource ChromeCloseBtn}"
                                     VerticalAlignment="Stretch"
                                     Click="CloseBtn_Click"
-                                    ToolTip="Close to tray"/>
+                                    ToolTip="Close to tray">
+                                <Path Width="10" Height="10"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1" Data="M0,0 L10,10 M10,0 L0,10"/>
+                            </Button>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -430,14 +443,16 @@
                                                                    ToolTip="Open network protection tunnel"
                                                                    Visibility="{Binding OpenBadgeVis}"/>
                                                     </StackPanel>
-                                                    <!-- Status  |  ↑↓ traffic  |  DNS leak (left) · usage rings (pinned right) -->
+                                                    <!-- Status  ·  DNS leak (left) · usage rings/bars (fill right). Live traffic
+                                                         moved to the info-panel header (combined across active tunnels). -->
                                                     <Grid Grid.Column="1" VerticalAlignment="Center">
                                                         <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto"/>   <!-- status dot + text -->
-                                                            <ColumnDefinition Width="Auto"/>   <!-- traffic (fixed width) -->
+                                                            <!-- Fixed status width so the usage bars start at the SAME x on every
+                                                                 row (connected + disconnected) instead of hugging the variable-
+                                                                 length status text ("8s" vs "Disconnected"). -->
+                                                            <ColumnDefinition Width="120"/>    <!-- status dot + text (fixed) -->
                                                             <ColumnDefinition Width="Auto"/>   <!-- DNS leak badge -->
-                                                            <ColumnDefinition Width="*"/>       <!-- spacer -->
-                                                            <ColumnDefinition Width="Auto"/>   <!-- usage rings / bars (pinned right) -->
+                                                            <ColumnDefinition Width="*"/>       <!-- usage rings / bars fill this remaining space -->
                                                         </Grid.ColumnDefinitions>
                                                         <!-- Status dot + text -->
                                                         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
@@ -451,25 +466,11 @@
                                                             <TextBlock Text="{Binding StatusText}"
                                                                        Foreground="{Binding StatusColor}"
                                                                        FontSize="{DynamicResource Theme.FontSize}"
-                                                                       VerticalAlignment="Center"/>
-                                                        </StackPanel>
-                                                        <!-- Live per-tunnel traffic (↑ tx  ↓ rx) in its own fixed-width slot, so it
-                                                             always has room next to the status and isn't squeezed by the usage bars. -->
-                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
-                                                                    Visibility="{Binding TrafficVisibility}">
-                                                            <TextBlock Text="  |  "
-                                                                       Foreground="{DynamicResource TextMuted}"
-                                                                       FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                                       VerticalAlignment="Center"/>
-                                                            <TextBlock Text="{Binding TrafficDisplay}"
-                                                                       Width="132"
-                                                                       Foreground="{DynamicResource TextMuted}"
-                                                                       FontSize="{DynamicResource Theme.FontSize.Small}"
                                                                        VerticalAlignment="Center"
-                                                                       TextTrimming="CharacterEllipsis"/>
+                                                                       MaxWidth="98" TextTrimming="CharacterEllipsis"/>
                                                         </StackPanel>
-                                                        <!-- DNS leak badge -->
-                                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                                        <!-- DNS leak badge — kept its own slot next to the status. -->
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
                                                                     Visibility="{Binding DnsLeakVisibility}">
                                                             <TextBlock Text="  |  "
                                                                        Foreground="{DynamicResource TextMuted}"
@@ -484,8 +485,9 @@
                                                         <!-- Data-cap usage rings — day · week · month, each drawn only when its cap
                                                              is set (d/w/m centre glyph). Pinned in its own right-hand Grid cell with a
                                                              fixed left gap, so the growing uptime text never shifts it. Hover = breakdown. -->
-                                                        <views:CapRings Grid.Column="4"
+                                                        <views:CapRings Grid.Column="2"
                                                                         Margin="14,0,2,0"
+                                                                        HorizontalAlignment="Right"
                                                                         VerticalAlignment="Center"
                                                                         Visibility="{Binding CapRingsVisibility}"
                                                                         Active="{Binding IsActive}"
@@ -499,8 +501,10 @@
                                                                         ToolTipService.InitialShowDelay="0"
                                                                         ToolTipService.BetweenShowDelay="0"/>
                                                         <!-- Bars variant — same data, taller layout; shown when CapIndicatorStyle = bars. -->
-                                                        <views:CapBars Grid.Column="4"
+                                                        <views:CapBars Grid.Column="2"
                                                                        Margin="14,0,2,0"
+                                                                       HorizontalAlignment="Stretch"
+                                                                       MinWidth="120" MaxWidth="300"
                                                                        VerticalAlignment="Center"
                                                                        Visibility="{Binding CapBarsVisibility}"
                                                                        Active="{Binding IsActive}"
@@ -941,23 +945,45 @@
                                         <StackPanel Orientation="Horizontal"
                                                     HorizontalAlignment="Right"
                                                     VerticalAlignment="Center">
-                                            <!-- Session navigation -->
-                                            <TextBlock x:Name="ChartNavLabel" FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                            <!-- Combined live traffic across all active tunnels (hover = per-tunnel
+                                                 breakdown). Sits leftmost; the session-nav arrows follow to its right. -->
+                                            <TextBlock Text="●" Foreground="{DynamicResource Success}"
+                                                       FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                       VerticalAlignment="Center" Margin="0,0,5,0"
+                                                       ToolTip="{Binding CombinedTrafficTooltip}"
+                                                       ToolTipService.InitialShowDelay="0"
+                                                       Visibility="{Binding CombinedTrafficVisibility}"/>
+                                            <TextBlock x:Name="CombinedTrafficLabel"
+                                                       Text="{Binding CombinedTrafficDisplay}"
+                                                       ToolTip="{Binding CombinedTrafficTooltip}"
+                                                       ToolTipService.InitialShowDelay="0"
+                                                       Visibility="{Binding CombinedTrafficVisibility}"
+                                                       FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                       FontFamily="{DynamicResource Theme.FontFamily}"
                                                        Foreground="{DynamicResource TextMuted}"
-                                                       VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                            <Button x:Name="ChartPrevBtn" Content="◀" FontSize="{DynamicResource Theme.FontSize.Tiny}"
-                                                    Padding="4,1" Margin="0,0,2,0"
-                                                    Style="{StaticResource FlatBtn}"
-                                                    Foreground="{DynamicResource TextMuted}"
-                                                    Click="ChartPrev_Click"/>
-                                            <Button x:Name="ChartNextBtn" Content="▶" FontSize="{DynamicResource Theme.FontSize.Tiny}"
-                                                    Padding="4,1" Margin="0,0,10,0"
-                                                    Style="{StaticResource FlatBtn}"
-                                                    Foreground="{DynamicResource TextMuted}"
-                                                    Click="ChartNext_Click"/>
-                                            <!-- Separator -->
-                                            <Rectangle Width="1" Height="10" Fill="{DynamicResource BorderColor}"
                                                        VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <Rectangle Width="1" Height="10" Fill="{DynamicResource BorderColor}"
+                                                       VerticalAlignment="Center" Margin="0,0,10,0"
+                                                       Visibility="{Binding CombinedTrafficVisibility}"/>
+                                            <!-- Session navigation (timeline mode only) — to the right of the traffic.
+                                                 Wrapped so its trailing separator hides together in usage mode. -->
+                                            <StackPanel x:Name="NavGroup" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock x:Name="ChartNavLabel" FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <Button x:Name="ChartPrevBtn" Content="◀" FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                        Padding="4,1" Margin="0,0,2,0"
+                                                        Style="{StaticResource FlatBtn}"
+                                                        Foreground="{DynamicResource TextMuted}"
+                                                        Click="ChartPrev_Click"/>
+                                                <Button x:Name="ChartNextBtn" Content="▶" FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                        Padding="4,1" Margin="0,0,10,0"
+                                                        Style="{StaticResource FlatBtn}"
+                                                        Foreground="{DynamicResource TextMuted}"
+                                                        Click="ChartNext_Click"/>
+                                                <Rectangle Width="1" Height="10" Fill="{DynamicResource BorderColor}"
+                                                           VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            </StackPanel>
                                             <RadioButton x:Name="Range24hBtn" GroupName="InfoTimeRange"
                                                          IsChecked="True" Margin="0,0,10,0"
                                                          VerticalAlignment="Center"

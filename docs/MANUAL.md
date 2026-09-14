@@ -100,7 +100,7 @@ Columns: **Tunnel** | **Type** | **Status** | **Rules** | **Action**
 
 - **Colour strip** — 4 px strip per row showing the tunnel's group colour
 - **Badges** — `⚡` (default action) and `🔓` (open network protection) after the tunnel name
-- **Status** — uptime for active tunnels: `● Connected  2h 34m`. When a data cap is set, the row also shows compact **usage rings** (day / week / month) — see §10
+- **Status** — a status dot + uptime for active tunnels (e.g. `● 2h 34m`). When a data cap is set, the row also shows its usage as **bars** (day / week / month) — or compact **rings** if you prefer; switch the style in **Settings → Appearance** (see §10). Live ↑/↓ traffic is no longer per-row — it's shown **combined for all active tunnels** in the Timeline / Data-usage panel header (hover it for the per-tunnel breakdown).
 - **Rules** — count of WiFi rules referencing this tunnel; click to highlight matching rules in the WiFi Rules panel. Rebuilds immediately on rule add/edit/delete
 - **Action** — Connect / Disconnect, centred (a 🛑 marker appears if a data cap disconnected the tunnel, until you next start it)
 
@@ -851,6 +851,12 @@ Yes. Edit a tunnel → **Options** → **DATA-USAGE WARNINGS** and set a **daily
 Ticking **Kill at cap** next to a threshold turns the warning into **enforcement**: the tunnel is disconnected the moment that period's usage is reached (with a sticky *Ignore & reconnect* toast and a 🛑 row marker), and connecting over the limit asks first. Trying to reconnect an over-cap tunnel via a rule shows an interactive Connect / Cancel toast. Editing the caps re-arms enforcement. Leave *Kill at cap* off for warning-only behaviour.
 
 The bottom info panel has a **Timeline ⇄ Data usage** switch that charts per-tunnel usage over the selected range, with a red marker where a cap was reached. Usage is drawn from the connection history, so keep **Settings → History → Capture → Connections** on for accurate totals. Estimates are not exact — MasselGUARD isn't responsible for inaccurate reporting or for tunnels being disconnected (or not) as a result.
+
+**A local tunnel won't start — "Tunnel did not come up… Element not found".**
+Most often this is because MasselGUARD is running from a **OneDrive (cloud-synced) folder**. A local tunnel is driven by a Windows service that runs as **LocalSystem**, and LocalSystem cannot read files inside your personal OneDrive folder — so the tunnel can't start. Move MasselGUARD to a normal local folder (e.g. `C:\MasselGUARD` or Program Files) and run it from there. MasselGUARD now warns you at startup if it detects this. (Companion / WireGuard-for-Windows tunnels are unaffected.) Other possible causes: the wireguard-NT driver blocked by antivirus or Secure Boot — check the Windows **Event Log → System** for details.
+
+**Where's the rings-vs-bars usage setting?**
+**Settings → Appearance** (it moved there from the Tunnels page — it's a display choice for the tunnel list).
 
 **The import settings dialog showed raw placeholder text instead of a warning.**
 Fixed in v3.3.0 — `SettingsImportVersionWarning` and `SettingsImportVersionNewer` are now present in all five language files.

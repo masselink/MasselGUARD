@@ -131,9 +131,9 @@ namespace MasselGUARD.Views
             TabBtnAbout.Tag      = tab == "About"      ? "Active" : null;
 
             if (tab == "General")    { RefreshGroupList(); RefreshModeStatusBox(); SyncStartWithWindows(); SyncConfirmOnClose(); }
-            if (tab == "Tunnels")    { RefreshGroupList(); SyncArMode(); SyncKsMode(); SyncSkipTunnelValidation(); SyncCapStyle(); }
+            if (tab == "Tunnels")    { RefreshGroupList(); SyncArMode(); SyncKsMode(); SyncSkipTunnelValidation(); }
             if (tab == "Wifi")       RefreshAutomationControls();
-            if (tab == "Appearance") PopulateThemePicker();
+            if (tab == "Appearance") { PopulateThemePicker(); SyncCapStyle(); }
             if (tab == "History")    RefreshHistoryTab();
             if (tab == "Advanced")   { RefreshInstallState(); RefreshDllStatus(); RefreshWireGuardSection(); ScanOrphans(); PopulateLogLevelPicker(); RefreshDnsLeakSection(); }
             if (tab == "About")      RefreshUpdateState();

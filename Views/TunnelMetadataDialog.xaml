@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:MasselGUARD"
         Title="{Binding [TunnelMetadataTitle], Source={x:Static local:Lang.Instance}}"
-        Width="420" SizeToContent="Height"
+        Width="640" SizeToContent="Height"
         WindowStyle="None" AllowsTransparency="True"
         Background="Transparent" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner">

@@ -1,4 +1,7 @@
 {
+  "CloudSyncTitle": "Ubicación sincronizada en la nube",
+  "CloudSyncWarning": "MasselGUARD se está ejecutando desde una carpeta sincronizada en la nube (OneDrive):\n{0}\n\nLos túneles WireGuard locales se ejecutan como un servicio LocalSystem, que no puede acceder a los archivos de tu carpeta personal de OneDrive, por lo que un túnel local no puede iniciarse (\"Element not found\").\n\nMueve MasselGUARD a una carpeta local normal (p. ej. C:\\MasselGUARD o Program Files) y ejecútalo desde allí. Los túneles complementarios (WireGuard para Windows) no se ven afectados.",
+  "CloudSyncLog": "Se está ejecutando desde una carpeta sincronizada en la nube ({0}). Los túneles locales no pueden iniciarse porque el servicio LocalSystem no puede acceder a esta ubicación. Mueve MasselGUARD a una carpeta local normal (p. ej. C:\\MasselGUARD o Program Files).",
   "PresetExportLockLabel": "Ajustes a bloquear (se aplican junto al exe):",
   "InstallCopyPreset": "Se encontró un archivo de directiva gestionada junto a la app. ¿Copiarlo a la carpeta de instalación para que la copia instalada siga bloqueada?",
   "SettingsManagedBanner": "🔒 Algunos ajustes están bloqueados por la directiva {0}.",

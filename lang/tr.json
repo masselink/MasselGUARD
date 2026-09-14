@@ -1,4 +1,7 @@
 {
+  "CloudSyncTitle": "Bulutla eşitlenen konum",
+  "CloudSyncWarning": "MasselGUARD, bulutla eşitlenen bir klasörden (OneDrive) çalıştırılıyor:\n{0}\n\nYerel WireGuard tünelleri, kişisel OneDrive klasörünüzdeki dosyalara erişemeyen bir LocalSystem hizmeti olarak çalışır; bu nedenle yerel bir tünel başlatılamaz (\"Element not found\").\n\nMasselGUARD'ı normal bir yerel klasöre taşıyın (örn. C:\\MasselGUARD veya Program Files) ve oradan çalıştırın. Tamamlayıcı tüneller (Windows için WireGuard) bundan etkilenmez.",
+  "CloudSyncLog": "Bulutla eşitlenen bir klasörden çalıştırılıyor ({0}). LocalSystem hizmeti bu konuma erişemediğinden yerel tüneller başlatılamıyor. MasselGUARD'ı normal bir yerel klasöre taşıyın (örn. C:\\MasselGUARD veya Program Files).",
   "PresetExportLockLabel": "Kilitlenecek ayarlar (exe'nin yanına konduğunda uygulanır):",
   "InstallCopyPreset": "Uygulamanın yanında bir yönetilen ilke dosyası bulundu. Kurulu kopyanın kilitli kalması için kurulum klasörüne kopyalansın mı?",
   "SettingsManagedBanner": "🔒 Bazı ayarlar {0} ilkesi tarafından kilitlendi.",

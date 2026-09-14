@@ -109,6 +109,8 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 - All themes — built-in, downloaded, and hand-made — live together in `%APPDATA%\MasselGUARD\themes\`
 - Themes are published in the separate [MasselGUARD-themes](https://github.com/masselink/MasselGUARD-themes) repo, along with the full `theme.json` format reference for making your own
 
+![The "Forking Fox" theme — the signature look shipped with 4.0.0, available in the theme browser](docs/images/forking-fox-theme.png)
+
 ### Settings
 - **Organized in 7 tabs** — General / Tunnels / WiFi / Appearance / History / Advanced / About
 - **View preset selector** (General tab) — re-apply the Simple / Manual / Expert interface bundle (timeline, activity log, WiFi rules panel/column) picked during setup, anytime

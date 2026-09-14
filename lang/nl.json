@@ -1,4 +1,7 @@
 {
+  "CloudSyncTitle": "Cloud-gesynchroniseerde locatie",
+  "CloudSyncWarning": "MasselGUARD wordt uitgevoerd vanuit een cloud-gesynchroniseerde map (OneDrive):\n{0}\n\nLokale WireGuard-tunnels draaien als een LocalSystem-service, die geen toegang heeft tot bestanden in je persoonlijke OneDrive-map, waardoor een lokale tunnel niet kan starten (\"Element not found\").\n\nVerplaats MasselGUARD naar een gewone lokale map (bijv. C:\\MasselGUARD of Program Files) en start het daar. Companion-tunnels (WireGuard voor Windows) worden niet beïnvloed.",
+  "CloudSyncLog": "Wordt uitgevoerd vanuit een cloud-gesynchroniseerde map ({0}). Lokale tunnels kunnen niet starten omdat de LocalSystem-service geen toegang heeft tot deze locatie. Verplaats MasselGUARD naar een gewone lokale map (bijv. C:\\MasselGUARD of Program Files).",
   "PresetExportLockLabel": "Instellingen om te vergrendelen (afgedwongen naast de exe):",
   "InstallCopyPreset": "Er is een beheerd beleidsbestand naast de app gevonden. Kopiëren naar de installatiemap zodat de geïnstalleerde kopie vergrendeld blijft?",
   "SettingsManagedBanner": "🔒 Sommige instellingen zijn vergrendeld door het beleid {0}.",

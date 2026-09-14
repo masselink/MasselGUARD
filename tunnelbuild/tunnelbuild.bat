@@ -21,10 +21,39 @@ echo            arm64: llvm-mingw  https://github.com/mstorsjo/llvm-mingw/releas
 echo                   (provides aarch64-w64-mingw32-clang)
 echo.
 
-rem ── Architecture selection ───────────────────────────────────────────────────
-rem Pass an argument to skip the prompt (scriptable):
-rem   tunnelbuild.bat x64 | arm64 | all | both
-set "ARCHES=%~1"
+rem ── Argument parsing ─────────────────────────────────────────────────────────
+rem Scriptable forms:
+rem   tunnelbuild.bat x64 | arm64 | all | both  [force]   build (force = rebuild, no cache)
+rem   tunnelbuild.bat check [install]                     validate deps (install = fix missing)
+rem The optional "force" token (any position) discards cached DLLs and rebuilds.
+set "ARCHES="
+set "FORCE="
+set "CHECK="
+set "INSTALL="
+:parse_args
+if "%~1"=="" goto args_done
+if /I "%~1"=="check"   ( set "CHECK=1"   & shift & goto parse_args )
+if /I "%~1"=="install" ( set "INSTALL=1" & shift & goto parse_args )
+if /I "%~1"=="force"   ( set "FORCE=1"   & shift & goto parse_args )
+if /I "%~1"=="-force"  ( set "FORCE=1"   & shift & goto parse_args )
+if /I "%~1"=="/force"  ( set "FORCE=1"   & shift & goto parse_args )
+if /I "%~1"=="--force" ( set "FORCE=1"   & shift & goto parse_args )
+set "ARCHES=%ARCHES% %~1"
+shift
+goto parse_args
+:args_done
+
+rem Dependency check/install mode -- validate and exit, never builds.
+if defined CHECK (
+    set "INSTALLARG="
+    if defined INSTALL set "INSTALLARG=-Install"
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0check-deps.ps1" !INSTALLARG!
+    echo.
+    pause
+    exit /b !errorlevel!
+)
+
+if defined ARCHES set "ARCHES=%ARCHES:~1%"
 if not "%ARCHES%"=="" goto arch_resolve
 
 :arch_menu
@@ -33,6 +62,7 @@ echo.
 echo    [1]  x64    (amd64)
 echo    [2]  arm64
 echo    [3]  both   (default)
+echo    [C]  check dependencies (no build)
 echo    [Q]  quit
 echo.
 set "CHOICE="
@@ -45,9 +75,10 @@ if /I "%CHOICE%"=="x64"   ( set "ARCHES=x64"       & goto arch_resolve )
 if /I "%CHOICE%"=="arm64" ( set "ARCHES=arm64"     & goto arch_resolve )
 if /I "%CHOICE%"=="both"  ( set "ARCHES=x64 arm64" & goto arch_resolve )
 if /I "%CHOICE%"=="all"   ( set "ARCHES=x64 arm64" & goto arch_resolve )
+if /I "%CHOICE%"=="C"     ( powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0check-deps.ps1" & echo. & pause & exit /b !errorlevel! )
 if /I "%CHOICE%"=="Q"     ( echo  Cancelled. & exit /b 0 )
 echo.
-echo  Invalid choice "%CHOICE%" -- enter 1, 2, 3 or Q.
+echo  Invalid choice "%CHOICE%" -- enter 1, 2, 3, C or Q.
 echo.
 goto arch_menu
 
@@ -65,6 +96,11 @@ for %%A in (%ARCHES%) do (
 
 echo.
 echo  Building arch(es): %ARCHES%
+set "FORCEARG="
+if defined FORCE (
+    echo  Force rebuild: cached DLLs will be discarded and rebuilt from scratch.
+    set "FORCEARG=-Force"
+)
 echo.
 
 set DEPS_ROOT=%~dp0..\wireguard-deps
@@ -78,7 +114,7 @@ for %%A in (%ARCHES%) do (
     echo  -------------------------------------------------------
     set OUT=%DEPS_ROOT%\%%A
     if not exist "!OUT!" mkdir "!OUT!"
-    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0get-wireguard-dlls.ps1" -Arch %%A -Work "%WORK%" -Out "!OUT!"
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0get-wireguard-dlls.ps1" -Arch %%A -Work "%WORK%" -Out "!OUT!" !FORCEARG!
     if errorlevel 1 (
         echo.
         echo  ERROR: %%A build failed. See output above.
@@ -96,7 +132,7 @@ if exist "%WORK%" ( rmdir /s /q "%WORK%" & echo   build-temp removed. )
 
 echo.
 echo  ==========================================
-echo   DLLs ready under wireguard-deps\<arch>\
+echo   DLLs ready under wireguard-deps\^<arch^>\
 echo  ==========================================
 for %%A in (%ARCHES%) do (
     echo   wireguard-deps\%%A\tunnel.dll
