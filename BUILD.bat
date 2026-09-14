@@ -4,9 +4,9 @@ setlocal enabledelayedexpansion
 
 rem ── Build number: YYMMDDHHMM ────────────────────────────────────────────────
 for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyMMddHHmm"') do set BUILD_NUM=%%a
-set VERSION=3.9.5
+set VERSION=4.0.0
 rem Update CODENAME here AND in UpdateChecker.cs when bumping VERSION.
-set CODENAME=Selective Serval
+set CODENAME=Forking Fox
 
 rem ── Opt out of .NET CLI telemetry ────────────────────────────────────────────
 set DOTNET_CLI_TELEMETRY_OPTOUT=1
@@ -194,6 +194,17 @@ if exist "%~dp0lang" (
     if exist "%OUT%\lang" rmdir /s /q "%OUT%\lang"
     xcopy /e /i /q "%~dp0lang" "%OUT%\lang" >nul
     echo   OK  %ARCH%\lang\
+)
+
+rem ── Copy licence + third-party notices (required in every release) ──────────
+rem LICENSE ships as LICENSE.txt so it opens in Notepad on double-click / from About.
+if exist "%~dp0LICENSE" (
+    copy /y "%~dp0LICENSE" "%OUT%\LICENSE.txt" >nul
+    echo   OK  %ARCH%\LICENSE.txt
+)
+if exist "%~dp0THIRD-PARTY-NOTICES.md" (
+    copy /y "%~dp0THIRD-PARTY-NOTICES.md" "%OUT%\THIRD-PARTY-NOTICES.md" >nul
+    echo   OK  %ARCH%\THIRD-PARTY-NOTICES.md
 )
 
 rem ── Copy the matching-arch WireGuard DLLs ───────────────────────────────────

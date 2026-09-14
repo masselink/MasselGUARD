@@ -1,3 +1,38 @@
+## v4.0.0 — Forking Fox
+
+The headline is **split tunneling** — decide, per tunnel, which traffic goes *through* the tunnel and which bypasses it.
+
+![The "Forking Fox" theme — MasselGUARD 4.0.0's signature look](images/forking-fox-theme.png)
+
+### Split tunneling (route / IP-based)
+
+Every local tunnel's editor now has a **Split** tab with three modes:
+
+- **Off** — route everything through the tunnel (the classic full tunnel; unchanged default).
+- **Exclude these ranges** — a full tunnel *except* the destination IP ranges you list (e.g. keep your printer, LAN or a streaming service on the normal connection).
+- **Only these ranges** — the opposite: only the listed ranges go through the tunnel, everything else uses your normal connection (a classic split VPN to specific subnets/services).
+
+List the ranges one per line in **CIDR notation** (`192.168.1.0/24`) or as a single address (`10.0.0.5`); **IPv4 and IPv6** are both supported. Under the hood MasselGUARD computes the tunnel's effective routes for you (the standard WireGuard *AllowedIPs* math) — no manual route tables.
+
+It plays correctly with the **kill switch**: in *Exclude* mode the excluded ranges are still allowed out over your normal connection instead of being blocked. Your split settings also **travel with an exported tunnel** (`.conf` / `.mgconf`) and show up in `MasselGUARDcli info`.
+
+> **Coming later:** *per-app* split tunneling (choose by application rather than IP range) — planned for a later 4.x update.
+
+### Also in this release
+
+- **Cap-killed marker is now red.** When *Kill at cap* disconnects a tunnel, the 🛑 marker by its Connect button is properly coloured.
+- **Usage indicator: bars or rings.** Each tunnel's data-cap usage now shows on its row as slim horizontal **bars** (day / week / month, colour-coded, with the exact breakdown on hover) — the new default. The bars now **stretch to use the available width** and **line up across every row** (connected and disconnected) so they read cleanly. Prefer the original compact **rings**? Switch it in **Settings → Appearance**.
+- **Live traffic moved to the info panel.** The per-tunnel ↑/↓ figures that used to crowd each tunnel row are now a single **combined ↑/↓ total for all active tunnels**, shown (with a live status dot) in the Timeline / Data-usage panel header — hover it for the per-tunnel breakdown. The rows are cleaner and, in Timeline view, the ◀ ▶ session arrows sit just to the right of that total.
+- **Heads-up when running from OneDrive.** If you launch MasselGUARD from a cloud-synced folder (OneDrive), it now warns you that **local tunnels can't start there** — the tunnel service runs as *LocalSystem*, which can't read files in your personal cloud folder (you'd otherwise get a cryptic "Element not found"). Move it to a normal local folder (e.g. `C:\MasselGUARD` or Program Files). Localised in all 12 languages; companion (WireGuard-for-Windows) tunnels are unaffected.
+- **Sharper window buttons.** The minimize / maximize / close buttons in the title bar are now crisp vector icons at a uniform size.
+- **New "Forking Fox" theme.** A signature theme for this release — a low-poly fox on warm ember tones (dark + light) — in the theme browser under **Settings → Appearance → Download themes…**.
+- **Polish.** Wider tunnel dialogs (no more clipped *Kill at cap*), and the Theme Manager's theme list scrolls with the mouse wheel again.
+- **Hide a usage ring per period.** Each period (daily / weekly / monthly) in the tunnel editor's DATA-USAGE section now has its own **Hide ring** checkbox, so you can show just the monthly ring, for example. The current-usage figures are also column-aligned now.
+- **`MasselGUARDcli help` and `version` no longer need Administrator.** Informational commands run in any terminal; only commands that actually touch the tunnel driver require elevation.
+- **Fixed: connecting a local tunnel from the CLI.** `MasselGUARDcli connect <name>` failed for local tunnels because the tunnel service was launched with the wrong host executable and exited immediately; it now starts correctly. Thanks to **Sven Grewe ([@qoreQyaS](https://github.com/qoreQyaS))** for the fix ([#47](https://github.com/masselink/MasselGUARD/pull/47)).
+
+---
+
 ## v3.9.5 — Selective Serval
 
 This cycle is about **rules, portability, and languages**.

@@ -37,22 +37,6 @@ Corporation, MIT licensed. <https://github.com/dotnet/runtime>
 
 ---
 
-## Planned dependency (NOT yet bundled) — WinDivert
-
-Reserved for future **per-app split tunneling** (a later 4.x). **Not present in
-current releases** — this entry is a placeholder so the obligations are settled
-before the dependency is added.
-
-- Upstream: <https://github.com/basil00/WinDivert> (<https://reqrypt.org/windivert.html>)
-- Copyright © Basil (basil00) and contributors
-- License: **LGPLv3 / GPLv3 (dual)**. MasselGUARD intends the **LGPLv3** path:
-  dynamic linking of an **unmodified** `WinDivert.dll`, preserving the user's
-  ability to replace it (LGPL §4). When it is bundled, add here: WinDivert's own
-  `LICENSE`/notice, plus copies of the **LGPLv3** and **GPLv3** license texts, and
-  ship those files with the release.
-
----
-
 ## Fonts
 
 Any bundled theme fonts (e.g. Orbitron, JetBrains Mono — SIL Open Font License)

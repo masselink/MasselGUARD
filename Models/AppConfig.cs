@@ -145,6 +145,10 @@ namespace MasselGUARD.Models
         public int  InfoTimeRangeDays        { get; set; } = 1;
         /// <summary>Which view the bottom info panel shows: "timeline" or "usage".</summary>
         public string InfoPanelMode          { get; set; } = "timeline";
+        /// <summary>How per-tunnel data-cap usage is shown on the tunnel row:
+        /// "bars" (slim horizontal progress bars, breakdown on hover — the default) or
+        /// "rings" (compact concentric-style arcs).</summary>
+        public string CapIndicatorStyle      { get; set; } = "bars";
 
         // Legacy — kept for JSON backwards-compat deserialization only; not used by code.
         // The setter migrates old configs to the two new bools.

@@ -1,6 +1,6 @@
 # MasselGUARD — User Manual
 
-**Version 3.9.5 — Selective Serval**
+**Version 4.0.0 — Forking Fox**
 
 ---
 
@@ -100,7 +100,7 @@ Columns: **Tunnel** | **Type** | **Status** | **Rules** | **Action**
 
 - **Colour strip** — 4 px strip per row showing the tunnel's group colour
 - **Badges** — `⚡` (default action) and `🔓` (open network protection) after the tunnel name
-- **Status** — uptime for active tunnels: `● Connected  2h 34m`. When a data cap is set, the row also shows compact **usage rings** (day / week / month) — see §10
+- **Status** — a status dot + uptime for active tunnels (e.g. `● 2h 34m`). When a data cap is set, the row also shows its usage as **bars** (day / week / month) — or compact **rings** if you prefer; switch the style in **Settings → Appearance** (see §10). Live ↑/↓ traffic is no longer per-row — it's shown **combined for all active tunnels** in the Timeline / Data-usage panel header (hover it for the per-tunnel breakdown).
 - **Rules** — count of WiFi rules referencing this tunnel; click to highlight matching rules in the WiFi Rules panel. Rebuilds immediately on rule add/edit/delete
 - **Action** — Connect / Disconnect, centred (a 🛑 marker appears if a data cap disconnected the tunnel, until you next start it)
 
@@ -168,9 +168,29 @@ Select a tunnel and use the toolbar **Export** button to hand it to another devi
 - **Encrypted file (`.mgconf`)** — password-protected with AES-256-GCM. Unlike the at-rest storage, it's **portable** — open it on any machine with the password. There's no recovery if the password is lost.
 - **QR code** — scan straight into the WireGuard mobile app.
 
-**Include MasselGUARD settings** (file formats only) bundles the tunnel's extras — group, notes, scripts, kill switch, auto-reconnect, and data caps — as readable `# MasselGUARD-…` comment lines that other WireGuard clients ignore, so the `.conf` stays universally importable. MasselGUARD restores them on import (the CLI too: `MasselGUARDcli import file.mgconf --password <pw>`).
+**Include MasselGUARD settings** (file formats only) bundles the tunnel's extras — group, notes, scripts, kill switch, auto-reconnect, data caps, and split-tunnel settings — as readable `# MasselGUARD-…` comment lines that other WireGuard clients ignore, so the `.conf` stays universally importable. MasselGUARD restores them on import (the CLI too: `MasselGUARDcli import file.mgconf --password <pw>`).
 
 > The exported config contains the tunnel's **private key** — keep plain and QR exports private; use the encrypted format to share safely. Export is disabled when a managed policy locks *Tunnels*.
+
+---
+
+### Split tunneling
+
+By default a tunnel is a **full tunnel** — all your traffic goes through it. On a **local tunnel's** editor, the **Split** tab lets you route only *some* traffic through it, by destination IP range:
+
+- **Off** — route everything through the tunnel (the default).
+- **Exclude these ranges** — a full tunnel *except* the ranges you list. Use this to keep specific destinations on your normal connection — a local printer or NAS (`192.168.1.0/24`), or a service you don't want tunnelled.
+- **Only these ranges** — the reverse: only the listed ranges go through the tunnel; everything else uses your normal connection. Use this for a split VPN that reaches just a few subnets or services.
+
+Enter ranges **one per line**, in CIDR notation (`10.0.0.0/8`, `192.168.1.0/24`) or as a single address (`10.0.0.5`, treated as a `/32`). **IPv4 and IPv6** are both supported. MasselGUARD works out the tunnel's effective routes automatically — you don't edit any route tables. An invalid entry is flagged when you save.
+
+The Split tab shows a live **Effective AllowedIPs (preview)** underneath: *Base* is the `AllowedIPs` from the Fields tab, and *Effective* is what the tunnel will actually route once your split is applied — it updates as you change the mode or ranges, so you can see exactly what will be tunnelled before you save.
+
+Notes:
+- Split tunneling applies to **local** tunnels (the ones MasselGUARD builds). Companion WireGuard-for-Windows tunnels are managed by that app and have no Split tab.
+- With a **kill switch** active, *Exclude* ranges are still allowed out over your normal connection (they're not blocked) — so excluded traffic keeps working while the rest is protected.
+- Split settings **travel with an export** (they're part of the *Include MasselGUARD settings* extras) and are shown by `MasselGUARDcli info <name>`.
+- *Per-app* split (choosing by application instead of IP range) is planned for a later 4.x update and is not in this version yet.
 
 ---
 
@@ -832,6 +852,12 @@ Ticking **Kill at cap** next to a threshold turns the warning into **enforcement
 
 The bottom info panel has a **Timeline ⇄ Data usage** switch that charts per-tunnel usage over the selected range, with a red marker where a cap was reached. Usage is drawn from the connection history, so keep **Settings → History → Capture → Connections** on for accurate totals. Estimates are not exact — MasselGUARD isn't responsible for inaccurate reporting or for tunnels being disconnected (or not) as a result.
 
+**A local tunnel won't start — "Tunnel did not come up… Element not found".**
+Most often this is because MasselGUARD is running from a **OneDrive (cloud-synced) folder**. A local tunnel is driven by a Windows service that runs as **LocalSystem**, and LocalSystem cannot read files inside your personal OneDrive folder — so the tunnel can't start. Move MasselGUARD to a normal local folder (e.g. `C:\MasselGUARD` or Program Files) and run it from there. MasselGUARD now warns you at startup if it detects this. (Companion / WireGuard-for-Windows tunnels are unaffected.) Other possible causes: the wireguard-NT driver blocked by antivirus or Secure Boot — check the Windows **Event Log → System** for details.
+
+**Where's the rings-vs-bars usage setting?**
+**Settings → Appearance** (it moved there from the Tunnels page — it's a display choice for the tunnel list).
+
 **The import settings dialog showed raw placeholder text instead of a warning.**
 Fixed in v3.3.0 — `SettingsImportVersionWarning` and `SettingsImportVersionNewer` are now present in all five language files.
 
@@ -924,7 +950,7 @@ MasselGUARD info "1.MasselinkVPN-Split-AG"
 ### Version output
 
 ```
-MasselGUARD v3.9.5  |  Selective Serval
+MasselGUARD v4.0.0  |  Forking Fox
 build:   2608200000
 arch:    x64
 Harold Masselink  |  https://masselink.net

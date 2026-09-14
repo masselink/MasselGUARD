@@ -67,6 +67,11 @@ namespace MasselGUARD.Services
             public string? PostConnectScript    { get; set; }
             public string? PreDisconnectScript  { get; set; }
             public string? PostDisconnectScript { get; set; }
+            // Split tunneling (route/IP-based). Portable — it defines the tunnel's routing
+            // intent, so it travels with an export. SplitApps is intentionally NOT carried
+            // (unused per-app placeholder in 4.0.0). See docs/SplitTunneling-Design.md §10.
+            public string?       SplitMode   { get; set; }
+            public List<string>? SplitRanges { get; set; }
 
             public static TunnelSettings From(StoredTunnel t) => new()
             {
@@ -83,6 +88,12 @@ namespace MasselGUARD.Services
                 PostConnectScript    = t.PostConnectScript,
                 PreDisconnectScript  = t.PreDisconnectScript,
                 PostDisconnectScript = t.PostDisconnectScript,
+                // Only carry a meaningful split (skip the "off"/empty default).
+                SplitMode   = (!string.IsNullOrEmpty(t.SplitMode) &&
+                               !t.SplitMode.Equals("off", StringComparison.OrdinalIgnoreCase))
+                              ? t.SplitMode : null,
+                SplitRanges = (t.SplitRanges != null && t.SplitRanges.Count > 0)
+                              ? new List<string>(t.SplitRanges) : null,
             };
 
             public void ApplyTo(StoredTunnel t)
@@ -100,6 +111,8 @@ namespace MasselGUARD.Services
                 if (PostConnectScript    != null) t.PostConnectScript    = PostConnectScript;
                 if (PreDisconnectScript  != null) t.PreDisconnectScript  = PreDisconnectScript;
                 if (PostDisconnectScript != null) t.PostDisconnectScript = PostDisconnectScript;
+                if (SplitMode            != null) t.SplitMode            = SplitMode;
+                if (SplitRanges          != null) t.SplitRanges          = SplitRanges;
             }
         }
 
@@ -149,6 +162,11 @@ namespace MasselGUARD.Services
             Str("PostConnect",    s.PostConnectScript);
             Str("PreDisconnect",  s.PreDisconnectScript);
             Str("PostDisconnect", s.PostDisconnectScript);
+            Str("SplitMode",      s.SplitMode);
+            // Ranges never contain a comma, so a comma-joined value is safe and stays
+            // on one line (no base64 needed).
+            if (s.SplitRanges != null && s.SplitRanges.Count > 0)
+                sb.Append(Emit("SplitRanges", string.Join(", ", s.SplitRanges)));
             return sb.ToString();
         }
 
@@ -238,6 +256,15 @@ namespace MasselGUARD.Services
                 case "PostConnect":    s.PostConnectScript    = val; break;
                 case "PreDisconnect":  s.PreDisconnectScript  = val; break;
                 case "PostDisconnect": s.PostDisconnectScript = val; break;
+                case "SplitMode":      s.SplitMode            = val; break;
+                case "SplitRanges":
+                {
+                    var list = new List<string>();
+                    foreach (var part in val.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        list.Add(part);
+                    s.SplitRanges = list;
+                    break;
+                }
             }
         }
 
@@ -338,5 +365,48 @@ namespace MasselGUARD.Services
             Rfc2898DeriveBytes.Pbkdf2(
                 Encoding.UTF8.GetBytes(password ?? ""), salt,
                 Iterations, HashAlgorithmName.SHA256, KeyLen);
+
+        // ── Self-test: split-config round-trip (run via `MasselGUARDcli selftest`) ──
+
+        /// <summary>Verifies split settings survive export → import unchanged. Returns (passed, failed, msgs).</summary>
+        public static (int passed, int failed, List<string> failures) SelfTest()
+        {
+            int passed = 0, failed = 0;
+            var failures = new List<string>();
+            void Check(string label, bool ok, string? detail = null)
+            {
+                if (ok) passed++;
+                else { failed++; failures.Add($"{label}{(detail != null ? ": " + detail : "")}"); }
+            }
+
+            const string conf = "[Interface]\nPrivateKey = ABC\nAddress = 10.9.0.2/32\n\n" +
+                                "[Peer]\nPublicKey = DEF\nEndpoint = h:51820\nAllowedIPs = 0.0.0.0/0\n";
+
+            // exclude round-trip
+            var src = new StoredTunnel
+            {
+                Name = "t", SplitMode = "exclude",
+                SplitRanges = new List<string> { "10.0.0.0/8", "192.168.0.0/16" },
+            };
+            var text = BuildExportText(conf, TunnelSettings.From(src));
+            Check("export-has-splitmode",   text.Contains("# MasselGUARD-SplitMode: exclude"), text);
+            Check("export-has-splitranges", text.Contains("# MasselGUARD-SplitRanges: 10.0.0.0/8, 192.168.0.0/16"), text);
+
+            var (cfgBack, settings) = ParseImportText(text);
+            var dst = new StoredTunnel { Name = "t2" };
+            settings?.ApplyTo(dst);
+            Check("import-splitmode",   dst.SplitMode == "exclude", dst.SplitMode);
+            Check("import-splitranges", dst.SplitRanges != null && dst.SplitRanges.Count == 2
+                                        && dst.SplitRanges[0] == "10.0.0.0/8" && dst.SplitRanges[1] == "192.168.0.0/16",
+                  string.Join("|", dst.SplitRanges ?? new List<string>()));
+            Check("import-clean-conf", !cfgBack.Contains("MasselGUARD-"), cfgBack);
+
+            // off / empty split is not emitted
+            var offSrc  = new StoredTunnel { Name = "o", SplitMode = "off" };
+            var offText = BuildExportText(conf, TunnelSettings.From(offSrc));
+            Check("export-off-omits-split", !offText.Contains("SplitMode") && !offText.Contains("SplitRanges"), offText);
+
+            return (passed, failed, failures);
+        }
     }
 }

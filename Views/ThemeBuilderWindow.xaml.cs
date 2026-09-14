@@ -859,6 +859,15 @@ namespace MasselGUARD.Views
         }
 
         // ── List selection ────────────────────────────────────────────────────
+        // The theme-name column stacks three ListBoxes inside one ScrollViewer. A ListBox
+        // swallows MouseWheel, so without this the outer ScrollViewer never scrolls when the
+        // cursor is over the names. Intercept in the tunnelling phase and scroll it directly.
+        private void ThemeListScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            ThemeListScroll.ScrollToVerticalOffset(ThemeListScroll.VerticalOffset - e.Delta);
+            e.Handled = true;
+        }
+
         private void ThemeList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             // Single selection across the three lists — clear the other two

@@ -215,6 +215,13 @@ namespace MasselGUARD
             LogSvc.Debug($".NET  : {Environment.Version}");
             LogSvc.Debug($"User  : {Environment.UserDomainName}\\{Environment.UserName}");
 
+            // A local tunnel is hosted by a Windows service running as LocalSystem, which cannot
+            // read files inside a per-user cloud-synced folder (OneDrive) — the tunnel then dies
+            // with "Element not found". Warn if we're running from such a location. Deferred so
+            // the main window paints first.
+            Dispatcher.BeginInvoke(new Action(WarnIfCloudSyncedLocation),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
             // Subscribe to log service and render existing entries
             LogSvc.EntryAdded += AppendLogEntry;
             RebuildLog();
@@ -1083,6 +1090,11 @@ namespace MasselGUARD
                 DailyCapKill        = dlg.ResultDailyCapKill,
                 WeeklyCapKill       = dlg.ResultWeeklyCapKill,
                 MonthlyCapKill      = dlg.ResultMonthlyCapKill,
+                DailyCapHideRing    = dlg.ResultDailyCapHideRing,
+                WeeklyCapHideRing   = dlg.ResultWeeklyCapHideRing,
+                MonthlyCapHideRing  = dlg.ResultMonthlyCapHideRing,
+                SplitMode           = dlg.ResultSplitMode,
+                SplitRanges         = dlg.ResultSplitRanges,
             };
             ConfigSvc.Config.Tunnels.Add(stored);
             ConfigSvc.Save();
@@ -1136,6 +1148,12 @@ namespace MasselGUARD
                     existingDailyCapKill: stored.DailyCapKill,
                     existingWeeklyCapKill: stored.WeeklyCapKill,
                     existingMonthlyCapKill: stored.MonthlyCapKill,
+                    existingDailyCapHideRing: stored.DailyCapHideRing,
+                    existingWeeklyCapHideRing: stored.WeeklyCapHideRing,
+                    existingMonthlyCapHideRing: stored.MonthlyCapHideRing,
+                    existingSplitMode: stored.SplitMode,
+                    existingSplitRanges: stored.SplitRanges,
+                    existingSplitApps: stored.SplitApps,
                     existingDailyUsedBytes: usedDay,
                     existingWeeklyUsedBytes: usedWeek,
                     existingMonthlyUsedBytes: usedMonth)
@@ -1156,6 +1174,9 @@ namespace MasselGUARD
                     existingDailyCapKill: stored.DailyCapKill,
                     existingWeeklyCapKill: stored.WeeklyCapKill,
                     existingMonthlyCapKill: stored.MonthlyCapKill,
+                    existingDailyCapHideRing: stored.DailyCapHideRing,
+                    existingWeeklyCapHideRing: stored.WeeklyCapHideRing,
+                    existingMonthlyCapHideRing: stored.MonthlyCapHideRing,
                     existingDailyUsedBytes: usedDay,
                     existingWeeklyUsedBytes: usedWeek,
                     existingMonthlyUsedBytes: usedMonth)
@@ -1192,6 +1213,11 @@ namespace MasselGUARD
                 stored.DailyCapKill   = tcd.ResultDailyCapKill;
                 stored.WeeklyCapKill  = tcd.ResultWeeklyCapKill;
                 stored.MonthlyCapKill = tcd.ResultMonthlyCapKill;
+                stored.DailyCapHideRing   = tcd.ResultDailyCapHideRing;
+                stored.WeeklyCapHideRing  = tcd.ResultWeeklyCapHideRing;
+                stored.MonthlyCapHideRing = tcd.ResultMonthlyCapHideRing;
+                stored.SplitMode      = tcd.ResultSplitMode;
+                stored.SplitRanges    = tcd.ResultSplitRanges;
             }
             else if (dlg is Views.TunnelMetadataDialog tmd)
             {
@@ -1211,6 +1237,9 @@ namespace MasselGUARD
                 stored.DailyCapKill   = tmd.ResultDailyCapKill;
                 stored.WeeklyCapKill  = tmd.ResultWeeklyCapKill;
                 stored.MonthlyCapKill = tmd.ResultMonthlyCapKill;
+                stored.DailyCapHideRing   = tmd.ResultDailyCapHideRing;
+                stored.WeeklyCapHideRing  = tmd.ResultWeeklyCapHideRing;
+                stored.MonthlyCapHideRing = tmd.ResultMonthlyCapHideRing;
             }
             else return;
 
@@ -2711,6 +2740,58 @@ namespace MasselGUARD
                     ? AppRunModeKind.Managed
                     : AppRunModeKind.ManagedPortable;
             }
+        }
+
+        /// <summary>
+        /// Warns (once at startup) when MasselGUARD is running from a cloud-synced folder
+        /// (OneDrive). Local WireGuard tunnels are hosted by a service running as LocalSystem,
+        /// which cannot access per-user cloud paths — so a local tunnel start fails with
+        /// "Element not found". Only shown when at least one local tunnel is configured
+        /// (companion-only setups are unaffected); always logged.
+        /// </summary>
+        private void WarnIfCloudSyncedLocation()
+        {
+            try
+            {
+                string dir = AppContext.BaseDirectory ?? "";
+                if (dir.Length == 0 || !IsCloudSyncedPath(dir)) return;
+
+                LogSvc.Warn(Lang.T("CloudSyncLog", dir));
+
+                bool hasLocal = _vm?.TunnelList?.Any(t => t.IsLocal) ?? false;
+                if (!hasLocal) return;
+
+                ShowThemedInfo(Lang.T("CloudSyncWarning", dir), Lang.T("CloudSyncTitle"));
+            }
+            catch { /* never let a startup advisory crash the app */ }
+        }
+
+        /// <summary>
+        /// True when <paramref name="dir"/> lives under a cloud-sync root (OneDrive personal or
+        /// business), contains "OneDrive" in its path, or sits under a reparse point / cloud
+        /// placeholder — any of which makes it inaccessible to a LocalSystem service.
+        /// </summary>
+        private static bool IsCloudSyncedPath(string dir)
+        {
+            foreach (var v in new[] { "OneDrive", "OneDriveCommercial", "OneDriveConsumer" })
+            {
+                var root = Environment.GetEnvironmentVariable(v);
+                if (!string.IsNullOrEmpty(root) &&
+                    dir.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            if (dir.IndexOf("OneDrive", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            try
+            {
+                var di = new System.IO.DirectoryInfo(dir);
+                while (di != null)
+                {
+                    if ((di.Attributes & System.IO.FileAttributes.ReparsePoint) != 0) return true;
+                    di = di.Parent;
+                }
+            }
+            catch { /* attribute probe is best-effort */ }
+            return false;
         }
 
         /// <summary>
@@ -4564,6 +4645,9 @@ namespace MasselGUARD
         private void SetNavButtonsVisible(bool visible)
         {
             var v = visible ? Visibility.Visible : Visibility.Collapsed;
+            // NavGroup wraps the label, the ◀▶ buttons and their trailing separator, so the
+            // separator hides with the nav in usage mode.
+            if (NavGroup != null) NavGroup.Visibility = v;
             if (ChartPrevBtn  != null) ChartPrevBtn.Visibility  = v;
             if (ChartNextBtn  != null) ChartNextBtn.Visibility  = v;
             if (ChartNavLabel != null) ChartNavLabel.Visibility = v;

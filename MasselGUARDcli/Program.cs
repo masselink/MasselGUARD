@@ -22,6 +22,11 @@ namespace MasselGUARD
         {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
 
+            // Informational commands touch no driver, service or elevated state, so they
+            // run in any terminal without Administrator rights (help, version, self-tests).
+            if (args.Length > 0 && IsNonElevatedCommand(args[0]))
+                return Cli.CliRunner.Run(args);
+
             // ── Elevation check ───────────────────────────────────────────────
             // The manifest is asInvoker so non-admin terminals get an inline
             // error rather than a UAC popup that spawns a new window.
@@ -56,6 +61,15 @@ namespace MasselGUARD
 
             return Cli.CliRunner.Run(args);
         }
+
+        /// <summary>Commands that need no Administrator rights (no driver/service access).</summary>
+        private static bool IsNonElevatedCommand(string cmd) => cmd.ToLowerInvariant() switch
+        {
+            "help" or "--help" or "-h" or "-?"     => true,
+            "version" or "--version" or "-v"       => true,
+            "selftest"                             => true,
+            _                                      => false,
+        };
 
         private static bool IsElevated()
         {

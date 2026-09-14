@@ -18,6 +18,10 @@ namespace MasselGUARD.Services
         private readonly LogService  _log;
         private readonly object      _lock   = new();
         private readonly HashSet<string> _active = new(StringComparer.OrdinalIgnoreCase);
+        // Exact firewall-rule names for each tunnel's split-bypass allows, so removal is
+        // precise (tunnel names can be prefixes of one another). See design §6.
+        private readonly Dictionary<string, List<string>> _splitRuleNames =
+            new(StringComparer.OrdinalIgnoreCase);
 
         // Saved per-profile outbound actions (1 = Allow, 0 = Block)
         private int _savedDomain  = 1;
@@ -85,7 +89,8 @@ namespace MasselGUARD.Services
 
         // ── Public API ────────────────────────────────────────────────────────
 
-        public void Enable(string tunnelName, string? endpointIp)
+        public void Enable(string tunnelName, string? endpointIp,
+                           IReadOnlyList<string>? bypassRanges = null)
         {
             try
             {
@@ -95,7 +100,7 @@ namespace MasselGUARD.Services
                     if (_active.Count == 0) ApplyGlobalBlock();
                     _active.Add(tunnelName);
                 }
-                AddTunnelRules(tunnelName, endpointIp);
+                AddTunnelRules(tunnelName, endpointIp, bypassRanges);
                 _log.Ok($"[KillSwitch] Enabled — {tunnelName}");
             }
             catch (Exception ex)
@@ -182,7 +187,8 @@ namespace MasselGUARD.Services
             try { policy.Rules.Remove(Prefix + "Allow_Loopback"); } catch { }
         }
 
-        private void AddTunnelRules(string tunnelName, string? endpointIp)
+        private void AddTunnelRules(string tunnelName, string? endpointIp,
+                                    IReadOnlyList<string>? bypassRanges = null)
         {
             var policy = OpenPolicy();
             if (policy == null) return;
@@ -196,6 +202,26 @@ namespace MasselGUARD.Services
             if (!string.IsNullOrEmpty(endpointIp))
                 AddFwRule(rules, Prefix + "Allow_EP_" + tunnelName, AllProf,
                     remoteAddr: endpointIp, protocol: UDP);
+
+            // Split exclude-mode: let the excluded destination ranges out past the global
+            // block so they reach the physical NIC instead of being dropped (design §6).
+            if (bypassRanges != null && bypassRanges.Count > 0)
+            {
+                var names = new List<string>();
+                for (int i = 0; i < bypassRanges.Count; i++)
+                {
+                    var range = bypassRanges[i]?.Trim();
+                    if (string.IsNullOrEmpty(range)) continue;
+                    var name = Prefix + "Allow_Split_" + tunnelName + "_" + i;
+                    AddFwRule(rules, name, AllProf, remoteAddr: range);
+                    names.Add(name);
+                }
+                if (names.Count > 0)
+                {
+                    lock (_lock) { _splitRuleNames[tunnelName] = names; }
+                    _log.Debug($"[KillSwitch] {names.Count} split-bypass allow(s) — {tunnelName}");
+                }
+            }
         }
 
         private void RemoveTunnelRules(string tunnelName)
@@ -205,6 +231,13 @@ namespace MasselGUARD.Services
             var rules = policy.Rules;
             try { rules.Remove(Prefix + "Allow_WG_" + tunnelName); } catch { }
             try { rules.Remove(Prefix + "Allow_EP_" + tunnelName); } catch { }
+
+            // Remove this tunnel's split-bypass allows by their exact recorded names.
+            List<string>? splitNames;
+            lock (_lock) { _splitRuleNames.TryGetValue(tunnelName, out splitNames); _splitRuleNames.Remove(tunnelName); }
+            if (splitNames != null)
+                foreach (var n in splitNames)
+                    try { rules.Remove(n); } catch { }
         }
 
         // ── COM helpers ───────────────────────────────────────────────────────

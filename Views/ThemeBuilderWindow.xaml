@@ -68,7 +68,8 @@
                                 ToolTip="{Binding [TBCommunityTip], Source={x:Static local:Lang.Instance}}"/>
 
                         <!-- Theme list -->
-                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer Grid.Row="2" x:Name="ThemeListScroll" VerticalScrollBarVisibility="Auto"
+                                      PreviewMouseWheel="ThemeListScroll_PreviewMouseWheel">
                             <StackPanel>
                                 <!-- Built-in header -->
                                 <TextBlock Text="{Binding [TBBuiltIn], Source={x:Static local:Lang.Instance}}"

@@ -81,6 +81,10 @@ namespace MasselGUARD.Cli
             if (cmd is "help" or "--help" or "-h" or "-?")
                 return CmdHelp();
 
+            // Hidden developer command: run built-in self-tests (currently CIDR split math).
+            if (cmd == "selftest")
+                return CmdSelfTest(args);
+
             // ── Load config ───────────────────────────────────────────────────
             var configSvc = new ConfigService();
             configSvc.Load();
@@ -117,6 +121,26 @@ namespace MasselGUARD.Cli
 
             Console.Out.Flush();
             return exitCode;
+        }
+
+        // ── selftest (hidden) ───────────────────────────────────────────────────
+
+        /// <summary>Runs built-in self-tests. Currently the CIDR split-tunnel math
+        /// (<see cref="Services.CidrMath.RunSelfTest"/>). Exit 0 = all passed, 1 = failures.</summary>
+        private static int CmdSelfTest(string[] args)
+        {
+            var (cidrPass, cidrFail, cidrFailures) = Services.CidrMath.RunSelfTest();
+            var (backPass, backFail, backFailures) = Services.RouteBasedBackend.SelfTest();
+            var (expPass,  expFail,  expFailures)  = Services.TunnelExportService.SelfTest();
+
+            foreach (var f in cidrFailures) CliOutput.Error($"FAIL CidrMath {f}");
+            foreach (var f in backFailures) CliOutput.Error($"FAIL Backend {f}");
+            foreach (var f in expFailures)  CliOutput.Error($"FAIL Export {f}");
+
+            int pass = cidrPass + backPass + expPass, fail = cidrFail + backFail + expFail;
+            if (fail == 0) CliOutput.Ok($"Split self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}).");
+            else           CliOutput.Error($"Split self-test: {pass} passed, {fail} failed.");
+            return fail == 0 ? 0 : 1;
         }
 
         // ── list ──────────────────────────────────────────────────────────────
@@ -411,6 +435,8 @@ namespace MasselGUARD.Cli
                     uptime_sec     = uptime.HasValue ? (int?)((int)uptime.Value.TotalSeconds) : null,
                     last_source    = lastSession?.Source,
                     last_connected = lastSession?.ConnectedAt.ToLocalTime().ToString("o"),
+                    split_mode     = SplitModeActive(tunnel) ? tunnel.SplitMode : null,
+                    split_ranges   = SplitModeActive(tunnel) ? tunnel.SplitRanges.ToArray() : null,
                 });
             }
             else
@@ -419,6 +445,13 @@ namespace MasselGUARD.Cli
                 CliOutput.Info($"  Type:    {(tunnel.Source == "local" ? "Local (tunnel.dll)" : "WireGuard for Windows")}");
                 CliOutput.Info($"  Group:   {(string.IsNullOrEmpty(tunnel.Group) ? "—" : tunnel.Group)}");
                 CliOutput.Info($"  Status:  {(isActive ? $"● Connected  {(uptime.HasValue ? FormatUptime(uptime.Value) : "unknown")}" : "○ Disconnected")}");
+
+                if (SplitModeActive(tunnel))
+                {
+                    var verb = tunnel.SplitMode!.Equals("exclude", StringComparison.OrdinalIgnoreCase)
+                        ? "exclude" : "include";
+                    CliOutput.Info($"  Split:   {verb} — {string.Join(", ", tunnel.SplitRanges)}");
+                }
 
                 if (lastSession != null)
                 {
@@ -1118,6 +1151,12 @@ namespace MasselGUARD.Cli
             }
             catch { return false; }
         }
+
+        /// <summary>True when the tunnel has a route-based split configured (mode != off + ranges).</summary>
+        private static bool SplitModeActive(StoredTunnel t)
+            => !string.IsNullOrEmpty(t.SplitMode)
+               && !t.SplitMode.Equals("off", StringComparison.OrdinalIgnoreCase)
+               && t.SplitRanges != null && t.SplitRanges.Count > 0;
 
         private static StoredTunnel? FindTunnel(AppConfig cfg, string name)
             => cfg.Tunnels.FirstOrDefault(t =>

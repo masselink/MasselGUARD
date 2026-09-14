@@ -1,6 +1,6 @@
 # MasselGUARD — CLI Manual
 
-**Version 3.9.5 — Selective Serval**
+**Version 4.0.0 — Forking Fox**
 
 MasselGUARD includes a full command-line interface for scripting, automation, and headless operation. The CLI and the GUI share the same WireGuard kernel driver and the same configuration — any change made via CLI is reflected in the GUI within ~1 second, and vice versa.
 
@@ -35,7 +35,7 @@ MasselGUARD includes a full command-line interface for scripting, automation, an
 
 ## 1. Requirements
 
-- **Administrator privileges** — MasselGUARD requires elevation to manage WireGuard kernel adapters and Windows services.
+- **Administrator privileges** — commands that manage WireGuard kernel adapters and Windows services require elevation. The informational commands **`help`** and **`version`** (and their aliases) run in any terminal without Administrator rights; everything that touches a tunnel needs elevation.
 - **Running from an elevated terminal** (recommended) — run PowerShell or cmd.exe as Administrator. Output appears inline in the same window.
 - **Running from a non-elevated terminal** — Windows will prompt for UAC elevation and open a new console window. A "Press any key to close" prompt appears so you can read the output before the window closes.
 
@@ -271,7 +271,7 @@ MasselGUARD disconnect-all --group Work
 
 ### info
 
-Shows detailed status for a single tunnel, including type, group, live uptime, and the source of the last connection.
+Shows detailed status for a single tunnel, including type, group, live uptime, the source of the last connection, and — when configured — its split-tunnel setting.
 
 ```
 MasselGUARD info <name>
@@ -291,8 +291,11 @@ MasselGUARD info "1.HomeVPN" --json
   Type:    Local (tunnel.dll)
   Group:   Home
   Status:  ● Connected  1h 23m
+  Split:   exclude — 192.168.1.0/24, 10.0.0.0/8
   Source:  Rule: HomeWifi → HomeVPN  (today 09:31)
 ```
+
+The `Split:` line appears only when the tunnel has a route-based split configured (`exclude` or `include` with at least one range).
 
 **Plain output (disconnected):**
 ```
@@ -312,9 +315,13 @@ MasselGUARD info "1.HomeVPN" --json
   "group":          "Home",
   "uptime_sec":     4980,
   "last_source":    "Rule: HomeWifi → HomeVPN",
-  "last_connected": "2026-06-02T09:31:00+02:00"
+  "last_connected": "2026-06-02T09:31:00+02:00",
+  "split_mode":     "exclude",
+  "split_ranges":   ["192.168.1.0/24", "10.0.0.0/8"]
 }
 ```
+
+`split_mode` and `split_ranges` are `null` when the tunnel has no split configured.
 
 ---
 
@@ -716,27 +723,27 @@ MasselGUARD check-update --json
 
 **Plain output:**
 ```
-Up to date — v3.9.5 is the latest release.
+Up to date — v4.0.0 is the latest release.
 ```
 ```
-Update available: v3.9.6  (current: v3.9.5)
+Update available: v4.0.1  (current: v4.0.0)
 ```
 
 **JSON output:**
 ```json
 {
   "result":  "up_to_date",
-  "current": "3.9.5",
-  "latest":  "3.9.5",
-  "message": "Up to date — v3.9.5 is the latest release."
+  "current": "4.0.0",
+  "latest":  "4.0.0",
+  "message": "Up to date — v4.0.0 is the latest release."
 }
 ```
 ```json
 {
   "result":  "update_available",
-  "current": "3.9.5",
-  "latest":  "3.9.6",
-  "message": "Update available: v3.9.6  (current: v3.9.5)"
+  "current": "4.0.0",
+  "latest":  "4.0.1",
+  "message": "Update available: v4.0.1  (current: v4.0.0)"
 }
 ```
 
@@ -754,7 +761,7 @@ MasselGUARD -v
 
 **Plain output:**
 ```
-MasselGUARD v3.9.5  |  Selective Serval
+MasselGUARD v4.0.0  |  Forking Fox
 build:   2608200000
 arch:    x64
 Harold Masselink  |  https://masselink.net
@@ -764,8 +771,8 @@ Update:  up to date
 **JSON output:**
 ```json
 {
-  "version":       "3.9.5",
-  "codename":      "Selective Serval",
+  "version":       "4.0.0",
+  "codename":      "Forking Fox",
   "build":         "2608200000",
   "arch":          "x64",
   "update_status": "up to date"

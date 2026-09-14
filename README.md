@@ -2,7 +2,7 @@
 
 **Automated WireGuard tunnel management for Windows**
 
-<img width="1794" height="981" alt="MasselGUARD 3 6 0" src="https://github.com/user-attachments/assets/8018d213-1e91-4503-846e-8eebbf85a94e" />
+<img alt="MasselGUARD 4.0.0" src="docs/images/MasselGUARD-4.0.0.png" />
 
 MasselGUARD sits in the system tray and watches your WiFi connection. When you join a known network it activates the right WireGuard tunnel automatically. When you leave, or land on an unknown network, a configurable fallback fires. It also works as a clean manual WireGuard front-end.
 
@@ -109,6 +109,8 @@ MasselGUARD sits in the system tray and watches your WiFi connection. When you j
 - All themes — built-in, downloaded, and hand-made — live together in `%APPDATA%\MasselGUARD\themes\`
 - Themes are published in the separate [MasselGUARD-themes](https://github.com/masselink/MasselGUARD-themes) repo, along with the full `theme.json` format reference for making your own
 
+![The "Forking Fox" theme — the signature look shipped with 4.0.0, available in the theme browser](docs/images/forking-fox-theme.png)
+
 ### Settings
 - **Organized in 7 tabs** — General / Tunnels / WiFi / Appearance / History / Advanced / About
 - **View preset selector** (General tab) — re-apply the Simple / Manual / Expert interface bundle (timeline, activity log, WiFi rules panel/column) picked during setup, anytime
@@ -169,7 +171,7 @@ MasselGUARD includes a full CLI for scripting and automation. Requires Administr
 MasselGUARD version
 ```
 ```
-MasselGUARD v3.9.5  |  Selective Serval
+MasselGUARD v4.0.0  |  Forking Fox
 build:   2608200000
 arch:    x64
 Harold Masselink  |  https://masselink.net
@@ -215,7 +217,7 @@ Requires the .NET 10 SDK. With no argument, `BUILD.bat` builds **both** architec
 Banner:
 ```
   --------------------------------------------------
-  MasselGUARD  v3.9.5  |  Selective Serval
+  MasselGUARD  v4.0.0  |  Forking Fox
   Harold Masselink  |  https://masselink.net
   Building arch(es): x64 arm64
   --------------------------------------------------

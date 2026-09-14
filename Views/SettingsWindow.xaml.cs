@@ -133,7 +133,7 @@ namespace MasselGUARD.Views
             if (tab == "General")    { RefreshGroupList(); RefreshModeStatusBox(); SyncStartWithWindows(); SyncConfirmOnClose(); }
             if (tab == "Tunnels")    { RefreshGroupList(); SyncArMode(); SyncKsMode(); SyncSkipTunnelValidation(); }
             if (tab == "Wifi")       RefreshAutomationControls();
-            if (tab == "Appearance") PopulateThemePicker();
+            if (tab == "Appearance") { PopulateThemePicker(); SyncCapStyle(); }
             if (tab == "History")    RefreshHistoryTab();
             if (tab == "Advanced")   { RefreshInstallState(); RefreshDllStatus(); RefreshWireGuardSection(); ScanOrphans(); PopulateLogLevelPicker(); RefreshDnsLeakSection(); }
             if (tab == "About")      RefreshUpdateState();
@@ -1790,10 +1790,9 @@ namespace MasselGUARD.Views
                 AboutThemeUpdatesRow.Visibility = n > 0 ? Visibility.Visible : Visibility.Collapsed;
                 if (n > 0)
                 {
-                    AboutThemeUpdatesLabel.Text = (n == 1
-                        ? $"🎨 A theme update is available ({themeUpdates[0]})"
-                        : $"🎨 {n} theme updates are available ({string.Join(", ", themeUpdates)})")
-                        + " — click to open Community themes and update.";
+                    AboutThemeUpdatesLabel.Text = n == 1
+                        ? Lang.T("AboutThemeUpdateOne", themeUpdates[0])
+                        : Lang.T("AboutThemeUpdateMany", n, string.Join(", ", themeUpdates));
                 }
             }
 
@@ -2109,6 +2108,23 @@ namespace MasselGUARD.Views
                 _draft.KillSwitchMode = tag;
         }
 
+        private void SyncCapStyle()
+        {
+            if (CapStyleRings == null || CapStyleBars == null) return;
+            _loading = true;
+            var style = _draft.CapIndicatorStyle ?? "rings";
+            CapStyleBars.IsChecked  = style == "bars";
+            CapStyleRings.IsChecked = style != "bars";
+            _loading = false;
+        }
+
+        private void CapStyle_Changed(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (_loading) return;
+            if (sender is System.Windows.Controls.RadioButton rb && rb.Tag is string tag)
+                _draft.CapIndicatorStyle = tag;
+        }
+
         private void SyncSkipTunnelValidation()
         {
             if (SkipTunnelValidationToggle == null) return;
@@ -2156,6 +2172,28 @@ namespace MasselGUARD.Views
         {
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
                 "https://masselink.net/") { UseShellExecute = true }); }
+            catch { }
+        }
+
+        // Open the bundled licence / notices (shipped next to the exe by BUILD.bat);
+        // fall back to the GitHub copy in dev builds where they aren't alongside the exe.
+        private void LicenseLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+            => OpenLocalOrUrl("LICENSE.txt",
+                "https://github.com/masselink/MasselGUARD/blob/main/LICENSE");
+
+        private void NoticesLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+            => OpenLocalOrUrl("THIRD-PARTY-NOTICES.md",
+                "https://github.com/masselink/MasselGUARD/blob/main/THIRD-PARTY-NOTICES.md");
+
+        private static void OpenLocalOrUrl(string fileName, string fallbackUrl)
+        {
+            try
+            {
+                var local = System.IO.Path.Combine(System.AppContext.BaseDirectory, fileName);
+                string target = System.IO.File.Exists(local) ? local : fallbackUrl;
+                System.Diagnostics.Process.Start(
+                    new System.Diagnostics.ProcessStartInfo(target) { UseShellExecute = true });
+            }
             catch { }
         }
 
@@ -2267,6 +2305,7 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.DnsLeakWarnToast    = _draft.DnsLeakWarnToast;
             _main.ConfigSvc.Config.KillSwitchMode      = _draft.KillSwitchMode;
             _main.ConfigSvc.Config.SkipTunnelValidation = _draft.SkipTunnelValidation;
+            _main.ConfigSvc.Config.CapIndicatorStyle   = _draft.CapIndicatorStyle;
             _main.ConfigSvc.Config.TrustedNetworks     = _draft.TrustedNetworks;
             _main.ConfigSvc.Config.FontOverrideEnabled    = _draft.FontOverrideEnabled;
             _main.ConfigSvc.Config.FontOverrideFamily    = _draft.FontOverrideFamily;
