@@ -141,9 +141,21 @@
                                     VerticalAlignment="Stretch"
                                     Click="MaximizeBtn_Click"
                                     ToolTip="Maximize">
-                                <Path Width="10" Height="10"
-                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                      StrokeThickness="1" Data="M0.5,0.5 H9.5 V9.5 H0.5 Z"/>
+                                <!-- Two vector glyphs; Window_StateChanged toggles their visibility
+                                     (a single square = maximize, overlapping squares = restore).
+                                     Must stay vectors — never replace with text glyphs, which render
+                                     small and off-baseline next to the minimize/close paths. -->
+                                <Grid Width="10" Height="10">
+                                    <Rectangle x:Name="MaxGlyph" Width="10" Height="9"
+                                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                               StrokeThickness="1" SnapsToDevicePixels="True"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <Path x:Name="RestoreGlyph" Visibility="Collapsed"
+                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          StrokeThickness="1" SnapsToDevicePixels="True"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          Data="M2,0 H10 V8 H2 Z M0,2 H8 V10 H0 Z"/>
+                                </Grid>
                             </Button>
                             <Button Padding="12,0"
                                     Style="{StaticResource ChromeCloseBtn}"
@@ -898,8 +910,8 @@
                     <Grid Margin="14,6,14,6">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/> <!-- chart card with TIMELINE header -->
-                            <RowDefinition Height="5"/>    <!-- gap -->
-                            <RowDefinition Height="18"/>   <!-- legend -->
+                            <RowDefinition x:Name="ChartGapRowDef"  Height="5"/>    <!-- gap (collapses to 0 when no pane shown) -->
+                            <RowDefinition x:Name="LegendRowDef"    Height="18"/>   <!-- legend (collapses to 0 when no pane shown) -->
                         </Grid.RowDefinitions>
 
                         <!-- Chart card — TIMELINE header bar + canvases -->
@@ -913,8 +925,10 @@
                                     <RowDefinition Height="Auto"/> <!-- chart canvases -->
                                 </Grid.RowDefinitions>
 
-                                <!-- TIMELINE header bar — label left, range toggles right -->
-                                <Border Grid.Row="0"
+                                <!-- TIMELINE header bar — label left, range toggles right.
+                                     Bottom border + top-only corners while a pane is shown; when both
+                                     panes are off it becomes a self-contained status bar (see RenderChart). -->
+                                <Border Grid.Row="0" x:Name="InfoHeaderBar"
                                         Background="{DynamicResource Surface}"
                                         BorderBrush="{DynamicResource BorderColor}"
                                         BorderThickness="0,0,0,1"
@@ -922,25 +936,30 @@
                                     <Grid Margin="8,5">
                                         <!-- View switch: Timeline ⇄ Data usage -->
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <RadioButton x:Name="ModeTimelineBtn" GroupName="InfoPanelMode"
+                                            <!-- Independent toggles: both on = layered (stacked) view; both off = panel hidden. -->
+                                            <ToggleButton x:Name="ModeTimelineBtn"
                                                          IsChecked="True" Margin="0,0,12,0"
-                                                         VerticalAlignment="Center" Checked="InfoMode_Changed">
-                                                <RadioButton.Style><Style TargetType="RadioButton"><Setter Property="Template"><Setter.Value>
-                                                    <ControlTemplate TargetType="RadioButton">
+                                                         VerticalAlignment="Center"
+                                                         Checked="InfoMode_Changed" Unchecked="InfoMode_Changed"
+                                                         ToolTip="Toggle the timeline — can be shown together with Data usage">
+                                                <ToggleButton.Style><Style TargetType="ToggleButton"><Setter Property="Template"><Setter.Value>
+                                                    <ControlTemplate TargetType="ToggleButton">
                                                         <TextBlock x:Name="tb" Text="TIMELINE" FontSize="{DynamicResource Theme.FontSize.Tiny}" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand" VerticalAlignment="Center"/>
                                                         <ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="tb" Property="Foreground" Value="{DynamicResource Accent}"/><Setter TargetName="tb" Property="FontWeight" Value="SemiBold"/></Trigger></ControlTemplate.Triggers>
                                                     </ControlTemplate>
-                                                </Setter.Value></Setter></Style></RadioButton.Style>
-                                            </RadioButton>
-                                            <RadioButton x:Name="ModeUsageBtn" GroupName="InfoPanelMode"
-                                                         VerticalAlignment="Center" Checked="InfoMode_Changed">
-                                                <RadioButton.Style><Style TargetType="RadioButton"><Setter Property="Template"><Setter.Value>
-                                                    <ControlTemplate TargetType="RadioButton">
+                                                </Setter.Value></Setter></Style></ToggleButton.Style>
+                                            </ToggleButton>
+                                            <ToggleButton x:Name="ModeUsageBtn"
+                                                         VerticalAlignment="Center"
+                                                         Checked="InfoMode_Changed" Unchecked="InfoMode_Changed"
+                                                         ToolTip="Toggle data usage — can be shown together with the timeline">
+                                                <ToggleButton.Style><Style TargetType="ToggleButton"><Setter Property="Template"><Setter.Value>
+                                                    <ControlTemplate TargetType="ToggleButton">
                                                         <TextBlock x:Name="tb" Text="DATA USAGE" FontSize="{DynamicResource Theme.FontSize.Tiny}" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand" VerticalAlignment="Center"/>
                                                         <ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="tb" Property="Foreground" Value="{DynamicResource Accent}"/><Setter TargetName="tb" Property="FontWeight" Value="SemiBold"/></Trigger></ControlTemplate.Triggers>
                                                     </ControlTemplate>
-                                                </Setter.Value></Setter></Style></RadioButton.Style>
-                                            </RadioButton>
+                                                </Setter.Value></Setter></Style></ToggleButton.Style>
+                                            </ToggleButton>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal"
                                                     HorizontalAlignment="Right"
@@ -984,6 +1003,8 @@
                                                 <Rectangle Width="1" Height="10" Fill="{DynamicResource BorderColor}"
                                                            VerticalAlignment="Center" Margin="0,0,10,0"/>
                                             </StackPanel>
+                                            <!-- Time-range selector — hidden when both panes are off (see RenderChart). -->
+                                            <StackPanel x:Name="RangeGroup" Orientation="Horizontal" VerticalAlignment="Center">
                                             <RadioButton x:Name="Range24hBtn" GroupName="InfoTimeRange"
                                                          IsChecked="True" Margin="0,0,10,0"
                                                          VerticalAlignment="Center"
@@ -1015,77 +1036,80 @@
                                                     </ControlTemplate>
                                                 </Setter.Value></Setter></Style></RadioButton.Style>
                                             </RadioButton>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
 
-                                <!-- Chart canvases -->
-                                <Grid Grid.Row="1" Margin="8,6">
-                                    <Canvas x:Name="TimelineCanvas" ClipToBounds="True"
-                                            SizeChanged="TimelineCanvas_SizeChanged"
-                                            MouseMove="TimelineCanvas_MouseMove"
-                                            MouseLeave="TimelineCanvas_MouseLeave"/>
-                                    <Canvas x:Name="ChartOverlayCanvas"
-                                            IsHitTestVisible="False" Panel.ZIndex="10"/>
+                                <!-- Chart canvases — two stacked panes (timeline / data-usage);
+                                     both visible = the layered view. Row heights set in code. -->
+                                <Grid x:Name="ChartCanvasArea" Grid.Row="1" Margin="8,6">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition x:Name="UsagePaneRow" Height="Auto"/>
+                                        <RowDefinition x:Name="PaneGapRow" Height="Auto"/>
+                                        <RowDefinition x:Name="TimelinePaneRow" Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <!-- Timeline pane — framed as its own view when stacked with the usage pane
+                                         (BorderThickness toggled in RenderChart). Sits BELOW the data-usage pane. -->
+                                    <Border x:Name="TimelinePaneHost" Grid.Row="2"
+                                            BorderBrush="{DynamicResource BorderColor}" BorderThickness="0" CornerRadius="4">
+                                        <Grid>
+                                            <Canvas x:Name="TimelineCanvas" ClipToBounds="True"
+                                                    SizeChanged="TimelineCanvas_SizeChanged"
+                                                    MouseMove="TimelineCanvas_MouseMove"
+                                                    MouseLeave="TimelineCanvas_MouseLeave"/>
+                                            <Canvas x:Name="ChartOverlayCanvas"
+                                                    IsHitTestVisible="False" Panel.ZIndex="10"/>
+                                        </Grid>
+                                    </Border>
+                                    <!-- Gap between the two stacked views — shown only when both are visible. -->
+                                    <Border x:Name="PaneGap" Grid.Row="1" Height="8"
+                                            Background="Transparent" Visibility="Collapsed"/>
+                                    <!-- Data-usage pane — sits ABOVE the timeline pane when stacked. -->
+                                    <Border x:Name="UsagePaneHost" Grid.Row="0"
+                                            BorderBrush="{DynamicResource BorderColor}" BorderThickness="0" CornerRadius="4">
+                                        <Grid>
+                                            <Canvas x:Name="UsageCanvas" ClipToBounds="True"
+                                                    SizeChanged="UsageCanvas_SizeChanged"
+                                                    MouseMove="UsageCanvas_MouseMove"
+                                                    MouseLeave="UsageCanvas_MouseLeave"/>
+                                            <Canvas x:Name="UsageOverlayCanvas"
+                                                    IsHitTestVisible="False" Panel.ZIndex="10"/>
+                                        </Grid>
+                                    </Border>
                                 </Grid>
                             </Grid>
                         </Border>
 
-                        <!-- Legend row: tunnel items left, WiFi SSID items right -->
-                        <Grid Grid.Row="2" VerticalAlignment="Center">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-
-                            <!-- Tunnel legend with scroll markers -->
-                            <Grid Grid.Column="0">
+                        <!-- Legend — wrapping colour-dot chips grouped under VPN / Wi-Fi captions.
+                             Auto-height (rows sized in RenderChart); chips built in BuildLegendChip.
+                             Click a chip to hide/show that series in the chart. -->
+                        <StackPanel x:Name="LegendRow" Grid.Row="2" Orientation="Vertical">
+                            <!-- VPN tunnels -->
+                            <Grid x:Name="VpnLegendGroup">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="36"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Button x:Name="TunnelScrollLeft" Grid.Column="0" Content="‹" FontSize="9"
-                                        Padding="1,0" Style="{StaticResource FlatBtn}"
-                                        Foreground="{DynamicResource TextMuted}" Visibility="Collapsed"
-                                        Click="TunnelScrollLeft_Click"/>
-                                <ScrollViewer x:Name="TunnelLegendScroll" Grid.Column="1"
-                                              HorizontalScrollBarVisibility="Hidden"
-                                              VerticalScrollBarVisibility="Disabled"
-                                              ScrollChanged="LegendScroll_Changed"
-                                              PreviewMouseWheel="LegendScroll_Wheel">
-                                    <StackPanel x:Name="LegendPanel" Orientation="Horizontal"/>
-                                </ScrollViewer>
-                                <Button x:Name="TunnelScrollRight" Grid.Column="2" Content="›" FontSize="9"
-                                        Padding="1,0" Style="{StaticResource FlatBtn}"
-                                        Foreground="{DynamicResource TextMuted}" Visibility="Collapsed"
-                                        Click="TunnelScrollRight_Click"/>
+                                <TextBlock Grid.Column="0" Text="VPN" FontSize="9" FontWeight="SemiBold"
+                                           FontFamily="{DynamicResource Theme.FontFamily}"
+                                           Foreground="{DynamicResource TextMuted}"
+                                           VerticalAlignment="Top" Margin="0,2,6,0"/>
+                                <WrapPanel Grid.Column="1" x:Name="LegendPanel"/>
                             </Grid>
-
-                            <!-- WiFi SSID legend, right-aligned -->
-                            <Grid Grid.Column="1" x:Name="WifiLegendContainer" Visibility="Collapsed">
+                            <!-- Wi-Fi SSIDs -->
+                            <Grid x:Name="WifiLegendContainer" Visibility="Collapsed">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto" MaxWidth="280"/>
-                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <Button x:Name="WifiScrollLeft" Grid.Column="0" Content="‹" FontSize="9"
-                                        Padding="1,0" Style="{StaticResource FlatBtn}"
-                                        Foreground="{DynamicResource TextMuted}" Visibility="Collapsed"
-                                        Click="WifiScrollLeft_Click"/>
-                                <ScrollViewer x:Name="WifiLegendScroll" Grid.Column="1"
-                                              HorizontalScrollBarVisibility="Hidden"
-                                              VerticalScrollBarVisibility="Disabled"
-                                              ScrollChanged="LegendScroll_Changed"
-                                              PreviewMouseWheel="LegendScroll_Wheel">
-                                    <StackPanel x:Name="WifiLegendPanel" Orientation="Horizontal"/>
-                                </ScrollViewer>
-                                <Button x:Name="WifiScrollRight" Grid.Column="2" Content="›" FontSize="9"
-                                        Padding="1,0" Style="{StaticResource FlatBtn}"
-                                        Foreground="{DynamicResource TextMuted}" Visibility="Collapsed"
-                                        Click="WifiScrollRight_Click"/>
+                                <TextBlock Grid.Column="0" Text="Wi-Fi" FontSize="9" FontWeight="SemiBold"
+                                           FontFamily="{DynamicResource Theme.FontFamily}"
+                                           Foreground="{DynamicResource TextMuted}"
+                                           VerticalAlignment="Top" Margin="0,2,6,0"/>
+                                <WrapPanel Grid.Column="1" x:Name="WifiLegendPanel"/>
                             </Grid>
-                        </Grid>
+                        </StackPanel>
                     </Grid>
                 </Border>
 

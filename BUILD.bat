@@ -4,9 +4,9 @@ setlocal enabledelayedexpansion
 
 rem ── Build number: YYMMDDHHMM ────────────────────────────────────────────────
 for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyMMddHHmm"') do set BUILD_NUM=%%a
-set VERSION=4.0.0
+set VERSION=4.1.0
 rem Update CODENAME here AND in UpdateChecker.cs when bumping VERSION.
-set CODENAME=Forking Fox
+set CODENAME=Layered Lynx
 
 rem ── Opt out of .NET CLI telemetry ────────────────────────────────────────────
 set DOTNET_CLI_TELEMETRY_OPTOUT=1
@@ -79,7 +79,7 @@ rem name so those installs can still auto-update to the arch-specific builds.
 rem (Keep uploading it to every release until no pre-3.9.0 installs remain.)
 if exist "%DIST%\MasselGUARD-x64.zip" (
     copy /y "%DIST%\MasselGUARD-x64.zip" "%DIST%\MasselGUARD.zip" >nul
-    echo  Created dist\MasselGUARD.zip ^(x64 copy — legacy update bridge^)
+    echo  Created dist\MasselGUARD.zip ^(x64 copy - legacy update bridge^)
 )
 
 echo.

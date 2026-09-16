@@ -16,7 +16,7 @@ BUILD.bat arm64
 
 Each arch publishes natively (framework-dependent single-file) into `dist\<arch>\` (`MasselGUARD.exe` + `MasselGUARDcli.exe`) and is zipped to `dist\MasselGUARD-<arch>.zip` for release. ARM64 is a genuine cross-publish from an x64 host — the SDK produces a native ARM64 apphost (PE machine `0xAA64`). See **x64 / ARM64 architecture support** below.
 
-Current version: **4.0.0 — Forking Fox**
+Current version: **4.1.0 — Layered Lynx**
 When bumping version, update **both** `UpdateChecker.cs` (`CurrentVersion` + `_codenames`) **and** `BUILD.bat` (`VERSION` + `CODENAME`).
 
 **On every new public release**, also update the **Scoop bucket** (separate repo `masselink/MasselGUARD-scoop`, local checkout `../MasselGUARD-scoop`): bump `version` and refresh **both** SHA256 hashes (`64bit` + `arm64`) in `bucket/masselguard.json` to match the new `MasselGUARD-x64.zip` / `MasselGUARD-arm64.zip` release assets. The manifest's `checkver: "github"` + per-arch `autoupdate` templates let the Excavator CI (`.github/workflows/excavator.yml`) do this automatically once the release is published, but verify it landed (or run `checkver -u` manually). The bucket builds on @qoreQyaS's original manifest (issue #49) and extends it with ARM64, a CLI `PATH` shim (`bin: MasselGUARDcli.exe`), and a GUI shortcut.

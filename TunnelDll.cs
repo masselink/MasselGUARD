@@ -668,21 +668,51 @@ namespace MasselGUARD
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "OpenSCManager failed.");
             try
             {
-                IntPtr svc = NativeMethods.CreateService(
-                    scm, serviceName, $"WireGuard Tunnel: {tunnelName}",
-                    NativeMethods.SERVICE_ALL_ACCESS,
-                    NativeMethods.SERVICE_WIN32_OWN_PROCESS,
-                    NativeMethods.SERVICE_DEMAND_START,
-                    NativeMethods.SERVICE_ERROR_NORMAL,
-                    binaryPath,
-                    null, IntPtr.Zero,
-                    "Nsi\0TcpIp\0",
-                    null, null);
+                // A same-named WireGuardTunnel$ service left over from a previous run can make
+                // CreateService fail with 1072 (ERROR_SERVICE_MARKED_FOR_DELETE — the old
+                // service is still being torn down, e.g. a handle held open by services.msc or a
+                // lingering adapter) or 1073 (ERROR_SERVICE_EXISTS). Both clear on their own
+                // shortly, so re-run EnsureStopped and retry a few times with a short backoff
+                // before giving up.
+                const int ERROR_SERVICE_MARKED_FOR_DELETE = 1072;
+                const int ERROR_SERVICE_EXISTS            = 1073;
+                const int maxCreateTries = 5;
+                IntPtr svc = IntPtr.Zero;
+                int err = 0;
+                for (int attempt = 1; attempt <= maxCreateTries; attempt++)
+                {
+                    svc = NativeMethods.CreateService(
+                        scm, serviceName, $"WireGuard Tunnel: {tunnelName}",
+                        NativeMethods.SERVICE_ALL_ACCESS,
+                        NativeMethods.SERVICE_WIN32_OWN_PROCESS,
+                        NativeMethods.SERVICE_DEMAND_START,
+                        NativeMethods.SERVICE_ERROR_NORMAL,
+                        binaryPath,
+                        null, IntPtr.Zero,
+                        "Nsi\0TcpIp\0",
+                        null, null);
+
+                    if (svc != IntPtr.Zero) break;
+
+                    err = Marshal.GetLastWin32Error();
+                    if ((err == ERROR_SERVICE_MARKED_FOR_DELETE || err == ERROR_SERVICE_EXISTS)
+                        && attempt < maxCreateTries)
+                    {
+                        log($"CreateService win32={err} (a previous '{serviceName}' service is " +
+                            $"still being removed) — cleaning up and retrying ({attempt}/{maxCreateTries - 1})…");
+                        try { EnsureStopped(serviceName, _ => { }); } catch { }
+                        System.Threading.Thread.Sleep(400 * attempt);   // 0.4s, 0.8s, 1.2s, 1.6s
+                        continue;
+                    }
+                    break;
+                }
 
                 if (svc == IntPtr.Zero)
                 {
-                    int err = Marshal.GetLastWin32Error();
-                    throw new Win32Exception(err, $"CreateService failed (win32={err}).");
+                    string hint = (err == ERROR_SERVICE_MARKED_FOR_DELETE || err == ERROR_SERVICE_EXISTS)
+                        ? " A previous tunnel service is stuck being removed — close Services (services.msc)/Task Manager if open, or reboot, then retry."
+                        : "";
+                    throw new Win32Exception(err, $"CreateService failed (win32={err}).{hint}");
                 }
                 try
                 {
@@ -773,7 +803,8 @@ namespace MasselGUARD
                             throw new InvalidOperationException(
                                 $"Tunnel did not come up within 10 s (service status: {state}). " +
                                 "Possible causes: driver blocked by antivirus/Secure Boot, " +
-                                "wireguard.dll version mismatch, or missing kernel support. " +
+                                "wireguard.dll version mismatch, missing kernel support, " +
+                                "or a problem with your internet/network connection. " +
                                 "Check Windows Event Log (System) for details.");
                         }
                     }

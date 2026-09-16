@@ -1,6 +1,6 @@
 # MasselGUARD — User Manual
 
-**Version 4.0.0 — Forking Fox**
+**Version 4.1.0 — Layered Lynx**
 
 ---
 

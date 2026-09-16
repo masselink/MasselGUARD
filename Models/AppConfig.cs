@@ -143,8 +143,14 @@ namespace MasselGUARD.Models
         public bool ShowWifiInChart          { get; set; } = true;
         /// <summary>1 = last 24 h, 7 = last 7 days, 31 = last 31 days.</summary>
         public int  InfoTimeRangeDays        { get; set; } = 1;
-        /// <summary>Which view the bottom info panel shows: "timeline" or "usage".</summary>
+        /// <summary>Legacy single-view selector ("timeline"/"usage"); superseded by the two
+        /// independent pane toggles below. Kept for one-time migration on load.</summary>
         public string InfoPanelMode          { get; set; } = "timeline";
+        /// <summary>Info panel: show the Timeline pane. Timeline + Data-usage are independent —
+        /// both on = the layered (stacked) view; both off = the panel is hidden.</summary>
+        public bool ShowTimelinePane         { get; set; } = true;
+        /// <summary>Info panel: show the Data-usage pane (see <see cref="ShowTimelinePane"/>).</summary>
+        public bool ShowUsagePane            { get; set; } = false;
         /// <summary>How per-tunnel data-cap usage is shown on the tunnel row:
         /// "bars" (slim horizontal progress bars, breakdown on hover — the default) or
         /// "rings" (compact concentric-style arcs).</summary>

@@ -89,8 +89,11 @@ namespace MasselGUARD
         private void Window_StateChanged(object sender, EventArgs e)
         {
             bool maximized = WindowState == WindowState.Maximized;
-            if (MaximizeBtn != null)
-                MaximizeBtn.Content = maximized ? "❐" : "□";   // Restore / Maximize glyph
+            // Toggle the vector glyphs (never overwrite Content with a text character — that renders
+            // small and off-baseline next to the minimize/close paths).
+            if (MaxGlyph != null)     MaxGlyph.Visibility     = maximized ? Visibility.Collapsed : Visibility.Visible;
+            if (RestoreGlyph != null) RestoreGlyph.Visibility = maximized ? Visibility.Visible    : Visibility.Collapsed;
+            if (MaximizeBtn != null)  MaximizeBtn.ToolTip     = maximized ? "Restore" : "Maximize";
             if (OuterBorder != null)
             {
                 OuterBorder.BorderThickness = maximized ? new Thickness(0) : new Thickness(1);
@@ -3796,31 +3799,45 @@ namespace MasselGUARD
         {
             var cfg = ConfigSvc.Config;
 
-            // Panel is visible when at least one layer has both capture and display
-            // enabled, or when the Data-usage view is selected (it needs connection
-            // history stored, not the timeline display toggle).
-            bool panelVisible = (cfg.ShowTimeline     && cfg.StoreConnectionHistory)
-                             || (cfg.ShowWifiInChart   && cfg.StoreWifiHistory)
-                             || (UsageMode             && cfg.StoreConnectionHistory);
-            InfoSectionBorder.Visibility = panelVisible ? Visibility.Visible : Visibility.Collapsed;
+            // The panel (with its header bar) is available whenever there's anything chartable —
+            // NOT gated on the pane toggles, so the TIMELINE / DATA USAGE toggles stay reachable
+            // even when both panes are off (RenderChart then collapses just the chart area).
+            bool timelineContent = (cfg.ShowTimeline   && cfg.StoreConnectionHistory)
+                                || (cfg.ShowWifiInChart && cfg.StoreWifiHistory);
+            bool chartable = timelineContent || cfg.StoreConnectionHistory;
+            InfoSectionBorder.Visibility = chartable ? Visibility.Visible : Visibility.Collapsed;
 
-            // Sync range toggle buttons with persisted config
+            // Sync range toggle buttons with persisted config. Suppress the persist handler
+            // while setting them programmatically (both the XAML default and this restore raise
+            // Checked) so the loaded 24h/7d/31d range isn't clobbered back to 24h on startup.
+            _infoRangeReady = false;
             int rangeDays = cfg.InfoTimeRangeDays;
             if (Range24hBtn != null) Range24hBtn.IsChecked  = rangeDays == 1;
             if (Range7dBtn  != null) Range7dBtn.IsChecked   = rangeDays == 7;
             if (Range31dBtn != null) Range31dBtn.IsChecked  = rangeDays == 31;
+            _infoRangeReady = true;
 
-            // Sync the Timeline/Usage view toggle + nav-button visibility
-            if (ModeUsageBtn    != null) ModeUsageBtn.IsChecked    = UsageMode;
-            if (ModeTimelineBtn != null) ModeTimelineBtn.IsChecked = !UsageMode;
-            SetNavButtonsVisible(!UsageMode);
+            // Sync the two independent pane toggles (suppress persist while setting them, like the
+            // range buttons) and show the ◀▶ session-nav only when the Timeline pane is on.
+            _infoPanesReady = false;
+            if (ModeTimelineBtn != null) ModeTimelineBtn.IsChecked = cfg.ShowTimelinePane;
+            if (ModeUsageBtn    != null) ModeUsageBtn.IsChecked    = cfg.ShowUsagePane;
+            _infoPanesReady = true;
+            SetNavButtonsVisible(cfg.ShowTimelinePane);
+            ApplyUsageWindowHeight();   // grow/shrink for the usage pane(s) on load + settings save
 
-            if (panelVisible)
+            if (chartable)
                 RefreshInfoSection();
         }
 
+        // False until the startup restore in ApplyInfoSectionMode has run; suppresses persisting
+        // the 24h/7d/31d range while the buttons are set programmatically (XAML default + restore),
+        // so the saved range survives a restart instead of being clobbered back to 24h.
+        private bool _infoRangeReady;
+
         private void InfoRange_Changed(object sender, RoutedEventArgs e)
         {
+            if (!_infoRangeReady) return;   // ignore programmatic checks during init/restore
             ConfigSvc.Config.InfoTimeRangeDays =
                 Range31dBtn?.IsChecked == true ? 31 :
                 Range7dBtn?.IsChecked  == true ?  7 : 1;
@@ -3862,12 +3879,66 @@ namespace MasselGUARD
 
         // ── Chart rendering ───────────────────────────────────────────────────
 
-        private bool UsageMode => ConfigSvc.Config.InfoPanelMode == "usage";
+        private bool UsageMode        => ConfigSvc.Config.ShowUsagePane;      // Data-usage pane shown
+        private bool ShowTimelinePane => ConfigSvc.Config.ShowTimelinePane;   // Timeline pane shown
+
+        // False until ApplyInfoSectionMode has synced the pane toggles; suppresses persisting
+        // while the two toggles are set programmatically (XAML default + restore).
+        private bool _infoPanesReady;
 
         private void RenderChart()
         {
-            if (UsageMode) RenderUsageChart();
-            else           RenderChartCore();
+            bool t = ShowTimelinePane, u = UsageMode, both = t && u;
+
+            // Each pane is its own view; when BOTH show, give each a full card treatment (border +
+            // background + inner padding) and a gap between them, so they read as two individual views
+            // stacked under the single shared header bar. Solo, a pane sits flush (the outer card
+            // already frames it) — no double border, no double padding.
+            var frame   = new Thickness(both ? 1 : 0);
+            var pad     = both ? new Thickness(8, 6, 8, 6) : new Thickness(0);
+            var paneBg  = both ? (System.Windows.Media.Brush)FindResource("Surface")
+                               : System.Windows.Media.Brushes.Transparent;
+            if (TimelinePaneHost != null) { TimelinePaneHost.Visibility = t ? Visibility.Visible : Visibility.Collapsed; TimelinePaneHost.BorderThickness = frame; TimelinePaneHost.Padding = pad; TimelinePaneHost.Background = paneBg; }
+            if (UsagePaneHost    != null) { UsagePaneHost.Visibility    = u ? Visibility.Visible : Visibility.Collapsed; UsagePaneHost.BorderThickness = frame; UsagePaneHost.Padding = pad; UsagePaneHost.Background = paneBg; }
+            if (PaneGap          != null) PaneGap.Visibility = both ? Visibility.Visible : Visibility.Collapsed;
+
+            // The header bar stays; only the chart area + legend collapse when no pane is shown
+            // (so the toggles remain reachable to switch a pane back on).
+            bool anyPane = t || u;
+            var areaVis  = anyPane ? Visibility.Visible : Visibility.Collapsed;
+            if (ChartCanvasArea != null) ChartCanvasArea.Visibility = areaVis;
+            if (LegendRow       != null) LegendRow.Visibility       = areaVis;
+            // No chart, no range: hide the 24h/7d/31d selector when collapsed (the ◀▶ nav is already
+            // hidden with the timeline pane via SetNavButtonsVisible).
+            if (RangeGroup != null) RangeGroup.Visibility = areaVis;
+
+            // Collapse the gap + legend rows to 0 when nothing is shown so the section shrinks to a
+            // slim status bar instead of leaving ~23 px of dead space below the header. The header
+            // then drops its bottom divider and rounds all four corners so it stands on its own.
+            if (ChartGapRowDef != null) ChartGapRowDef.Height = new GridLength(anyPane ? 5 : 0);
+            // Legend wraps to as many lines as it needs → Auto height when shown, 0 when collapsed.
+            if (LegendRowDef   != null) LegendRowDef.Height   = anyPane ? GridLength.Auto : new GridLength(0);
+            if (InfoHeaderBar != null)
+            {
+                InfoHeaderBar.BorderThickness = new Thickness(0, 0, 0, anyPane ? 1 : 0);
+                InfoHeaderBar.CornerRadius    = (System.Windows.CornerRadius)FindResource(
+                    anyPane ? "Theme.CornerRadiusTop" : "Theme.CornerRadius");
+            }
+
+            ChartOverlayCanvas?.Children.Clear();
+            UsageOverlayCanvas?.Children.Clear();
+
+            // Usage first, timeline last: the timeline owns the shared legend (tunnels + WiFi, a
+            // superset) and the session-nav index when both panes are shown.
+            if (u && UsageCanvas != null && UsageOverlayCanvas != null)
+                RenderUsageChart(UsageCanvas, UsageOverlayCanvas);
+            if (t) RenderChartCore();
+            if (!t && !u) { LegendPanel?.Children.Clear(); WifiLegendPanel?.Children.Clear(); }
+
+            // Hide the "VPN" caption row when there are no tunnel chips (Wi-Fi hides itself in DrawWifiBand).
+            if (VpnLegendGroup != null)
+                VpnLegendGroup.Visibility = (anyPane && LegendPanel != null && LegendPanel.Children.Count > 0)
+                    ? Visibility.Visible : Visibility.Collapsed;
         }
 
         // ── Data-usage bar chart (Timeline ⇄ Data usage toggle) ─────────────────
@@ -3889,7 +3960,10 @@ namespace MasselGUARD
         /// the cap period, so the legend shows progress toward each tunnel's
         /// day / week / month cap.
         /// </summary>
-        private void RenderUsageChart()
+        // The canvas params shadow the like-named fields so the whole body draws into whichever
+        // pair is passed — TimelineCanvas/ChartOverlayCanvas (single) or UsageCanvas/UsageOverlayCanvas
+        // (when stacked under the timeline).
+        private void RenderUsageChart(System.Windows.Controls.Canvas TimelineCanvas, System.Windows.Controls.Canvas ChartOverlayCanvas)
         {
             TimelineCanvas.Children.Clear();
             ChartOverlayCanvas.Children.Clear();
@@ -3899,7 +3973,7 @@ namespace MasselGUARD
             _chartData.Clear();
             _chartColors.Clear();
             _usageBuckets.Clear();
-            _navIndex = -1;
+            if (!ShowTimelinePane) _navIndex = -1;   // don't reset the timeline's nav when it's also shown
 
             double W = TimelineCanvas.ActualWidth;
             if (W < 20) return;
@@ -4096,45 +4170,14 @@ namespace MasselGUARD
                 TimelineCanvas.Children.Add(tb);
             }
 
-            // ── Legend: tunnel name + colour swatch (usage lives on the chart) ─
+            // ── Legend: tunnel name + colour dot chip (usage lives on the chart) ─
             foreach (var name in tunnelNames)
             {
-                bool hidden = _hiddenChartTunnels.Contains(name);
-                var  color  = _chartColors[name];
-
-                var dot = new System.Windows.Shapes.Rectangle
-                {
-                    Width = 8, Height = 8, RadiusX = 2, RadiusY = 2,
-                    Fill = new System.Windows.Media.SolidColorBrush(color),
-                    VerticalAlignment = VerticalAlignment.Center,
-                };
-                var nameTb = new TextBlock
-                {
-                    Text = name, FontSize = 9,
-                    Foreground = tickBrush,
-                    Margin = new Thickness(3, 0, 10, 0),
-                    VerticalAlignment = VerticalAlignment.Center,
-                };
-                var item = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center,
-                    Opacity = hidden ? 0.35 : 1.0, Cursor = System.Windows.Input.Cursors.Hand,
-                    Margin = new Thickness(0, 0, 2, 0),
-                };
-                item.Children.Add(dot);
-                item.Children.Add(nameTb);
                 var capturedName = name;
-                item.MouseLeftButtonUp += (_, _) =>
-                {
-                    if (_hiddenChartTunnels.Contains(capturedName)) _hiddenChartTunnels.Remove(capturedName);
-                    else _hiddenChartTunnels.Add(capturedName);
-                    RenderChart();
-                };
-                LegendPanel.Children.Add(item);
+                LegendPanel.Children.Add(BuildLegendChip(
+                    name, _chartColors[name], _hiddenChartTunnels.Contains(name), null,
+                    () => { if (!_hiddenChartTunnels.Remove(capturedName)) _hiddenChartTunnels.Add(capturedName); RenderChart(); }));
             }
-
-            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render,
-                new Action(UpdateLegendScrollMarkers));
         }
 
         private void RenderChartCore()
@@ -4283,64 +4326,23 @@ namespace MasselGUARD
             // ── Legend ────────────────────────────────────────────────────────
             for (int i = 0; i < tunnelNames.Count; i++)
             {
-                string name   = tunnelNames[i];
-                bool   hidden = _hiddenChartTunnels.Contains(name);
-                var    color  = _chartColors[name];
-
-                var dot = new System.Windows.Shapes.Rectangle
-                {
-                    Width   = 8, Height = 8,
-                    RadiusX = 2, RadiusY = 2,
-                    Fill    = new System.Windows.Media.SolidColorBrush(color),
-                    VerticalAlignment = VerticalAlignment.Center,
-                };
-
-                var nameTb = new TextBlock
-                {
-                    Text              = name,
-                    FontSize          = 9,
-                    Foreground        = tickBrush,
-                    Margin            = new Thickness(3, 0, 10, 0),
-                    VerticalAlignment = VerticalAlignment.Center,
-                };
-
-                var item = new StackPanel
-                {
-                    Orientation       = Orientation.Horizontal,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Opacity           = hidden ? 0.35 : 1.0,
-                    Cursor            = System.Windows.Input.Cursors.Hand,
-                    Margin            = new Thickness(0, 0, 2, 0),
-                };
-                item.Children.Add(dot);
-                item.Children.Add(nameTb);
+                string name = tunnelNames[i];
 
                 // Tooltip: period totals
+                object? tip = null;
                 if (_chartData.TryGetValue(name, out var cd) && (cd.PeriodRx > 0 || cd.PeriodTx > 0))
                 {
-                    var tip = new StackPanel { Orientation = Orientation.Vertical };
-                    tip.Children.Add(new TextBlock { Text = name, FontSize = 10, FontWeight = FontWeights.SemiBold });
-                    tip.Children.Add(new TextBlock { Text = $"Period total  ↑ {FormatInfoBytes(cd.PeriodTx)}   ↓ {FormatInfoBytes(cd.PeriodRx)}", FontSize = 9 });
-                    item.ToolTip = new ToolTip { Content = tip };
+                    var tp = new StackPanel { Orientation = Orientation.Vertical };
+                    tp.Children.Add(new TextBlock { Text = name, FontSize = 10, FontWeight = FontWeights.SemiBold });
+                    tp.Children.Add(new TextBlock { Text = $"Period total  ↑ {FormatInfoBytes(cd.PeriodTx)}   ↓ {FormatInfoBytes(cd.PeriodRx)}", FontSize = 9 });
+                    tip = new ToolTip { Content = tp };
                 }
 
-                // Click toggles visibility
                 var capturedName = name;
-                item.MouseLeftButtonUp += (_, _) =>
-                {
-                    if (_hiddenChartTunnels.Contains(capturedName))
-                        _hiddenChartTunnels.Remove(capturedName);
-                    else
-                        _hiddenChartTunnels.Add(capturedName);
-                    RenderChart();
-                };
-
-                LegendPanel.Children.Add(item);
+                LegendPanel.Children.Add(BuildLegendChip(
+                    name, _chartColors[name], _hiddenChartTunnels.Contains(name), tip,
+                    () => { if (!_hiddenChartTunnels.Remove(capturedName)) _hiddenChartTunnels.Add(capturedName); RenderChart(); }));
             }
-
-            // Update scroll markers after layout pass
-            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render,
-                new Action(UpdateLegendScrollMarkers));
 
             // Nav label: show total session count
             UpdateNavLabel(-1, GetNavEntries().Count);
@@ -4509,116 +4511,90 @@ namespace MasselGUARD
             }
 
             // ── WiFi legend items ─────────────────────────────────────────────
-            var mutedBrush = (System.Windows.Media.Brush)FindResource("TextMuted");
-
             foreach (var ssid in orderedSsids)
             {
-                bool hidden = _hiddenWifiSsids.Contains(ssid);
-                var  color  = _wifiColors[ssid];
-
-                var dot = new System.Windows.Shapes.Rectangle
-                {
-                    Width = 8, Height = 8, RadiusX = 2, RadiusY = 2,
-                    Fill  = new System.Windows.Media.SolidColorBrush(color),
-                    VerticalAlignment = VerticalAlignment.Center,
-                };
-                var nameTb = new TextBlock
-                {
-                    Text              = ssid,
-                    FontSize          = 9,
-                    Foreground        = mutedBrush,
-                    Margin            = new Thickness(3, 0, 10, 0),
-                    VerticalAlignment = VerticalAlignment.Center,
-                };
-                var item = new StackPanel
-                {
-                    Orientation       = Orientation.Horizontal,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Opacity           = hidden ? 0.35 : 1.0,
-                    Cursor            = System.Windows.Input.Cursors.Hand,
-                    Margin            = new Thickness(0, 0, 2, 0),
-                };
-                item.Children.Add(dot);
-                item.Children.Add(nameTb);
-
                 var capturedSsid = ssid;
-                item.MouseLeftButtonUp += (_, _) =>
-                {
-                    if (_hiddenWifiSsids.Contains(capturedSsid)) _hiddenWifiSsids.Remove(capturedSsid);
-                    else _hiddenWifiSsids.Add(capturedSsid);
-                    RenderChart();
-                };
-
-                WifiLegendPanel.Children.Add(item);
+                WifiLegendPanel.Children.Add(BuildLegendChip(
+                    ssid, _wifiColors[ssid], _hiddenWifiSsids.Contains(ssid), null,
+                    () => { if (!_hiddenWifiSsids.Remove(capturedSsid)) _hiddenWifiSsids.Add(capturedSsid); RenderChart(); }));
             }
 
             WifiLegendContainer.Visibility =
                 orderedSsids.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        // ── Legend scroll markers ─────────────────────────────────────────────
+        // ── Legend chips ──────────────────────────────────────────────────────
 
-        private void LegendScroll_Changed(object sender, ScrollChangedEventArgs e)
-            => UpdateLegendScrollMarkers();
-
-        private void LegendScroll_Wheel(object sender,
-            System.Windows.Input.MouseWheelEventArgs e)
+        /// <summary>
+        /// Builds one wrapping legend chip — a rounded pill with a colour dot + label — for the
+        /// VPN and Wi-Fi legends. Clicking it runs <paramref name="onToggle"/> (hide/show that
+        /// series in the chart); a hidden series is dimmed and struck through. An optional
+        /// <paramref name="tooltip"/> (e.g. period totals) is attached when supplied.
+        /// </summary>
+        private Border BuildLegendChip(string label, System.Windows.Media.Color color, bool hidden,
+                                       object? tooltip, Action onToggle)
         {
-            if (sender is ScrollViewer sv)
+            var dot = new System.Windows.Shapes.Ellipse
             {
-                sv.ScrollToHorizontalOffset(sv.HorizontalOffset - e.Delta / 3.0);
-                e.Handled = true;
-            }
-        }
+                Width = 9, Height = 9,
+                Fill = new System.Windows.Media.SolidColorBrush(color),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            var text = new TextBlock
+            {
+                Text              = label,
+                FontSize          = 9,
+                FontFamily        = (System.Windows.Media.FontFamily)FindResource("Theme.FontFamily"),
+                Foreground        = (System.Windows.Media.Brush)FindResource("TextMuted"),
+                Margin            = new Thickness(4, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                TextDecorations   = hidden ? System.Windows.TextDecorations.Strikethrough : null,
+            };
+            var content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            content.Children.Add(dot);
+            content.Children.Add(text);
 
-        private void TunnelScrollLeft_Click(object sender, RoutedEventArgs e)
-            => TunnelLegendScroll.ScrollToHorizontalOffset(
-                   Math.Max(0, TunnelLegendScroll.HorizontalOffset - 80));
-        private void TunnelScrollRight_Click(object sender, RoutedEventArgs e)
-            => TunnelLegendScroll.ScrollToHorizontalOffset(
-                   Math.Min(TunnelLegendScroll.ScrollableWidth,
-                            TunnelLegendScroll.HorizontalOffset + 80));
-        private void WifiScrollLeft_Click(object sender, RoutedEventArgs e)
-            => WifiLegendScroll.ScrollToHorizontalOffset(
-                   Math.Max(0, WifiLegendScroll.HorizontalOffset - 80));
-        private void WifiScrollRight_Click(object sender, RoutedEventArgs e)
-            => WifiLegendScroll.ScrollToHorizontalOffset(
-                   Math.Min(WifiLegendScroll.ScrollableWidth,
-                            WifiLegendScroll.HorizontalOffset + 80));
-
-        private void UpdateLegendScrollMarkers()
-        {
-            SyncScrollPair(TunnelLegendScroll, TunnelScrollLeft, TunnelScrollRight);
-            SyncScrollPair(WifiLegendScroll,   WifiScrollLeft,   WifiScrollRight);
-        }
-
-        private static void SyncScrollPair(ScrollViewer sv, Button left, Button right)
-        {
-            if (sv == null) return;
-            left.Visibility  = sv.HorizontalOffset > 0.5
-                ? Visibility.Visible : Visibility.Collapsed;
-            right.Visibility = sv.HorizontalOffset < sv.ScrollableWidth - 0.5
-                ? Visibility.Visible : Visibility.Collapsed;
+            var chip = new Border
+            {
+                Background      = (System.Windows.Media.Brush)FindResource("CardBg"),
+                BorderBrush     = (System.Windows.Media.Brush)FindResource("BorderColor"),
+                BorderThickness = new Thickness(1),
+                CornerRadius    = new CornerRadius(9),
+                Padding         = new Thickness(6, 1, 8, 1),
+                Margin          = new Thickness(0, 0, 6, 4),
+                Cursor          = System.Windows.Input.Cursors.Hand,
+                Opacity         = hidden ? 0.45 : 1.0,
+                SnapsToDevicePixels = true,
+                Child           = content,
+            };
+            if (tooltip != null) chip.ToolTip = tooltip;
+            chip.MouseLeftButtonUp += (_, _) => onToggle();
+            return chip;
         }
 
         // ── Chart hover (crosshair + tooltip) ────────────────────────────────
 
-        private bool _usageHeightApplied;
+        private double _usageHeightDelta;   // px currently added to the window for the usage pane(s)
         private const double UsageExtraHeight = 100;
 
         // Switch between Timeline and Data-usage views.
         private void InfoMode_Changed(object sender, RoutedEventArgs e)
         {
-            // Fires while the XAML is still being parsed (ModeTimelineBtn's default
-            // IsChecked), before ChartOverlayCanvas exists — bail until the panel's
-            // controls are built. ApplyInfoSectionMode does the real sync afterwards.
-            if (ConfigSvc?.Config == null || ChartOverlayCanvas == null) return;
-            ConfigSvc.Config.InfoPanelMode = ModeUsageBtn?.IsChecked == true ? "usage" : "timeline";
+            // Fires while the XAML is still being parsed (ModeTimelineBtn's default IsChecked),
+            // before the canvases exist — bail until built. Also suppressed (_infoPanesReady)
+            // while ApplyInfoSectionMode sets the toggles programmatically. ApplyInfoSectionMode
+            // does the real sync afterwards.
+            if (ConfigSvc?.Config == null || ChartOverlayCanvas == null || !_infoPanesReady) return;
+            ConfigSvc.Config.ShowTimelinePane = ModeTimelineBtn?.IsChecked == true;
+            ConfigSvc.Config.ShowUsagePane    = ModeUsageBtn?.IsChecked == true;
             ConfigSvc.Save();
-            SetNavButtonsVisible(!UsageMode);
+            SetNavButtonsVisible(ConfigSvc.Config.ShowTimelinePane);
             ApplyUsageWindowHeight();
-            ChartOverlayCanvas.Children.Clear();
-            RefreshInfoSection();
+            ApplyInfoSectionMode();   // recompute panel visibility (hide if both off) + re-render
         }
 
         /// <summary>
@@ -4630,15 +4606,19 @@ namespace MasselGUARD
         private void ApplyUsageWindowHeight()
         {
             if (WindowState != WindowState.Normal) return;
-            if (UsageMode && !_usageHeightApplied)
+            // Extra height wanted: the usage chart is taller than the timeline, and showing BOTH
+            // stacked needs more still. none → 0; usage only → 1×; timeline + usage → 1.6×.
+            double want = UsageMode ? (ShowTimelinePane ? UsageExtraHeight * 1.6 : UsageExtraHeight) : 0;
+            if (want > _usageHeightDelta)
             {
-                Height = Math.Min(Height + UsageExtraHeight, System.Windows.SystemParameters.WorkArea.Height);
-                _usageHeightApplied = true;
+                double add = Math.Max(0, Math.Min(want - _usageHeightDelta,
+                    System.Windows.SystemParameters.WorkArea.Height - Height));
+                Height += add; _usageHeightDelta += add;
             }
-            else if (!UsageMode && _usageHeightApplied)
+            else if (want < _usageHeightDelta)
             {
-                Height = Math.Max(MinHeight, Height - UsageExtraHeight);
-                _usageHeightApplied = false;
+                double sub = Math.Max(0, Math.Min(_usageHeightDelta - want, Height - MinHeight));
+                Height -= sub; _usageHeightDelta -= sub;
             }
         }
 
@@ -4655,7 +4635,8 @@ namespace MasselGUARD
 
         // Hover for the data-usage chart: highlight the bucket column and show a
         // per-tunnel breakdown for that hour/day.
-        private void UsageHover(System.Windows.Input.MouseEventArgs e)
+        private void UsageHover(System.Windows.Input.MouseEventArgs e,
+            System.Windows.Controls.Canvas TimelineCanvas, System.Windows.Controls.Canvas ChartOverlayCanvas)
         {
             ChartOverlayCanvas.Children.Clear();
             double W = TimelineCanvas.ActualWidth;
@@ -4748,8 +4729,8 @@ namespace MasselGUARD
         private void TimelineCanvas_MouseMove(object sender,
             System.Windows.Input.MouseEventArgs e)
         {
-            if (UsageMode) { UsageHover(e); return; }
-
+            // The timeline canvas only ever shows the timeline now; the data-usage pane has its
+            // own canvas + hover (UsageCanvas_MouseMove).
             if (_navIndex >= 0)
             {
                 _navIndex = -1;
@@ -4887,6 +4868,17 @@ namespace MasselGUARD
             if (_navIndex >= 0) return;
             ChartOverlayCanvas.Children.Clear();
         }
+
+        // ── Data-usage pane canvas (its own surface so it can stack under the timeline) ──
+        private void UsageCanvas_SizeChanged(object sender, SizeChangedEventArgs e) => RefreshInfoSection();
+
+        private void UsageCanvas_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (UsageMode) UsageHover(e, UsageCanvas, UsageOverlayCanvas);
+        }
+
+        private void UsageCanvas_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+            => UsageOverlayCanvas?.Children.Clear();
 
         // ── WiFi helpers ──────────────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 # MasselGUARD — Technical reference
 
-Developer/technical reference for v4.0.0 — Forking Fox. For end-user instructions see [`Manual.md`](Manual.md).
+Developer/technical reference for v4.1.0 — Layered Lynx. For end-user instructions see [`Manual.md`](Manual.md).
 
 ---
 
@@ -1006,7 +1006,7 @@ private static readonly Dictionary<string, string> _codenames =
     };
 ```
 
-`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"4.0.0 — Forking Fox"` or just `"4.0.0"`.
+`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"4.1.0 — Layered Lynx"` or just `"4.1.0"`.
 
 Codenames are assigned per `Major.Minor.Patch` release only — not per build. Update the dictionary in `UpdateChecker.cs` **and** `BUILD.bat` when bumping `VERSION`.
 
