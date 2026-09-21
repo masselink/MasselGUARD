@@ -98,15 +98,7 @@ namespace MasselGUARD.Views
                 _settingControls = false;
             }
 
-            // ── Step 4: Mode ─────────────────────────────────────────────────
-            if (_vm.Step == 4)
-            {
-                _settingControls = true;
-                WizModeStandalone.IsChecked = _vm.Mode == AppMode.Standalone;
-                WizModeCompanion.IsChecked  = _vm.Mode == AppMode.Companion;
-                WizModeMixed.IsChecked      = _vm.Mode == AppMode.Mixed;
-                _settingControls = false;
-            }
+            // ── Step 4: removed (operating-mode/companion selection) ─────────
 
             // ── Step 5: Startup & Installation ───────────────────────────────
             if (_vm.Step == 5)
@@ -217,7 +209,6 @@ namespace MasselGUARD.Views
                 WizSummaryPanel.Children.Add(g);
             }
 
-            Row("Mode",              cfg.Mode.ToString());
             Row("Auto-reconnect",    cfg.AutoReconnectMode);
             Row("Start with Windows", cfg.StartWithWindows ? "Yes" : "No");
             Row("Record connections", cfg.StoreConnectionHistory ? "On" : "Off");
@@ -259,15 +250,6 @@ namespace MasselGUARD.Views
         }
 
         private void BtnSkip_Click(object sender, RoutedEventArgs e) => _vm.SkipCommand.Execute(null);
-
-        // ── Mode ──────────────────────────────────────────────────────────────
-        private void WizMode_Changed(object sender, RoutedEventArgs e)
-        {
-            if (_settingControls) return;
-            if (WizModeStandalone?.IsChecked == true)     _vm.Mode = AppMode.Standalone;
-            else if (WizModeCompanion?.IsChecked == true) _vm.Mode = AppMode.Companion;
-            else                                          _vm.Mode = AppMode.Mixed;
-        }
 
         // ── Language ──────────────────────────────────────────────────────────
         private void WizLang_Changed(object sender,

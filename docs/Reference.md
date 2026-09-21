@@ -1,6 +1,6 @@
 # MasselGUARD — Technical reference
 
-Developer/technical reference for v4.1.0 — Layered Lynx. For end-user instructions see [`Manual.md`](Manual.md).
+Developer/technical reference for v4.2.0 — Resolving Raven. For end-user instructions see [`Manual.md`](Manual.md).
 
 ---
 
@@ -47,6 +47,9 @@ Developer/technical reference for v4.1.0 — Layered Lynx. For end-user instruct
 39. [Command-line interface (CLI)](#39-command-line-interface-cli)
 40. [Release codenames](#40-release-codenames)
 41. [Managed Portable version check](#41-managed-portable-version-check)
+42. [Licensing & third-party components](#42-licensing--third-party-components)
+43. [Split tunneling (4.0.0)](#43-split-tunneling-400)
+44. [DNS automation](#44-dns-automation)
 
 ---
 
@@ -1006,7 +1009,7 @@ private static readonly Dictionary<string, string> _codenames =
     };
 ```
 
-`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"4.1.0 — Layered Lynx"` or just `"4.1.0"`.
+`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"4.2.0 — Resolving Raven"` or just `"4.2.0"`.
 
 Codenames are assigned per `Major.Minor.Patch` release only — not per build. Update the dictionary in `UpdateChecker.cs` **and** `BUILD.bat` when bumping `VERSION`.
 
@@ -1058,3 +1061,19 @@ Route/IP-based split tunneling. Full design in [`SplitTunneling-Design.md`](Spli
 **UI** (`Views/TunnelConfigDialog`): a **Split** tab (local tunnels only) — mode radios, a ranges box (one CIDR per line, validated on save), and a disabled Apps preview. Threaded through `existingSplit*` ctor args + `ResultSplit*`; `SplitApps` is preserved untouched on edit.
 
 **Persistence & portability:** `SplitMode`/`SplitRanges` round-trip through `TunnelExportService` as `# MasselGUARD-SplitMode:` / `# MasselGUARD-SplitRanges:` comment lines (`SplitApps` excluded — unused). CLI `info` surfaces them (`Split:` line / `split_mode`+`split_ranges` JSON).
+
+## 44. DNS automation
+
+Rule-driven DNS resolver selection that works **independently of tunnels** ("on Wi-Fi X → DNS Y", plain or DoH). Full design in [`DnsAutomation-Design.md`](DnsAutomation-Design.md); this is the implementation summary.
+
+**Model C — a parallel axis.** On every network change two decisions run side by side: the tunnel action (`RuleEngine.EvaluateWifi`, unchanged) and the DNS action. The DNS precedence is a **pure, CLI-shared** function `Services/DnsPolicy.cs` → `Evaluate(cfg, ssid, isOpen, now)` returning `DnsResult(None | Apply | Automatic, ProfileId, Reason)` with the same order as the tunnel rule: off (ManualMode / `!DnsAutomationEnabled`) → open-network → SSID rule → trusted rule → schedule rule → default. A dangling profile id fails safe to `None`. `RuleEngine.EvaluateDns` wraps it. `DnsPolicy.IsWithinSchedule` is the single schedule-window impl (RuleEngine delegates to it); `DnsPolicy.IsDnsOnly` (empty `Tunnel` + a `DnsProfileId`) is used by `EvaluateWifi`/`EvaluateSchedules` to **skip DNS-only rules** on the tunnel axis, so such a rule never reads as "disconnect". Covered by `MasselGUARDcli selftest` (19 cases).
+
+**Data model** (WPF-free, CLI-globbed): `Models/DnsProfile.cs` — Id/Name, v4+v6 primary/secondary, `Encryption` (`plain`|`doh`|`auto`), `DohTemplate`, `RequireEncryption`; sentinels `NoneId`(`""`)/`AutomaticId`(`__automatic__`); `BuiltInPresets()`. `TunnelRule.DnsProfileId` attaches DNS to any rule. `AppConfig`: `DnsAutomationEnabled`, `DnsProfiles`, `DefaultDnsProfileId`, `OpenWifiDnsProfileId`, `DnsAddressFamilies` (`both`|`v4`|`v6`). All defaults leave existing behaviour unchanged.
+
+**Application** (`Services/DnsService.cs`, GUI-only): per-interface DNS by adapter GUID → alias via `netsh interface ip[v4|v6] set/add dnsservers` (full System32 path, `ArgumentList`-quoted). **DoH:** encrypted profiles register `netsh dns add encryption server=<ip> dohtemplate=<uri> autoupgrade=yes udpfallback=<no|yes>` per server IP, then set the servers (Windows 11 auto-upgrades to DoH). Gated on Win11 22000+ (`OperatingSystem.IsWindowsVersionAtLeast(10,0,22000)`); a `RequireEncryption` profile on an older build is **refused** (fail-closed), otherwise it downgrades to plain. Well-known resolver IPs carry built-in templates. `ipconfig /flushdns` on each change.
+
+**Resolver ownership.** `MainViewModel.ApplyWifiState` calls `ApplyDnsForCurrentNetwork` alongside the tunnel action, targeting `WiFiService.CurrentInterfaceGuid`. While any tunnel is active (`_tunnelOwnsDns`, recomputed in `RefreshTunnelStatus`) the tunnel's own DNS/NRPT supersedes, so the DNS action is **held**; on the tunnel's falling edge it's re-asserted. `None` restores any prior override (hands an unmatched network its own resolver back).
+
+**Lifecycle** (`Services/DnsService` + `%APPDATA%\MasselGUARD\dns_state.json`): the interface's original static/DHCP DNS is snapshotted before the first override (read from the `Tcpip`/`Tcpip6` `NameServer` registry values), and restored on **exit** (`App.OnExit` → `MainViewModel.RestoreDnsOverrides`) and at **startup** after a crash/reboot (`RecoverDnsFromPreviousRun`) — netsh writes persist, so this cleanup is essential.
+
+**UI & CLI:** Settings → **Wifi** (master toggle, default/open-network profile pickers, address families, and a profiles manager whose editor is the code-built `Views/DnsProfileEditor.cs`); `RuleDialog` gained an optional DNS-profile picker (`ResultDnsProfileId`). CLI `dns status` (read-only, non-elevated) prints the config + live per-interface resolvers.

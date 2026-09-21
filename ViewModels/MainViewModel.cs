@@ -25,6 +25,9 @@ namespace MasselGUARD.ViewModels
         private readonly WiFiService    _wifi;
         private readonly RuleEngine     _rules;
         private readonly HistoryService _history;
+        private readonly DnsService     _dns;
+        /// <summary>The live DNS service (shared snapshot/restore state) — used by the diagnostics tester.</summary>
+        public DnsService Dns => _dns;
         private readonly DispatcherTimer _timer;
 
         // ── Observable state ──────────────────────────────────────────────────
@@ -38,6 +41,15 @@ namespace MasselGUARD.ViewModels
             new(StringComparer.OrdinalIgnoreCase);
 
         private string? _currentSsid;
+
+        // ── DNS automation (parallel axis; see docs/DnsAutomation-Design.md §6) ──
+        /// <summary>Last-evaluated DNS action for the current network, re-applied when a tunnel
+        /// releases ownership of resolution.</summary>
+        private DnsPolicy.DnsResult? _pendingDns;
+        /// <summary>True while ≥1 tunnel is active — the tunnel's own DNS/NRPT supersedes, so the
+        /// pending DNS action is held off the physical NIC until it drops.</summary>
+        private bool _tunnelOwnsDns;
+
         public  string  CurrentSsidDisplay =>
             string.IsNullOrEmpty(_currentSsid) ? "No WiFi" : _currentSsid;
 
@@ -92,6 +104,12 @@ namespace MasselGUARD.ViewModels
         private double _wifCol2W = 100; public double WifCol2W { get => _wifCol2W; set => SetField(ref _wifCol2W, value); }
         private double _wifCol3W = 40;  public double WifCol3W { get => _wifCol3W; set => SetField(ref _wifCol3W, value); }
         private double _wifCol4W = 120; public double WifCol4W { get => _wifCol4W; set => SetField(ref _wifCol4W, value); }
+        private double _wifCol5W = 120; public double WifCol5W { get => _wifCol5W; set => SetField(ref _wifCol5W, value); }
+        private double _dnsCol0W = 130; public double DnsCol0W { get => _dnsCol0W; set => SetField(ref _dnsCol0W, value); }
+        private double _dnsCol1W = 70;  public double DnsCol1W { get => _dnsCol1W; set => SetField(ref _dnsCol1W, value); }
+        private double _dnsCol2W = 190; public double DnsCol2W { get => _dnsCol2W; set => SetField(ref _dnsCol2W, value); }
+        private double _dnsCol3W = 52;  public double DnsCol3W { get => _dnsCol3W; set => SetField(ref _dnsCol3W, value); }
+        private double _dnsCol4W = 76;  public double DnsCol4W { get => _dnsCol4W; set => SetField(ref _dnsCol4W, value); }
 
         // ── Commands ──────────────────────────────────────────────────────────
         public RelayCommand AddTunnelCommand    { get; }
@@ -116,6 +134,8 @@ namespace MasselGUARD.ViewModels
             _wifi    = wifi;
             _rules   = rules;
             _history = history;
+            _dns     = new DnsService(_log);
+            RecoverDnsFromPreviousRun();   // crash/reboot recovery — before any rule applies
 
             AddTunnelCommand    = new RelayCommand(DoAddTunnel);
             EditTunnelCommand   = new RelayCommand(DoEditTunnel,
@@ -193,6 +213,7 @@ namespace MasselGUARD.ViewModels
             _log.Info($"WiFi: {ssid}{(isOpen ? " (open)" : "")}");
             var r = _rules.EvaluateWifi(_config.Config, ssid, isOpen);
             ApplyRuleResult(r);
+            ApplyDnsForCurrentNetwork(ssid, isOpen);   // parallel DNS axis
         }
 
         /// <summary>Query current SSID and apply state — used on startup only.</summary>
@@ -228,8 +249,7 @@ namespace MasselGUARD.ViewModels
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                 TunnelList.Clear();
-                foreach (var s in _config.Config.Tunnels
-                    .Where(t => IsSourceAllowed(t.Source)))
+                foreach (var s in _config.Config.Tunnels)
                 {
                     var vm = new TunnelEntryViewModel(s, _tunnels, _log, _config);
                     TunnelList.Add(vm);
@@ -248,12 +268,6 @@ namespace MasselGUARD.ViewModels
             });
         }
 
-        private bool IsSourceAllowed(string source) => _config.Config.Mode switch
-        {
-            AppMode.Standalone => source == "local",
-            AppMode.Companion  => source != "local",
-            _                  => true,
-        };
 
         // ── DNS leak warning ──────────────────────────────────────────────────
 
@@ -504,7 +518,6 @@ namespace MasselGUARD.ViewModels
 
             foreach (var t in TunnelList)
             {
-                bool wasActive = t.IsActive;
                 t.RefreshStatus();
                 bool nowActive = t.IsActive;
 
@@ -563,39 +576,23 @@ namespace MasselGUARD.ViewModels
                         }
                     }
                 }
-
-                // Companion tunnel connected externally (WireGuard client).
-                if (!t.IsLocal && !wasActive && nowActive && !t.IsConnecting)
-                {
-                    string via = _log.IsExtended ? " via WireGuard app" : "";
-                    _log.Ok($"Connected: {t.Name}{via}");
-                    // The external connect supersedes any earlier user disconnect —
-                    // clear the suppression flag so a later external drop is detected.
-                    t.UserDisconnected = false;
-                    _tunnels.RecordExternalConnect(t.Name, "WireGuard app");
-                }
-
-                // Companion tunnel dropped externally (WireGuard client).
-                if (!t.IsLocal && wasActive && !nowActive && !IsIntentionalDrop(t))
-                {
-                    string via = _log.IsExtended ? " via WireGuard app" : "";
-                    // Closes the open history entry and logs "Disconnected: <name>".
-                    _tunnels.RecordExternalDisconnect(t.Name, via);
-
-                    // Only auto-reconnect when the SCM entry still exists (service crashed).
-                    // An absent entry means the WireGuard client deactivated it intentionally.
-                    // The deactivate deletes the entry slightly AFTER stopping the service, so
-                    // this early check can race the deletion — AutoReconnectAsync re-checks
-                    // after its backoff delay and aborts when the entry is gone by then.
-                    var svcName = "WireGuardTunnel$" + t.Name;
-                    bool entryGone = !TunnelService.WireGuardServiceExists(svcName);
-                    if (!entryGone && TunnelService.ShouldAutoReconnect(t.StoredTunnel, _config.Config))
-                        _ = AutoReconnectAsync(t);
-                }
             }
 
             var active = TunnelList.FirstOrDefault(t => t.IsActive);
             ActiveTunnelName = active?.Name ?? "Not connected";
+
+            // DNS resolver ownership (§6): while any tunnel is up, its own DNS/NRPT supersedes,
+            // so DNS rules are held off the physical NIC. On the falling edge (tunnel released),
+            // re-assert the current network's DNS rule.
+            bool tunnelOwns = active != null;
+            if (tunnelOwns != _tunnelOwnsDns)
+            {
+                _tunnelOwnsDns = tunnelOwns;
+                // Re-assert DNS on either edge: on release the network's rule/default resumes; on
+                // connect a manually-forced profile must be re-applied so it wins over the tunnel's
+                // own DNS (ApplyPendingDns no-ops back to the tunnel when no profile is forced).
+                ApplyPendingDns();
+            }
 
             if (doStatsPoll) UpdateCombinedTraffic();
         }
@@ -653,21 +650,6 @@ namespace MasselGUARD.ViewModels
 
             try
             {
-                // Grace period before announcing anything: the WireGuard client's
-                // deactivate deletes the SCM entry just after stopping the service,
-                // so wait for the deletion to settle. A clean deactivate is then
-                // recognised up front and skipped silently — no reconnect countdown.
-                if (!vm.IsLocal)
-                {
-                    await System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(2));
-                    if (vm.IsActive) return; // came back up on its own
-                    if (!TunnelService.WireGuardServiceExists("WireGuardTunnel$" + vm.Name))
-                    {
-                        _log.Info($"[AutoReconnect] '{vm.Name}' was deactivated via the WireGuard app — not reconnecting.");
-                        return;
-                    }
-                }
-
                 for (int attempt = 1; attempt <= AutoReconnectMaxAttempts; attempt++)
                 {
                     int delaySec = attempt * 5;   // 5 s, 10 s, 15 s
@@ -692,15 +674,6 @@ namespace MasselGUARD.ViewModels
                             abort = true;
                             _log.Info($"[AutoReconnect] '{vm.Name}' is over its data cap — not reconnecting.");
                             return;
-                        }
-                        // Companion: the WireGuard client's deactivate stops the service first
-                        // and deletes the SCM entry a moment later, so the entry check at
-                        // drop time races the deletion. By now (≥5 s) the deletion is done —
-                        // a missing entry means a deliberate deactivate, not a crash.
-                        if (!vm.IsLocal && !TunnelService.WireGuardServiceExists("WireGuardTunnel$" + vm.Name))
-                        {
-                            abort = true;
-                            _log.Info($"[AutoReconnect] '{vm.Name}' was deactivated via the WireGuard app — not reconnecting.");
                         }
                     });
 
@@ -852,6 +825,192 @@ namespace MasselGUARD.ViewModels
             }
         }
 
+        // ── DNS automation (parallel axis) ────────────────────────────────────
+
+        /// <summary>
+        /// Startup crash/reboot recovery: netsh DNS writes persist across an app crash or a
+        /// reboot, so restore any override recorded in <c>dns_state.json</c> to its captured
+        /// original before we evaluate the current rules. No-op when nothing was left behind.
+        /// The matching exit-restore is <see cref="RestoreDnsOverrides"/> (called from App.OnExit).
+        /// </summary>
+        private void RecoverDnsFromPreviousRun()
+        {
+            try
+            {
+                int n = _dns.OverrideCount;
+                if (n > 0)
+                    _log.Warn($"DNS: restoring {n} interface(s) left overridden by a previous run.");
+                _dns.RestoreAll();
+            }
+            catch (Exception ex) { _log.Warn($"DNS: startup restore failed — {ex.Message}"); }
+        }
+
+        /// <summary>Restore every DNS override to its captured original. Called from App.OnExit
+        /// (the process can exit without <see cref="Dispose"/> running). Idempotent.</summary>
+        public void RestoreDnsOverrides()
+        {
+            try { _dns.RestoreAll(); } catch { }
+        }
+
+        // Runtime manual DNS override (DNS panel Enable / Disable / Revert-to-default):
+        //   null                      → follow automation (rules).
+        //   a profile Id              → force that profile (outranks the rule engine AND an active
+        //                               tunnel's own DNS — a manual profile wins while connected).
+        // (Revert-to-default is a one-shot action — see ManualRevertToDefault — that restores the
+        //  interface's pre-override snapshot and clears the override; it isn't a persistent state.)
+        // Survives network changes. Runtime-only (resets to automation on restart).
+        private string? _manualDnsProfileId;
+        /// <summary>The manually-forced DNS profile id, or null when following automation.
+        /// Used by the DNS panel to mark the active row.</summary>
+        public string? ManualDnsProfileId => _manualDnsProfileId;
+
+        /// <summary>Enable: manually force a DNS profile (sticky, overrides rules AND any active
+        /// tunnel's own DNS) until Disable / Revert-to-default.</summary>
+        public bool ManualApplyDns(DnsProfile profile)
+        {
+            _manualDnsProfileId = profile.Id;
+            _log.Ok($"DNS: manually enabled '{profile.Name}' (overrides tunnel).");
+            ApplyPendingDns();
+            return true;
+        }
+
+        /// <summary>Disable: clear the manual override so automation takes back over (or, when
+        /// automation is off, restores the network's own resolver).</summary>
+        public void ManualDisable()
+        {
+            _manualDnsProfileId = null;
+            _log.Ok("DNS: manual override cleared — following automation.");
+            ApplyPendingDns();
+        }
+
+        /// <summary>Revert to default: undo any DNS override and restore the interface to the exact
+        /// settings captured before MasselGUARD first touched it (so a NIC that was on "obtain DNS
+        /// automatically" goes back to DHCP, not a forced static server). Clears the manual override
+        /// and any pending rule action so nothing re-applies. Runs even while a tunnel is connected —
+        /// a manually-enabled profile may have written a static resolver to the physical NIC, and that
+        /// override must be undone regardless of tunnel ownership.</summary>
+        public void ManualRevertToDefault()
+        {
+            _manualDnsProfileId = null;   // stop forcing anything
+            _pendingDns = null;           // and don't let a stale rule result re-apply on the next poll
+            var guid = _wifi.CurrentInterfaceGuid;
+            if (guid != Guid.Empty) _dns.Restore(guid);   // put back exactly what was there before
+            RecordDnsDefaultResolver();
+            _log.Ok("DNS: reverted to previous settings.");
+        }
+
+        /// <summary>Evaluate the DNS action for the current network and apply it (subject to
+        /// tunnel ownership). Runs alongside — never instead of — the tunnel rule.</summary>
+        private void ApplyDnsForCurrentNetwork(string? ssid, bool isOpen)
+        {
+            _pendingDns = _rules.EvaluateDns(_config.Config, ssid, isOpen);
+            ApplyPendingDns();
+        }
+
+        /// <summary>
+        /// Write the last-evaluated DNS action to the active WiFi interface — unless a tunnel
+        /// currently owns resolution (its own DNS/NRPT supersedes), in which case the action is
+        /// held and re-asserted from <see cref="RefreshTunnelStatus"/> when the tunnel drops.
+        /// "None" restores any prior override so an unmatched network gets its own DNS back.
+        /// </summary>
+        private void ApplyPendingDns()
+        {
+            var guid = _wifi.CurrentInterfaceGuid;
+            if (guid == Guid.Empty) return;   // no WiFi interface to target right now
+
+            string families = _config.Config.DnsAddressFamilies;
+
+            // A manually-forced PROFILE (Enable) outranks everything, including an active tunnel's
+            // own DNS — the user explicitly picked this resolver, so honour it even while connected.
+            if (_manualDnsProfileId != null && _manualDnsProfileId != DnsProfile.AutomaticId)
+            {
+                var mp = _config.Config.DnsProfiles.FirstOrDefault(p =>
+                    string.Equals(p.Id, _manualDnsProfileId, StringComparison.Ordinal));
+                if (mp != null) { _dns.ApplyProfile(guid, mp, families); RecordDnsHistory(mp.Name); return; }
+                _manualDnsProfileId = null;   // referenced profile was deleted — drop it, fall through
+            }
+
+            // Otherwise an active tunnel owns resolution — its DNS/NRPT supersedes, so the rule action
+            // is held and re-asserted on the tunnel's falling edge. (A manual profile above already
+            // won; Revert-to-default is handled separately in ManualRevertToDefault, not here.)
+            if (_tunnelOwnsDns)
+            {
+                RecordDnsHistory(null);   // tunnel owns resolution — no profile band
+                return;                   // hold the rule action
+            }
+
+            // No tunnel: a forced system/DHCP default (legacy AutomaticId state) applies.
+            if (_manualDnsProfileId == DnsProfile.AutomaticId)
+            {
+                _dns.SetAutomatic(guid, families);   // forced system/DHCP default
+                RecordDnsDefaultResolver();          // show the actual server (e.g. 1.1.1.1)
+                return;
+            }
+
+            var result = _pendingDns;
+            if (result == null) return;
+
+            switch (result.Action)
+            {
+                case DnsPolicy.DnsActionKind.Apply:
+                    var profile = _config.Config.DnsProfiles.FirstOrDefault(p =>
+                        string.Equals(p.Id, result.ProfileId, StringComparison.Ordinal));
+                    if (profile == null) { _log.Warn($"DNS: profile '{result.ProfileId}' not found."); return; }
+                    _log.Info($"DNS: {result.Reason}");
+                    _dns.ApplyProfile(guid, profile, families);
+                    RecordDnsHistory(profile.Name);
+                    break;
+
+                case DnsPolicy.DnsActionKind.Automatic:
+                    _log.Info($"DNS: {result.Reason}");
+                    _dns.SetAutomatic(guid, families);
+                    RecordDnsDefaultResolver();   // show the actual server in use
+                    break;
+
+                default: // None — hand the network back its own resolver if we had overridden it.
+                    if (_dns.HasOverride(guid))
+                    {
+                        _log.Info("DNS: no matching rule — restoring the network's own resolver.");
+                        _dns.Restore(guid);
+                    }
+                    RecordDnsDefaultResolver();   // show the network's own DNS server (e.g. 1.1.1.1)
+                    break;
+            }
+        }
+
+        /// <summary>Record which DNS profile is active (or none) for the in-chart history band,
+        /// when <see cref="AppConfig.StoreDnsHistory"/> is on.</summary>
+        private void RecordDnsHistory(string? name)
+        {
+            if (!_config.Config.StoreDnsHistory) return;
+            if (string.IsNullOrEmpty(name)) _history.RecordDnsDeactivate();
+            else                            _history.RecordDnsActivate(name);
+        }
+
+        /// <summary>Record the interface's *actual* resolver (e.g. "1.1.1.1") for the band when no
+        /// MasselGUARD profile is active — so the DNS layer always shows the real server in use.
+        /// Falls back to deactivate if the resolver can't be read.</summary>
+        private void RecordDnsDefaultResolver()
+        {
+            if (!_config.Config.StoreDnsHistory) return;
+            var ip = CurrentInterfaceResolver();
+            if (string.IsNullOrEmpty(ip)) _history.RecordDnsDeactivate();
+            else                          _history.RecordDnsActivate(ip);
+        }
+
+        /// <summary>The current WiFi interface's primary DNS server address, or null.</summary>
+        private string? CurrentInterfaceResolver()
+        {
+            try
+            {
+                var id = _wifi.CurrentInterfaceGuid.ToString("B");
+                var ni = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                    .FirstOrDefault(n => string.Equals(n.Id, id, StringComparison.OrdinalIgnoreCase));
+                return ni?.GetIPProperties().DnsAddresses.FirstOrDefault()?.ToString();
+            }
+            catch { return null; }
+        }
+
         // ── Schedule (time-based rules) ───────────────────────────────────────
 
         private string? _scheduleActiveTunnel;
@@ -958,6 +1117,8 @@ namespace MasselGUARD.ViewModels
         {
             _timer.Stop();
             _disconnectDebounce?.Dispose();
+            // Never leave a DNS override stranded on an interface after we exit.
+            try { _dns.RestoreAll(); } catch { }
             _log.EntryAdded -= OnLogEntry;
         }
     }

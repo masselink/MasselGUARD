@@ -101,6 +101,7 @@ namespace MasselGUARD.Cli
                     "disconnect"                        => CmdDisconnect(args, cfg, json, quiet),
                     "disconnect-all"                    => CmdDisconnectAll(cfg, json, quiet, group),
                     "info"                              => CmdInfo(args, cfg, json),
+                    "dns"                               => CmdDns(args, cfg, json),
                     "log"                               => CmdLog(args, json, logType),
                     "tunnel-history"                => CmdTunnelHistory(args, json),
                     "wifi-history"                      => CmdWifiHistory(args, json),
@@ -123,6 +124,69 @@ namespace MasselGUARD.Cli
             return exitCode;
         }
 
+        // ── dns (read-only status) ──────────────────────────────────────────────
+
+        /// <summary>`dns status` — shows the DNS-automation config (enabled, default/open
+        /// profiles, families, profiles) plus each active interface's current resolvers.
+        /// Read-only; needs no elevation. Applying DNS is GUI-only in this release.</summary>
+        private static int CmdDns(string[] args, AppConfig cfg, bool json)
+        {
+            string sub = args.Length > 1 ? args[1].ToLowerInvariant() : "status";
+            if (sub != "status")
+            {
+                CliOutput.Error($"Unknown dns subcommand: '{sub}'. Use: dns status");
+                return 1;
+            }
+
+            string ProfileName(string? id) =>
+                string.IsNullOrEmpty(id)                     ? "(none)"
+              : id == Models.DnsProfile.AutomaticId          ? "Automatic (DHCP)"
+              : cfg.DnsProfiles.FirstOrDefault(p => p.Id == id)?.Name ?? $"(unknown: {id})";
+
+            // Current per-interface resolvers — managed read, no admin required.
+            var live = new List<(string name, string dns)>();
+            foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (ni.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up) continue;
+                if (ni.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Loopback) continue;
+                var addrs = ni.GetIPProperties().DnsAddresses.Select(a => a.ToString()).ToList();
+                if (addrs.Count == 0) continue;
+                live.Add((ni.Name, string.Join(", ", addrs)));
+            }
+
+            if (json)
+            {
+                CliOutput.PrintJson(new
+                {
+                    automation_enabled   = cfg.DnsAutomationEnabled,
+                    default_profile      = ProfileName(cfg.DefaultDnsProfileId),
+                    open_network_profile = ProfileName(cfg.OpenWifiDnsProfileId),
+                    address_families     = cfg.DnsAddressFamilies,
+                    profiles   = cfg.DnsProfiles.Select(p => new { name = p.Name, servers = p.ServersDisplay, encryption = p.EncryptionDisplay }),
+                    interfaces = live.Select(l => new { name = l.name, dns = l.dns }),
+                });
+                return 0;
+            }
+
+            CliOutput.Info($"DNS automation: {(cfg.DnsAutomationEnabled ? "enabled" : "disabled")}");
+            CliOutput.Info($"Default DNS:     {ProfileName(cfg.DefaultDnsProfileId)}");
+            CliOutput.Info($"Open-network:    {ProfileName(cfg.OpenWifiDnsProfileId)}");
+            CliOutput.Info($"Families:        {cfg.DnsAddressFamilies}");
+            if (cfg.DnsProfiles.Count > 0)
+            {
+                CliOutput.Info("Profiles:");
+                foreach (var p in cfg.DnsProfiles)
+                    CliOutput.Info($"  • {p.Name} — {p.ServersDisplay} [{p.EncryptionDisplay}]");
+            }
+            if (live.Count > 0)
+            {
+                CliOutput.Info("Active interface resolvers:");
+                foreach (var l in live)
+                    CliOutput.Info($"  • {l.name}: {l.dns}");
+            }
+            return 0;
+        }
+
         // ── selftest (hidden) ───────────────────────────────────────────────────
 
         /// <summary>Runs built-in self-tests. Currently the CIDR split-tunnel math
@@ -132,14 +196,17 @@ namespace MasselGUARD.Cli
             var (cidrPass, cidrFail, cidrFailures) = Services.CidrMath.RunSelfTest();
             var (backPass, backFail, backFailures) = Services.RouteBasedBackend.SelfTest();
             var (expPass,  expFail,  expFailures)  = Services.TunnelExportService.SelfTest();
+            var (dnsPass,  dnsFail,  dnsFailures)  = Services.DnsPolicy.RunSelfTest();
 
             foreach (var f in cidrFailures) CliOutput.Error($"FAIL CidrMath {f}");
             foreach (var f in backFailures) CliOutput.Error($"FAIL Backend {f}");
             foreach (var f in expFailures)  CliOutput.Error($"FAIL Export {f}");
+            foreach (var f in dnsFailures)  CliOutput.Error($"FAIL DnsPolicy {f}");
 
-            int pass = cidrPass + backPass + expPass, fail = cidrFail + backFail + expFail;
-            if (fail == 0) CliOutput.Ok($"Split self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}).");
-            else           CliOutput.Error($"Split self-test: {pass} passed, {fail} failed.");
+            int pass = cidrPass + backPass + expPass + dnsPass;
+            int fail = cidrFail + backFail + expFail + dnsFail;
+            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}).");
+            else           CliOutput.Error($"Self-test: {pass} passed, {fail} failed.");
             return fail == 0 ? 0 : 1;
         }
 
@@ -283,14 +350,6 @@ namespace MasselGUARD.Cli
                     $"Tunnel '{tunnel.Name}' is already connected.");
                 return 2;
             }
-
-            // For companion tunnels the service may need to be registered before
-            // starting, which involves SCM calls and WaitForStatus polling (up to 15 s).
-            // Print a progress line so the console stays visibly active.
-            bool isCompanion = !string.Equals(tunnel.Source, "local",
-                StringComparison.OrdinalIgnoreCase);
-            if (isCompanion && !quiet && !json)
-                CliOutput.Info($"Connecting '{tunnel.Name}' (WireGuard companion)…");
 
             bool ok = MakeTunnelService().Connect(tunnel, cfg, "CLI");
             if (ok)
@@ -442,7 +501,6 @@ namespace MasselGUARD.Cli
             else
             {
                 CliOutput.Info($"  Name:    {tunnel.Name}");
-                CliOutput.Info($"  Type:    {(tunnel.Source == "local" ? "Local (tunnel.dll)" : "WireGuard for Windows")}");
                 CliOutput.Info($"  Group:   {(string.IsNullOrEmpty(tunnel.Group) ? "—" : tunnel.Group)}");
                 CliOutput.Info($"  Status:  {(isActive ? $"● Connected  {(uptime.HasValue ? FormatUptime(uptime.Value) : "unknown")}" : "○ Disconnected")}");
 
@@ -1081,6 +1139,7 @@ namespace MasselGUARD.Cli
             CliOutput.Info("  disconnect <name>          Disconnect a tunnel by name");
             CliOutput.Info("  disconnect-all             Disconnect all active tunnels");
             CliOutput.Info("  info <name>                Detailed status for one tunnel");
+            CliOutput.Info("  dns status                 Show DNS-automation config + live resolvers");
             CliOutput.Info("  log [n]                    Last n activity log entries (default 20)");
             CliOutput.Info("  tunnel-history [n]     Connection history with source and traffic (default 20)");
             CliOutput.Info("  wifi-history [n]           WiFi SSID history with duration and security (default 20)");
@@ -1142,13 +1201,7 @@ namespace MasselGUARD.Cli
 
         private static bool IsActive(StoredTunnel tunnel)
         {
-            if (string.Equals(tunnel.Source, "local", StringComparison.OrdinalIgnoreCase))
-                return TunnelDll.IsRunning(tunnel.Name);
-            try
-            {
-                using var sc = new ServiceController("WireGuardTunnel$" + tunnel.Name);
-                return sc.Status == ServiceControllerStatus.Running;
-            }
+            try { return TunnelDll.IsRunning(tunnel.Name); }
             catch { return false; }
         }
 

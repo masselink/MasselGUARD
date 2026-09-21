@@ -1,6 +1,6 @@
 # MasselGUARD — User Manual
 
-**Version 4.1.0 — Layered Lynx**
+**Version 4.2.0 — Resolving Raven**
 
 ---
 
@@ -369,6 +369,22 @@ The **rules list itself lives on the main window** (add / edit / delete / enable
 3. **Open network protection** tunnel picker — activated on an unsecured (open) WiFi network, before any SSID rule or default action
 4. **Trusted networks** — the safe-SSID list for a *Trusted networks* rule (one SSID per line; **Add current WiFi network** appends the network you're on, skipping duplicates). Enabling the feature and choosing its tunnel is done in the rule itself, not here — see §8
 5. Display — **Hide WiFi rules on main window** and **Show Rules column** in tunnel list toggles
+
+### DNS automation (Settings → DNS)
+
+DNS automation has its own **DNS** tab in Settings. There you can set the **DNS resolver based on the network you join — even when no tunnel is active** (for example: "on any open Wi-Fi, use encrypted Cloudflare DNS", or "on the office SSID, use the internal resolver"). While a tunnel is connected, the tunnel's own DNS takes over; when it drops, your DNS rule is re-applied. Your original DNS is saved first and restored when you close MasselGUARD (and recovered automatically if the app was closed unexpectedly).
+
+- **Enable DNS automation** — the master switch (off by default; nothing changes until you turn it on).
+- **Default DNS** — the resolver used on any network without a more specific rule. *— none —* leaves the network's own DNS alone; *Automatic (DHCP)* forces the network-provided DNS.
+- **Open-network DNS** — applied on an unsecured (open) Wi-Fi network, so you can force encrypted DNS on public hotspots with no per-network rule.
+- **Address families** — whether to set IPv4, IPv6, or both. Setting only IPv4 leaves IPv6 on the network's resolver.
+- **DNS profiles** — named resolvers your rules and the defaults point at. **Add presets** drops in the well-known public resolvers (Cloudflare, Google, Quad9, AdGuard, OpenDNS, NextDNS); **Add…** creates your own. Each profile has IPv4/IPv6 servers and an **Encryption** mode:
+  - *Plain* — standard unencrypted DNS.
+  - *DNS-over-HTTPS (DoH)* / *Automatic* — encrypted DNS. **DoH needs Windows 11.** Well-known resolvers work with no template; for a custom resolver enter its **DoH template URL**. Tick **Require encryption** to fail closed (never fall back to plaintext).
+
+To apply a resolver on a **specific SSID** (with or without a tunnel), open a Wi-Fi rule and pick a **DNS** profile — leave the tunnel blank for a DNS-only rule.
+
+The CLI command `MasselGUARD dns status` shows the current configuration and each interface's live resolvers (see the CLI manual).
 
 ---
 

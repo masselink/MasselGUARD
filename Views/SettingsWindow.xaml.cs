@@ -38,7 +38,6 @@ namespace MasselGUARD.Views
             // (Rule add/edit requests are handled on the main window now, not here.)
             _vm.ExportRequested     += OnExportSettings;
             _vm.ImportRequested     += OnImportSettings;
-            _vm.ModeChanged         += _ => { _main.ApplyManualMode(); RefreshCurrentTab(); };
             _vm.LogLevelChanged     += v => main.LogSvc.IsExtended = v == "extended";
 
             InitializeComponent();
@@ -57,6 +56,11 @@ namespace MasselGUARD.Views
                     SharedThemesRepoBox.Text = _draft.SharedThemesRepoUrl ?? "";
                     _loading = false;
                 }
+                ApplyFeatureTabVisibility();   // hide module tabs that are turned off
+                // Don't open a hidden tab.
+                if ((InitialTab == "Tunnels" && !_main.ConfigSvc.Config.EnableTunnels) ||
+                    (InitialTab == "Dns"     && !_main.ConfigSvc.Config.EnableDns))
+                    InitialTab = "General";
                 ShowTab(InitialTab);
                 RefreshUpdateState();
                 RefreshLocalizedStrings();
@@ -117,6 +121,7 @@ namespace MasselGUARD.Views
             PageGeneral.Visibility    = tab == "General"    ? Visibility.Visible : Visibility.Collapsed;
             PageTunnels.Visibility    = tab == "Tunnels"    ? Visibility.Visible : Visibility.Collapsed;
             PageWifi.Visibility       = tab == "Wifi"       ? Visibility.Visible : Visibility.Collapsed;
+            PageDns.Visibility        = tab == "Dns"        ? Visibility.Visible : Visibility.Collapsed;
             PageAppearance.Visibility = tab == "Appearance" ? Visibility.Visible : Visibility.Collapsed;
             PageAdvanced.Visibility   = tab == "Advanced"   ? Visibility.Visible : Visibility.Collapsed;
             PageHistory.Visibility    = tab == "History"    ? Visibility.Visible : Visibility.Collapsed;
@@ -125,17 +130,19 @@ namespace MasselGUARD.Views
             TabBtnGeneral.Tag    = tab == "General"    ? "Active" : null;
             TabBtnTunnels.Tag    = tab == "Tunnels"    ? "Active" : null;
             TabBtnWifi.Tag       = tab == "Wifi"       ? "Active" : null;
+            TabBtnDns.Tag        = tab == "Dns"        ? "Active" : null;
             TabBtnAppearance.Tag = tab == "Appearance" ? "Active" : null;
             TabBtnAdvanced.Tag   = tab == "Advanced"   ? "Active" : null;
             TabBtnHistory.Tag    = tab == "History"    ? "Active" : null;
             TabBtnAbout.Tag      = tab == "About"      ? "Active" : null;
 
-            if (tab == "General")    { RefreshGroupList(); RefreshModeStatusBox(); SyncStartWithWindows(); SyncConfirmOnClose(); }
+            if (tab == "General")    { RefreshFeatureControls(); RefreshGroupList(); SyncStartWithWindows(); SyncStartupOptions(); SyncConfirmOnClose(); }
             if (tab == "Tunnels")    { RefreshGroupList(); SyncArMode(); SyncKsMode(); SyncSkipTunnelValidation(); }
-            if (tab == "Wifi")       RefreshAutomationControls();
-            if (tab == "Appearance") { PopulateThemePicker(); SyncCapStyle(); }
+            if (tab == "Wifi")       { RefreshAutomationControls(); ApplyFeatureSectionVisibility(); }
+            if (tab == "Dns")        RefreshDnsControls();
+            if (tab == "Appearance") { PopulateThemePicker(); SyncCapStyle(); ApplyFeatureSectionVisibility(); }
             if (tab == "History")    RefreshHistoryTab();
-            if (tab == "Advanced")   { RefreshInstallState(); RefreshDllStatus(); RefreshWireGuardSection(); ScanOrphans(); PopulateLogLevelPicker(); RefreshDnsLeakSection(); }
+            if (tab == "Advanced")   { RefreshInstallState(); RefreshDllStatus(); PopulateLogLevelPicker(); RefreshDnsLeakSection(); }
             if (tab == "About")      RefreshUpdateState();
 
             // Managed-preset lock UI — runs last so it wins over the per-tab populate above.
@@ -179,7 +186,6 @@ namespace MasselGUARD.Views
             }
 
             // General
-            L(ModeStandalone, "Mode"); D(ModeCompanion, "Mode"); D(ModeMixed, "Mode");
             L(LanguagePicker, "Language");
             L(StartWithWindowsToggle, "StartWithWindows");
             L(ConfirmOnCloseToggle, "ConfirmOnClose");
@@ -204,7 +210,6 @@ namespace MasselGUARD.Views
 
             // Advanced
             L(SharedThemesRepoBox, "SharedThemesRepoUrl"); D(ResetThemesRepoBtn, "SharedThemesRepoUrl");
-            L(WireGuardSectionCard, "WireGuardInstallDirectory");
             L(FreqOnStart, "UpdateCheckFrequency"); D(FreqDaily, "UpdateCheckFrequency");
             D(FreqWeekly, "UpdateCheckFrequency"); D(FreqManual, "UpdateCheckFrequency");
 
@@ -402,52 +407,6 @@ namespace MasselGUARD.Views
             }
         }
 
-        private void AppMode_Changed(object sender, RoutedEventArgs e)
-        {
-            if (_loading) return;
-            if (ModeStandalone?.IsChecked == true) _vm.Mode = AppMode.Standalone;
-            else if (ModeCompanion?.IsChecked == true) _vm.Mode = AppMode.Companion;
-            else _vm.Mode = AppMode.Mixed;
-            RefreshModeStatusBox();
-        }
-
-        private void RefreshModeStatusBox()
-        {
-            if (DllStatusLabel == null) return;
-            var mode    = _vm.Mode;
-            var baseDir = AppContext.BaseDirectory;
-            var lines   = new System.Text.StringBuilder();
-
-            // ── DLLs (Standalone / Mixed) ─────────────────────────────────────
-            if (mode == AppMode.Standalone || mode == AppMode.Mixed)
-            {
-                var tunnelPath = System.IO.Path.Combine(baseDir, "tunnel.dll");
-                var wgPath     = System.IO.Path.Combine(baseDir, "wireguard.dll");
-
-                bool tunnelOk  = System.IO.File.Exists(tunnelPath);
-                bool wgOk      = System.IO.File.Exists(wgPath);
-
-                lines.AppendLine(tunnelOk
-                    ? $"✓  tunnel.dll      ({new System.IO.FileInfo(tunnelPath).Length / 1024} KB)"
-                    : "✗  tunnel.dll      — not found");
-                lines.AppendLine(wgOk
-                    ? $"✓  wireguard.dll  ({new System.IO.FileInfo(wgPath).Length / 1024} KB)"
-                    : "✗  wireguard.dll  — not found");
-            }
-
-            // ── WireGuard for Windows (Companion / Mixed) ─────────────────────
-            if (mode == AppMode.Companion || mode == AppMode.Mixed)
-            {
-                var wgInstall = MainWindow.DetectWireGuardInstallDir();
-                if (wgInstall != null)
-                    lines.AppendLine($"✓  WireGuard for Windows  ({wgInstall})");
-                else
-                    lines.AppendLine("✗  WireGuard for Windows  — not found");
-            }
-
-            DllStatusLabel.Text = lines.ToString().TrimEnd();
-        }
-
         private void RefreshGroupList()
         {
             if (_loading) return;
@@ -464,12 +423,7 @@ namespace MasselGUARD.Views
                     .FirstOrDefault(i => string.Equals(i.Code,
                         _draft.Language, StringComparison.OrdinalIgnoreCase));
 
-            // Sync app mode radios (General tab)
             _loading = true;
-            var mode = _draft.Mode;
-            if (ModeStandalone != null) ModeStandalone.IsChecked = mode == AppMode.Standalone;
-            if (ModeCompanion  != null) ModeCompanion.IsChecked  = mode == AppMode.Companion;
-            if (ModeMixed      != null) ModeMixed.IsChecked      = mode == AppMode.Mixed;
             if (ShowActivityLogToggle    != null) ShowActivityLogToggle.IsChecked    = _draft.ShowActivityLog;
             if (ShowTimelineToggle       != null) ShowTimelineToggle.IsChecked       = _draft.ShowTimeline;
             if (StoreConnectionHistoryToggle != null) StoreConnectionHistoryToggle.IsChecked = _draft.StoreConnectionHistory;
@@ -1341,6 +1295,212 @@ namespace MasselGUARD.Views
             _vm.DisableWifiRules = on;
         }
 
+        // ── DNS automation (Wifi page) ─────────────────────────────────────────
+        // DNS state is independent of the settings draft/apply flow, so these persist
+        // directly to the live config + Save (guarded so populating combos doesn't re-save).
+        private bool _dnsLoading;
+
+        private void RefreshDnsControls()
+        {
+            var cfg = _main.ConfigSvc.Config;
+            _dnsLoading = true;
+
+            if (DnsAutomationToggle != null) DnsAutomationToggle.IsChecked = cfg.DnsAutomationEnabled;
+
+            PopulateDnsProfileCombo(DnsDefaultBox, cfg.DefaultDnsProfileId);
+            PopulateDnsProfileCombo(DnsOpenBox,    cfg.OpenWifiDnsProfileId);
+
+            if (DnsFamiliesBox != null)
+            {
+                DnsFamiliesBox.Items.Clear();
+                DnsFamiliesBox.Items.Add(new ComboBoxItem { Content = Lang.T("DnsFamiliesBoth"), Tag = "both" });
+                DnsFamiliesBox.Items.Add(new ComboBoxItem { Content = Lang.T("DnsFamiliesV4"),   Tag = "v4" });
+                DnsFamiliesBox.Items.Add(new ComboBoxItem { Content = Lang.T("DnsFamiliesV6"),   Tag = "v6" });
+                SelectComboByTag(DnsFamiliesBox, string.IsNullOrEmpty(cfg.DnsAddressFamilies) ? "both" : cfg.DnsAddressFamilies);
+            }
+
+            RefreshDnsProfilesList();
+            _dnsLoading = false;
+        }
+
+        private void PopulateDnsProfileCombo(ComboBox? box, string? selectedId)
+        {
+            if (box == null) return;
+            box.Items.Clear();
+            box.Items.Add(new ComboBoxItem { Content = Lang.T("DnsProfileNone"),      Tag = Models.DnsProfile.NoneId });
+            box.Items.Add(new ComboBoxItem { Content = Lang.T("DnsProfileAutomatic"), Tag = Models.DnsProfile.AutomaticId });
+            foreach (var p in _main.ConfigSvc.Config.DnsProfiles)
+                box.Items.Add(new ComboBoxItem { Content = p.Name, Tag = p.Id });
+            SelectComboByTag(box, selectedId ?? "");
+        }
+
+        private static void SelectComboByTag(ComboBox box, string tag)
+        {
+            foreach (ComboBoxItem it in box.Items)
+                if ((it.Tag as string) == tag) { box.SelectedItem = it; return; }
+            if (box.Items.Count > 0) box.SelectedIndex = 0;   // falls back to "none"
+        }
+
+        private void RefreshDnsProfilesList()
+        {
+            if (DnsProfilesList == null) return;
+            DnsProfilesList.ItemsSource = null;
+            DnsProfilesList.ItemsSource = _main.ConfigSvc.Config.DnsProfiles;
+            bool sel = DnsProfilesList.SelectedItem != null;
+            if (DnsEditBtn   != null) DnsEditBtn.IsEnabled   = sel;
+            if (DnsRemoveBtn != null) DnsRemoveBtn.IsEnabled = sel;
+        }
+
+        private void DnsAutomation_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_dnsLoading) return;
+            _main.ConfigSvc.Config.DnsAutomationEnabled = DnsAutomationToggle?.IsChecked == true;
+            _main.ConfigSvc.Save();
+        }
+
+        private void DnsDefault_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_dnsLoading) return;
+            _main.ConfigSvc.Config.DefaultDnsProfileId = (DnsDefaultBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
+            _main.ConfigSvc.Save();
+        }
+
+        private void DnsOpen_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_dnsLoading) return;
+            _main.ConfigSvc.Config.OpenWifiDnsProfileId = (DnsOpenBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
+            _main.ConfigSvc.Save();
+        }
+
+        private void DnsFamilies_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_dnsLoading) return;
+            _main.ConfigSvc.Config.DnsAddressFamilies = (DnsFamiliesBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "both";
+            _main.ConfigSvc.Save();
+        }
+
+        private void DnsProfilesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            bool sel = DnsProfilesList?.SelectedItem != null;
+            if (DnsEditBtn   != null) DnsEditBtn.IsEnabled   = sel;
+            if (DnsRemoveBtn != null) DnsRemoveBtn.IsEnabled = sel;
+        }
+
+        private void DnsProfilesList_DoubleClick(object sender, MouseButtonEventArgs e) => DnsEdit_Click(sender, e);
+
+        private void DnsAdd_Click(object sender, RoutedEventArgs e)
+        {
+            var created = DnsProfileEditor.Show(this, null);
+            if (created == null) return;
+            _main.ConfigSvc.Config.DnsProfiles.Add(created);
+            _main.ConfigSvc.Save();
+            RefreshDnsControls();
+            SelectDnsProfileById(created.Id);
+        }
+
+        private void DnsPresets_Click(object sender, RoutedEventArgs e)
+        {
+            var existingNames = _main.ConfigSvc.Config.DnsProfiles
+                .Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            int added = 0;
+            foreach (var preset in Models.DnsProfile.BuiltInPresets())
+                if (existingNames.Add(preset.Name)) { _main.ConfigSvc.Config.DnsProfiles.Add(preset); added++; }
+            if (added == 0) return;
+            _main.ConfigSvc.Save();
+            RefreshDnsControls();
+        }
+
+        private void DnsEdit_Click(object sender, RoutedEventArgs e)
+        {
+            if (DnsProfilesList?.SelectedItem is not Models.DnsProfile selected) return;
+            var edited = DnsProfileEditor.Show(this, selected);
+            if (edited == null) return;
+            int i = _main.ConfigSvc.Config.DnsProfiles.FindIndex(p => p.Id == selected.Id);
+            if (i >= 0) _main.ConfigSvc.Config.DnsProfiles[i] = edited;
+            _main.ConfigSvc.Save();
+            RefreshDnsControls();
+            SelectDnsProfileById(edited.Id);
+        }
+
+        private void DnsRemove_Click(object sender, RoutedEventArgs e)
+        {
+            if (DnsProfilesList?.SelectedItem is not Models.DnsProfile selected) return;
+            var cfg = _main.ConfigSvc.Config;
+            cfg.DnsProfiles.RemoveAll(p => p.Id == selected.Id);
+            // Clear any references so nothing points at a deleted profile.
+            if (cfg.DefaultDnsProfileId  == selected.Id) cfg.DefaultDnsProfileId  = "";
+            if (cfg.OpenWifiDnsProfileId == selected.Id) cfg.OpenWifiDnsProfileId = "";
+            foreach (var r in cfg.Rules) if (r.DnsProfileId == selected.Id) r.DnsProfileId = "";
+            _main.ConfigSvc.Save();
+            RefreshDnsControls();
+        }
+
+        private void SelectDnsProfileById(string id)
+        {
+            if (DnsProfilesList == null) return;
+            foreach (Models.DnsProfile p in DnsProfilesList.Items)
+                if (p.Id == id) { DnsProfilesList.SelectedItem = p; return; }
+        }
+
+        // ── Feature modules (General page) ─────────────────────────────────────
+        // Two top-level features (WireGuard tunnels / DNS automation) can be turned on/off;
+        // at least one stays on. Persist directly + re-gate the affected Settings tabs live.
+        // See docs/FeatureModules-Design.md.
+        private bool _featLoading;
+
+        private void RefreshFeatureControls()
+        {
+            var cfg = _main.ConfigSvc.Config;
+            _featLoading = true;
+            if (FeatureTunnelsToggle != null) FeatureTunnelsToggle.IsChecked = cfg.EnableTunnels;
+            if (FeatureDnsToggle     != null) FeatureDnsToggle.IsChecked     = cfg.EnableDns;
+            // Disable whichever toggle is the sole enabled module, so it can't be turned off.
+            if (FeatureTunnelsToggle != null) FeatureTunnelsToggle.IsEnabled = !(cfg.EnableTunnels && !cfg.EnableDns);
+            if (FeatureDnsToggle     != null) FeatureDnsToggle.IsEnabled     = !(cfg.EnableDns && !cfg.EnableTunnels);
+            _featLoading = false;
+        }
+
+        private void FeatureModule_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_featLoading) return;
+            var cfg = _main.ConfigSvc.Config;
+            bool t = FeatureTunnelsToggle?.IsChecked == true;
+            bool d = FeatureDnsToggle?.IsChecked == true;
+            if (!t && !d)   // safety: never both off (the sole toggle is disabled, but guard anyway)
+            {
+                RefreshFeatureControls();
+                return;
+            }
+            cfg.EnableTunnels = t;
+            cfg.EnableDns     = d;
+            _main.ConfigSvc.Save();
+            RefreshFeatureControls();
+            ApplyFeatureTabVisibility();
+            _main.ApplyFeatureVisibility();   // re-gate the main window live
+        }
+
+        /// <summary>Show/hide the module-specific Settings tabs from the feature flags. If the
+        /// active tab just got hidden, fall back to General.</summary>
+        private void ApplyFeatureTabVisibility()
+        {
+            var cfg = _main.ConfigSvc.Config;
+            if (TabBtnTunnels != null) TabBtnTunnels.Visibility = cfg.EnableTunnels ? Visibility.Visible : Visibility.Collapsed;
+            if (TabBtnDns     != null) TabBtnDns.Visibility     = cfg.EnableDns     ? Visibility.Visible : Visibility.Collapsed;
+
+            if ((_activeTab == "Tunnels" && !cfg.EnableTunnels) ||
+                (_activeTab == "Dns"     && !cfg.EnableDns))
+                ShowTab("General");
+        }
+
+        /// <summary>Hide the tunnel-only sections on shared tabs (Wifi default-action / open-network
+        /// tunnel; Appearance cap indicator) in DNS-only mode. Called when those tabs are shown.</summary>
+        private void ApplyFeatureSectionVisibility()
+        {
+            var vis = _main.ConfigSvc.Config.EnableTunnels ? Visibility.Visible : Visibility.Collapsed;
+            if (WifiTunnelOnlySections != null) WifiTunnelOnlySections.Visibility = vis;
+            if (CapIndicatorSection    != null) CapIndicatorSection.Visibility    = vis;
+        }
+
         // The WiFi rules list (add/edit/delete/enable) lives on the main window;
         // Settings no longer duplicates it, so the rule list handlers were removed.
 
@@ -1430,12 +1590,6 @@ namespace MasselGUARD.Views
                 : Lang.T("SettingsDllMissing"));
         }
 
-        private void RefreshWireGuardSection()
-        {
-            SetLabel("WgInstallLabel",
-                MainWindow.DetectWireGuardInstallDir() ?? Lang.T("SettingsWgNotFound"));
-        }
-
         // ── DNS leak protection (smart name resolution + parallel A/AAAA) ───────
         private void RefreshDnsLeakSection()
         {
@@ -1508,95 +1662,10 @@ namespace MasselGUARD.Views
         private void DnsParallelEnable_Click(object sender, RoutedEventArgs e) =>
             ApplyDnsPolicy(Services.DnsLeakService.EnableParallelQueries);
 
-        private void ScanOrphans()
-        {
-            var orphans = _main.GetOrphanedServices();
-
-            // Update status label (OrphanStatusLabel is defined in XAML)
-            if (OrphanStatusLabel != null)
-                OrphanStatusLabel.Text = orphans.Count == 0
-                    ? Lang.T("SettingsNoOrphans")
-                    : $"{orphans.Count} orphaned service{(orphans.Count == 1 ? "" : "s")} found";
-
-            // Rebuild inline list (OrphanListPanel is a StackPanel in XAML)
-            OrphanListPanel.Children.Clear();
-            OrphanListPanel.Visibility = orphans.Count > 0
-                ? Visibility.Visible : Visibility.Collapsed;
-
-            foreach (var o in orphans)
-            {
-                var card = new System.Windows.Controls.Border
-                {
-                    Background      = (System.Windows.Media.Brush)Application.Current.Resources["Surface"],
-                    BorderBrush     = (System.Windows.Media.Brush)Application.Current.Resources["BorderColor"],
-                    BorderThickness = new Thickness(1),
-                    CornerRadius    = new CornerRadius(3),
-                    Padding         = new Thickness(10, 6, 10, 6),
-                    Margin          = new Thickness(0, 0, 0, 4),
-                };
-                var row = new System.Windows.Controls.Grid();
-                row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
-                    { Width = new GridLength(1, GridUnitType.Star) });
-                row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
-                    { Width = GridLength.Auto });
-
-                var namePanel = new System.Windows.Controls.StackPanel
-                    { Orientation = System.Windows.Controls.Orientation.Vertical,
-                      VerticalAlignment = VerticalAlignment.Center };
-                namePanel.Children.Add(new System.Windows.Controls.TextBlock
-                {
-                    Text       = o.TunnelName,
-                    FontSize   = 10,
-                    Foreground = (System.Windows.Media.Brush)Application.Current.Resources["TextPrimary"],
-                });
-                namePanel.Children.Add(new System.Windows.Controls.TextBlock
-                {
-                    Text       = $"{o.ServiceName}  ·  ○ Stopped",
-                    FontSize   = 9,
-                    Foreground = (System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
-                });
-                System.Windows.Controls.Grid.SetColumn(namePanel, 0);
-
-                var capturedOrphan = o;
-                var removeBtn = new System.Windows.Controls.Button
-                {
-                    Content = "Remove",
-                    Style   = (Style)Application.Current.Resources["DangerBtn"],
-                    FontSize = 9,
-                    Padding  = new Thickness(8, 3, 8, 3),
-                };
-                removeBtn.Click += (_, _) => { _main.RemoveOrphan(capturedOrphan); ScanOrphans(); };
-                System.Windows.Controls.Grid.SetColumn(removeBtn, 1);
-
-                row.Children.Add(namePanel);
-                row.Children.Add(removeBtn);
-                card.Child = row;
-                OrphanListPanel.Children.Add(card);
-            }
-
-            if (RemoveAllOrphansBtn != null)
-                RemoveAllOrphansBtn.Visibility = orphans.Count > 0
-                    ? Visibility.Visible : Visibility.Collapsed;
-        }
-
         private void SetLabel(string name, string text)
         {
             if (FindName(name) is System.Windows.Controls.TextBlock tb) tb.Text = text;
         }
-
-        private void RemoveAllOrphans_Click(object sender, RoutedEventArgs e)
-        {
-            foreach (var o in _main.GetOrphanedServices())
-                _main.RemoveOrphan(o);
-            ScanOrphans();
-        }
-
-        private void Install_Click(object sender, RoutedEventArgs e)
-        {
-            // Delegate to existing install logic via main window
-        }
-
-        private void OpenWireGuard_Click(object sender, RoutedEventArgs e)      => _main.OpenWireGuardGui();
 
         private void ExportSettings_Click(object sender, RoutedEventArgs e)     => _vm.ExportCommand.Execute(null);
         private void ImportSettings_Click(object sender, RoutedEventArgs e)     => _vm.ImportCommand.Execute(null);
@@ -1985,9 +2054,6 @@ namespace MasselGUARD.Views
         }
 
         private void CloseBtn_Click(object sender, RoutedEventArgs e) => Close();
-        // ── Handlers required by XAML ─────────────────────────────────────────
-        private void Mode_Changed(object sender, System.Windows.RoutedEventArgs e)
-            => AppMode_Changed(sender, e);
 
         // ── View preset — re-applies the same bundle of panel-visibility settings
         // the first-run wizard offers. Applies immediately (like the individual
@@ -2065,6 +2131,20 @@ namespace MasselGUARD.Views
         {
             if (_loading) return;
             _draft.ConfirmOnClose = ConfirmOnCloseToggle?.IsChecked == true;
+        }
+
+        private void SyncStartupOptions()
+        {
+            if (StartMinimizedToggle == null) return;
+            _loading = true;
+            StartMinimizedToggle.IsChecked = _draft.StartMinimized;
+            _loading = false;
+        }
+
+        private void StartMinimized_Changed(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.StartMinimized = StartMinimizedToggle?.IsChecked == true;
         }
 
         private void SyncArMode()
@@ -2145,8 +2225,76 @@ namespace MasselGUARD.Views
             RefreshInstallState();
         }
 
-        private void ScanOrphans_Click(object sender, System.Windows.RoutedEventArgs e)
-            => ScanOrphans();
+        // ── Diagnostics / Tester (Advanced) ──────────────────────────────────────
+        private bool _testRunning;
+
+        private async void RunTests_Click(object sender, RoutedEventArgs e)
+        {
+            if (_testRunning) return;
+
+            bool local = TestLocalToggle?.IsChecked == true;
+            bool dns   = TestDnsToggle?.IsChecked   == true;
+            if (!local && !dns)
+            {
+                if (TestLogBox != null) TestLogBox.Text = Lang.T("TesterSelectMode") + System.Environment.NewLine;
+                return;
+            }
+
+            _testRunning = true;
+            if (RunTestsBtn != null) { RunTestsBtn.IsEnabled = false; RunTestsBtn.Content = Lang.T("TesterRunning"); }
+            if (TestLogBox != null) TestLogBox.Clear();
+
+            void Append(Services.DiagnosticsService.Level lvl, string text)
+            {
+                string glyph = lvl switch
+                {
+                    Services.DiagnosticsService.Level.Pass => "✓ ",   // ✓
+                    Services.DiagnosticsService.Level.Fail => "✗ ",   // ✗
+                    Services.DiagnosticsService.Level.Warn => "⚠ ",   // ⚠
+                    Services.DiagnosticsService.Level.Head => "",
+                    _                                       => "· ",  // ·
+                };
+                string line = lvl == Services.DiagnosticsService.Level.Head
+                    ? $"{System.Environment.NewLine}==== {text} ===="
+                    : $"[{System.DateTime.Now:HH:mm:ss}] {glyph}{text}";
+                if (TestLogBox == null) return;
+                TestLogBox.AppendText(line + System.Environment.NewLine);
+                TestLogBox.ScrollToEnd();
+            }
+
+            // Sink is invoked from a background thread → marshal to the UI thread.
+            void Sink(Services.DiagnosticsService.Level lvl, string text)
+                => Dispatcher.Invoke(() => Append(lvl, text));
+
+            var diag = new Services.DiagnosticsService(Sink);
+            var cfg  = _main.ConfigSvc.Config;
+            var guid = _main.WifiSvc.CurrentInterfaceGuid;
+
+            try
+            {
+                // Awaited on the UI thread — RunAsync drives the tunnel view-models and offloads
+                // its own blocking work, so the window stays responsive.
+                await diag.RunAsync(local, dns, _main._vm, _main.TunnelSvc, _main._vm.Dns,
+                                    cfg, guid, System.Threading.CancellationToken.None);
+            }
+            catch (System.Exception ex)
+            {
+                Append(Services.DiagnosticsService.Level.Fail, "Tester crashed: " + ex.Message);
+            }
+            finally
+            {
+                _testRunning = false;
+                if (RunTestsBtn != null) { RunTestsBtn.IsEnabled = true; RunTestsBtn.Content = Lang.T("BtnRunTests"); }
+            }
+        }
+
+        private void CopyTestLog_Click(object sender, RoutedEventArgs e)
+        {
+            try { if (!string.IsNullOrEmpty(TestLogBox?.Text)) System.Windows.Clipboard.SetText(TestLogBox!.Text); }
+            catch { /* clipboard may be locked by another app — ignore */ }
+        }
+
+        private void ClearTestLog_Click(object sender, RoutedEventArgs e) => TestLogBox?.Clear();
 
         private async void DoUpdate_Click(object sender, System.Windows.RoutedEventArgs e)
         {
@@ -2299,6 +2447,7 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.ActiveTheme         = _draft.ActiveTheme;
             _main.ConfigSvc.Config.SystemThemeMode     = _draft.SystemThemeMode;
             _main.ConfigSvc.Config.ConfirmOnClose      = _draft.ConfirmOnClose;
+            _main.ConfigSvc.Config.StartMinimized      = _draft.StartMinimized;
             _main.ConfigSvc.Config.AutoReconnectMode   = _draft.AutoReconnectMode;
             _main.ConfigSvc.Config.ShowDnsIndicator    = _draft.ShowDnsIndicator;
             _main.ConfigSvc.Config.DnsLeakWarnLog      = _draft.DnsLeakWarnLog;
@@ -2348,7 +2497,6 @@ namespace MasselGUARD.Views
             }
 
             Check("Language",              before.Language,              after.Language);
-            Check("Mode",                  before.Mode,                  after.Mode);
             Check("Manual mode",           before.ManualMode,            after.ManualMode);
             Check("Default action",        before.DefaultAction,         after.DefaultAction);
             Check("Default tunnel",        before.DefaultTunnel,         after.DefaultTunnel);
@@ -2397,6 +2545,8 @@ namespace MasselGUARD.Views
             if (ChartRange31d  != null) ChartRange31d.IsChecked  = _draft.InfoTimeRangeDays == 31;
             if (StoreWifiHistoryToggle       != null) StoreWifiHistoryToggle.IsChecked       = _draft.StoreWifiHistory;
             if (ShowWifiInChartToggle        != null) ShowWifiInChartToggle.IsChecked        = _draft.ShowWifiInChart;
+            if (StoreDnsHistoryToggle        != null) StoreDnsHistoryToggle.IsChecked        = _draft.StoreDnsHistory;
+            if (ShowDnsInChartToggle         != null) ShowDnsInChartToggle.IsChecked         = _draft.ShowDnsInChart;
             if (ShowTimelineToggle           != null) ShowTimelineToggle.IsChecked           = _draft.ShowTimeline;
             if (StoreConnectionHistoryToggle != null) StoreConnectionHistoryToggle.IsChecked = _draft.StoreConnectionHistory;
             _loading = false;
@@ -2441,6 +2591,24 @@ namespace MasselGUARD.Views
             if (_loading) return;
             _draft.ShowWifiInChart = ShowWifiInChartToggle?.IsChecked == true;
             _main.ConfigSvc.Config.ShowWifiInChart = _draft.ShowWifiInChart;
+            _main.ConfigSvc.Save();
+            _main.ApplyInfoSectionMode();
+        }
+
+        private void StoreDnsHistory_Changed(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.StoreDnsHistory = StoreDnsHistoryToggle?.IsChecked == true;
+            _main.ConfigSvc.Config.StoreDnsHistory = _draft.StoreDnsHistory;
+            _main.ConfigSvc.Save();
+            _main.ApplyInfoSectionMode();
+        }
+
+        private void ShowDnsInChart_Changed(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.ShowDnsInChart = ShowDnsInChartToggle?.IsChecked == true;
+            _main.ConfigSvc.Config.ShowDnsInChart = _draft.ShowDnsInChart;
             _main.ConfigSvc.Save();
             _main.ApplyInfoSectionMode();
         }

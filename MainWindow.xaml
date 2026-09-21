@@ -4,8 +4,8 @@
         xmlns:local="clr-namespace:MasselGUARD"
         xmlns:views="clr-namespace:MasselGUARD.Views"
         Title="{Binding [AppTitle], Source={x:Static local:Lang.Instance}}"
-        Height="660" Width="1200"
-        MinHeight="540" MinWidth="980"
+        Height="700" Width="1440"
+        MinHeight="540" MinWidth="1120"
         Background="{DynamicResource WindowBg}"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -247,7 +247,7 @@
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" SharedSizeGroup="HeaderRow"/>
-                        <RowDefinition Height="3*" MinHeight="80"/>
+                        <RowDefinition x:Name="TunnelsListRow" Height="5*" MinHeight="165"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition x:Name="WifiRulesHeaderRow" Height="Auto"/>
                         <RowDefinition x:Name="WifiRulesPanelRow"  Height="2*" MinHeight="152"/>
@@ -257,13 +257,13 @@
                     <!-- LEFT: Tunnels only -->
 
                         <!-- Header row: TUNNELS label + category tabs (left) | ☰ log-open button (right) -->
-                        <Grid Grid.Column="0" Grid.Row="0" Margin="0,0,0,6" VerticalAlignment="Center">
+                        <Grid Grid.Column="0" Grid.Row="0" x:Name="TunnelsHeaderGrid" Margin="0,0,0,6" VerticalAlignment="Center">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <StackPanel Grid.Column="0"
+                            <StackPanel Grid.Column="0" x:Name="TunnelsHeaderContent"
                                         Orientation="Horizontal"
                                         VerticalAlignment="Center">
                                 <TextBlock Text="{Binding [SectionTunnels], Source={x:Static local:Lang.Instance}}"
@@ -292,20 +292,12 @@
                                 </ScrollViewer>
                             </StackPanel>
 
-                            <!-- ☰ — shown only when the log panel is collapsed -->
-                            <Button x:Name="LogOpenBtn"
-                                    Grid.Column="1"
-                                    Content="☰" FontSize="11" Padding="6,2"
-                                    Style="{StaticResource FlatBtn}"
-                                    Foreground="{DynamicResource TextMuted}"
-                                    Visibility="Collapsed"
-                                    VerticalAlignment="Center"
-                                    Click="LogToggle_Click"
-                                    ToolTip="Show activity log"/>
+                            <!-- (The ☰ log-open button now lives in the WiFi-rules header,
+                                 above where the Activity log appears.) -->
                         </Grid>
 
                         <!-- Tunnel box -->
-                        <Border Grid.Column="0" Grid.Row="1"
+                        <Border Grid.Column="0" Grid.Row="1" x:Name="TunnelBoxBorder"
                                 Background="{DynamicResource CardBg}"
                                 BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
                                 CornerRadius="{DynamicResource Theme.CornerRadius}">
@@ -454,6 +446,12 @@
                                                                    VerticalAlignment="Center"
                                                                    ToolTip="Open network protection tunnel"
                                                                    Visibility="{Binding OpenBadgeVis}"/>
+                                                        <TextBlock Text=" 🚀"
+                                                                   Foreground="{DynamicResource Accent}"
+                                                                   FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                                   VerticalAlignment="Center"
+                                                                   ToolTip="Connects on start"
+                                                                   Visibility="{Binding ConnectOnStartBadgeVis}"/>
                                                     </StackPanel>
                                                     <!-- Status  ·  DNS leak (left) · usage rings/bars (fill right). Live traffic
                                                          moved to the info-panel header (combined across active tunnels). -->
@@ -572,7 +570,7 @@
                         </Border>
 
                         <!-- Tunnel management buttons -->
-                        <StackPanel Grid.Column="0" Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
+                        <StackPanel Grid.Column="0" Grid.Row="2" x:Name="TunnelButtonsPanel" Orientation="Horizontal" Margin="0,6,0,0">
                             <Button Content="{Binding [BtnAddTunnel], Source={x:Static local:Lang.Instance}}"
                                     x:Name="AddTunnelBtn"
                                     Style="{StaticResource SuccessBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
@@ -602,24 +600,39 @@
                         </StackPanel>
 
                         <!-- WIFI RULES section — row 3 header, row 4 content -->
-                        <StackPanel Grid.Column="0" Grid.Row="3"
-                                    x:Name="WifiRulesHeader"
-                                    Orientation="Horizontal"
-                                    Margin="0,12,0,6"
-                                    VerticalAlignment="Center">
-                            <TextBlock Text="{Binding [SectionWifiRules], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SectionLabel}" Margin="0,0,6,0"
-                                       VerticalAlignment="Center"/>
-                            <Border CornerRadius="8" Padding="6,1"
-                                    VerticalAlignment="Center" HorizontalAlignment="Left">
-                                <Border.Background>
-                                    <SolidColorBrush Color="{DynamicResource C.Accent}" Opacity="0.18"/>
-                                </Border.Background>
-                                <TextBlock x:Name="WifiRuleCountLabel"
-                                           FontSize="{DynamicResource Theme.FontSize.Tiny}" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource Accent}" Text="0"/>
-                            </Border>
-                        </StackPanel>
+                        <Grid Grid.Column="0" Grid.Row="3"
+                              x:Name="WifiRulesHeader"
+                              Margin="0,12,0,6"
+                              VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding [SectionWifiRules], Source={x:Static local:Lang.Instance}}"
+                                           Style="{StaticResource SectionLabel}" Margin="0,0,6,0"
+                                           VerticalAlignment="Center"/>
+                                <Border CornerRadius="8" Padding="6,1"
+                                        VerticalAlignment="Center" HorizontalAlignment="Left">
+                                    <Border.Background>
+                                        <SolidColorBrush Color="{DynamicResource C.Accent}" Opacity="0.18"/>
+                                    </Border.Background>
+                                    <TextBlock x:Name="WifiRuleCountLabel"
+                                               FontSize="{DynamicResource Theme.FontSize.Tiny}" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Accent}" Text="0"/>
+                                </Border>
+                            </StackPanel>
+                            <!-- ☰ — reopen the activity log; shown only when it's collapsed. Sits above
+                                 where the log appears (right of the WiFi rules). -->
+                            <Button x:Name="LogOpenBtn" Grid.Column="1"
+                                    Content="☰" FontSize="11" Padding="6,2"
+                                    Style="{StaticResource FlatBtn}"
+                                    Foreground="{DynamicResource TextMuted}"
+                                    Visibility="Collapsed"
+                                    VerticalAlignment="Center"
+                                    Click="LogToggle_Click"
+                                    ToolTip="Show activity log"/>
+                        </Grid>
 
                         <Border Grid.Column="0" Grid.Row="4"
                                 x:Name="WifiRulesPanel"
@@ -647,6 +660,7 @@
                                             <ColumnDefinition x:Name="WifColDef2" Width="1.5*" MinWidth="50"/>
                                             <ColumnDefinition x:Name="WifColDef3" Width="40"   MinWidth="30"/>
                                             <ColumnDefinition x:Name="WifColDef4" Width="2*"   MinWidth="50"/>
+                                            <ColumnDefinition x:Name="WifColDef5" Width="2*"   MinWidth="50"/>
                                         </Grid.ColumnDefinitions>
                                         <Button Grid.Column="0" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Name">
                                             <StackPanel Orientation="Horizontal">
@@ -682,13 +696,23 @@
                                             </StackPanel>
                                         </Button>
                                         <!-- Drag handle: left edge of Tunnel — resizes Count vs Tunnel -->
-                                        <GridSplitter Grid.Column="4" Width="5" HorizontalAlignment="Left"
+                                        <GridSplitter x:Name="WifTunnelSplitter" Grid.Column="4" Width="5" HorizontalAlignment="Left"
                                                       Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
                                                       PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
-                                        <Button Grid.Column="4" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Tunnel">
+                                        <Button x:Name="WifTunnelHeaderBtn" Grid.Column="4" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Tunnel">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding [RuleColTunnel], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
+                                                <TextBlock Text="{Binding [TunnelColName], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
                                                 <TextBlock x:Name="RuleArrowTunnel" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <!-- Drag handle: left edge of DNS — resizes Tunnel vs DNS -->
+                                        <GridSplitter x:Name="WifDnsSplitter" Grid.Column="5" Width="5" HorizontalAlignment="Left"
+                                                      Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
+                                                      PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
+                                        <Button x:Name="WifDnsHeaderBtn" Grid.Column="5" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Dns">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [SettingsFeatureDnsLabel], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
+                                                <TextBlock x:Name="RuleArrowDns" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
                                             </StackPanel>
                                         </Button>
                                     </Grid>
@@ -732,7 +756,8 @@
                                                         <ColumnDefinition Width="{Binding Data.WifCol1W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="50"/>
                                                         <ColumnDefinition Width="{Binding Data.WifCol2W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="50"/>
                                                         <ColumnDefinition Width="{Binding Data.WifCol3W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="30"/>
-                                                        <ColumnDefinition Width="{Binding Data.WifCol4W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="50"/>
+                                                        <ColumnDefinition Width="{Binding Data.WifCol4W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="0"/>
+                                                        <ColumnDefinition Width="{Binding Data.WifCol5W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="0"/>
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                                                         <TextBlock Text="{Binding Rule.DisabledIcon}"
@@ -762,13 +787,31 @@
                                                                FontSize="{DynamicResource Theme.FontSize.Small}"
                                                                HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"/>
-                                                    <TextBlock Grid.Column="4"
-                                                               Text="{Binding TunnelName}"
-                                                               Foreground="{Binding TunnelFg}"
-                                                               FontWeight="{Binding TunnelFontWeight}"
-                                                               FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                               VerticalAlignment="Center"
-                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <!-- Tunnel target (🔒) -->
+                                                    <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center"
+                                                                Visibility="{Binding TunnelVisibility}">
+                                                        <TextBlock Text="🔒" FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                                   Foreground="{Binding TunnelFg}"
+                                                                   VerticalAlignment="Center" Margin="0,0,3,0"/>
+                                                        <TextBlock Text="{Binding TunnelName}"
+                                                                   Foreground="{Binding TunnelFg}"
+                                                                   FontWeight="{Binding TunnelFontWeight}"
+                                                                   FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+                                                    <!-- DNS profile target (🌐) -->
+                                                    <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center"
+                                                                Visibility="{Binding DnsVisibility}">
+                                                        <TextBlock Text="🌐" FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                                   Foreground="{DynamicResource TextMuted}"
+                                                                   VerticalAlignment="Center" Margin="0,0,3,0"/>
+                                                        <TextBlock Text="{Binding DnsProfileName}"
+                                                                   Foreground="{DynamicResource TextMuted}"
+                                                                   FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
@@ -803,7 +846,232 @@
                         </StackPanel>
 
                     <!-- RIGHT: Activity Log — self-contained, spans all left rows -->
-                        <Grid Grid.Column="2" Grid.Row="0" Grid.RowSpan="6" x:Name="LogPanelGrid">
+                        <!-- ══ RIGHT COLUMN ══ DNS profiles (rows 0-2, aligned row-for-row with the
+                             Tunnels section) + Activity log (rows 3-5, aligned with the WiFi rules). -->
+
+                        <!-- DNS PROFILES header — aligns with the TUNNELS header row (no group tabs) -->
+                        <StackPanel Grid.Column="2" Grid.Row="0" x:Name="DnsHeaderPanel"
+                                    Orientation="Horizontal" Margin="0,0,0,6" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding [SectionDnsProfiles], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SectionLabel}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <Border CornerRadius="8" Padding="6,1" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                <Border.Background>
+                                    <SolidColorBrush Color="{DynamicResource C.Accent}" Opacity="0.18"/>
+                                </Border.Background>
+                                <TextBlock x:Name="DnsPanelCount" Text="0"
+                                           FontSize="{DynamicResource Theme.FontSize.Tiny}" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Accent}"/>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- DNS PROFILES list — aligns with the tunnel list row; same header/list
+                             styling as Tunnels & WiFi rules (draggable + sortable columns). -->
+                        <Border Grid.Column="2" Grid.Row="1" x:Name="DnsPanelBox"
+                                Background="{DynamicResource CardBg}"
+                                BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                                CornerRadius="{DynamicResource Theme.CornerRadius}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Column header bar -->
+                                <Border Grid.Row="0"
+                                        Background="{DynamicResource Surface}"
+                                        BorderBrush="{DynamicResource BorderColor}"
+                                        BorderThickness="0,0,0,1"
+                                        CornerRadius="{DynamicResource Theme.CornerRadiusTop}">
+                                    <Grid x:Name="DnsColGrid" Margin="8,5"
+                                          LayoutUpdated="DnsColGrid_LayoutUpdated"
+                                          SizeChanged="DnsColGrid_SizeChanged">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition x:Name="DnsColDef0" Width="2.4*" MinWidth="60"/>
+                                            <ColumnDefinition x:Name="DnsColDef1" Width="70"   MinWidth="50"/>
+                                            <ColumnDefinition x:Name="DnsColDef2" Width="3*"   MinWidth="60"/>
+                                            <ColumnDefinition x:Name="DnsColDef3" Width="52"   MinWidth="40"/>
+                                            <ColumnDefinition x:Name="DnsColDef4" Width="76"   MinWidth="60"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Style="{StaticResource SortHeaderBtn}" Click="DnsSort_Name">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [DnsProfileName], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
+                                                <TextBlock x:Name="DnsArrowName" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <GridSplitter Grid.Column="0" Width="5" HorizontalAlignment="Right"
+                                                      Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
+                                                      PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
+                                        <Button Grid.Column="1" Style="{StaticResource SortHeaderBtn}" Click="DnsSort_Type">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [DnsColType], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
+                                                <TextBlock x:Name="DnsArrowType" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Right"
+                                                      Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
+                                                      PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
+                                        <Button Grid.Column="2" Style="{StaticResource SortHeaderBtn}" Click="DnsSort_Server">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [DnsColServer], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
+                                                <TextBlock x:Name="DnsArrowServer" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <GridSplitter Grid.Column="2" Width="5" HorizontalAlignment="Right"
+                                                      Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
+                                                      PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
+                                        <Button Grid.Column="3" Style="{StaticResource SortHeaderBtn}" Click="DnsSort_Rules" HorizontalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [DnsColRules], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
+                                                <TextBlock x:Name="DnsArrowRules" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <TextBlock Grid.Column="4" Text="{Binding [RuleColAction], Source={x:Static local:Lang.Instance}}"
+                                                   FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                   Foreground="{DynamicResource TextMuted}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Profile rows -->
+                                <ListView Grid.Row="1" x:Name="DnsProfilesPanelList"
+                                          Background="Transparent" BorderThickness="0"
+                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                          FontSize="{DynamicResource Theme.FontSize.Small}"
+                                          SelectionChanged="DnsPanelList_SelectionChanged"
+                                          MouseDoubleClick="DnsPanelRow_DoubleClick">
+                                    <ListView.ItemContainerStyle>
+                                        <Style TargetType="ListViewItem">
+                                            <Setter Property="Background"                 Value="Transparent"/>
+                                            <Setter Property="BorderThickness"            Value="0"/>
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                            <Setter Property="Padding"                    Value="0"/>
+                                            <Setter Property="Margin"                     Value="0,0,0,1"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource ListHover}"/>
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource ListSelected}"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ListView.ItemContainerStyle>
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="8,3">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="{Binding Data.DnsCol0W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="60"/>
+                                                    <ColumnDefinition Width="{Binding Data.DnsCol1W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="50"/>
+                                                    <ColumnDefinition Width="{Binding Data.DnsCol2W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="60"/>
+                                                    <ColumnDefinition Width="{Binding Data.DnsCol3W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="40"/>
+                                                    <ColumnDefinition Width="{Binding Data.DnsCol4W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="60"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="●" Foreground="{DynamicResource Success}"
+                                                               FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                               VerticalAlignment="Center" Margin="0,0,4,0"
+                                                               Visibility="{Binding EnabledDot}"/>
+                                                    <TextBlock Text="{Binding Name}"
+                                                               Foreground="{DynamicResource TextPrimary}"
+                                                               FontSize="{DynamicResource Theme.FontSize}"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" Text="{Binding Type}"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding Server}"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Grid.Column="3" Text="{Binding Rules}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                           MouseLeftButtonUp="DnsRulesCell_Click"
+                                                           ToolTip="{Binding [DnsRulesClickTip], Source={x:Static local:Lang.Instance}}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Cursor" Value="Hand"/>
+                                                            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+                                                            <Setter Property="TextDecorations" Value="Underline"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Rules}" Value="0">
+                                                                    <Setter Property="Cursor" Value="Arrow"/>
+                                                                    <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                                                                    <Setter Property="TextDecorations" Value="{x:Null}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <Button Grid.Column="4" Content="{Binding EnableLabel}"
+                                                        Click="DnsRowEnable_Click"
+                                                        FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="8,2"
+                                                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource FlatBtn}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Enabled}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource Success}"/>
+                                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </Grid>
+                        </Border>
+
+                        <!-- DNS PROFILES buttons — aligns with the tunnel management buttons row.
+                             Enable/Disable is one state-toggling button; the less-used actions
+                             (presets / import / export) live under the More… dropdown. -->
+                        <StackPanel Grid.Column="2" Grid.Row="2" x:Name="DnsButtonsPanel"
+                                    Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button x:Name="DnsPanelRevertBtn"
+                                    Content="{Binding [BtnDnsRevertDefault], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Click="DnsPanelRevertDefault_Click"
+                                    ToolTip="{Binding [BtnDnsRevertDefaultTip], Source={x:Static local:Lang.Instance}}"/>
+                            <Border Width="1" Margin="8,2" Background="{DynamicResource BorderColor}"/>
+                            <Button x:Name="DnsPanelAddBtn"
+                                    Content="{Binding [BtnDnsAddProfile], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource SuccessBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Click="DnsPanelAdd_Click"/>
+                            <Button x:Name="DnsPanelEditBtn"
+                                    Content="{Binding [BtnDnsEditProfile], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Margin="6,0,0,0" IsEnabled="False" Click="DnsPanelEdit_Click"/>
+                            <Button x:Name="DnsPanelDeleteBtn"
+                                    Content="{Binding [BtnDnsRemoveProfile], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource DangerBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Margin="6,0,0,0" IsEnabled="False" Click="DnsPanelDelete_Click"/>
+                            <Button x:Name="DnsPanelMoreBtn"
+                                    Content="{Binding [BtnDnsMore], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Margin="6,0,0,0" Click="DnsPanelMore_Click">
+                                <Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="{Binding [BtnDnsAddPresets], Source={x:Static local:Lang.Instance}}"
+                                                  Click="DnsPanelPresets_Click"/>
+                                        <MenuItem Header="{Binding [BtnDnsImport], Source={x:Static local:Lang.Instance}}"
+                                                  Click="DnsPanelImport_Click"/>
+                                        <MenuItem Header="{Binding [BtnDnsExport], Source={x:Static local:Lang.Instance}}"
+                                                  Click="DnsPanelExport_Click"/>
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- ACTIVITY LOG — rows 3-5, aligned with the WiFi rules section -->
+                        <Grid Grid.Column="2" Grid.Row="3" Grid.RowSpan="3" x:Name="LogPanelGrid">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" SharedSizeGroup="HeaderRow"/>
                                 <RowDefinition Height="*"/>
@@ -820,11 +1088,11 @@
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0"
                                            Text="{Binding [ActivityLogHeader], Source={x:Static local:Lang.Instance}}"
-                                           Style="{StaticResource SectionLabel}" Margin="0"
+                                           Style="{StaticResource SectionLabel}" Margin="0,0,6,0"
                                            VerticalAlignment="Center"/>
                                 <Border Grid.Column="1"
-                                        CornerRadius="8" Padding="6,1" Margin="6,0,0,0"
-                                        VerticalAlignment="Center">
+                                        CornerRadius="8" Padding="6,1"
+                                        VerticalAlignment="Center" HorizontalAlignment="Left">
                                     <Border.Background>
                                         <SolidColorBrush Color="{DynamicResource C.Accent}" Opacity="0.18"/>
                                     </Border.Background>
@@ -934,8 +1202,13 @@
                                         BorderThickness="0,0,0,1"
                                         CornerRadius="{DynamicResource Theme.CornerRadiusTop}">
                                     <Grid Margin="8,5">
-                                        <!-- View switch: Timeline ⇄ Data usage -->
+                                        <!-- View switch: Timeline ⇄ Data usage ⇄ DNS -->
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding [ChartsLabel], Source={x:Static local:Lang.Instance}}"
+                                                       FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                                       Foreground="{DynamicResource TextMuted}"
+                                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
                                             <!-- Independent toggles: both on = layered (stacked) view; both off = panel hidden. -->
                                             <ToggleButton x:Name="ModeTimelineBtn"
                                                          IsChecked="True" Margin="0,0,12,0"
@@ -950,12 +1223,23 @@
                                                 </Setter.Value></Setter></Style></ToggleButton.Style>
                                             </ToggleButton>
                                             <ToggleButton x:Name="ModeUsageBtn"
-                                                         VerticalAlignment="Center"
+                                                         VerticalAlignment="Center" Margin="0,0,12,0"
                                                          Checked="InfoMode_Changed" Unchecked="InfoMode_Changed"
                                                          ToolTip="Toggle data usage — can be shown together with the timeline">
                                                 <ToggleButton.Style><Style TargetType="ToggleButton"><Setter Property="Template"><Setter.Value>
                                                     <ControlTemplate TargetType="ToggleButton">
                                                         <TextBlock x:Name="tb" Text="DATA USAGE" FontSize="{DynamicResource Theme.FontSize.Tiny}" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand" VerticalAlignment="Center"/>
+                                                        <ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="tb" Property="Foreground" Value="{DynamicResource Accent}"/><Setter TargetName="tb" Property="FontWeight" Value="SemiBold"/></Trigger></ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value></Setter></Style></ToggleButton.Style>
+                                            </ToggleButton>
+                                            <ToggleButton x:Name="ModeDnsBtn"
+                                                         VerticalAlignment="Center"
+                                                         Checked="InfoMode_Changed" Unchecked="InfoMode_Changed"
+                                                         ToolTip="Toggle the DNS band — which DNS profile / server was active over time">
+                                                <ToggleButton.Style><Style TargetType="ToggleButton"><Setter Property="Template"><Setter.Value>
+                                                    <ControlTemplate TargetType="ToggleButton">
+                                                        <TextBlock x:Name="tb" Text="DNS" FontSize="{DynamicResource Theme.FontSize.Tiny}" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand" VerticalAlignment="Center"/>
                                                         <ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="tb" Property="Foreground" Value="{DynamicResource Accent}"/><Setter TargetName="tb" Property="FontWeight" Value="SemiBold"/></Trigger></ControlTemplate.Triggers>
                                                     </ControlTemplate>
                                                 </Setter.Value></Setter></Style></ToggleButton.Style>
@@ -1043,30 +1327,11 @@
 
                                 <!-- Chart canvases — two stacked panes (timeline / data-usage);
                                      both visible = the layered view. Row heights set in code. -->
-                                <Grid x:Name="ChartCanvasArea" Grid.Row="1" Margin="8,6">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition x:Name="UsagePaneRow" Height="Auto"/>
-                                        <RowDefinition x:Name="PaneGapRow" Height="Auto"/>
-                                        <RowDefinition x:Name="TimelinePaneRow" Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <!-- Timeline pane — framed as its own view when stacked with the usage pane
-                                         (BorderThickness toggled in RenderChart). Sits BELOW the data-usage pane. -->
-                                    <Border x:Name="TimelinePaneHost" Grid.Row="2"
-                                            BorderBrush="{DynamicResource BorderColor}" BorderThickness="0" CornerRadius="4">
-                                        <Grid>
-                                            <Canvas x:Name="TimelineCanvas" ClipToBounds="True"
-                                                    SizeChanged="TimelineCanvas_SizeChanged"
-                                                    MouseMove="TimelineCanvas_MouseMove"
-                                                    MouseLeave="TimelineCanvas_MouseLeave"/>
-                                            <Canvas x:Name="ChartOverlayCanvas"
-                                                    IsHitTestVisible="False" Panel.ZIndex="10"/>
-                                        </Grid>
-                                    </Border>
-                                    <!-- Gap between the two stacked views — shown only when both are visible. -->
-                                    <Border x:Name="PaneGap" Grid.Row="1" Height="8"
-                                            Background="Transparent" Visibility="Collapsed"/>
-                                    <!-- Data-usage pane — sits ABOVE the timeline pane when stacked. -->
-                                    <Border x:Name="UsagePaneHost" Grid.Row="0"
+                                <!-- Stacked panes (Data usage / Timeline / DNS). Each is its own view;
+                                     when ≥2 are shown they get a border + gap (managed in RenderChart). -->
+                                <StackPanel x:Name="ChartCanvasArea" Grid.Row="1" Margin="8,6">
+                                    <!-- Data-usage pane (top when stacked) -->
+                                    <Border x:Name="UsagePaneHost"
                                             BorderBrush="{DynamicResource BorderColor}" BorderThickness="0" CornerRadius="4">
                                         <Grid>
                                             <Canvas x:Name="UsageCanvas" ClipToBounds="True"
@@ -1077,7 +1342,25 @@
                                                     IsHitTestVisible="False" Panel.ZIndex="10"/>
                                         </Grid>
                                     </Border>
-                                </Grid>
+                                    <!-- Timeline pane -->
+                                    <Border x:Name="TimelinePaneHost"
+                                            BorderBrush="{DynamicResource BorderColor}" BorderThickness="0" CornerRadius="4">
+                                        <Grid>
+                                            <Canvas x:Name="TimelineCanvas" ClipToBounds="True"
+                                                    SizeChanged="TimelineCanvas_SizeChanged"
+                                                    MouseMove="TimelineCanvas_MouseMove"
+                                                    MouseLeave="TimelineCanvas_MouseLeave"/>
+                                            <Canvas x:Name="ChartOverlayCanvas"
+                                                    IsHitTestVisible="False" Panel.ZIndex="10"/>
+                                        </Grid>
+                                    </Border>
+                                    <!-- DNS pane — which DNS profile / server was active over time -->
+                                    <Border x:Name="DnsPaneHost"
+                                            BorderBrush="{DynamicResource BorderColor}" BorderThickness="0" CornerRadius="4">
+                                        <Canvas x:Name="DnsPaneCanvas" ClipToBounds="True"
+                                                SizeChanged="DnsPaneCanvas_SizeChanged"/>
+                                    </Border>
+                                </StackPanel>
                             </Grid>
                         </Border>
 
@@ -1108,6 +1391,18 @@
                                            Foreground="{DynamicResource TextMuted}"
                                            VerticalAlignment="Top" Margin="0,2,6,0"/>
                                 <WrapPanel Grid.Column="1" x:Name="WifiLegendPanel"/>
+                            </Grid>
+                            <!-- DNS profiles / servers -->
+                            <Grid x:Name="DnsLegendContainer" Visibility="Collapsed">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="DNS" FontSize="9" FontWeight="SemiBold"
+                                           FontFamily="{DynamicResource Theme.FontFamily}"
+                                           Foreground="{DynamicResource TextMuted}"
+                                           VerticalAlignment="Top" Margin="0,2,6,0"/>
+                                <WrapPanel Grid.Column="1" x:Name="DnsLegendPanel"/>
                             </Grid>
                         </StackPanel>
                     </Grid>

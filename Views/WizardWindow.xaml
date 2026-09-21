@@ -318,64 +318,8 @@
                     </Border>
                 </StackPanel>
 
-                <!-- ── Step 4: Operating mode ──────────────────────────────── -->
-                <StackPanel x:Name="Step4" Visibility="Collapsed">
-                    <TextBlock Text="{Binding [WizardModeTitle], Source={x:Static local:Lang.Instance}}"
-                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="16" FontWeight="Bold"
-                               Foreground="{DynamicResource Accent}" Margin="0,0,0,10"/>
-                    <TextBlock Text="{Binding [WizardModeBody], Source={x:Static local:Lang.Instance}}"
-                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,16"/>
-
-                    <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderColor}"
-                            BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,6">
-                        <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                            <RadioButton x:Name="WizModeStandalone" Grid.Column="0" GroupName="WizMode"
-                                         VerticalAlignment="Center" Margin="0,0,12,0" Checked="WizMode_Changed"/>
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Text="{Binding [WizardModeStandaloneLabel], Source={x:Static local:Lang.Instance}}"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" FontWeight="Bold"
-                                           Foreground="{DynamicResource TextPrimary}"/>
-                                <TextBlock Text="{Binding [WizardModeStandaloneDesc], Source={x:Static local:Lang.Instance}}"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
-                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-                    <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderColor}"
-                            BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,6">
-                        <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                            <RadioButton x:Name="WizModeCompanion" Grid.Column="0" GroupName="WizMode"
-                                         VerticalAlignment="Center" Margin="0,0,12,0" Checked="WizMode_Changed"/>
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Text="{Binding [WizardModeCompanionLabel], Source={x:Static local:Lang.Instance}}"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" FontWeight="Bold"
-                                           Foreground="{DynamicResource TextPrimary}"/>
-                                <TextBlock Text="{Binding [WizardModeCompanionDesc], Source={x:Static local:Lang.Instance}}"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
-                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-                    <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderColor}"
-                            BorderThickness="1" CornerRadius="4" Padding="12,10">
-                        <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                            <RadioButton x:Name="WizModeMixed" Grid.Column="0" GroupName="WizMode"
-                                         VerticalAlignment="Center" Margin="0,0,12,0" Checked="WizMode_Changed"/>
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Text="{Binding [WizardModeMixedLabel], Source={x:Static local:Lang.Instance}}"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" FontWeight="Bold"
-                                           Foreground="{DynamicResource TextPrimary}"/>
-                                <TextBlock Text="{Binding [WizardModeMixedDesc], Source={x:Static local:Lang.Instance}}"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
-                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-                </StackPanel>
+                <!-- ── Step 4: (removed — operating-mode/companion selection) ─── -->
+                <StackPanel x:Name="Step4" Visibility="Collapsed"/>
 
                 <!-- ── Step 5: Startup & Installation ─────────────────────── -->
                 <StackPanel x:Name="Step5" Visibility="Collapsed">

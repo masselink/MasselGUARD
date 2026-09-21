@@ -44,9 +44,9 @@
                         Padding="16,10" Margin="0,0,0,8"
                         Click="ImportFromFile_Click"/>
 
-                <!-- Link to WireGuard profile — visible in Companion + Mixed mode only -->
+                <!-- Import one or more WireGuard .conf files, or a WireGuard export .zip -->
                 <Button x:Name="ImportFromWireGuardBtn"
-                        Content="{Binding [ImportLinkWireGuard], Source={x:Static local:Lang.Instance}}"
+                        Content="{Binding [ImportFromWireGuard], Source={x:Static local:Lang.Instance}}"
                         Style="{StaticResource FlatBtn}"
                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                         Padding="16,10" Margin="0,0,0,8"

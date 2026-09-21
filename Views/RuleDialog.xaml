@@ -145,17 +145,31 @@
                     </Grid>
                 </StackPanel>
 
-                <!-- Tunnel -->
-                <TextBlock Text="{Binding [RuleDialogTunnelLabel], Source={x:Static local:Lang.Instance}}"
-                           FontFamily="{DynamicResource Theme.FontFamily}"
-                           FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4"/>
-                <ComboBox x:Name="TunnelBox" IsEditable="True" Margin="0,0,0,4"
-                          SelectionChanged="TunnelBox_Changed"/>
+                <!-- Tunnel — hidden when the tunnel feature module is off (DNS-only install) -->
+                <StackPanel x:Name="TunnelPickerPanel">
+                    <TextBlock Text="{Binding [RuleDialogTunnelLabel], Source={x:Static local:Lang.Instance}}"
+                               FontFamily="{DynamicResource Theme.FontFamily}"
+                               FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4"/>
+                    <ComboBox x:Name="TunnelBox" IsEditable="True" Margin="0,0,0,4"
+                              SelectionChanged="TunnelBox_Changed"/>
+                    <TextBlock Text="{Binding [RuleDialogTunnelHint], Source={x:Static local:Lang.Instance}}"
+                               FontFamily="{DynamicResource Theme.FontFamily}"
+                               FontSize="9" Foreground="{DynamicResource TextMuted}"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
 
-                <TextBlock Text="{Binding [RuleDialogTunnelHint], Source={x:Static local:Lang.Instance}}"
-                           FontFamily="{DynamicResource Theme.FontFamily}"
-                           FontSize="9" Foreground="{DynamicResource TextMuted}"
-                           TextWrapping="Wrap"/>
+                <!-- DNS (optional) — applies on the trigger, with or without a tunnel.
+                     Hidden when the DNS feature module is off (tunnels-only install). -->
+                <StackPanel x:Name="DnsPickerPanel">
+                    <TextBlock Text="{Binding [RuleDialogDnsLabel], Source={x:Static local:Lang.Instance}}"
+                               FontFamily="{DynamicResource Theme.FontFamily}"
+                               FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,12,0,4"/>
+                    <ComboBox x:Name="DnsProfileBox" Margin="0,0,0,4"/>
+                    <TextBlock Text="{Binding [RuleDialogDnsHint], Source={x:Static local:Lang.Instance}}"
+                               FontFamily="{DynamicResource Theme.FontFamily}"
+                               FontSize="9" Foreground="{DynamicResource TextMuted}"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
 
                 <!-- Trigger counter (edit mode only) -->
                 <StackPanel x:Name="CounterRow" Visibility="Collapsed" Margin="0,14,0,0">

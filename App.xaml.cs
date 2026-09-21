@@ -274,19 +274,33 @@ namespace MasselGUARD
             // ── 3. Launch main window ────────────────────────────────────────
             _mainWindow = new MainWindow();
 
-            // Show() then Activate() ensures the window comes to foreground
-            // even when launched via UAC elevation from a non-elevated parent.
+            bool startMinimized = _mainWindow.ConfigSvc.Config.StartMinimized;
+
+            // Show() lets the window initialise (Loaded fires, services spin up) even when we then
+            // hide it — needed so tray, polling and auto-connect all work in minimized mode.
             _mainWindow.Show();
-            _mainWindow.Activate();
-            _mainWindow.Dispatcher.BeginInvoke(new Action(() =>
+            if (startMinimized)
             {
-                _mainWindow.Topmost = true;
-                _mainWindow.Topmost = false;
-                _mainWindow.Focus();
-            }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                // Straight to the tray — no visible window on launch.
+                _mainWindow.Hide();
+            }
+            else
+            {
+                // Show() then Activate() ensures the window comes to foreground
+                // even when launched via UAC elevation from a non-elevated parent.
+                _mainWindow.Activate();
+                _mainWindow.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    _mainWindow.Topmost = true;
+                    _mainWindow.Topmost = false;
+                    _mainWindow.Focus();
+                }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            }
 
             SetupTrayIcon();
             StartShowRequestListener();
+            // Note: the "connect on start" tunnel is connected by MainWindow AFTER the initial WiFi
+            // rule / default-action evaluation has settled, so it isn't immediately overridden.
         }
 
         // ── Cross-instance "show me" signal ──────────────────────────────────
@@ -494,8 +508,9 @@ namespace MasselGUARD
         {
             IsShuttingDown     = true;
             _trayIcon!.Visible = false;
-            // Close any open SSID entry so the end-time is recorded correctly
+            // Close any open SSID / DNS entry so the end-time is recorded correctly
             _mainWindow?.HistorySvc.RecordSsidDisconnect();
+            _mainWindow?.HistorySvc.RecordDnsDeactivate();
             Shutdown();
         }
 
@@ -909,6 +924,9 @@ namespace MasselGUARD
 
         protected override void OnExit(ExitEventArgs e)
         {
+            // Restore any per-interface DNS override so we never strand a resolver after exit.
+            try { _mainWindow?._vm.RestoreDnsOverrides(); } catch { }
+
             // Restore Windows Firewall policy before disconnecting tunnels.
             try { _mainWindow?.KillSwitchSvc?.DisableAll(); } catch { }
 
