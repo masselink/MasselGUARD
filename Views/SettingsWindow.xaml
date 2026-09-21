@@ -1058,6 +1058,48 @@
                         <!-- ══ ADVANCED PAGE (moved below History in sidebar) ══ -->
                         <StackPanel x:Name="PageAdvanced" Visibility="Collapsed">
 
+                            <!-- Log level -->
+                            <TextBlock Text="{Binding [SettingsSectionLog], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Text="{Binding [SettingsLogLevel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextPrimary}"
+                                               VerticalAlignment="Center"/>
+                                    <ComboBox Grid.Column="1" x:Name="LogLevelPicker"
+                                              MinWidth="110" FontSize="11" Padding="8,4"
+                                              SelectionChanged="LogLevel_Changed"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Import / Export -->
+                            <TextBlock Text="{Binding [SettingsImportExportSection], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Background="{DynamicResource Surface}"
+                                    BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                                    CornerRadius="{DynamicResource Theme.CornerRadius}"
+                                    Padding="10,8" Margin="0,0,0,6">
+                                <TextBlock Text="{Binding [SettingsImportExportInfo], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+                            </Border>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                                <Button Content="{Binding [BtnExportSettings], Source={x:Static local:Lang.Instance}}"
+                                        Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                        Click="ExportSettings_Click"/>
+                                <Button Content="{Binding [BtnImportSettings], Source={x:Static local:Lang.Instance}}"
+                                        Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                        Margin="8,0,0,0" Click="ImportSettings_Click"/>
+                                <Button Content="{Binding [BtnExportPreset], Source={x:Static local:Lang.Instance}}"
+                                        Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
+                                        Margin="8,0,0,0" Click="ExportPreset_Click"/>
+                            </StackPanel>
+
                             <!-- Diagnostics / Tester -->
                             <TextBlock Text="{Binding [SettingsSectionTester], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource SettingsSectionHeader}"/>
@@ -1143,48 +1185,6 @@
                                                 ToolTip="Reset to the official MasselGUARD themes repository"/>
                                     </Grid>
                                 </StackPanel>
-                            </Border>
-
-                            <!-- Import / Export -->
-                            <TextBlock Text="{Binding [SettingsImportExportSection], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SettingsSectionHeader}"/>
-                            <Border Background="{DynamicResource Surface}"
-                                    BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
-                                    CornerRadius="{DynamicResource Theme.CornerRadius}"
-                                    Padding="10,8" Margin="0,0,0,6">
-                                <TextBlock Text="{Binding [SettingsImportExportInfo], Source={x:Static local:Lang.Instance}}"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
-                            </Border>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
-                                <Button Content="{Binding [BtnExportSettings], Source={x:Static local:Lang.Instance}}"
-                                        Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
-                                        Click="ExportSettings_Click"/>
-                                <Button Content="{Binding [BtnImportSettings], Source={x:Static local:Lang.Instance}}"
-                                        Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
-                                        Margin="8,0,0,0" Click="ImportSettings_Click"/>
-                                <Button Content="{Binding [BtnExportPreset], Source={x:Static local:Lang.Instance}}"
-                                        Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,3"
-                                        Margin="8,0,0,0" Click="ExportPreset_Click"/>
-                            </StackPanel>
-
-                            <!-- Log level -->
-                            <TextBlock Text="{Binding [SettingsSectionLog], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SettingsSectionHeader}"/>
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0"
-                                               Text="{Binding [SettingsLogLevel], Source={x:Static local:Lang.Instance}}"
-                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextPrimary}"
-                                               VerticalAlignment="Center"/>
-                                    <ComboBox Grid.Column="1" x:Name="LogLevelPicker"
-                                              MinWidth="110" FontSize="11" Padding="8,4"
-                                              SelectionChanged="LogLevel_Changed"/>
-                                </Grid>
                             </Border>
 
                             <!-- DNS leak protection (smart multi-homed name resolution) -->
