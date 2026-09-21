@@ -1,15 +1,15 @@
 ## v4.2.0 — Resolving Raven
 
-The headline is **DNS automation** — choose which **DNS resolver** each network uses, completely independently of your tunnels.
+A big release built around **DNS** — choose which **DNS resolver** each network uses, completely independently of your tunnels — plus a **DNS profiles manager**, DNS in the activity charts, a built-in **diagnostics tester**, new **start-up behaviours**, and a move to a **leaner, WireGuard-only** app.
 
-### DNS rules, with or without a tunnel
+### DNS automation — rules, with or without a tunnel
 
 MasselGUARD can now set your **DNS server based on the network you join** — even when no tunnel is active. "On any open Wi-Fi, use encrypted DNS." "On the office SSID, use the internal resolver." "Everywhere else, hand DNS back to the network."
 
-- Turn it on under **Settings → Wi-Fi → DNS automation** (off by default — nothing changes until you enable it).
+- Turn it on under **Settings → DNS** (off by default — nothing changes until you enable it).
 - Pick a **Default DNS** for unmatched networks and an **Open-network DNS** for public hotspots, and whether to set **IPv4, IPv6, or both**.
-- Attach a resolver to a **specific Wi-Fi rule** — leave the tunnel blank for a **DNS-only rule**.
-- While a tunnel is connected, its own DNS takes over automatically; when it drops, your DNS rule comes back. Your original DNS is saved first and **restored when you exit** (and recovered automatically if the app was closed unexpectedly).
+- Attach a resolver to a **specific Wi-Fi rule** (a DNS profile now has its own column in the Wi-Fi-rules list, separate from the tunnel).
+- While a tunnel is connected its own DNS normally takes over; when it drops, your DNS rule comes back. Your original DNS is saved first and **restored when you exit** (and recovered automatically if the app was closed unexpectedly).
 
 ### Encrypted DNS (DoH) and one-click presets
 
@@ -17,9 +17,39 @@ Define named **DNS profiles** with IPv4/IPv6 servers. **Add presets** drops in t
 
 Profiles can use **DNS-over-HTTPS (DoH)** for encrypted lookups (Windows 11). Well-known resolvers work out of the box; for a custom one, paste its DoH template URL. Tick **Require encryption** to *fail closed* — never fall back to plaintext.
 
+### A DNS profiles panel, right on the main window
+
+Next to your tunnels there's now a **DNS PROFILES** panel that matches the Tunnels and Wi-Fi-rules look — **sortable, drag-to-resize columns** (Name · Type · Server · Rules · Action). Each row has an **Enable / Disable** button and a clickable **Rules** count that jumps to the Wi-Fi rules using that profile.
+
+- **Manually enable** a profile and it *sticks* and **overrides the tunnel's DNS** — handy for forcing a resolver on top of an active VPN.
+- **Revert to default** puts the interface back to exactly what it was before (e.g. "obtain automatically"), handing DNS back to the tunnel when one is connected.
+
+### DNS in the activity charts
+
+The bottom info panel now has three independent, stackable layers you toggle from a **Charts:** switch — **Timeline**, **Data usage**, and a new **DNS** layer showing which DNS profile (or the actual resolver, e.g. `1.1.1.1`) was active over time, with colour **profile pills**. Hovering any chart also shows the DNS that was in use at that moment.
+
+### Start-up behaviours: connect on start & start minimized
+
+- **Connect on start** — pick one tunnel to **connect automatically when MasselGUARD starts**, from the **Behaviour** button or a tunnel's right-click menu. It shows a 🚀 badge behind the name (alongside ⚡ default-action and 🔓 open-network), and it connects *after* the initial Wi-Fi-rule evaluation so a rule or default action doesn't undo it.
+- **Start minimized** (Settings → General) — launch straight to the tray with no window. Combine the two for a silent **connect-and-hide** start-up (no more scheduled-task workarounds).
+
+### Built-in tester (Settings → Advanced → Diagnostics)
+
+Run **live readiness + connection tests** and read a detailed debug log. The **WireGuard client** test connects an available tunnel, confirms the peer handshake, then disconnects; the **DNS** test spins up a throwaway profile, applies it to the active interface, reads the resolvers back, and restores your settings. Copy the log with one click.
+
+### Now a lean, WireGuard-only app
+
+MasselGUARD is now a self-contained **WireGuard client** — the older "companion" mode that drove WireGuard-for-Windows services has been **removed** end-to-end (app-mode selector, orphaned-service cleanup and all). Everything runs on MasselGUARD's own bundled WireGuard engine.
+
+- **Import from WireGuard** — bring your existing configs in via a file picker that accepts one or more **`.conf` files or a WireGuard "export to zip"** archive; each is imported as a local tunnel.
+- Any leftover companion tunnels from an older version are dropped on first run — just re-import the ones you still want.
+
 ### Also in this release
 
-- **New CLI command:** `MasselGUARDcli dns status` shows your DNS-automation configuration and each interface's current resolvers. It's read-only and needs no Administrator rights.
+- **Data-usage chart view** — the info panel gained a per-tunnel **Data usage** chart (24h / 7d / 31d) alongside the timeline, with red limit-markers where a cap is reached.
+- **`MasselGUARDcli dns status`** — shows your DNS-automation configuration and each interface's current resolvers. Read-only, no Administrator rights needed.
+- **Smarter OneDrive warning.** The "running from a cloud-synced folder" advisory previously popped up on *every start* whenever the path merely contained the text "OneDrive". It now appears **only when the location is reliably detected** as cloud-synced — under a real OneDrive root, or a folder actually marked as a cloud placeholder / offline — and stays quiet when the status can't be determined.
+- **Fix:** adding a DNS profile to a "→ disconnect" Wi-Fi rule no longer silently stopped it disconnecting — the tunnel action and the DNS profile are now independent (the action stayed "—" before).
 
 ---
 
