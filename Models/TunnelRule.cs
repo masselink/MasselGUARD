@@ -21,6 +21,7 @@ namespace MasselGUARD.Models
         private List<int> _days       = new() { 1, 2, 3, 4, 5 }; // Mon–Fri
         private bool   _enabled       = true;
         private string _trustedWhen   = "untrusted";
+        private string _dnsProfileId  = "";
 
         public string Name
         {
@@ -86,6 +87,19 @@ namespace MasselGUARD.Models
         {
             get => _tunnel;
             set { SetField(ref _tunnel, value); OnPropertyChanged(nameof(TunnelDisplay)); }
+        }
+
+        /// <summary>
+        /// Optional DNS profile id this rule applies, in parallel with its tunnel action
+        /// (see <c>docs/DnsAutomation-Design.md</c>, Model C). "" = no DNS change;
+        /// <see cref="DnsProfile.AutomaticId"/> = revert to DHCP; any other id = apply that
+        /// profile. A rule with a DnsProfileId and an empty <see cref="Tunnel"/> is a
+        /// DNS-only rule (no tunnel action).
+        /// </summary>
+        public string DnsProfileId
+        {
+            get => _dnsProfileId;
+            set => SetField(ref _dnsProfileId, value);
         }
 
         /// <summary>"wifi" | "ethernet" | "vpn" | "any"</summary>

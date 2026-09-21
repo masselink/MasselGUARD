@@ -32,12 +32,12 @@ namespace MasselGUARD.Services
         /// Excludes tunnel definitions, window/column state and runtime bookkeeping.</summary>
         public static readonly string[] PolicyFields =
         {
-            "Mode", "Language", "StartWithWindows", "ConfirmOnClose",
+            "Language", "StartWithWindows", "ConfirmOnClose",
             "Rules", "TunnelGroups", "DefaultGroup",
             "DefaultAction", "DefaultTunnel", "OpenWifiTunnel", "TrustedNetworks", "ManualMode",
             "AutoReconnectMode", "KillSwitchMode", "SkipTunnelValidation",
             "ShowDnsIndicator", "DnsLeakWarnLog", "DnsLeakWarnToast",
-            "UpdateCheckFrequency", "WireGuardInstallDirectory",
+            "UpdateCheckFrequency",
             "ActiveTheme", "SystemThemeMode", "SharedThemesRepoUrl",
             "ShowTrayPopupOnSwitch", "NotificationDurationSeconds", "LogLevelSetting",
             "ShowWifiRulesOnMainWindow", "ShowTunnelRulesColumn", "ShowActivityLog",
@@ -49,7 +49,6 @@ namespace MasselGUARD.Services
         /// <c>block</c> into individual fields when enforcing a preset, and to drive the export UI.</summary>
         public static readonly (string Key, string[] Fields)[] Blocks =
         {
-            ("appMode",       new[] { "Mode" }),
             ("language",      new[] { "Language" }),
             ("startup",       new[] { "StartWithWindows", "ConfirmOnClose" }),
             ("automation",    new[] { "Rules", "DefaultAction", "DefaultTunnel", "OpenWifiTunnel", "TrustedNetworks", "ManualMode" }),
@@ -58,7 +57,6 @@ namespace MasselGUARD.Services
             ("validation",    new[] { "SkipTunnelValidation" }),
             ("dns",           new[] { "ShowDnsIndicator", "DnsLeakWarnLog", "DnsLeakWarnToast" }),
             ("updates",       new[] { "UpdateCheckFrequency" }),
-            ("wireguardPath", new[] { "WireGuardInstallDirectory" }),
             ("themes",        new[] { "ActiveTheme", "SystemThemeMode", "SharedThemesRepoUrl" }),
         };
 

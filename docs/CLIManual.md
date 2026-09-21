@@ -1,6 +1,6 @@
 # MasselGUARD — CLI Manual
 
-**Version 4.1.0 — Layered Lynx**
+**Version 4.2.0 — Resolving Raven**
 
 MasselGUARD includes a full command-line interface for scripting, automation, and headless operation. The CLI and the GUI share the same WireGuard kernel driver and the same configuration — any change made via CLI is reflected in the GUI within ~1 second, and vice versa.
 
@@ -322,6 +322,53 @@ The `Split:` line appears only when the tunnel has a route-based split configure
 ```
 
 `split_mode` and `split_ranges` are `null` when the tunnel has no split configured.
+
+---
+
+### dns
+
+Shows the DNS-automation configuration (whether it's enabled, the default and open-network profiles, the address families, and the defined profiles) plus each active interface's current resolvers. **Read-only** and needs **no Administrator rights** — applying DNS is done from the GUI in this release.
+
+```
+MasselGUARD dns status
+```
+
+**Examples:**
+
+```powershell
+MasselGUARD dns status
+
+MasselGUARD dns status --json
+```
+
+**Plain output:**
+```
+DNS automation: enabled
+Default DNS:     Cloudflare
+Open-network:    Cloudflare
+Families:        both
+Profiles:
+  • Cloudflare — 1.1.1.1, 1.0.0.1 [Auto]
+  • Work — 10.0.0.53 [Plain]
+Active interface resolvers:
+  • Wi-Fi: 1.1.1.1, 1.0.0.1
+```
+
+**JSON output:**
+```json
+{
+  "automation_enabled": true,
+  "default_profile": "Cloudflare",
+  "open_network_profile": "Cloudflare",
+  "address_families": "both",
+  "profiles": [
+    { "name": "Cloudflare", "servers": "1.1.1.1, 1.0.0.1", "encryption": "Auto" }
+  ],
+  "interfaces": [
+    { "name": "Wi-Fi", "dns": "1.1.1.1, 1.0.0.1" }
+  ]
+}
+```
 
 ---
 

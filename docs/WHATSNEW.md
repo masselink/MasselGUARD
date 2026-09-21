@@ -1,3 +1,28 @@
+## v4.2.0 — Resolving Raven
+
+The headline is **DNS automation** — choose which **DNS resolver** each network uses, completely independently of your tunnels.
+
+### DNS rules, with or without a tunnel
+
+MasselGUARD can now set your **DNS server based on the network you join** — even when no tunnel is active. "On any open Wi-Fi, use encrypted DNS." "On the office SSID, use the internal resolver." "Everywhere else, hand DNS back to the network."
+
+- Turn it on under **Settings → Wi-Fi → DNS automation** (off by default — nothing changes until you enable it).
+- Pick a **Default DNS** for unmatched networks and an **Open-network DNS** for public hotspots, and whether to set **IPv4, IPv6, or both**.
+- Attach a resolver to a **specific Wi-Fi rule** — leave the tunnel blank for a **DNS-only rule**.
+- While a tunnel is connected, its own DNS takes over automatically; when it drops, your DNS rule comes back. Your original DNS is saved first and **restored when you exit** (and recovered automatically if the app was closed unexpectedly).
+
+### Encrypted DNS (DoH) and one-click presets
+
+Define named **DNS profiles** with IPv4/IPv6 servers. **Add presets** drops in the well-known public resolvers — Cloudflare, Google, Quad9, AdGuard, OpenDNS and a NextDNS template — or create your own.
+
+Profiles can use **DNS-over-HTTPS (DoH)** for encrypted lookups (Windows 11). Well-known resolvers work out of the box; for a custom one, paste its DoH template URL. Tick **Require encryption** to *fail closed* — never fall back to plaintext.
+
+### Also in this release
+
+- **New CLI command:** `MasselGUARDcli dns status` shows your DNS-automation configuration and each interface's current resolvers. It's read-only and needs no Administrator rights.
+
+---
+
 ## v4.0.0 — Forking Fox
 
 The headline is **split tunneling** — decide, per tunnel, which traffic goes *through* the tunnel and which bypasses it.

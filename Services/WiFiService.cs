@@ -69,6 +69,9 @@ namespace MasselGUARD.Services
 
         public string? CurrentSsid   { get; private set; }
         public bool    IsOpenNetwork { get; private set; }
+        /// <summary>GUID of the currently connected WLAN adapter (Guid.Empty when none).
+        /// Used by DNS automation to target this exact interface.</summary>
+        public Guid    CurrentInterfaceGuid { get; private set; }
 
         /// <summary>Fired on a thread-pool thread. Handlers must marshal to UI if needed.</summary>
         public event Action<string?, bool>? SsidChanged;
@@ -188,7 +191,14 @@ namespace MasselGUARD.Services
                         bool   isOpen = Marshal.ReadInt32(data, 576) == 0;
                         WlanFreeMemory(data);
 
-                        if (!string.IsNullOrEmpty(ssid)) return (ssid, isOpen);
+                        if (!string.IsNullOrEmpty(ssid))
+                        {
+                            // Remember the connected adapter's GUID so DNS automation can target
+                            // this exact interface (see DnsService). Stable across SSID changes
+                            // on the same radio.
+                            CurrentInterfaceGuid = guid;
+                            return (ssid, isOpen);
+                        }
                     }
                     catch { WlanFreeMemory(data); }
                 }

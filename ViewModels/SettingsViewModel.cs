@@ -33,16 +33,6 @@ namespace MasselGUARD.ViewModels
             }
         }
 
-        private AppMode _mode;
-        public AppMode Mode
-        {
-            get => _mode;
-            set
-            {
-                if (!SetField(ref _mode, value)) return;
-            }
-        }
-
         // Default Action
         private string _defaultAction = "none";
         public string DefaultAction
@@ -172,7 +162,6 @@ namespace MasselGUARD.ViewModels
         public event Action<TunnelRule>?  EditRuleRequested;
         public event Action?              ExportRequested;
         public event Action?              ImportRequested;
-        public event Action<AppMode>?     ModeChanged;
         public event Action<string>?      LogLevelChanged;
 
         // ── Constructor ───────────────────────────────────────────────────────
@@ -201,7 +190,6 @@ namespace MasselGUARD.ViewModels
             var cfg = _config.Config;
 
             _language         = cfg.Language;
-            _mode             = cfg.Mode;
             _defaultAction    = cfg.DefaultAction;
             _defaultTunnel    = cfg.DefaultTunnel;
             _openWifiTunnel   = cfg.OpenWifiTunnel;
@@ -276,7 +264,6 @@ namespace MasselGUARD.ViewModels
         public void DoSave()
         {
             _config.Config.Language              = _language;
-            _config.Config.Mode                  = _mode;
             _config.Config.DefaultAction         = _defaultAction;
             _config.Config.DefaultTunnel         = _defaultTunnel;
             _config.Config.OpenWifiTunnel        = _openWifiTunnel;
@@ -298,7 +285,6 @@ namespace MasselGUARD.ViewModels
             RulesHaveUnsavedChanges = false;
 
             // Fire side effects
-            ModeChanged?.Invoke(_mode);
             LogLevelChanged?.Invoke(_logLevel);
         }
 

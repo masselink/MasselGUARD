@@ -179,6 +179,79 @@ namespace MasselGUARD.Services
                 System.Threading.ThreadPool.QueueUserWorkItem(_ => SaveSsid());
         }
 
+        // ── DNS-profile history ───────────────────────────────────────────────
+        private static readonly string DnsHistoryPath = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "MasselGUARD", "dns_history.json");
+
+        private const int MaxDnsEntries = 500;
+        private readonly object _dnsLock = new();
+        private List<MasselGUARD.Models.DnsHistoryEntry> _dnsEntries = new();
+
+        public IReadOnlyList<MasselGUARD.Models.DnsHistoryEntry> DnsEntries
+        {
+            get { lock (_dnsLock) { return _dnsEntries.AsReadOnly(); } }
+        }
+
+        public void LoadDns()
+        {
+            if (!File.Exists(DnsHistoryPath)) return;
+            try
+            {
+                var list = System.Text.Json.JsonSerializer.Deserialize<
+                    List<MasselGUARD.Models.DnsHistoryEntry>>(File.ReadAllText(DnsHistoryPath), JsonOpts);
+                if (list != null) lock (_dnsLock) { _dnsEntries = list; }
+            }
+            catch { }
+        }
+
+        public void SaveDns()
+        {
+            List<MasselGUARD.Models.DnsHistoryEntry> snap;
+            lock (_dnsLock) { snap = new List<MasselGUARD.Models.DnsHistoryEntry>(_dnsEntries); }
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(DnsHistoryPath)!);
+                File.WriteAllText(DnsHistoryPath,
+                    System.Text.Json.JsonSerializer.Serialize(snap, JsonOpts));
+            }
+            catch { }
+        }
+
+        /// <summary>Record that a DNS profile became the active resolver (closes any open entry first).
+        /// A repeat of the already-active profile is ignored.</summary>
+        public void RecordDnsActivate(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) { RecordDnsDeactivate(); return; }
+            lock (_dnsLock)
+            {
+                if (_dnsEntries.Any(e => e.DisconnectedAt == null &&
+                        e.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                    return;
+                foreach (var e in _dnsEntries.Where(e => e.DisconnectedAt == null))
+                    e.DisconnectedAt = DateTime.UtcNow;
+                _dnsEntries.Insert(0, new MasselGUARD.Models.DnsHistoryEntry
+                {
+                    Name = name, ConnectedAt = DateTime.UtcNow,
+                });
+                if (_dnsEntries.Count > MaxDnsEntries)
+                    _dnsEntries.RemoveRange(MaxDnsEntries, _dnsEntries.Count - MaxDnsEntries);
+            }
+            System.Threading.ThreadPool.QueueUserWorkItem(_ => SaveDns());
+        }
+
+        /// <summary>Close the current open DNS entry (reverted to default / tunnel took over / off).</summary>
+        public void RecordDnsDeactivate()
+        {
+            bool changed = false;
+            lock (_dnsLock)
+            {
+                foreach (var e in _dnsEntries.Where(e => e.DisconnectedAt == null))
+                { e.DisconnectedAt = DateTime.UtcNow; changed = true; }
+            }
+            if (changed) System.Threading.ThreadPool.QueueUserWorkItem(_ => SaveDns());
+        }
+
         // ── Data-usage aggregation ────────────────────────────────────────────
 
         /// <summary>

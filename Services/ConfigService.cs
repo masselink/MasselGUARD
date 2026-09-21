@@ -79,8 +79,34 @@ namespace MasselGUARD.Services
                 try { Save(); } catch { /* best-effort */ }
             }
 
+            DropCompanionTunnels();
             MigrateInlineConfigsToFiles();
+            EnsureAtLeastOneModule();
             ApplyPreset();
+        }
+
+        /// <summary>Companion (WireGuard-for-Windows) mode has been removed — MasselGUARD only manages
+        /// its own local tunnels now. Any legacy tunnel with a non-"local" Source is dropped on load
+        /// (users re-import the ones they still want via Import → from WireGuard).</summary>
+        private void DropCompanionTunnels()
+        {
+            int before = Config.Tunnels.Count;
+            Config.Tunnels.RemoveAll(t => !string.Equals(t.Source, "local", System.StringComparison.OrdinalIgnoreCase));
+            int dropped = before - Config.Tunnels.Count;
+            if (dropped > 0)
+            {
+                foreach (var t in Config.Tunnels) t.Source = "local";
+                try { Save(); } catch { /* best-effort */ }
+            }
+        }
+
+        /// <summary>Feature-module invariant: at least one of the tunnel / DNS features must be
+        /// enabled, or the app would have no purpose. A config with both off (hand-edited, or a
+        /// bad preset) falls back to the tunnel feature. See docs/FeatureModules-Design.md.</summary>
+        private void EnsureAtLeastOneModule()
+        {
+            if (!Config.EnableTunnels && !Config.EnableDns)
+                Config.EnableTunnels = true;
         }
 
         /// <summary>

@@ -77,29 +77,6 @@ namespace MasselGUARD.Services
         public bool ConsumeIntentionalDisconnect(string name) =>
             _intentionalDisconnects.TryRemove(name, out _);
 
-        /// <summary>
-        /// Records a connect that happened outside MasselGUARD (WireGuard app, CLI).
-        /// Opens a history entry and snapshots the byte counters so the session shows
-        /// up in the timeline and a later disconnect can report traffic.
-        /// </summary>
-        public void RecordExternalConnect(string name, string source)
-        {
-            _intentionalDisconnects.TryRemove(name, out _);
-            _connectTimes[name] = DateTime.UtcNow;
-            var s0 = TunnelDll.GetTrafficStats(name);
-            if (s0.AdapterFound)
-                _connectBytes[name] = (s0.RxBytes, s0.TxBytes);
-            _history.RecordConnect(name, source);
-        }
-
-        /// <summary>
-        /// Records a disconnect that happened outside MasselGUARD (WireGuard app
-        /// deactivate, CLI, service crash). Closes the open history entry, writes the
-        /// extended-log continuation lines, and logs "Disconnected: name{logSuffix}".
-        /// Traffic deltas are zero — the adapter is already gone when the poll notices.
-        /// </summary>
-        public void RecordExternalDisconnect(string name, string logSuffix = "") =>
-            LogDisconnect(name, logSuffix: logSuffix);
 
         // ── Connect ───────────────────────────────────────────────────────────
 
@@ -111,9 +88,7 @@ namespace MasselGUARD.Services
             {
                 RunScript(stored.PreConnectScript, "pre-connect", stored.Name);
 
-                bool ok = stored.Source == "local"
-                    ? ConnectLocal(stored, cfg)
-                    : ConnectWireGuard(stored, cfg);
+                bool ok = ConnectLocal(stored, cfg);
 
                 if (ok)
                 {
@@ -255,100 +230,6 @@ namespace MasselGUARD.Services
             }
         }
 
-        private bool ConnectWireGuard(StoredTunnel stored, AppConfig cfg)
-        {
-            var wgExe = GetWireGuardExe(cfg);
-            if (wgExe == null) return false;
-
-            var confPath = stored.Path;
-            if (string.IsNullOrEmpty(confPath) || !File.Exists(confPath))
-            {
-                _log.Warn($"Cannot connect '{stored.Name}': config file not found at '{confPath}'. " +
-                          "Re-import the tunnel from the WireGuard client.");
-                return false;
-            }
-
-            _log.Debug($"wireguard.exe /installtunnelservice \"{confPath}\"");
-            var (exit, stderr) = RunWireGuard(wgExe, $"/installtunnelservice \"{confPath}\"");
-            if (exit != 0)
-            {
-                _log.Warn($"WireGuard /installtunnelservice failed (exit {exit})" +
-                          (string.IsNullOrEmpty(stderr) ? "" : $": {stderr}"));
-                return false;
-            }
-
-            // /installtunnelservice returns before the service reaches Running — poll until it does.
-            var svcName = "WireGuardTunnel$" + stored.Name;
-            var deadline = DateTime.UtcNow.AddSeconds(15);
-            while (DateTime.UtcNow < deadline)
-            {
-                try
-                {
-                    using var sc = new ServiceController(svcName);
-                    if (sc.Status == ServiceControllerStatus.Running) break;
-                }
-                catch { }
-                System.Threading.Thread.Sleep(250);
-            }
-
-            _log.Ok($"Connected: {stored.Name} (WireGuard)");
-            _connectTimes[stored.Name] = DateTime.UtcNow;
-            var sw0 = TunnelDll.GetTrafficStats(stored.Name);
-            _connectBytes[stored.Name] = (sw0.RxBytes, sw0.TxBytes);
-            if (_ks != null && ShouldKillSwitch(stored, cfg))
-                _ks.Enable(stored.Name, null);
-            return true;
-        }
-
-        /// <summary>
-        /// Returns true when a <c>WireGuardTunnel$&lt;name&gt;</c> SCM service entry exists
-        /// (regardless of running state). Used by the auto-reconnect poll to detect whether
-        /// the WireGuard client removed the entry intentionally.
-        /// </summary>
-        public static bool WireGuardServiceExists(string serviceName)
-        {
-            try
-            {
-                using var key = Microsoft.Win32.Registry.LocalMachine
-                    .OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{serviceName}");
-                return key != null;
-            }
-            catch { return false; }
-        }
-
-        /// <summary>
-        /// Resolves the wireguard.exe path from config, logs a warning and returns null if absent.
-        /// </summary>
-        private string? GetWireGuardExe(AppConfig cfg)
-        {
-            var dir = cfg.WireGuardInstallDirectory?.TrimEnd('\\', '/') ?? @"C:\Program Files\WireGuard";
-            var exe = Path.Combine(dir, "wireguard.exe");
-            if (File.Exists(exe)) return exe;
-            _log.Warn($"wireguard.exe not found at '{exe}'. Check the WireGuard install path in Settings → Advanced.");
-            return null;
-        }
-
-        /// <summary>
-        /// Runs <c>wireguard.exe</c> with the given arguments, waits up to 30 s, and returns
-        /// the exit code plus any stderr output.
-        /// </summary>
-        private static (int exit, string stderr) RunWireGuard(string wgExe, string args)
-        {
-            var psi = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName               = wgExe,
-                Arguments              = args,
-                UseShellExecute        = false,
-                RedirectStandardError  = true,
-                RedirectStandardOutput = false,
-                CreateNoWindow         = true,
-            };
-            using var proc = System.Diagnostics.Process.Start(psi)!;
-            string stderr = proc.StandardError.ReadToEnd();
-            proc.WaitForExit(30_000);
-            return (proc.ExitCode, stderr.Trim());
-        }
-
         // ── Disconnect ────────────────────────────────────────────────────────
 
         public bool Disconnect(StoredTunnel stored, AppConfig? cfg = null)
@@ -360,9 +241,7 @@ namespace MasselGUARD.Services
                 RunScript(stored.PreDisconnectScript, "pre-disconnect", stored.Name);
 
                 bool storeTraffic = cfg?.StoreConnectionHistory != false;
-                bool ok = stored.Source == "local"
-                    ? DisconnectLocal(stored, storeTraffic)
-                    : DisconnectWireGuard(stored, cfg, storeTraffic);
+                bool ok = DisconnectLocal(stored, storeTraffic);
 
                 if (ok)
                     RunScript(stored.PostDisconnectScript, "post-disconnect", stored.Name);
@@ -389,26 +268,6 @@ namespace MasselGUARD.Services
                 return true;
             }
             catch (Exception ex) { _log.Warn($"TunnelDll.Disconnect failed: {ex.Message}"); return false; }
-        }
-
-        private bool DisconnectWireGuard(StoredTunnel stored, AppConfig? cfg, bool storeTraffic)
-        {
-            // Snapshot bytes before the tunnel goes down
-            var finalStats = TunnelDll.GetTrafficStats(stored.Name);
-
-            var wgExe = GetWireGuardExe(cfg ?? new AppConfig());
-            if (wgExe != null)
-            {
-                _log.Debug($"wireguard.exe /uninstalltunnelservice \"{stored.Name}\"");
-                var (exit, stderr) = RunWireGuard(wgExe, $"/uninstalltunnelservice \"{stored.Name}\"");
-                if (exit != 0)
-                    _log.Warn($"WireGuard /uninstalltunnelservice failed (exit {exit})" +
-                              (string.IsNullOrEmpty(stderr) ? "" : $": {stderr}"));
-            }
-
-            LogDisconnect(stored.Name, finalStats, storeTraffic);
-            _ks?.Disable(stored.Name);
-            return true;
         }
 
         private void LogDisconnect(string name,
@@ -461,15 +320,7 @@ namespace MasselGUARD.Services
 
         public bool IsActive(StoredTunnel stored)
         {
-            try
-            {
-                if (stored.Source == "local")
-                    return TunnelDll.IsRunning(stored.Name);
-
-                var svcName = "WireGuardTunnel$" + stored.Name;
-                using var sc = new ServiceController(svcName);
-                return sc.Status == ServiceControllerStatus.Running;
-            }
+            try { return TunnelDll.IsRunning(stored.Name); }
             catch { return false; }
         }
 

@@ -20,9 +20,9 @@
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
     <!-- Default versions for IDE / dotnet build without BUILD.bat. -->
-    <Version>4.1.0</Version>
-    <AssemblyVersion>4.1.0.0</AssemblyVersion>
-    <FileVersion>4.1.0.0</FileVersion>
+    <Version>4.2.0</Version>
+    <AssemblyVersion>4.2.0.0</AssemblyVersion>
+    <FileVersion>4.2.0.0</FileVersion>
     <InformationalVersion>4.0.0</InformationalVersion>
   </PropertyGroup>
 
@@ -41,6 +41,7 @@
     <Compile Include="..\Infrastructure\*.cs" />
     <Compile Include="..\Services\CidrMath.cs" />
     <Compile Include="..\Services\SplitTunnelBackend.cs" />
+    <Compile Include="..\Services\DnsPolicy.cs" />
     <Compile Include="..\Services\ConfigService.cs" />
     <Compile Include="..\Services\PresetService.cs" />
     <Compile Include="..\Services\HistoryService.cs" />

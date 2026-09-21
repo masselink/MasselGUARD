@@ -37,7 +37,9 @@ namespace MasselGUARD.Services
             string?   ssid,
             bool      isOpenNetwork)
         {
-            if (cfg.ManualMode)
+            // The tunnel axis is inert when the tunnel feature is disabled (DNS-only install) —
+            // a stored rule's tunnel must never activate. The DNS axis (DnsPolicy) is separate.
+            if (cfg.ManualMode || !cfg.EnableTunnels)
                 return DoNothing;
 
             // 1. Open network protection
@@ -50,6 +52,8 @@ namespace MasselGUARD.Services
 
             // 2. SSID rules — only "wifi"-kind rules match an SSID. ("schedule" is handled
             //    by EvaluateSchedules; "trusted" is the broad policy in step 3 below.)
+            //    The Tunnel field alone decides the tunnel action: an empty Tunnel disconnects,
+            //    even when the rule also carries a DNS profile (DNS applies in parallel via DnsPolicy).
             var match = cfg.Rules.FirstOrDefault(r =>
                 r.Enabled && r.Kind == "wifi" &&
                 string.Equals(r.Ssid, ssid, StringComparison.OrdinalIgnoreCase));
@@ -98,12 +102,22 @@ namespace MasselGUARD.Services
             };
         }
 
+        // ── DNS evaluation (Model C — parallel axis) ──────────────────────────
+
+        /// <summary>
+        /// Evaluate the DNS action for the current network, independently of the tunnel
+        /// action. Thin wrapper over the pure, self-tested <see cref="DnsPolicy.Evaluate"/>
+        /// (CLI-visible); uses the current local time for schedule rules.
+        /// </summary>
+        public DnsPolicy.DnsResult EvaluateDns(AppConfig cfg, string? ssid, bool isOpenNetwork)
+            => DnsPolicy.Evaluate(cfg, ssid, isOpenNetwork, DateTime.Now);
+
         /// <summary>
         /// Evaluate what should happen when the WiFi disconnects entirely.
         /// </summary>
         public RuleResult EvaluateWifiDisconnected(AppConfig cfg)
         {
-            if (cfg.ManualMode) return DoNothing;
+            if (cfg.ManualMode || !cfg.EnableTunnels) return DoNothing;
 
             return cfg.DefaultAction switch
             {
@@ -122,7 +136,7 @@ namespace MasselGUARD.Services
         /// </summary>
         public RuleResult EvaluateSchedules(AppConfig cfg, DateTime now)
         {
-            if (cfg.ManualMode) return DoNothing;
+            if (cfg.ManualMode || !cfg.EnableTunnels) return DoNothing;
 
             foreach (var r in cfg.Rules)
             {
@@ -136,20 +150,10 @@ namespace MasselGUARD.Services
             return DoNothing;
         }
 
-        /// <summary>True when <paramref name="now"/> falls inside the rule's day + time window.</summary>
+        /// <summary>True when <paramref name="now"/> falls inside the rule's day + time window.
+        /// Delegates to <see cref="DnsPolicy.IsWithinSchedule"/> (the single implementation,
+        /// shared with the CLI-visible DNS precedence).</summary>
         public static bool IsWithinSchedule(TunnelRule r, DateTime now)
-        {
-            if (r.Days != null && r.Days.Count > 0 &&
-                !r.Days.Contains((int)now.DayOfWeek))
-                return false;
-
-            if (!TimeSpan.TryParse(r.StartTime, out var start)) return false;
-            if (!TimeSpan.TryParse(r.EndTime,   out var end))   return false;
-
-            var t = now.TimeOfDay;
-            if (start == end) return false;               // zero-length window
-            if (start <  end) return t >= start && t < end;
-            return t >= start || t < end;                 // overnight window (e.g. 22:00–06:00)
-        }
+            => DnsPolicy.IsWithinSchedule(r, now);
     }
 }

@@ -555,18 +555,23 @@ namespace MasselGUARD.ViewModels
         public bool IsDefaultTunnel  => _config.Config.DefaultTunnel == StoredTunnel.Name
                                      && _config.Config.DefaultAction == "activate";
         public bool IsOpenProtection => _config.Config.OpenWifiTunnel == StoredTunnel.Name;
+        public bool IsConnectOnStart => _config.Config.ConnectOnStartTunnel == StoredTunnel.Name;
 
         public System.Windows.Visibility DefaultBadgeVis =>
             IsDefaultTunnel  ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
         public System.Windows.Visibility OpenBadgeVis =>
             IsOpenProtection ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+        public System.Windows.Visibility ConnectOnStartBadgeVis =>
+            IsConnectOnStart ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
 
         public void NotifyBadgesChanged()
         {
             OnPropertyChanged(nameof(IsDefaultTunnel));
             OnPropertyChanged(nameof(IsOpenProtection));
+            OnPropertyChanged(nameof(IsConnectOnStart));
             OnPropertyChanged(nameof(DefaultBadgeVis));
             OnPropertyChanged(nameof(OpenBadgeVis));
+            OnPropertyChanged(nameof(ConnectOnStartBadgeVis));
         }
 
         /// <summary>Number of WiFi rules that reference this tunnel (0 = not used in any rule).</summary>

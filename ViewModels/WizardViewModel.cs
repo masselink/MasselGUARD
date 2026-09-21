@@ -69,14 +69,6 @@ namespace MasselGUARD.ViewModels
             set => SetField(ref _customView, value);
         }
 
-        // ── Step 4: Mode ──────────────────────────────────────────────────────
-        private AppMode _mode = AppMode.Standalone;
-        public AppMode Mode
-        {
-            get => _mode;
-            set => SetField(ref _mode, value);
-        }
-
         // ── Step 6: Disable WiFi rules ────────────────────────────────────────
         private bool _disableWifiRules;
         public bool DisableWifiRules
@@ -110,7 +102,6 @@ namespace MasselGUARD.ViewModels
             _log                = log;
             _pendingLangChanged = onLangChanged;
 
-            _mode             = config.Config.Mode;
             _disableWifiRules = config.Config.ManualMode;
 
             BackCommand        = new RelayCommand(GoBack,  () => CanGoBack);
@@ -124,9 +115,7 @@ namespace MasselGUARD.ViewModels
         /// <summary>Re-sync VM state from config after an import.</summary>
         public void LoadFromConfig()
         {
-            _mode             = _config.Config.Mode;
             _disableWifiRules = _config.Config.ManualMode;
-            OnPropertyChanged(nameof(Mode));
             OnPropertyChanged(nameof(DisableWifiRules));
             // Re-select the imported language
             var match = AvailableLanguages.FirstOrDefault(
@@ -139,6 +128,8 @@ namespace MasselGUARD.ViewModels
         // Step 3 (Custom view details) is only reachable via the Step 2 "Custom" card —
         // Simple/Manual/Expert apply their fixed bundle directly, nothing to configure there.
         private const int CustomViewStep = 3;
+        // Step 4 (Operating mode) is gone — companion mode was removed, so it's always skipped.
+        private const int ModeStep = 4;
         // Step 6 (WiFi Automation) has nothing left to configure once WiFi rules are
         // disabled (from the Step 2 "Manual" preset or the step's own toggle) — skip
         // over it too rather than showing an empty/redundant step.
@@ -147,6 +138,7 @@ namespace MasselGUARD.ViewModels
         private bool IsStepSkipped(int step) => step switch
         {
             CustomViewStep     => !_customView,
+            ModeStep           => true,
             WifiAutomationStep => _disableWifiRules,
             _                  => false,
         };
@@ -174,7 +166,6 @@ namespace MasselGUARD.ViewModels
         private void ApplyAndFinish()
         {
             var cfg        = _config.Config;
-            cfg.Mode       = _mode;
             cfg.ManualMode = _disableWifiRules;
             _config.Save();
             _log.Ok("Wizard completed");

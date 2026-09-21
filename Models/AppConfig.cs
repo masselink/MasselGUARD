@@ -6,8 +6,6 @@ using System.Text.Json.Serialization;
 
 namespace MasselGUARD.Models
 {
-    public enum AppMode { Standalone, Companion, Mixed }
-
     /// <summary>
     /// Controls the info/statistics section displayed above the footer.
     /// </summary>
@@ -64,9 +62,14 @@ namespace MasselGUARD.Models
         public bool    ShowTunnelRulesColumn        { get; set; } = true;
         public bool    ShowActivityLog              { get; set; } = true;
         public bool    StartWithWindows             { get; set; } = false;
+        /// <summary>Start with the main window hidden in the tray (no window shown on launch).</summary>
+        public bool    StartMinimized               { get; set; } = false;
+        /// <summary>Name of the tunnel to connect automatically on startup ("" = none). A per-tunnel
+        /// behaviour, like <see cref="OpenWifiTunnel"/>.</summary>
+        public string  ConnectOnStartTunnel         { get; set; } = "";
 
         // ── App settings ─────────────────────────────────────────────────────
-        public AppMode Mode               { get; set; } = AppMode.Standalone;        public string  Language           { get; set; } = "en";
+        public string  Language           { get; set; } = "en";
         public string  LogLevelSetting    { get; set; } = "normal";
         public bool    ShowTrayPopupOnSwitch { get; set; } = true;
         public int     NotificationDurationSeconds { get; set; } = 5;
@@ -75,6 +78,21 @@ namespace MasselGUARD.Models
         public string  UpdateCheckFrequency { get; set; } = "weekly";
         /// <summary>Version string of the last run that completed the wizard. Used to detect upgrades.</summary>
         public string? LastRunVersion { get; set; } = null;
+
+        // ── Feature modules ───────────────────────────────────────────────────
+        // MasselGUARD's two top-level features can each be turned on/off (wizard + Settings),
+        // so it can run as a full tunnel manager, a DNS-only resolver switcher, or both.
+        // Invariant: at least one is always on (see ConfigService.EnsureAtLeastOneModule).
+        // Both default true → upgraders keep tunnels AND see the DNS section (DnsAutomationEnabled
+        // still gates whether DNS automation actually runs). See docs/FeatureModules-Design.md.
+
+        /// <summary>Show/run the WireGuard tunnel feature (tunnel list, connect, kill switch,
+        /// auto-reconnect, split, caps, Mode, tunnel rules/timeline).</summary>
+        public bool EnableTunnels { get; set; } = true;
+
+        /// <summary>Show the DNS-automation feature (Settings section, rule DNS pickers, engine).
+        /// <see cref="DnsAutomationEnabled"/> remains the runtime on/off within it.</summary>
+        public bool EnableDns { get; set; } = true;
 
         // ── Font override ────────────────────────────────────────────────────
         /// <summary>When true the user-chosen font replaces the theme's own font.</summary>
@@ -99,8 +117,6 @@ namespace MasselGUARD.Models
         /// <summary>When true (default) clicking ✕ shows a confirm dialog before closing.</summary>
         public bool   ConfirmOnClose   { get; set; } = true;
 
-        // ── WireGuard install ────────────────────────────────────────────────
-        public string  WireGuardInstallDirectory { get; set; } = @"C:\Program Files\WireGuard";
         public string? InstalledPath    { get; set; } = null;
 
         // ── Auto-reconnect ────────────────────────────────────────────────────
@@ -132,6 +148,31 @@ namespace MasselGUARD.Models
         /// <summary>Show a tray toast on a possible (unmitigated) DNS leak.</summary>
         public bool DnsLeakWarnToast { get; set; } = true;
 
+        // ── DNS automation ────────────────────────────────────────────────────
+        // Rule-driven resolver policy, independent of tunnels (see
+        // docs/DnsAutomation-Design.md, Model C). All defaults keep existing behaviour:
+        // the engine is off and no profiles exist until the user opts in.
+
+        /// <summary>Master switch for the DNS rule engine (also gated by <see cref="ManualMode"/>).
+        /// Off by default so upgrades change nothing.</summary>
+        public bool DnsAutomationEnabled { get; set; } = false;
+
+        /// <summary>Named resolver profiles; rules/config reference these by <see cref="DnsProfile.Id"/>.</summary>
+        public List<DnsProfile> DnsProfiles { get; set; } = new();
+
+        /// <summary>DNS profile id applied when no DNS rule matches. "" = leave alone;
+        /// <see cref="DnsProfile.AutomaticId"/> = force DHCP on unmatched networks.</summary>
+        public string DefaultDnsProfileId { get; set; } = "";
+
+        /// <summary>DNS profile applied on an OPEN/unsecured network (parallels
+        /// <see cref="OpenWifiTunnel"/>). Lets "any open Wi-Fi → encrypted DoH" work with no
+        /// per-SSID rule.</summary>
+        public string OpenWifiDnsProfileId { get; set; } = "";
+
+        /// <summary>Which address families a DNS profile touches: "both" | "v4" | "v6".
+        /// Default both (setting only v4 leaves v6 resolving via the network resolver).</summary>
+        public string DnsAddressFamilies { get; set; } = "both";
+
         // ── Info / statistics section ─────────────────────────────────────────
         /// <summary>Show the timeline/statistics panel above the footer.</summary>
         public bool ShowTimeline             { get; set; } = true;
@@ -141,6 +182,10 @@ namespace MasselGUARD.Models
         public bool StoreWifiHistory         { get; set; } = true;
         /// <summary>Draw the WiFi SSID rows in the activity chart (requires StoreWifiHistory).</summary>
         public bool ShowWifiInChart          { get; set; } = true;
+        /// <summary>Record which DNS profile is active over time to dns_history.json.</summary>
+        public bool StoreDnsHistory          { get; set; } = true;
+        /// <summary>Draw the active-DNS-profile band in the charts (requires StoreDnsHistory).</summary>
+        public bool ShowDnsInChart           { get; set; } = true;
         /// <summary>1 = last 24 h, 7 = last 7 days, 31 = last 31 days.</summary>
         public int  InfoTimeRangeDays        { get; set; } = 1;
         /// <summary>Legacy single-view selector ("timeline"/"usage"); superseded by the two
@@ -151,6 +196,8 @@ namespace MasselGUARD.Models
         public bool ShowTimelinePane         { get; set; } = true;
         /// <summary>Info panel: show the Data-usage pane (see <see cref="ShowTimelinePane"/>).</summary>
         public bool ShowUsagePane            { get; set; } = false;
+        /// <summary>Info panel: show the DNS pane (active DNS profile / server over time).</summary>
+        public bool ShowDnsPane              { get; set; } = false;
         /// <summary>How per-tunnel data-cap usage is shown on the tunnel row:
         /// "bars" (slim horizontal progress bars, breakdown on hover — the default) or
         /// "rings" (compact concentric-style arcs).</summary>
@@ -181,6 +228,12 @@ namespace MasselGUARD.Models
         public double WifiColActionW { get; set; } = 0;
         public double WifiColCountW  { get; set; } = 0;
         public double WifiColTunnelW { get; set; } = 0;
+        public double WifiColDnsW    { get; set; } = 0;
+        public double DnsColNameW    { get; set; } = 0;
+        public double DnsColTypeW    { get; set; } = 0;
+        public double DnsColServerW  { get; set; } = 0;
+        public double DnsColRulesW   { get; set; } = 0;
+        public double DnsColEnableW  { get; set; } = 0;
 
         // ── Kill switch ───────────────────────────────────────────────────────
         /// <summary>
@@ -215,27 +268,5 @@ namespace MasselGUARD.Models
         /// frequency setting) — see MainWindow.CheckForUpdatesAsync.</summary>
         public List<string> ThemeUpdatesAvailable { get; set; } = new();
 
-        // ── Computed (not serialised) ────────────────────────────────────────
-        [JsonIgnore]
-        public string ConfDirectory => string.IsNullOrWhiteSpace(WireGuardInstallDirectory)
-            ? ""
-            : Path.Combine(WireGuardInstallDirectory, @"Data\Configurations");
-
-        [JsonIgnore]
-        public string WgExePath => string.IsNullOrWhiteSpace(WireGuardInstallDirectory)
-            ? "wireguard"
-            : Path.Combine(WireGuardInstallDirectory, "wireguard.exe");
-
-        // ── Backward-compat shim ─────────────────────────────────────────────
-        [JsonIgnore] private bool _legacyLocalTunnels = true;
-        public bool EnableLocalTunnels
-        {
-            get => Mode != AppMode.Companion;
-            set
-            {
-                _legacyLocalTunnels = value;
-                if (!value && Mode == AppMode.Mixed) Mode = AppMode.Companion;
-            }
-        }
     }
 }

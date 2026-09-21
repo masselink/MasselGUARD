@@ -68,6 +68,9 @@ namespace MasselGUARD
             "help" or "--help" or "-h" or "-?"     => true,
             "version" or "--version" or "-v"       => true,
             "selftest"                             => true,
+            // `dns` is read-only (status) in this release — no driver/service access.
+            // If a write subcommand (e.g. `dns set`) is added later, gate it inside the command.
+            "dns"                                  => true,
             _                                      => false,
         };
 

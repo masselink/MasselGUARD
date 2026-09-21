@@ -55,22 +55,9 @@ namespace MasselGUARD
         {
             if (_logPanelVisible == visible) return;
             _logPanelVisible = visible;
-
-            LogPanelGrid.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
-            MainContentGrid.ColumnDefinitions[1].Width =
-                visible ? new GridLength(10) : new GridLength(0);
-            MainContentGrid.ColumnDefinitions[2].Width =
-                visible ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-
-            // ☰ in the tunnel header — only visible when the log is collapsed
-            LogOpenBtn.Visibility = visible ? Visibility.Collapsed : Visibility.Visible;
-
-            // Spread columns evenly across the new section width
-            if (_colInitDone)
-            {
-                ResetTunnelColsToStars();
-                ResetWifiColsToStars();
-            }
+            // Layout (which column widths collapse, whether WiFi rules widen, ☰ visibility) depends
+            // on the feature flags too — the DNS panel keeps the right column even when the log hides.
+            UpdateContentLayout();
         }
 
         // ── Window state (maximize / restore) ────────────────────────────────
@@ -141,6 +128,7 @@ namespace MasselGUARD
             HistorySvc     = new Services.HistoryService();
             HistorySvc.Load();
             HistorySvc.LoadSsid();
+            HistorySvc.LoadDns();
             KillSwitchSvc  = new Services.KillSwitchService(LogSvc);
             TunnelSvc      = new TunnelService(LogSvc, ScriptSvc, HistorySvc, KillSwitchSvc);
             WifiSvc        = new WiFiService();
@@ -205,6 +193,10 @@ namespace MasselGUARD
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             ForceTaskbarButton();
+
+            // Gate the tunnel UI to the feature-module flags (DNS-only hides the tunnel area).
+            ApplyFeatureVisibility();
+            RebuildDnsPanel();
 
             // Remove any stale kill-switch firewall rules left from a previous crash
             KillSwitchSvc.CleanupStaleRules();
@@ -312,7 +304,12 @@ namespace MasselGUARD
             {
                 retryCount++;
                 if (WifiSvc.CurrentSsid != null || retryCount >= 5)
+                {
                     retryTimer.Stop();
+                    // Connect the "connect on start" tunnel now — AFTER the WiFi rule / default-action
+                    // evaluation above has settled — so a rule or default action doesn't undo it.
+                    ConnectStartupTunnels();
+                }
                 else
                     TryUpdateWifi();
             };
@@ -381,15 +378,6 @@ namespace MasselGUARD
                     ConfigSvc.Config.LastRunVersion = UpdateChecker.CurrentVersionString;
                     ConfigSvc.Save();
                 }));
-
-            // Orphan check
-            Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
-            {
-                var orphans = GetOrphanedServices();
-                if (orphans.Count > 0)
-                    LogSvc.Warn($"⚠ {orphans.Count} orphaned WireGuardTunnel$ service(s) found. " +
-                                "Use Settings → Advanced to remove them.");
-            });
         }
 
         // ── Taskbar visibility ────────────────────────────────────────────────
@@ -1317,6 +1305,133 @@ namespace MasselGUARD
             UpdateStatusBarCentre();  // footer ⚡/🔓 labels can change via Settings → Default action / Open network
             NotifyAllBadges();        // and the ⚡/🔓 badges behind tunnel names
             RefreshUpdateBadge();
+            RebuildDnsPanel();        // DNS profiles / rule counts may have changed in Settings
+        }
+
+        // ── DNS profiles panel (main window, right column) ──────────────────────
+        /// <summary>One row of the main-window DNS panel: name, auto-detected type, the
+        /// server/connection, and how many WiFi rules reference the profile.</summary>
+        public sealed class DnsProfileRow
+        {
+            public string Id     { get; init; } = "";   // hidden — used by Edit/Delete/Enable to resolve the profile
+            public string Name   { get; init; } = "";
+            public string Type   { get; init; } = "";
+            public string Server { get; init; } = "";
+            public string Rules  { get; init; } = "";
+            public bool   Enabled { get; init; }         // this profile is the manually-enabled one
+            public string EnableLabel { get; init; } = "";   // per-row button: Enable / Disable
+            public Visibility EnabledDot => Enabled ? Visibility.Visible : Visibility.Collapsed;
+            public int    RulesCount { get; init; }      // numeric, for sorting
+        }
+
+        private string _dnsSortCol = "";   // "", Name, Type, Server, Rules
+        private bool   _dnsSortAsc  = true;
+
+        /// <summary>Rebuild the DNS-profiles panel rows from config (profiles + rule usage counts).</summary>
+        public void RebuildDnsPanel()
+        {
+            if (DnsProfilesPanelList == null) return;
+            // Preserve the selection across the ItemsSource swap (new row objects would otherwise
+            // clear it, disabling Edit/Delete).
+            var prevId = (DnsProfilesPanelList.SelectedItem as DnsProfileRow)?.Id;
+            var rules = ConfigSvc.Config.Rules;
+            var activeId = _vm.ManualDnsProfileId;   // manually-enabled profile
+            var rows = ConfigSvc.Config.DnsProfiles.Select(p =>
+            {
+                bool on = p.Id == activeId;
+                int cnt = rules.Count(r => string.Equals(r.DnsProfileId, p.Id, StringComparison.Ordinal));
+                return new DnsProfileRow
+                {
+                    Id     = p.Id,
+                    Name   = p.Name,
+                    Type   = p.TypeDisplay,
+                    Server = p.ConnectionDisplay,
+                    Rules  = cnt.ToString(),
+                    RulesCount = cnt,
+                    Enabled = on,
+                    EnableLabel = Lang.T(on ? "BtnDnsDisable" : "BtnDnsEnable"),
+                };
+            });
+            var sorted = SortDnsRows(rows).ToList();
+            DnsProfilesPanelList.ItemsSource = sorted;
+            if (prevId != null)
+                DnsProfilesPanelList.SelectedItem = sorted.FirstOrDefault(r => r.Id == prevId);
+            if (DnsPanelCount != null) DnsPanelCount.Text = sorted.Count.ToString();
+        }
+
+        /// <summary>Double-clicking a DNS row opens Settings on the DNS tab to manage profiles.</summary>
+        private void DnsPanelRow_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+            => OpenSettings("Dns");
+
+        /// <summary>Clicking a DNS profile's "Rules #" selects and scrolls to the first WiFi rule that
+        /// uses that profile, highlighting it.</summary>
+        private void DnsRulesCell_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.DataContext is DnsProfileRow row)
+                HighlightWifiRulesForDnsProfile(row.Id);
+            e.Handled = true;
+        }
+
+        /// <summary>Select + scroll to the first WiFi rule referencing the given DNS profile.</summary>
+        private void HighlightWifiRulesForDnsProfile(string profileId)
+        {
+            if (string.IsNullOrEmpty(profileId) || WifiRulesListView == null) return;
+            var match = WifiRulesListView.Items.OfType<WifiRuleRow>()
+                .FirstOrDefault(r => string.Equals(r.Rule.DnsProfileId, profileId, StringComparison.Ordinal));
+            if (match == null) return;
+            WifiRulesListView.SelectedItem = match;
+            WifiRulesListView.ScrollIntoView(match);
+            (WifiRulesListView.ItemContainerGenerator.ContainerFromItem(match)
+                as System.Windows.Controls.ListViewItem)?.Focus();
+        }
+
+        // ── DNS profile column sort ───────────────────────────────────────────
+        private IEnumerable<DnsProfileRow> SortDnsRows(IEnumerable<DnsProfileRow> src)
+            => _dnsSortCol switch
+            {
+                "Name"   => _dnsSortAsc ? src.OrderBy(r => r.Name,   StringComparer.OrdinalIgnoreCase) : src.OrderByDescending(r => r.Name,   StringComparer.OrdinalIgnoreCase),
+                "Type"   => _dnsSortAsc ? src.OrderBy(r => r.Type,   StringComparer.OrdinalIgnoreCase) : src.OrderByDescending(r => r.Type,   StringComparer.OrdinalIgnoreCase),
+                "Server" => _dnsSortAsc ? src.OrderBy(r => r.Server, StringComparer.OrdinalIgnoreCase) : src.OrderByDescending(r => r.Server, StringComparer.OrdinalIgnoreCase),
+                "Rules"  => _dnsSortAsc ? src.OrderBy(r => r.RulesCount) : src.OrderByDescending(r => r.RulesCount),
+                _        => src,
+            };
+
+        private void DnsSort_Name  (object s, RoutedEventArgs e) => DnsSort("Name");
+        private void DnsSort_Type  (object s, RoutedEventArgs e) => DnsSort("Type");
+        private void DnsSort_Server(object s, RoutedEventArgs e) => DnsSort("Server");
+        private void DnsSort_Rules (object s, RoutedEventArgs e) => DnsSort("Rules");
+
+        private void DnsSort(string col)
+        {
+            if (_dnsSortCol == col) _dnsSortAsc = !_dnsSortAsc;
+            else { _dnsSortCol = col; _dnsSortAsc = true; }
+            UpdateDnsSortArrows();
+            RebuildDnsPanel();
+        }
+
+        private void UpdateDnsSortArrows()
+        {
+            string asc = "▲", desc = "▼";
+            if (DnsArrowName   != null) DnsArrowName.Text   = _dnsSortCol == "Name"   ? (_dnsSortAsc ? asc : desc) : "";
+            if (DnsArrowType   != null) DnsArrowType.Text   = _dnsSortCol == "Type"   ? (_dnsSortAsc ? asc : desc) : "";
+            if (DnsArrowServer != null) DnsArrowServer.Text = _dnsSortCol == "Server" ? (_dnsSortAsc ? asc : desc) : "";
+            if (DnsArrowRules  != null) DnsArrowRules.Text  = _dnsSortCol == "Rules"  ? (_dnsSortAsc ? asc : desc) : "";
+        }
+
+        /// <summary>Per-row Enable/Disable button: enable this profile (only one at a time — enabling
+        /// one replaces any other) or disable it if it's the active one. Mirrors the current network's
+        /// WiFi-rule DNS action, then rebuilds the panel.</summary>
+        private void DnsRowEnable_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement fe || fe.DataContext is not DnsProfileRow row) return;
+            var p = ConfigSvc.Config.DnsProfiles.FirstOrDefault(x => x.Id == row.Id);
+            if (p == null) return;
+            // Manual enable/disable is a runtime override only — it never creates or edits a WiFi rule.
+            if (string.Equals(p.Id, _vm.ManualDnsProfileId, StringComparison.Ordinal))
+                _vm.ManualDisable();       // it's the active one → turn it off
+            else
+                _vm.ManualApplyDns(p);     // enable this profile now (replaces any other; sticky)
+            RebuildDnsPanel();             // refresh the ● marker + button labels
         }
 
         // ── Button click handlers (thin — delegate to VM or OnXxx) ────────────
@@ -1338,7 +1453,7 @@ namespace MasselGUARD
         {
             var alreadyImported = new System.Collections.Generic.HashSet<string>(
                 ConfigSvc.Config.Tunnels.Select(t=>t.Name), StringComparer.OrdinalIgnoreCase);
-            var dlg = new Views.ImportTunnelDialog(alreadyImported, ConfigSvc.Config.Mode)
+            var dlg = new Views.ImportTunnelDialog(alreadyImported)
                 { Owner = this };
             string? lastImported = null;
             dlg.TunnelImported += (name, cfg2, src, path, settings) =>
@@ -1402,18 +1517,6 @@ namespace MasselGUARD
             _vm.RefreshTunnelStatus();
             UpdateTunnelLabel();
         }
-
-        // ── WireGuard client helpers ──────────────────────────────────────────
-        private string WireGuardExe =>
-            ConfigSvc.Config.WgExePath ?? "wireguard";
-
-        internal void OpenWireGuardGui()
-        {
-            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
-                WireGuardExe) { UseShellExecute = true }); }
-            catch (Exception ex) { LogSvc.Warn($"WireGuard: {ex.Message}"); }
-        }
-
 
         private int _lastTrayActiveCount = -1; // -1 forces initial update
 
@@ -1755,12 +1858,6 @@ namespace MasselGUARD
         public List<string> GetTunnelNames()
         {
             return ConfigSvc.Config.Tunnels
-                .Where(t => ConfigSvc.Config.Mode switch
-                {
-                    AppMode.Standalone => t.Source == "local",
-                    AppMode.Companion  => t.Source != "local",
-                    _                  => true,
-                })
                 .Select(t => t.Name)
                 .ToList();
         }
@@ -1805,84 +1902,6 @@ namespace MasselGUARD
 
         private string? GetCurrentSsid() => WifiSvc.CurrentSsid;
         private List<string> GetAvailableTunnels() => GetTunnelNames();
-
-        // ── Orphaned service detection ────────────────────────────────────────
-        public record OrphanedService(string ServiceName, string TunnelName);
-
-        /// <summary>
-        /// Service names queued for deletion — hidden from the orphan list immediately
-        /// so the user doesn't see them again while removal is in progress.
-        /// Entries are pruned automatically once SCM confirms they are gone.
-        /// </summary>
-        private readonly System.Collections.Generic.HashSet<string> _pendingOrphanDeletion =
-            new(StringComparer.OrdinalIgnoreCase);
-
-        public List<OrphanedService> GetOrphanedServices()
-        {
-            var result = new List<OrphanedService>();
-            try
-            {
-                var presentInScm = new System.Collections.Generic.HashSet<string>(
-                    StringComparer.OrdinalIgnoreCase);
-
-                foreach (var svc in System.ServiceProcess.ServiceController.GetServices())
-                {
-                    const string prefix = "WireGuardTunnel$";
-                    if (!svc.ServiceName.StartsWith(prefix,
-                        StringComparison.OrdinalIgnoreCase)) continue;
-
-                    presentInScm.Add(svc.ServiceName);
-
-                    // Running/starting services are actively in use — not orphans.
-                    // Both WireGuard for Windows and MasselGUARD delete the SCM entry
-                    // when a tunnel is deactivated, so any stopped service is leftover debris.
-                    if (svc.Status is System.ServiceProcess.ServiceControllerStatus.Running
-                                   or System.ServiceProcess.ServiceControllerStatus.StartPending)
-                        continue;
-
-                    // Already queued for deletion — hide until SCM confirms it is gone.
-                    if (_pendingOrphanDeletion.Contains(svc.ServiceName)) continue;
-
-                    var name = svc.ServiceName[prefix.Length..];
-
-                    // A tunnel MasselGUARD is mid-connect on (service created but not yet
-                    // started), active, or mid-disconnect is not an orphan. Without this,
-                    // the startup orphan check races an auto-connect and flags the
-                    // brand-new service in its brief Stopped window.
-                    var vm = _vm.TunnelList.FirstOrDefault(t =>
-                        t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-                    if (vm != null && (vm.IsConnecting || vm.IsActive || vm.IsDisconnecting))
-                        continue;
-
-                    result.Add(new OrphanedService(svc.ServiceName, name));
-                }
-
-                // Prune entries that have already disappeared from SCM.
-                _pendingOrphanDeletion.RemoveWhere(s => !presentInScm.Contains(s));
-            }
-            catch { }
-
-            return result;
-        }
-
-        public void RemoveOrphan(OrphanedService orphan)
-        {
-            // Mark as pending immediately so the next scan hides it.
-            _pendingOrphanDeletion.Add(orphan.ServiceName);
-            try
-            {
-                // ForceRemoveService stops (if running) and deletes the SCM entry —
-                // works for both running and already-stopped orphan services.
-                TunnelDll.ForceRemoveService(orphan.ServiceName);
-                LogSvc.Ok($"Orphan removed: {orphan.TunnelName}");
-            }
-            catch (Exception ex)
-            {
-                // Removal failed — unmark so it reappears in the list.
-                _pendingOrphanDeletion.Remove(orphan.ServiceName);
-                LogSvc.Warn($"Remove orphan failed ({orphan.TunnelName}): {ex.Message}");
-            }
-        }
 
         /// <summary>Normalises a version string for equality comparison — strips leading v, trims whitespace.</summary>
         private static string NormaliseVersion(string v)
@@ -1994,6 +2013,15 @@ namespace MasselGUARD
             else
                 items.Add(("🔓  Set as open network protection", success,
                     () => { ConfigSvc.Config.OpenWifiTunnel = entry.Name;
+                            ApplyDefaultTunnelChange(); }));
+
+            if (entry.IsConnectOnStart)
+                items.Add(("Clear connect on start", textMuted,
+                    () => { ConfigSvc.Config.ConnectOnStartTunnel = "";
+                            ApplyDefaultTunnelChange(); }));
+            else
+                items.Add(("🚀  Set as connect-on-start tunnel", accent,
+                    () => { ConfigSvc.Config.ConnectOnStartTunnel = entry.Name;
                             ApplyDefaultTunnelChange(); }));
 
             // ── Build the popup window ────────────────────────────────────────
@@ -2169,25 +2197,234 @@ namespace MasselGUARD
             RefreshWifiRulesPanel();
             _vm.RebuildTunnelList();
             RebuildTunnelGroups();
+            RebuildDnsPanel();   // rule DNS-usage counts may have changed
+        }
+
+        /// <summary>(id, name) pairs of the configured DNS profiles, for the rule dialog's picker.</summary>
+        private System.Collections.Generic.List<(string id, string name)> DnsProfileChoices()
+            => ConfigSvc.Config.DnsProfiles.Select(p => (p.Id, p.Name)).ToList();
+
+        /// <summary>Apply the feature-module flags to the main-window UI. Thin wrapper over the
+        /// central <see cref="UpdateContentLayout"/> (which also handles the log-collapse layout).</summary>
+        public void ApplyFeatureVisibility() => UpdateContentLayout();
+
+        /// <summary>
+        /// Single source of truth for the two-column content layout, from the feature flags
+        /// (<c>EnableTunnels</c>/<c>EnableDns</c>) and the log-collapse state (<c>_logPanelVisible</c>).
+        /// Left column = Tunnels (rows 0-2) over WiFi rules (rows 3-5); right column = DNS profiles
+        /// (rows 0-2, aligned row-for-row with Tunnels) over the Activity log (rows 3-5). See
+        /// docs/FeatureModules-Design.md.
+        /// </summary>
+        private void UpdateContentLayout()
+        {
+            bool tunnels    = ConfigSvc.Config.EnableTunnels;
+            bool dns        = ConfigSvc.Config.EnableDns;
+            bool logVisible = _logPanelVisible;
+
+            // ── Tunnels section (left, rows 0-2) ──
+            var tv = tunnels ? Visibility.Visible : Visibility.Collapsed;
+            if (TunnelsHeaderContent != null) TunnelsHeaderContent.Visibility = tv;
+            if (TunnelBoxBorder      != null) TunnelBoxBorder.Visibility      = tv;
+            if (TunnelButtonsPanel   != null) TunnelButtonsPanel.Visibility   = tv;
+
+            // ── DNS profiles section (right, rows 0-2). In DNS-only it fills the whole top width. ──
+            var dv = dns ? Visibility.Visible : Visibility.Collapsed;
+            // DNS panel column: with tunnels it sits top-RIGHT (col 2, beside tunnels); DNS-only it
+            // takes the LEFT (col 0, where tunnels was) so the log can use the whole right column.
+            bool both   = tunnels && dns;
+            int  dnsCol = (dns && !tunnels) ? 0 : 2;
+            foreach (var el in new FrameworkElement?[] { DnsHeaderPanel, DnsPanelBox, DnsButtonsPanel })
+            {
+                if (el == null) continue;
+                el.Visibility = dv;
+                Grid.SetColumn(el, dnsCol);
+                Grid.SetColumnSpan(el, 1);
+            }
+
+            // ── Activity log (right). Bottom-only (rows 3-5) ONLY when BOTH sections are on (DNS
+            //    occupies the top-right); otherwise it spans the whole right column (rows 0-5). ──
+            if (LogPanelGrid != null)
+            {
+                Grid.SetRow(LogPanelGrid, both ? 3 : 0);
+                Grid.SetRowSpan(LogPanelGrid, both ? 3 : 6);
+                LogPanelGrid.Visibility = logVisible ? Visibility.Visible : Visibility.Collapsed;
+            }
+            if (LogOpenBtn != null) LogOpenBtn.Visibility = logVisible ? Visibility.Collapsed : Visibility.Visible;
+
+            // ── Right column width: needed while the log is visible, or DNS is in the right column
+            //    (only when both sections are on). ──
+            bool rightColNeeded = logVisible || both;
+            MainContentGrid.ColumnDefinitions[1].Width = rightColNeeded ? new GridLength(10) : new GridLength(0);
+            MainContentGrid.ColumnDefinitions[2].Width = rightColNeeded ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+
+            // ── Widen WiFi rules into the empty bottom-right when the log is collapsed but DNS keeps
+            //    the right column (both on). Otherwise the whole right column collapses instead. ──
+            int wifiSpan = (both && !logVisible) ? 3 : 1;
+            if (WifiRulesHeader     != null) Grid.SetColumnSpan(WifiRulesHeader, wifiSpan);
+            if (WifiRulesPanel      != null) Grid.SetColumnSpan(WifiRulesPanel, wifiSpan);
+            if (WifiRuleButtonsPanel != null) Grid.SetColumnSpan(WifiRuleButtonsPanel, wifiSpan);
+
+            // ── Info panel: the Data-usage pane is per-tunnel — hide its toggle in DNS-only. ──
+            if (ModeUsageBtn != null) ModeUsageBtn.Visibility = tv;
+            if (!tunnels && ModeUsageBtn?.IsChecked == true) ModeUsageBtn.IsChecked = false;
+
+            if (dns) RebuildDnsPanel(); else _vm.RestoreDnsOverrides();
+            if (_colInitDone) { ResetTunnelColsToStars(); ResetWifiColsToStars(); ResetDnsColsToStars(); }
+            ApplyWifiColVisibility();   // drop the Tunnel/DNS columns when their feature is off
+        }
+
+        // ── DNS profiles panel buttons (main window) ────────────────────────────
+        private Models.DnsProfile? SelectedDnsPanelProfile()
+            => DnsProfilesPanelList?.SelectedItem is DnsProfileRow row
+                 ? ConfigSvc.Config.DnsProfiles.FirstOrDefault(p => p.Id == row.Id)
+                 : null;
+
+        private void DnsPanelList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            bool sel = DnsProfilesPanelList?.SelectedItem != null;
+            if (DnsPanelEditBtn   != null) DnsPanelEditBtn.IsEnabled   = sel;
+            if (DnsPanelDeleteBtn != null) DnsPanelDeleteBtn.IsEnabled = sel;
+        }
+
+        private void DnsPanelRevertDefault_Click(object sender, RoutedEventArgs e)
+        {
+            _vm.ManualRevertToDefault();
+            RebuildDnsPanel();
+        }
+
+        /// <summary>Open the More… dropdown (presets / import / export) under the button.</summary>
+        private void DnsPanelMore_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.Button b && b.ContextMenu != null)
+            {
+                b.ContextMenu.PlacementTarget = b;
+                b.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+                b.ContextMenu.IsOpen = true;
+            }
+        }
+
+        private void DnsPanelAdd_Click(object sender, RoutedEventArgs e)
+        {
+            var created = Views.DnsProfileEditor.Show(this, null);
+            if (created == null) return;
+            ConfigSvc.Config.DnsProfiles.Add(created);
+            ConfigSvc.Save();
+            LogSvc.Ok($"DNS profile added: {created.Name}");
+            RebuildDnsPanel();
+        }
+
+        private void DnsPanelEdit_Click(object sender, RoutedEventArgs e)
+        {
+            var sel = SelectedDnsPanelProfile();
+            if (sel == null) return;
+            var edited = Views.DnsProfileEditor.Show(this, sel);
+            if (edited == null) return;
+            int i = ConfigSvc.Config.DnsProfiles.FindIndex(p => p.Id == sel.Id);
+            if (i >= 0) ConfigSvc.Config.DnsProfiles[i] = edited;
+            ConfigSvc.Save();
+            LogSvc.Ok($"DNS profile updated: {edited.Name}");
+            RebuildDnsPanel();
+        }
+
+        private void DnsPanelDelete_Click(object sender, RoutedEventArgs e)
+        {
+            var sel = SelectedDnsPanelProfile();
+            if (sel == null) return;
+            if (!ShowThemedYesNo(Lang.T("ConfirmDeleteDnsProfile", sel.Name), Lang.T("BtnDnsRemoveProfile")))
+                return;
+            var cfg = ConfigSvc.Config;
+            cfg.DnsProfiles.RemoveAll(p => p.Id == sel.Id);
+            if (cfg.DefaultDnsProfileId  == sel.Id) cfg.DefaultDnsProfileId  = "";
+            if (cfg.OpenWifiDnsProfileId == sel.Id) cfg.OpenWifiDnsProfileId = "";
+            foreach (var r in cfg.Rules) if (r.DnsProfileId == sel.Id) r.DnsProfileId = "";
+            ConfigSvc.Save();
+            LogSvc.Ok($"DNS profile removed: {sel.Name}");
+            RefreshWifiRulesPanel();   // rule DNS labels may have changed
+            RebuildDnsPanel();
+        }
+
+        private void DnsPanelPresets_Click(object sender, RoutedEventArgs e)
+        {
+            var existing = ConfigSvc.Config.DnsProfiles.Select(p => p.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            int added = 0;
+            foreach (var p in Models.DnsProfile.BuiltInPresets())
+                if (existing.Add(p.Name)) { ConfigSvc.Config.DnsProfiles.Add(p); added++; }
+            if (added == 0) return;
+            ConfigSvc.Save();
+            LogSvc.Ok($"DNS presets added: {added}");
+            RebuildDnsPanel();
+        }
+
+        private void DnsPanelExport_Click(object sender, RoutedEventArgs e)
+        {
+            if (ConfigSvc.Config.DnsProfiles.Count == 0) return;
+            var dlg = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "DNS profiles (*.json)|*.json",
+                FileName = "dns-profiles.json",
+            };
+            if (dlg.ShowDialog(this) != true) return;
+            try
+            {
+                var json = System.Text.Json.JsonSerializer.Serialize(
+                    ConfigSvc.Config.DnsProfiles,
+                    new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                System.IO.File.WriteAllText(dlg.FileName, json);
+                LogSvc.Ok($"Exported {ConfigSvc.Config.DnsProfiles.Count} DNS profile(s).");
+            }
+            catch (Exception ex) { LogSvc.Warn($"DNS export failed: {ex.Message}"); }
+        }
+
+        private void DnsPanelImport_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Filter = "DNS profiles (*.json)|*.json|All files (*.*)|*.*",
+            };
+            if (dlg.ShowDialog(this) != true) return;
+            try
+            {
+                var imported = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.List<Models.DnsProfile>>(
+                    System.IO.File.ReadAllText(dlg.FileName));
+                if (imported == null) return;
+                var existing = ConfigSvc.Config.DnsProfiles.Select(p => p.Name)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                int added = 0;
+                foreach (var p in imported)
+                {
+                    if (string.IsNullOrWhiteSpace(p.Name) || !existing.Add(p.Name)) continue;  // skip blanks / dup names
+                    p.Id = Guid.NewGuid().ToString("N");   // fresh id to avoid collisions
+                    ConfigSvc.Config.DnsProfiles.Add(p);
+                    added++;
+                }
+                if (added > 0) { ConfigSvc.Save(); RebuildDnsPanel(); }
+                LogSvc.Ok($"Imported {added} DNS profile(s).");
+            }
+            catch (Exception ex) { LogSvc.Warn($"DNS import failed: {ex.Message}"); }
         }
 
         private void WifiRuleAdd_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new Views.RuleDialog(
                 WifiSvc.CurrentSsid,
-                tunnels: GetTunnelNames())
+                tunnels: GetTunnelNames(),
+                dnsProfiles: DnsProfileChoices(),
+                dnsEnabled: ConfigSvc.Config.EnableDns,
+                tunnelsEnabled: ConfigSvc.Config.EnableTunnels)
                 { Owner = this };
             if (dlg.ShowDialog() != true) return;
             var rule = new Models.TunnelRule
             {
-                Kind        = dlg.ResultKind,
-                Name        = dlg.ResultName,
-                Ssid        = dlg.ResultSsid,
-                Tunnel      = dlg.ResultTunnel,
-                StartTime   = dlg.ResultStartTime,
-                EndTime     = dlg.ResultEndTime,
-                Days        = dlg.ResultDays,
-                TrustedWhen = dlg.ResultTrustedWhen,
+                Kind         = dlg.ResultKind,
+                Name         = dlg.ResultName,
+                Ssid         = dlg.ResultSsid,
+                Tunnel       = dlg.ResultTunnel,
+                StartTime    = dlg.ResultStartTime,
+                EndTime      = dlg.ResultEndTime,
+                Days         = dlg.ResultDays,
+                TrustedWhen  = dlg.ResultTrustedWhen,
+                DnsProfileId = dlg.ResultDnsProfileId,
             };
             ConfigSvc.Config.Rules.Add(rule);
             LogSvc.Ok($"Rule added: {rule.RuleName}");
@@ -2213,7 +2450,11 @@ namespace MasselGUARD
                 existingStart:  rule.StartTime,
                 existingEnd:    rule.EndTime,
                 existingDays:   rule.Days,
-                existingTrustedWhen: rule.TrustedWhen)
+                existingTrustedWhen: rule.TrustedWhen,
+                dnsProfiles:    DnsProfileChoices(),
+                existingDnsProfileId: rule.DnsProfileId,
+                dnsEnabled:     ConfigSvc.Config.EnableDns,
+                tunnelsEnabled: ConfigSvc.Config.EnableTunnels)
                 { Owner = this };
             if (dlg.ShowDialog() != true) return;
             rule.Kind        = dlg.ResultKind;
@@ -2224,6 +2465,7 @@ namespace MasselGUARD
             rule.EndTime     = dlg.ResultEndTime;
             rule.Days        = dlg.ResultDays;
             rule.TrustedWhen = dlg.ResultTrustedWhen;
+            rule.DnsProfileId = dlg.ResultDnsProfileId;
             if (dlg.ResultNewCounterValue >= 0) rule.ExecutionCount = dlg.ResultNewCounterValue;
             LogSvc.Ok($"Rule updated: {rule.RuleName}");
             if (dlg.ResultNewCounterValue >= 0)
@@ -2372,9 +2614,11 @@ namespace MasselGUARD
                 _            => "",
             };
             string curOpen    = ConfigSvc.Config.OpenWifiTunnel;
+            string curStart   = ConfigSvc.Config.ConnectOnStartTunnel;
 
             var defaultPicker = MakeRow("⚡", Lang.T("BehaviourDefaultAction"),   curDefault, noneItem, disconnectItem);
             var openPicker    = MakeRow("🔓", Lang.T("BehaviourOpenProtection"), curOpen,    clearItem);
+            var startPicker   = MakeRow("🚀", Lang.T("BehaviourConnectOnStart"), curStart,   clearItem);
 
             // Separator
             panel.Children.Add(new System.Windows.Controls.Border
@@ -2415,8 +2659,9 @@ namespace MasselGUARD
             btnCancel.Click += (_, _) => popup.Close();
             btnSave.Click   += (_, _) =>
             {
-                var defSel  = defaultPicker.SelectedItem as string ?? "";
-                var openSel = openPicker.SelectedItem   as string ?? "";
+                var defSel   = defaultPicker.SelectedItem as string ?? "";
+                var openSel  = openPicker.SelectedItem   as string ?? "";
+                var startSel = startPicker.SelectedItem  as string ?? "";
 
                 if (defSel == disconnectItem)
                 {
@@ -2434,7 +2679,8 @@ namespace MasselGUARD
                     ConfigSvc.Config.DefaultTunnel = defSel;
                 }
 
-                ConfigSvc.Config.OpenWifiTunnel = openSel == clearItem ? "" : openSel;
+                ConfigSvc.Config.OpenWifiTunnel      = openSel  == clearItem ? "" : openSel;
+                ConfigSvc.Config.ConnectOnStartTunnel = startSel == clearItem ? "" : startSel;
 
                 ConfigSvc.Save();
                 NotifyAllBadges();
@@ -2623,6 +2869,7 @@ namespace MasselGUARD
                 "Action" => _ruleSortAsc ? src.OrderBy(r => r.ActionLabel)   : src.OrderByDescending(r => r.ActionLabel),
                 "Count"  => _ruleSortAsc ? src.OrderBy(r => r.ExecutionCount): src.OrderByDescending(r => r.ExecutionCount),
                 "Tunnel" => _ruleSortAsc ? src.OrderBy(r => r.TunnelName)    : src.OrderByDescending(r => r.TunnelName),
+                "Dns"    => _ruleSortAsc ? src.OrderBy(r => r.DnsProfileName): src.OrderByDescending(r => r.DnsProfileName),
                 _        => src,
             };
 
@@ -2632,6 +2879,7 @@ namespace MasselGUARD
         private void RuleSort_Action(object s, RoutedEventArgs e) => RuleSort("Action");
         private void RuleSort_Count (object s, RoutedEventArgs e) => RuleSort("Count");
         private void RuleSort_Tunnel(object s, RoutedEventArgs e) => RuleSort("Tunnel");
+        private void RuleSort_Dns   (object s, RoutedEventArgs e) => RuleSort("Dns");
 
         private void RuleSort(string col)
         {
@@ -2649,6 +2897,7 @@ namespace MasselGUARD
             RuleArrowAction.Text = _ruleSortCol == "Action" ? (_ruleSortAsc ? asc : desc) : "";
             RuleArrowCount.Text  = _ruleSortCol == "Count"  ? (_ruleSortAsc ? asc : desc) : "";
             RuleArrowTunnel.Text = _ruleSortCol == "Tunnel" ? (_ruleSortAsc ? asc : desc) : "";
+            if (RuleArrowDns != null) RuleArrowDns.Text = _ruleSortCol == "Dns" ? (_ruleSortAsc ? asc : desc) : "";
         }
 
         private sealed class WifiRuleRow
@@ -2659,7 +2908,14 @@ namespace MasselGUARD
             public string Ssid          { get; }
             public string ActionLabel   { get; }
             public string TunnelName    { get; }
+            public string DnsProfileName { get; private set; } = "";
             public bool   IsHighlighted { get; }
+
+            // Separate columns: Tunnel (🔒) and DNS profile (🌐). Each hides when its value is empty.
+            public Visibility TunnelVisibility =>
+                string.IsNullOrEmpty(TunnelName) ? Visibility.Collapsed : Visibility.Visible;
+            public Visibility DnsVisibility =>
+                string.IsNullOrEmpty(DnsProfileName) ? Visibility.Collapsed : Visibility.Visible;
             public int    ExecutionCount { get; }
             public string ExecutionCountText => ExecutionCount > 0 ? ExecutionCount.ToString() : "0";
 
@@ -2713,11 +2969,17 @@ namespace MasselGUARD
                 RuleName       = r.RuleName;
                 Ssid           = r.SsidDisplay;
                 TunnelName     = string.IsNullOrEmpty(r.Tunnel) ? "" : r.Tunnel;
-                ActionLabel    = string.IsNullOrEmpty(r.Tunnel)
-                    ? Lang.T("RuleActionDisconnect")
-                    : Lang.T("RuleActionConnect");
+                // The tunnel action depends only on the Tunnel field — an empty tunnel disconnects,
+                // whether or not the rule also sets a DNS profile (DNS is a separate column/axis).
+                ActionLabel    = !string.IsNullOrEmpty(r.Tunnel)
+                    ? Lang.T("RuleActionConnect")
+                    : Lang.T("RuleActionDisconnect");
                 IsHighlighted  = filter != null && r.Tunnel == filter;
                 ExecutionCount = r.ExecutionCount;
+                // Resolve the DNS profile name (if the rule sets one) for the combined column.
+                if (!string.IsNullOrEmpty(r.DnsProfileId))
+                    DnsProfileName = main.ConfigSvc.Config.DnsProfiles
+                        .FirstOrDefault(p => p.Id == r.DnsProfileId)?.Name ?? "";
             }
         }
 
@@ -2746,12 +3008,33 @@ namespace MasselGUARD
         }
 
         /// <summary>
-        /// Warns (once at startup) when MasselGUARD is running from a cloud-synced folder
-        /// (OneDrive). Local WireGuard tunnels are hosted by a service running as LocalSystem,
-        /// which cannot access per-user cloud paths — so a local tunnel start fails with
-        /// "Element not found". Only shown when at least one local tunnel is configured
-        /// (companion-only setups are unaffected); always logged.
+        /// Warns (once at startup) when MasselGUARD is <b>reliably</b> detected to be running from a
+        /// cloud-synced folder (OneDrive). Tunnels are hosted by a service running as LocalSystem,
+        /// which cannot access per-user cloud paths — so a tunnel start fails with "Element not found".
+        /// Only shown when the location is positively confirmed cloud-synced AND at least one tunnel
+        /// is configured; when the folder status can't be detected, nothing is logged or shown.
         /// </summary>
+        /// <summary>Startup helper: connect the "connect on start" tunnel
+        /// (<see cref="Models.AppConfig.ConnectOnStartTunnel"/>) if one is set and not already up.
+        /// Invoked from App.OnStartup; pairs with <see cref="Models.AppConfig.StartMinimized"/> for a
+        /// connect-and-hide launch.</summary>
+        public async void ConnectStartupTunnels()
+        {
+            try
+            {
+                var name = ConfigSvc.Config.ConnectOnStartTunnel;
+                if (string.IsNullOrWhiteSpace(name)) return;
+                var entry = _vm.TunnelList.FirstOrDefault(t =>
+                    t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                if (entry == null) { LogSvc.Warn($"Startup auto-connect: tunnel '{name}' not found."); return; }
+                if (entry.IsActive) return;
+                LogSvc.Info($"Startup: connecting '{name}'…");
+                entry.PendingConnectSource = "Startup";
+                await entry.ConnectAsync();
+            }
+            catch (Exception ex) { LogSvc.Warn($"Startup auto-connect failed: {ex.Message}"); }
+        }
+
         private void WarnIfCloudSyncedLocation()
         {
             try
@@ -2761,8 +3044,8 @@ namespace MasselGUARD
 
                 LogSvc.Warn(Lang.T("CloudSyncLog", dir));
 
-                bool hasLocal = _vm?.TunnelList?.Any(t => t.IsLocal) ?? false;
-                if (!hasLocal) return;
+                bool hasTunnels = _vm?.TunnelList?.Count > 0;
+                if (!hasTunnels) return;
 
                 ShowThemedInfo(Lang.T("CloudSyncWarning", dir), Lang.T("CloudSyncTitle"));
             }
@@ -2770,30 +3053,41 @@ namespace MasselGUARD
         }
 
         /// <summary>
-        /// True when <paramref name="dir"/> lives under a cloud-sync root (OneDrive personal or
-        /// business), contains "OneDrive" in its path, or sits under a reparse point / cloud
-        /// placeholder — any of which makes it inaccessible to a LocalSystem service.
+        /// True only when <paramref name="dir"/> can be <b>reliably</b> confirmed as a cloud-synced
+        /// location that a LocalSystem service can't read: it sits under an actual OneDrive root
+        /// (from the OneDrive* environment variables), or the folder (or an ancestor) carries a cloud
+        /// placeholder / reparse-point attribute. The weak "path text contains OneDrive" heuristic was
+        /// removed — when the status can't be positively detected, we return false and stay quiet
+        /// rather than nagging on every start.
         /// </summary>
         private static bool IsCloudSyncedPath(string dir)
         {
+            // Reliable signal 1: under a real OneDrive root (the env var points at the sync root).
             foreach (var v in new[] { "OneDrive", "OneDriveCommercial", "OneDriveConsumer" })
             {
                 var root = Environment.GetEnvironmentVariable(v);
                 if (!string.IsNullOrEmpty(root) &&
-                    dir.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                    dir.StartsWith(root.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
                     return true;
             }
-            if (dir.IndexOf("OneDrive", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            // Reliable signal 2: a cloud placeholder / offline / reparse attribute up the tree.
+            const System.IO.FileAttributes RecallOnOpen       = (System.IO.FileAttributes)0x00040000;
+            const System.IO.FileAttributes RecallOnDataAccess = (System.IO.FileAttributes)0x00400000;
             try
             {
                 var di = new System.IO.DirectoryInfo(dir);
                 while (di != null)
                 {
-                    if ((di.Attributes & System.IO.FileAttributes.ReparsePoint) != 0) return true;
+                    var a = di.Attributes;
+                    if ((a & System.IO.FileAttributes.ReparsePoint) != 0
+                        || (a & System.IO.FileAttributes.Offline) != 0
+                        || (a & RecallOnOpen) != 0
+                        || (a & RecallOnDataAccess) != 0)
+                        return true;
                     di = di.Parent;
                 }
             }
-            catch { /* attribute probe is best-effort */ }
+            catch { /* can't read attributes → can't detect → stay quiet */ }
             return false;
         }
 
@@ -3658,33 +3952,6 @@ namespace MasselGUARD
             return (res, false);
         }
 
-        // ── WireGuard install dir detection ───────────────────────────────────
-        public static string? DetectWireGuardInstallDir()
-        {
-            try
-            {
-                using var key = Microsoft.Win32.Registry.LocalMachine
-                    .OpenSubKey(@"SOFTWARE\WireGuard");
-                if (key?.GetValue("InstallDirectory") is string d &&
-                    System.IO.Directory.Exists(d)) return d.TrimEnd('\\', '/');
-            }
-            catch { }
-            var def = @"C:\Program Files\WireGuard";
-            return System.IO.File.Exists(System.IO.Path.Combine(def, "wireguard.exe"))
-                ? def : null;
-        }
-
-        public static string? FindWireGuardExe()
-        {
-            var dir = DetectWireGuardInstallDir();
-            if (dir != null)
-            {
-                var p = System.IO.Path.Combine(dir, "wireguard.exe");
-                if (System.IO.File.Exists(p)) return p;
-            }
-            return null;
-        }
-
         // ══════════════════════════════════════════════════════════════════════
         //  Info / statistics section
         // ══════════════════════════════════════════════════════════════════════
@@ -3732,6 +3999,7 @@ namespace MasselGUARD
         // selected — no manual colour picking, and it scales to any number of tunnels/SSIDs.
         private readonly Dictionary<string, int> _chartColorIndex = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, int> _wifiColorIndex  = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> _dnsColorIndex   = new(StringComparer.OrdinalIgnoreCase);
 
         private static int ColorIndexFor(Dictionary<string, int> map, string name)
         {
@@ -3822,6 +4090,7 @@ namespace MasselGUARD
             _infoPanesReady = false;
             if (ModeTimelineBtn != null) ModeTimelineBtn.IsChecked = cfg.ShowTimelinePane;
             if (ModeUsageBtn    != null) ModeUsageBtn.IsChecked    = cfg.ShowUsagePane;
+            if (ModeDnsBtn      != null) ModeDnsBtn.IsChecked      = cfg.ShowDnsPane;
             _infoPanesReady = true;
             SetNavButtonsVisible(cfg.ShowTimelinePane);
             ApplyUsageWindowHeight();   // grow/shrink for the usage pane(s) on load + settings save
@@ -3881,6 +4150,10 @@ namespace MasselGUARD
 
         private bool UsageMode        => ConfigSvc.Config.ShowUsagePane;      // Data-usage pane shown
         private bool ShowTimelinePane => ConfigSvc.Config.ShowTimelinePane;   // Timeline pane shown
+        private bool DnsMode          => ConfigSvc.Config.ShowDnsPane;        // DNS pane shown
+
+        /// <summary>DNS profile/server names the user hid via the DNS legend pills.</summary>
+        private readonly HashSet<string> _hiddenDnsNames = new(StringComparer.OrdinalIgnoreCase);
 
         // False until ApplyInfoSectionMode has synced the pane toggles; suppresses persisting
         // while the two toggles are set programmatically (XAML default + restore).
@@ -3888,23 +4161,37 @@ namespace MasselGUARD
 
         private void RenderChart()
         {
-            bool t = ShowTimelinePane, u = UsageMode, both = t && u;
+            bool t = ShowTimelinePane, u = UsageMode, d = DnsMode;
+            int  shownCount = (t ? 1 : 0) + (u ? 1 : 0) + (d ? 1 : 0);
+            bool multi = shownCount >= 2;   // ≥2 panes → frame each as its own card with a gap
 
-            // Each pane is its own view; when BOTH show, give each a full card treatment (border +
-            // background + inner padding) and a gap between them, so they read as two individual views
-            // stacked under the single shared header bar. Solo, a pane sits flush (the outer card
-            // already frames it) — no double border, no double padding.
-            var frame   = new Thickness(both ? 1 : 0);
-            var pad     = both ? new Thickness(8, 6, 8, 6) : new Thickness(0);
-            var paneBg  = both ? (System.Windows.Media.Brush)FindResource("Surface")
+            // Each pane is its own view; when ≥2 show, give each a full card treatment (border +
+            // background + inner padding). Solo, a pane sits flush (the outer card frames it).
+            var frame  = new Thickness(multi ? 1 : 0);
+            var pad    = multi ? new Thickness(8, 6, 8, 6) : new Thickness(0);
+            var paneBg = multi ? (System.Windows.Media.Brush)FindResource("Surface")
                                : System.Windows.Media.Brushes.Transparent;
-            if (TimelinePaneHost != null) { TimelinePaneHost.Visibility = t ? Visibility.Visible : Visibility.Collapsed; TimelinePaneHost.BorderThickness = frame; TimelinePaneHost.Padding = pad; TimelinePaneHost.Background = paneBg; }
-            if (UsagePaneHost    != null) { UsagePaneHost.Visibility    = u ? Visibility.Visible : Visibility.Collapsed; UsagePaneHost.BorderThickness = frame; UsagePaneHost.Padding = pad; UsagePaneHost.Background = paneBg; }
-            if (PaneGap          != null) PaneGap.Visibility = both ? Visibility.Visible : Visibility.Collapsed;
+
+            // Stacked in declaration order: Usage, Timeline, DNS. Give each visible pane a top-gap
+            // margin except the first visible one, so consecutive panes are separated cleanly.
+            bool seen = false;
+            void Pane(Border? host, bool show)
+            {
+                if (host == null) return;
+                host.Visibility      = show ? Visibility.Visible : Visibility.Collapsed;
+                host.BorderThickness = frame;
+                host.Padding         = pad;
+                host.Background       = paneBg;
+                host.Margin          = new Thickness(0, (show && seen && multi) ? 8 : 0, 0, 0);
+                if (show) seen = true;
+            }
+            Pane(UsagePaneHost,    u);
+            Pane(TimelinePaneHost, t);
+            Pane(DnsPaneHost,      d);
 
             // The header bar stays; only the chart area + legend collapse when no pane is shown
             // (so the toggles remain reachable to switch a pane back on).
-            bool anyPane = t || u;
+            bool anyPane = t || u || d;
             var areaVis  = anyPane ? Visibility.Visible : Visibility.Collapsed;
             if (ChartCanvasArea != null) ChartCanvasArea.Visibility = areaVis;
             if (LegendRow       != null) LegendRow.Visibility       = areaVis;
@@ -3933,11 +4220,16 @@ namespace MasselGUARD
             if (u && UsageCanvas != null && UsageOverlayCanvas != null)
                 RenderUsageChart(UsageCanvas, UsageOverlayCanvas);
             if (t) RenderChartCore();
+            if (d && DnsPaneCanvas != null) RenderDnsChart(DnsPaneCanvas);
+            else DnsLegendPanel?.Children.Clear();
             if (!t && !u) { LegendPanel?.Children.Clear(); WifiLegendPanel?.Children.Clear(); }
 
             // Hide the "VPN" caption row when there are no tunnel chips (Wi-Fi hides itself in DrawWifiBand).
             if (VpnLegendGroup != null)
                 VpnLegendGroup.Visibility = (anyPane && LegendPanel != null && LegendPanel.Children.Count > 0)
+                    ? Visibility.Visible : Visibility.Collapsed;
+            if (DnsLegendContainer != null)
+                DnsLegendContainer.Visibility = (d && DnsLegendPanel != null && DnsLegendPanel.Children.Count > 0)
                     ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -4523,6 +4815,148 @@ namespace MasselGUARD
                 orderedSsids.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        // ── DNS pane (which DNS profile / resolver was active over time) ─────────
+        // Standalone pane (its own toggle), drawn into DnsPaneCanvas. Mirrors the
+        // timeline's grid + time-axis, draws one combined band of DNS-activation
+        // segments (profile name, or the actual resolver IP when no profile applied),
+        // and builds profile "pills" into DnsLegendPanel.
+        private void RenderDnsChart(System.Windows.Controls.Canvas canvas)
+        {
+            canvas.Children.Clear();
+            DnsLegendPanel?.Children.Clear();
+
+            double W = canvas.ActualWidth;
+            if (W < 20) { canvas.Height = 0; return; }
+
+            var now   = DateTime.Now;
+            var span  = ConfigSvc.Config.InfoTimeRangeDays == 31 ? TimeSpan.FromDays(31)
+                      : ConfigSvc.Config.InfoTimeRangeDays == 7  ? TimeSpan.FromDays(7)
+                      : TimeSpan.FromHours(24);
+            var start = now - span;
+
+            const double barH  = 16;
+            const double axisH = 20;
+            canvas.Height = barH + axisH;
+
+            double LocalX(DateTime dt) =>
+                Math.Clamp((dt - start).TotalSeconds / span.TotalSeconds * W, 0, W);
+
+            // ── DNS-activation entries in the window ──────────────────────────
+            // Content gate mirrors the timeline: Capture DNS (StoreDnsHistory) must be on to have
+            // data, and Show DNS (ShowDnsInChart) must be on to draw it. The header DNS pane toggle
+            // (ShowDnsPane) separately controls whether this pane is visible at all.
+            var entries = (ConfigSvc.Config.StoreDnsHistory && ConfigSvc.Config.ShowDnsInChart)
+                ? HistorySvc.DnsEntries
+                    .Where(e => !string.IsNullOrEmpty(e.Name)
+                             && (e.ConnectedAt >= start || (e.DisconnectedAt ?? now) >= start))
+                    .OrderBy(e => e.ConnectedAt).ToList()
+                : new List<Models.DnsHistoryEntry>();
+
+            var names = entries.Select(e => e.Name)
+                .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(n => n).ToList();
+
+            // Re-derive each colour from the theme each render, keyed stably per name.
+            var dnsColors = new Dictionary<string, System.Windows.Media.Color>(StringComparer.OrdinalIgnoreCase);
+            foreach (var nm in names)
+                dnsColors[nm] = TimelinePaletteColor(ColorIndexFor(_dnsColorIndex, nm), wifi: false);
+
+            // ── Vertical grid lines + time-axis labels ────────────────────────
+            var gridBrush = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromArgb(28, 128, 128, 128));
+            var tickBrush = (System.Windows.Media.Brush)FindResource("TextMuted");
+            int rangeDays = ConfigSvc.Config.InfoTimeRangeDays;
+            const int tickCount = 7;
+            for (int t = 0; t <= tickCount; t++)
+            {
+                double frac = (double)t / tickCount;
+                double x    = Math.Round(frac * W);
+                canvas.Children.Add(new System.Windows.Shapes.Line
+                {
+                    X1 = x, Y1 = 0, X2 = x, Y2 = barH,
+                    Stroke = gridBrush, StrokeThickness = 1,
+                });
+                var dt  = start + TimeSpan.FromSeconds(span.TotalSeconds * frac);
+                var lbl = rangeDays >= 7 ? dt.ToString("ddd\nHH:mm") : dt.ToString("HH:mm");
+                var tb  = new TextBlock
+                {
+                    Text = lbl, FontSize = 8, Foreground = tickBrush,
+                    TextAlignment = TextAlignment.Center, LineHeight = 9,
+                };
+                tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                double lblW = tb.DesiredSize.Width;
+                System.Windows.Controls.Canvas.SetLeft(tb, Math.Clamp(x - lblW / 2, 0, Math.Max(0, W - lblW)));
+                System.Windows.Controls.Canvas.SetTop(tb, barH);
+                canvas.Children.Add(tb);
+            }
+
+            // ── Row background ────────────────────────────────────────────────
+            var bgRect = new System.Windows.Shapes.Rectangle
+            {
+                Width = W, Height = barH,
+                Fill  = new System.Windows.Media.SolidColorBrush(
+                            System.Windows.Media.Color.FromArgb(10, 128, 128, 128)),
+            };
+            System.Windows.Controls.Canvas.SetLeft(bgRect, 0);
+            System.Windows.Controls.Canvas.SetTop(bgRect, 0);
+            canvas.Children.Add(bgRect);
+
+            // ── Segments ──────────────────────────────────────────────────────
+            foreach (var e in entries)
+            {
+                if (_hiddenDnsNames.Contains(e.Name)) continue;
+                if (!dnsColors.TryGetValue(e.Name, out var color)) continue;
+
+                var segStart = e.ConnectedAt < start ? start : e.ConnectedAt;
+                var segEnd   = e.DisconnectedAt.HasValue
+                    ? (e.DisconnectedAt.Value > now ? now : e.DisconnectedAt.Value) : now;
+                if (segEnd <= segStart) continue;
+
+                double x1 = LocalX(segStart);
+                double x2 = LocalX(segEnd);
+                double sw = Math.Max(x2 - x1, 1.5);
+
+                var fillRect = new System.Windows.Shapes.Rectangle
+                {
+                    Width   = sw, Height = barH - 2,
+                    Fill    = new System.Windows.Media.SolidColorBrush(
+                                  System.Windows.Media.Color.FromArgb(210, color.R, color.G, color.B)),
+                    RadiusX = 1, RadiusY = 1,
+                    ToolTip = e.Name,
+                };
+                System.Windows.Controls.Canvas.SetLeft(fillRect, x1);
+                System.Windows.Controls.Canvas.SetTop(fillRect, 1);
+                canvas.Children.Add(fillRect);
+
+                if (sw > 18)
+                {
+                    double luminance = color.R * 0.299 + color.G * 0.587 + color.B * 0.114;
+                    var lbl = new TextBlock
+                    {
+                        Text = e.Name, FontSize = 7,
+                        Foreground = new System.Windows.Media.SolidColorBrush(
+                            luminance > 140 ? System.Windows.Media.Colors.Black : System.Windows.Media.Colors.White),
+                        Width = sw - 4, TextTrimming = TextTrimming.CharacterEllipsis,
+                        VerticalAlignment = VerticalAlignment.Center,
+                    };
+                    System.Windows.Controls.Canvas.SetLeft(lbl, x1 + 2);
+                    System.Windows.Controls.Canvas.SetTop(lbl, (barH - 9) / 2.0);
+                    canvas.Children.Add(lbl);
+                }
+            }
+
+            // ── Pills (legend chips) ──────────────────────────────────────────
+            foreach (var nm in names)
+            {
+                var captured = nm;
+                DnsLegendPanel?.Children.Add(BuildLegendChip(
+                    nm, dnsColors[nm], _hiddenDnsNames.Contains(nm), null,
+                    () => { if (!_hiddenDnsNames.Remove(captured)) _hiddenDnsNames.Add(captured); RenderChart(); }));
+            }
+        }
+
+        private void DnsPaneCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+            => RefreshInfoSection();
+
         // ── Legend chips ──────────────────────────────────────────────────────
 
         /// <summary>
@@ -4580,6 +5014,7 @@ namespace MasselGUARD
 
         private double _usageHeightDelta;   // px currently added to the window for the usage pane(s)
         private const double UsageExtraHeight = 100;
+        private const double DnsExtraHeight   = 60;   // slim DNS band + axis + gap
 
         // Switch between Timeline and Data-usage views.
         private void InfoMode_Changed(object sender, RoutedEventArgs e)
@@ -4591,6 +5026,7 @@ namespace MasselGUARD
             if (ConfigSvc?.Config == null || ChartOverlayCanvas == null || !_infoPanesReady) return;
             ConfigSvc.Config.ShowTimelinePane = ModeTimelineBtn?.IsChecked == true;
             ConfigSvc.Config.ShowUsagePane    = ModeUsageBtn?.IsChecked == true;
+            ConfigSvc.Config.ShowDnsPane      = ModeDnsBtn?.IsChecked == true;
             ConfigSvc.Save();
             SetNavButtonsVisible(ConfigSvc.Config.ShowTimelinePane);
             ApplyUsageWindowHeight();
@@ -4609,6 +5045,14 @@ namespace MasselGUARD
             // Extra height wanted: the usage chart is taller than the timeline, and showing BOTH
             // stacked needs more still. none → 0; usage only → 1×; timeline + usage → 1.6×.
             double want = UsageMode ? (ShowTimelinePane ? UsageExtraHeight * 1.6 : UsageExtraHeight) : 0;
+            // The DNS pane is a slim band + axis; when shown alongside another pane it also gains the
+            // stacked-card frame/padding/gap, so reserve enough for band + card overhead — otherwise
+            // the content grid shrinks below its floor and clips the WiFi-rules buttons row.
+            if (DnsMode)
+            {
+                want += DnsExtraHeight;
+                if (ShowTimelinePane || UsageMode) want += 24;   // stacked-card overhead for the DNS row
+            }
             if (want > _usageHeightDelta)
             {
                 double add = Math.Max(0, Math.Min(want - _usageHeightDelta,
@@ -4706,6 +5150,9 @@ namespace MasselGUARD
                     Margin = new Thickness(0, 2, 0, 0),
                 });
             }
+
+            // DNS profile / resolver active during this bucket (midpoint).
+            AddDnsRow(tipStack, b.Start + TimeSpan.FromTicks((b.End - b.Start).Ticks / 2));
 
             var tipBorder = new Border
             {
@@ -4831,6 +5278,9 @@ namespace MasselGUARD
             // ── WiFi active at this time ──────────────────────────────────────
             AddWifiRow(tipStack, hoverT);
 
+            // ── DNS profile / resolver active at this time ────────────────────
+            AddDnsRow(tipStack, hoverT);
+
             // Nothing to show — only crosshair, no tooltip
             if (tipStack.Children.Count <= 1) return;
 
@@ -4939,6 +5389,72 @@ namespace MasselGUARD
                     ? $"{(int)dur.TotalMinutes}m"
                     : $"{(int)dur.TotalHours}h {dur.Minutes:D2}m";
                 text = $"{entry.Ssid}{openTag}   {connLocal:HH:mm}–{discLocal:HH:mm} ({durStr})";
+            }
+
+            row.Children.Add(new TextBlock
+            {
+                Text              = text,
+                FontSize          = 9,
+                Foreground        = (System.Windows.Media.Brush)FindResource("TextMuted"),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+
+            tipStack.Children.Add(row);
+            return true;
+        }
+
+        private Models.DnsHistoryEntry? GetDnsAt(DateTime t)
+        {
+            var tUtc = t.Kind == DateTimeKind.Utc ? t : t.ToUniversalTime();
+            return HistorySvc.DnsEntries.LastOrDefault(e =>
+                !string.IsNullOrEmpty(e.Name) &&
+                e.ConnectedAt <= tUtc &&
+                (e.DisconnectedAt == null || e.DisconnectedAt.Value >= tUtc));
+        }
+
+        /// <summary>
+        /// Appends a DNS row to <paramref name="tipStack"/> naming the DNS profile /
+        /// resolver active at <paramref name="t"/>. Returns true if a row was added.
+        /// </summary>
+        private bool AddDnsRow(StackPanel tipStack, DateTime t, bool addSeparator = true)
+        {
+            if (!ConfigSvc.Config.StoreDnsHistory) return false;
+            var entry = GetDnsAt(t);
+            if (entry == null) return false;
+
+            if (addSeparator && tipStack.Children.Count > 1)
+            {
+                tipStack.Children.Add(new System.Windows.Shapes.Rectangle
+                {
+                    Height = 1,
+                    Fill   = (System.Windows.Media.Brush)FindResource("BorderColor"),
+                    Margin = new Thickness(0, 4, 0, 4),
+                });
+            }
+
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 1, 0, 1) };
+            row.Children.Add(new TextBlock
+            {
+                Text              = "🌐",
+                FontSize          = 8,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin            = new Thickness(0, 0, 4, 0),
+            });
+
+            var connLocal = entry.ConnectedAt.ToLocalTime();
+            string text;
+            if (entry.DisconnectedAt == null)
+            {
+                text = $"{entry.Name}   since {connLocal:HH:mm}";
+            }
+            else
+            {
+                var discLocal = entry.DisconnectedAt.Value.ToLocalTime();
+                var dur = entry.DisconnectedAt.Value - entry.ConnectedAt;
+                string durStr = dur.TotalMinutes < 60
+                    ? $"{(int)dur.TotalMinutes}m"
+                    : $"{(int)dur.TotalHours}h {dur.Minutes:D2}m";
+                text = $"{entry.Name}   {connLocal:HH:mm}–{discLocal:HH:mm} ({durStr})";
             }
 
             row.Children.Add(new TextBlock
@@ -5099,6 +5615,7 @@ namespace MasselGUARD
 
             // WiFi row at the session's midpoint time (hoverT is UTC-based here)
             AddWifiRow(tipStack, hoverT);
+            AddDnsRow(tipStack, hoverT);
 
             var tipBorder = new Border
             {
@@ -5128,6 +5645,30 @@ namespace MasselGUARD
 
         private System.Windows.Threading.DispatcherTimer? _colSaveTimer;
         private bool _colInitDone;
+        private bool _wifTunnelCol = true;   // WiFi-rules Tunnel column shown (tunnels feature on)
+        private bool _wifDnsCol    = true;   // WiFi-rules DNS column shown (DNS feature on)
+
+        /// <summary>Show/hide the WiFi-rules Tunnel (col 4) and DNS (col 5) columns from the feature
+        /// flags — a disabled feature drops its column (header button, splitter, and the cell width).</summary>
+        private void ApplyWifiColVisibility()
+        {
+            _wifTunnelCol = ConfigSvc.Config.EnableTunnels;
+            _wifDnsCol    = ConfigSvc.Config.EnableDns;
+
+            var tunVis = _wifTunnelCol ? Visibility.Visible : Visibility.Collapsed;
+            var dnsVis = _wifDnsCol    ? Visibility.Visible : Visibility.Collapsed;
+            if (WifTunnelHeaderBtn != null) WifTunnelHeaderBtn.Visibility = tunVis;
+            if (WifTunnelSplitter  != null) WifTunnelSplitter.Visibility  = tunVis;
+            if (WifDnsHeaderBtn    != null) WifDnsHeaderBtn.Visibility     = dnsVis;
+            if (WifDnsSplitter     != null) WifDnsSplitter.Visibility      = dnsVis;
+
+            if (!_colInitDone) return;   // widths get set by InitColumnWidths, which re-calls this
+
+            if (!_wifTunnelCol) { WifColDef4.MinWidth = 0; WifColDef4.Width = new GridLength(0); _vm.WifCol4W = 0; }
+            else if (WifColDef4.Width.Value == 0) WifColDef4.Width = new GridLength(2, GridUnitType.Star);
+            if (!_wifDnsCol)    { WifColDef5.MinWidth = 0; WifColDef5.Width = new GridLength(0); _vm.WifCol5W = 0; }
+            else if (WifColDef5.Width.Value == 0) WifColDef5.Width = new GridLength(2, GridUnitType.Star);
+        }
 
         private void InitColumnWidths()
         {
@@ -5151,6 +5692,13 @@ namespace MasselGUARD
                 _vm.TunCol2W = cfg.TunColRulesW;
                 _vm.TunCol3W = cfg.TunColActionW;
             }
+            // Discard saved WiFi widths from before the DNS column existed (5-column layout).
+            if (cfg.WifiColNameW > 0 && cfg.WifiColDnsW <= 0)
+            {
+                cfg.WifiColNameW = cfg.WifiColSsidW = cfg.WifiColActionW =
+                    cfg.WifiColCountW = cfg.WifiColTunnelW = 0;
+                ConfigSvc.Save();
+            }
             if (cfg.WifiColNameW > 0)
             {
                 WifColDef0.Width = new GridLength(cfg.WifiColNameW);
@@ -5158,13 +5706,29 @@ namespace MasselGUARD
                 WifColDef2.Width = new GridLength(cfg.WifiColActionW);
                 WifColDef3.Width = new GridLength(cfg.WifiColCountW);
                 WifColDef4.Width = new GridLength(cfg.WifiColTunnelW);
+                WifColDef5.Width = new GridLength(cfg.WifiColDnsW);
                 _vm.WifCol0W = cfg.WifiColNameW;
                 _vm.WifCol1W = cfg.WifiColSsidW;
                 _vm.WifCol2W = cfg.WifiColActionW;
                 _vm.WifCol3W = cfg.WifiColCountW;
                 _vm.WifCol4W = cfg.WifiColTunnelW;
+                _vm.WifCol5W = cfg.WifiColDnsW;
+            }
+            if (cfg.DnsColNameW > 0)
+            {
+                DnsColDef0.Width = new GridLength(cfg.DnsColNameW);
+                DnsColDef1.Width = new GridLength(cfg.DnsColTypeW);
+                DnsColDef2.Width = new GridLength(cfg.DnsColServerW);
+                DnsColDef3.Width = new GridLength(cfg.DnsColRulesW);
+                DnsColDef4.Width = new GridLength(cfg.DnsColEnableW);
+                _vm.DnsCol0W = cfg.DnsColNameW;
+                _vm.DnsCol1W = cfg.DnsColTypeW;
+                _vm.DnsCol2W = cfg.DnsColServerW;
+                _vm.DnsCol3W = cfg.DnsColRulesW;
+                _vm.DnsCol4W = cfg.DnsColEnableW;
             }
             _colInitDone = true;
+            ApplyWifiColVisibility();   // apply feature-based column drops now that widths are live
         }
 
         private void TunnelColGrid_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -5189,20 +5753,41 @@ namespace MasselGUARD
 
         private void WifiColGrid_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            double total = e.NewSize.Width;
-            double min   = Math.Floor(total * 0.10);
-            WifColDef0.MinWidth = min; WifColDef1.MinWidth = min;
-            WifColDef2.MinWidth = min; WifColDef3.MinWidth = 30; WifColDef4.MinWidth = min;
-            WifColDef0.MaxWidth = total - min - min - 30 - min;
-            WifColDef1.MaxWidth = total - min - min - 30 - min;
-            WifColDef2.MaxWidth = total - min - min - 30 - min;
-            WifColDef4.MaxWidth = total - min - min - min - 30;
+            double total  = e.NewSize.Width;
+            double min    = Math.Floor(total * 0.08);   // up to 6 columns → smaller share each
+            double tunMin = _wifTunnelCol ? min : 0;
+            double dnsMin = _wifDnsCol    ? min : 0;
+            WifColDef0.MinWidth = min; WifColDef1.MinWidth = min; WifColDef2.MinWidth = min;
+            WifColDef3.MinWidth = 30;  WifColDef4.MinWidth = tunMin; WifColDef5.MinWidth = dnsMin;
+            double reserved = min + min + min + 30 + tunMin + dnsMin;   // sum of every column's minimum
+            WifColDef0.MaxWidth = total - (reserved - min);
+            WifColDef1.MaxWidth = total - (reserved - min);
+            WifColDef2.MaxWidth = total - (reserved - min);
+            if (_wifTunnelCol) WifColDef4.MaxWidth = total - (reserved - tunMin);
+            if (_wifDnsCol)    WifColDef5.MaxWidth = total - (reserved - dnsMin);
             if (WifColDef0.ActualWidth > 0)
             {
                 if (WifColDef0.ActualWidth < min) WifColDef0.Width = new GridLength(min);
                 if (WifColDef1.ActualWidth < min) WifColDef1.Width = new GridLength(min);
                 if (WifColDef2.ActualWidth < min) WifColDef2.Width = new GridLength(min);
-                if (WifColDef4.ActualWidth < min) WifColDef4.Width = new GridLength(min);
+                if (_wifTunnelCol && WifColDef4.ActualWidth < min) WifColDef4.Width = new GridLength(min);
+                if (_wifDnsCol && WifColDef5.ActualWidth < min) WifColDef5.Width = new GridLength(min);
+            }
+        }
+
+        private void DnsColGrid_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            double total = e.NewSize.Width;
+            // Name (0) and Server (2) are the flexible star columns; Type (1)/Rules (3)/Enable (4) fixed.
+            DnsColDef0.MinWidth = 60; DnsColDef1.MinWidth = 50; DnsColDef2.MinWidth = 60;
+            DnsColDef3.MinWidth = 40; DnsColDef4.MinWidth = 60;
+            double reserved = 50 + 40 + 60;   // Type + Rules + Enable minimums
+            DnsColDef0.MaxWidth = Math.Max(60, total - reserved - 60);
+            DnsColDef2.MaxWidth = Math.Max(60, total - reserved - 60);
+            if (DnsColDef0.ActualWidth > 0)
+            {
+                if (DnsColDef0.ActualWidth < 60) DnsColDef0.Width = new GridLength(60);
+                if (DnsColDef2.ActualWidth < 60) DnsColDef2.Width = new GridLength(60);
             }
         }
 
@@ -5222,6 +5807,15 @@ namespace MasselGUARD
             WifColDef2.Width = new GridLength(1.5, GridUnitType.Star);
             // WifColDef3 stays fixed 40px
             WifColDef4.Width = new GridLength(2,   GridUnitType.Star);
+            WifColDef5.Width = new GridLength(2,   GridUnitType.Star);
+        }
+
+        private void ResetDnsColsToStars()
+        {
+            DnsColDef0.Width = new GridLength(2.4, GridUnitType.Star);   // Name
+            // DnsColDef1 (Type) stays fixed 70px
+            DnsColDef2.Width = new GridLength(3,   GridUnitType.Star);   // Server
+            // DnsColDef3 (Rules) fixed 52px, DnsColDef4 (Enable) fixed 76px
         }
 
         // Fires continuously during layout; only act when widths have settled.
@@ -5243,16 +5837,34 @@ namespace MasselGUARD
         {
             if (!_colInitDone) return;
             double w0 = WifColDef0.ActualWidth, w1 = WifColDef1.ActualWidth,
-                   w2 = WifColDef2.ActualWidth, w3 = WifColDef3.ActualWidth, w4 = WifColDef4.ActualWidth;
+                   w2 = WifColDef2.ActualWidth, w3 = WifColDef3.ActualWidth,
+                   w4 = WifColDef4.ActualWidth, w5 = WifColDef5.ActualWidth;
             if (w0 < 1) return;
             if (Math.Abs(w0 - _vm.WifCol0W) < 0.5 && Math.Abs(w1 - _vm.WifCol1W) < 0.5 &&
                 Math.Abs(w2 - _vm.WifCol2W) < 0.5 && Math.Abs(w3 - _vm.WifCol3W) < 0.5 &&
-                Math.Abs(w4 - _vm.WifCol4W) < 0.5) return;
+                Math.Abs(w4 - _vm.WifCol4W) < 0.5 && Math.Abs(w5 - _vm.WifCol5W) < 0.5) return;
             _vm.WifCol0W = Math.Max(WifColDef0.MinWidth, w0);
             _vm.WifCol1W = Math.Max(WifColDef1.MinWidth, w1);
             _vm.WifCol2W = Math.Max(WifColDef2.MinWidth, w2);
             _vm.WifCol3W = Math.Max(WifColDef3.MinWidth, w3);
             _vm.WifCol4W = Math.Max(WifColDef4.MinWidth, w4);
+            _vm.WifCol5W = Math.Max(WifColDef5.MinWidth, w5);
+        }
+
+        private void DnsColGrid_LayoutUpdated(object sender, EventArgs e)
+        {
+            if (!_colInitDone) return;
+            double w0 = DnsColDef0.ActualWidth, w1 = DnsColDef1.ActualWidth, w2 = DnsColDef2.ActualWidth,
+                   w3 = DnsColDef3.ActualWidth, w4 = DnsColDef4.ActualWidth;
+            if (w0 < 1) return;
+            if (Math.Abs(w0 - _vm.DnsCol0W) < 0.5 && Math.Abs(w1 - _vm.DnsCol1W) < 0.5 &&
+                Math.Abs(w2 - _vm.DnsCol2W) < 0.5 && Math.Abs(w3 - _vm.DnsCol3W) < 0.5 &&
+                Math.Abs(w4 - _vm.DnsCol4W) < 0.5) return;
+            _vm.DnsCol0W = Math.Max(DnsColDef0.MinWidth, w0);
+            _vm.DnsCol1W = Math.Max(DnsColDef1.MinWidth, w1);
+            _vm.DnsCol2W = Math.Max(DnsColDef2.MinWidth, w2);
+            _vm.DnsCol3W = Math.Max(DnsColDef3.MinWidth, w3);
+            _vm.DnsCol4W = Math.Max(DnsColDef4.MinWidth, w4);
         }
 
         // ColSplitter_MouseUp fires when a drag ends — immediate save (skip debounce).
@@ -5286,6 +5898,12 @@ namespace MasselGUARD
             cfg.WifiColActionW = _vm.WifCol2W;
             cfg.WifiColCountW  = _vm.WifCol3W;
             cfg.WifiColTunnelW = _vm.WifCol4W;
+            cfg.WifiColDnsW    = _vm.WifCol5W;
+            cfg.DnsColNameW    = _vm.DnsCol0W;
+            cfg.DnsColTypeW    = _vm.DnsCol1W;
+            cfg.DnsColServerW  = _vm.DnsCol2W;
+            cfg.DnsColRulesW   = _vm.DnsCol3W;
+            cfg.DnsColEnableW  = _vm.DnsCol4W;
             ConfigSvc.Save();
         }
 

@@ -20,6 +20,8 @@ namespace MasselGUARD.Views
         public string ResultStartTime { get; private set; } = "09:00";
         public string ResultEndTime   { get; private set; } = "17:00";
         public List<int> ResultDays   { get; private set; } = new();
+        /// <summary>DNS profile id to apply on this rule ("" = none, <see cref="MasselGUARD.Models.DnsProfile.AutomaticId"/> = DHCP).</summary>
+        public string ResultDnsProfileId { get; private set; } = "";
         /// <summary>
         /// New counter value to persist. -1 = no change; 0 = cleared; any positive = new value.
         /// </summary>
@@ -39,9 +41,18 @@ namespace MasselGUARD.Views
                           string existingStart  = "09:00",
                           string existingEnd    = "17:00",
                           List<int>? existingDays = null,
-                          string existingTrustedWhen = "untrusted")
+                          string existingTrustedWhen = "untrusted",
+                          List<(string id, string name)>? dnsProfiles = null,
+                          string existingDnsProfileId = "",
+                          bool dnsEnabled = true,
+                          bool tunnelsEnabled = true)
         {
             InitializeComponent();
+
+            // Hide the DNS picker when the DNS module is off (tunnels-only); hide the tunnel
+            // picker when the tunnel module is off (DNS-only → the rule is trigger → DNS).
+            if (!dnsEnabled)     DnsPickerPanel.Visibility    = Visibility.Collapsed;
+            if (!tunnelsEnabled) TunnelPickerPanel.Visibility = Visibility.Collapsed;
             _currentSsid  = currentSsid;
             _displayCount = executionCount;
 
@@ -50,6 +61,17 @@ namespace MasselGUARD.Views
             TunnelBox.Items.Add("");   // blank = disconnect
             if (tunnels != null)
                 foreach (var t in tunnels) TunnelBox.Items.Add(t);
+
+            // Populate DNS profile dropdown (none / automatic / each profile). Tag carries the id.
+            DnsProfileBox.Items.Clear();
+            DnsProfileBox.Items.Add(new ComboBoxItem { Content = Lang.T("DnsProfileNone"),      Tag = MasselGUARD.Models.DnsProfile.NoneId });
+            DnsProfileBox.Items.Add(new ComboBoxItem { Content = Lang.T("DnsProfileAutomatic"), Tag = MasselGUARD.Models.DnsProfile.AutomaticId });
+            if (dnsProfiles != null)
+                foreach (var (id, name) in dnsProfiles)
+                    DnsProfileBox.Items.Add(new ComboBoxItem { Content = name, Tag = id });
+            DnsProfileBox.SelectedIndex = 0;
+            foreach (ComboBoxItem it in DnsProfileBox.Items)
+                if ((it.Tag as string) == existingDnsProfileId) { DnsProfileBox.SelectedItem = it; break; }
 
             bool editMode = existingKind == "schedule" || existingKind == "trusted"
                             || !string.IsNullOrEmpty(existingSsid);
@@ -327,6 +349,7 @@ namespace MasselGUARD.Views
             bool trusted  = TypeTrustedRadio?.IsChecked  == true;
             ResultKind   = schedule ? "schedule" : trusted ? "trusted" : "wifi";
             ResultTunnel = TunnelBox.Text.Trim();
+            ResultDnsProfileId = (DnsProfileBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
 
             if (trusted)
             {
