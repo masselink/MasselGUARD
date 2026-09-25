@@ -5450,10 +5450,6 @@ namespace MasselGUARD
 
         // ── Chart hover (crosshair + tooltip) ────────────────────────────────
 
-        private double _usageHeightDelta;   // px currently added to the window for the usage pane(s)
-        private const double UsageExtraHeight = 100;
-        private const double DnsExtraHeight   = 60;   // slim DNS band + axis + gap
-
         // Switch between Timeline and Data-usage views.
         private void InfoMode_Changed(object sender, RoutedEventArgs e)
         {
@@ -5472,36 +5468,15 @@ namespace MasselGUARD
         }
 
         /// <summary>
-        /// The Data-usage view is taller than the timeline, which would squeeze the
-        /// tunnel list. Grow the window by <see cref="UsageExtraHeight"/> while it is
-        /// shown and shrink back on return, so the list keeps its size. No-op when
-        /// maximized (there's already room).
+        /// The info panel (InfoSectionRow) is Auto-sized to whichever chart panes are shown, so we
+        /// simply snap the window to the measured content: it grows for the taller usage / DNS panes
+        /// and collapses back when a pane is turned off, with no gap left behind. (Replaces the old
+        /// fixed-delta heuristic, which couldn't match the real pane heights and left dead space.)
         /// </summary>
         private void ApplyUsageWindowHeight()
         {
             if (WindowState != WindowState.Normal) return;
-            // Extra height wanted: the usage chart is taller than the timeline, and showing BOTH
-            // stacked needs more still. none → 0; usage only → 1×; timeline + usage → 1.6×.
-            double want = UsageMode ? (ShowTimelinePane ? UsageExtraHeight * 1.6 : UsageExtraHeight) : 0;
-            // The DNS pane is a slim band + axis; when shown alongside another pane it also gains the
-            // stacked-card frame/padding/gap, so reserve enough for band + card overhead - otherwise
-            // the content grid shrinks below its floor and clips the WiFi-rules buttons row.
-            if (DnsMode)
-            {
-                want += DnsExtraHeight;
-                if (ShowTimelinePane || UsageMode) want += 24;   // stacked-card overhead for the DNS row
-            }
-            if (want > _usageHeightDelta)
-            {
-                double add = Math.Max(0, Math.Min(want - _usageHeightDelta,
-                    System.Windows.SystemParameters.WorkArea.Height - Height));
-                Height += add; _usageHeightDelta += add;
-            }
-            else if (want < _usageHeightDelta)
-            {
-                double sub = Math.Max(0, Math.Min(_usageHeightDelta - want, Height - MinHeight));
-                Height -= sub; _usageHeightDelta -= sub;
-            }
+            QueueWindowSizeSync(true);
         }
 
         private void SetNavButtonsVisible(bool visible)

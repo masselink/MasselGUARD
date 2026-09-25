@@ -1406,10 +1406,10 @@
                                                          IsChecked="True" Margin="0,0,12,0"
                                                          VerticalAlignment="Center"
                                                          Checked="InfoMode_Changed" Unchecked="InfoMode_Changed"
-                                                         ToolTip="Toggle the timeline - can be shown together with Data usage">
+                                                         ToolTip="Toggle the WireGuard timeline - can be shown together with Data usage">
                                                 <ToggleButton.Style><Style TargetType="ToggleButton"><Setter Property="Template"><Setter.Value>
                                                     <ControlTemplate TargetType="ToggleButton">
-                                                        <TextBlock x:Name="tb" Text="TIMELINE" FontSize="{DynamicResource Theme.FontSize.Tiny}" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand" VerticalAlignment="Center"/>
+                                                        <TextBlock x:Name="tb" Text="WIREGUARD TIMELINE" FontSize="{DynamicResource Theme.FontSize.Tiny}" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand" VerticalAlignment="Center"/>
                                                         <ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="tb" Property="Foreground" Value="{DynamicResource Accent}"/><Setter TargetName="tb" Property="FontWeight" Value="SemiBold"/></Trigger></ControlTemplate.Triggers>
                                                     </ControlTemplate>
                                                 </Setter.Value></Setter></Style></ToggleButton.Style>
