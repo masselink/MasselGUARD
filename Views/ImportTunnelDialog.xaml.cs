@@ -19,7 +19,7 @@ namespace MasselGUARD.Views
 {
     public partial class ImportTunnelDialog : Window
     {
-        // Raised when a config is successfully parsed — name + raw config text +
+        // Raised when a config is successfully parsed - name + raw config text +
         // source + optional original file path + optional embedded MasselGUARD
         // settings (non-null only when the imported file carried them).
         public event Action<string, string, string, string?, Services.TunnelExportService.TunnelSettings?>? TunnelImported;
@@ -54,7 +54,7 @@ namespace MasselGUARD.Views
 
                 if (filePath.EndsWith(Services.TunnelExportService.EncryptedExtension, StringComparison.OrdinalIgnoreCase))
                 {
-                    // Password-encrypted MasselGUARD export — prompt and decrypt.
+                    // Password-encrypted MasselGUARD export - prompt and decrypt.
                     var bytes = File.ReadAllBytes(filePath);
                     var pw = PasswordPromptWindow.Ask(this,
                         Lang.T("ImportEncryptedTitle"), Lang.T("ImportEncryptedPrompt"));
@@ -88,7 +88,7 @@ namespace MasselGUARD.Views
                 if (baseName.EndsWith(".conf", StringComparison.OrdinalIgnoreCase))
                     baseName = Path.GetFileNameWithoutExtension(baseName); // strip .conf from .conf.dpapi
 
-                // Resolve a name collision — overwrite, save under a new name, or cancel.
+                // Resolve a name collision - overwrite, save under a new name, or cancel.
                 // (MainWindow replaces an existing tunnel when the name matches, so
                 //  "overwrite" keeps the name and "rename" picks a fresh unique one.)
                 if (_alreadyImported.Contains(baseName))
@@ -523,8 +523,8 @@ namespace MasselGUARD.Views
             int w = Math.Max(1, (int)Math.Round(p1.X - p0.X));
             int h = Math.Max(1, (int)Math.Round(p1.Y - p0.Y));
 
-            // Hide the overlay (and the owning import dialog) via Opacity — NOT Visibility,
-            // which would reset this window's "shown as dialog" state — so neither is
+            // Hide the overlay (and the owning import dialog) via Opacity - NOT Visibility,
+            // which would reset this window's "shown as dialog" state - so neither is
             // captured if it sits over the QR, then grab the region.
             var owner = Owner;
             Opacity = 0;

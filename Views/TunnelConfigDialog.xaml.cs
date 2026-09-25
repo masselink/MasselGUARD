@@ -76,7 +76,7 @@ namespace MasselGUARD.Views
             if (!string.IsNullOrEmpty(existingConfig))
                 LoadFromConfig(existingConfig);
 
-            // Populate group picker — use passed names or fall back to live config
+            // Populate group picker - use passed names or fall back to live config
             GroupPicker.Items.Clear();
             GroupPicker.Items.Add("");
             var groups = groupNames
@@ -127,7 +127,7 @@ namespace MasselGUARD.Views
             if (SplitRangesBox != null && existingSplitRanges != null)
                 SplitRangesBox.Text = string.Join("\r\n", existingSplitRanges);
             // SplitApps has no UI in 4.0.0 (per-app split is a later 4.x). The stored value
-            // is preserved untouched — MainWindow never overwrites StoredTunnel.SplitApps here.
+            // is preserved untouched - MainWindow never overwrites StoredTunnel.SplitApps here.
             _ = existingSplitApps;
             UpdateSplitEnabled();
             UpdateSplitPreview();
@@ -236,7 +236,7 @@ namespace MasselGUARD.Views
             return sb.ToString();
         }
 
-        // ── When switching to raw tab — sync fields → raw ─────────────────────
+        // ── When switching to raw tab - sync fields → raw ─────────────────────
         // Raw shows the WireGuard config AND the MasselGUARD settings as readable
         // "# MasselGUARD-<Key>:" comment lines, so Raw is a full editable view.
         private void TabRaw_GotFocus(object sender, RoutedEventArgs e)
@@ -252,7 +252,7 @@ namespace MasselGUARD.Views
                 ? AutoReconnectToggle?.IsChecked == true
                 : (bool?)null;
 
-            // Split — mirror TunnelSettings.From(): omit the off/empty default so the Raw
+            // Split - mirror TunnelSettings.From(): omit the off/empty default so the Raw
             // view (and any round-trip through it) matches a toolbar export exactly.
             var splitMode   = SplitModeExcludeRadio?.IsChecked == true ? "exclude"
                             : SplitModeIncludeRadio?.IsChecked == true ? "include"
@@ -353,7 +353,7 @@ namespace MasselGUARD.Views
         {
             // If on raw tab, split off the MasselGUARD settings, parse the config
             // back to fields (for validation), and apply the settings to the form
-            // controls — Raw is authoritative for what it contains.
+            // controls - Raw is authoritative for what it contains.
             string? rawConfig = null;
             if (TabRaw.IsSelected)
             {
@@ -384,7 +384,7 @@ namespace MasselGUARD.Views
             }
 
             ResultName   = name;
-            // Store only the clean WireGuard config — the MasselGUARD settings live
+            // Store only the clean WireGuard config - the MasselGUARD settings live
             // in the StoredTunnel fields (captured below from the controls).
             ResultConfig = TabRaw.IsSelected ? rawConfig! : BuildConfigFromFields();
             ResultGroup  = GroupPicker.SelectedItem as string ?? "";
@@ -406,7 +406,7 @@ namespace MasselGUARD.Views
             ResultWeeklyCapHideRing  = WeeklyHideRingChk?.IsChecked  == true;
             ResultMonthlyCapHideRing = MonthlyHideRingChk?.IsChecked == true;
 
-            // Split tunneling — capture mode + ranges (validated when a mode is active).
+            // Split tunneling - capture mode + ranges (validated when a mode is active).
             ResultSplitMode = SplitModeExcludeRadio?.IsChecked == true ? "exclude"
                             : SplitModeIncludeRadio?.IsChecked == true ? "include"
                             : "off";
@@ -471,8 +471,8 @@ namespace MasselGUARD.Views
             try { effective = Services.CidrMath.ComputeEffectiveAllowedIPs(baseIps, mode, ranges); }
             catch { effective = baseIps; }
 
-            string baseShown = string.IsNullOrEmpty(baseIps)      ? "—" : baseIps;
-            string effShown  = string.IsNullOrEmpty(effective)    ? "—" : effective;
+            string baseShown = string.IsNullOrEmpty(baseIps)      ? "-" : baseIps;
+            string effShown  = string.IsNullOrEmpty(effective)    ? "-" : effective;
             SplitPreviewBox.Text =
                 $"{Lang.T("SplitPreviewBase")}: {baseShown}\r\n{Lang.T("SplitPreviewEffective")}: {effShown}";
         }

@@ -103,7 +103,7 @@ namespace MasselGUARD.Views
 
         /// <summary>
         /// previewDark/previewLight are relative to the theme's own <c>path</c> folder (a leading
-        /// "/" is accepted and ignored, per SHARED_THEMES_REPO_GUIDE.md) — they no longer repeat
+        /// "/" is accepted and ignored, per SHARED_THEMES_REPO_GUIDE.md) - they no longer repeat
         /// the "themes/&lt;id&gt;/" prefix, so it has to be re-added here before fetching.
         /// </summary>
         private static string ResolvePreviewPath(string themePath, string previewRelative)
@@ -232,7 +232,7 @@ namespace MasselGUARD.Views
                 StatusText.Text = Lang.T("ThemeBrowserInstalled", it.Name, n);
 
                 // If this theme is the one currently active, its FontFamily/asset resources
-                // may still reference the files we just overwrote — a private font in
+                // may still reference the files we just overwrote - a private font in
                 // particular is resolved lazily by WPF, so the old FontFamily object can throw
                 // FileNotFoundException the next time anything renders text with it, at any
                 // point afterward. Reload it now so every resource is rebound to the new files.
@@ -334,7 +334,7 @@ namespace MasselGUARD.Views
         }
 
         /// <summary>True when this theme is installed and the manifest's "version" is newer
-        /// than what was recorded at install time — see ThemeDownloadService.CheckForThemeUpdatesAsync.</summary>
+        /// than what was recorded at install time - see ThemeDownloadService.CheckForThemeUpdatesAsync.</summary>
         private bool _updateAvailable;
         public bool UpdateAvailable
         {

@@ -9,7 +9,7 @@ using System.Windows.Media;
 namespace MasselGUARD.Views
 {
     /// <summary>
-    /// Asks for a policy name and which settings to LOCK — grouped by section, each item
+    /// Asks for a policy name and which settings to LOCK - grouped by section, each item
     /// individually checkable, with a section header that selects/clears its items. The exported
     /// <c>.masselguard</c> always contains all settings (for import); the ticked items go under
     /// <c>Locked.settings</c> and are what a preset enforces. Labels are English (admin tool).

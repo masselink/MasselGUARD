@@ -5,7 +5,7 @@ using System.Windows.Media;
 namespace MasselGUARD.Views
 {
     /// <summary>
-    /// Thin horizontal progress-bar variant of <see cref="CapRings"/> — up to three slim stacked
+    /// Thin horizontal progress-bar variant of <see cref="CapRings"/> - up to three slim stacked
     /// bars (day · week · month), each shown only when its cap is set, filling 0→100% as usage → cap
     /// (accent, amber ≥85%, red ≥100%). No inline text: the day/week/month breakdown and exact
     /// figures live in the hover tooltip (<c>CapRingsTooltip</c>). Disconnected tunnels render greyed

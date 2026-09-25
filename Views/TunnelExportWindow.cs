@@ -10,8 +10,8 @@ using MasselGUARD.Services;
 namespace MasselGUARD.Views
 {
     /// <summary>
-    /// "Export tunnel" dialog. Offers three formats — a plain <c>.conf</c>, a
-    /// password-encrypted <c>.mgconf</c>, or a QR code — with an option to embed
+    /// "Export tunnel" dialog. Offers three formats - a plain <c>.conf</c>, a
+    /// password-encrypted <c>.mgconf</c>, or a QR code - with an option to embed
     /// the tunnel's MasselGUARD-specific settings (group, scripts, kill-switch,
     /// auto-reconnect, data cap, notes). QR is standard-only, so it can never
     /// carry the extras; that checkbox greys out when QR is picked.
@@ -184,7 +184,7 @@ namespace MasselGUARD.Views
 
             _pwPanel.Visibility = encrypted ? Visibility.Visible : Visibility.Collapsed;
 
-            // QR is standard-only — it cannot carry MasselGUARD settings.
+            // QR is standard-only - it cannot carry MasselGUARD settings.
             _cbSettings.IsEnabled = !qr;
             if (qr) _cbSettings.IsChecked = false;
 
@@ -246,7 +246,7 @@ namespace MasselGUARD.Views
                 if (dlg.ShowDialog() != true) return;
                 try
                 {
-                    // No BOM — WireGuard's parser rejects one.
+                    // No BOM - WireGuard's parser rejects one.
                     File.WriteAllText(dlg.FileName, exportText,
                         new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
                 }

@@ -30,7 +30,7 @@ namespace MasselGUARD.Views
                 bitmap.EndInit();
                 AppIcon.Source = bitmap;
             }
-            catch { /* icon not critical — toast still shows */ }
+            catch { /* icon not critical - toast still shows */ }
         }
 
         private void PositionNearTray()

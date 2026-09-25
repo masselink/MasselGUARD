@@ -129,7 +129,7 @@
                                     </ListBox.ItemContainerStyle>
                                 </ListBox>
 
-                                <!-- Custom themes header — themes whose JSON file doesn't follow the
+                                <!-- Custom themes header - themes whose JSON file doesn't follow the
                                      app's own "theme.json" naming (community-repo "<id>-theme.json"
                                      distribution files, or anything copied in by hand). Collapsed
                                      when empty. -->
@@ -468,6 +468,137 @@
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                    Foreground="{DynamicResource TextPrimary}"
                                                    VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                    </Grid>
+
+                                    <!-- DNS badge (tray shield overlay) transparency -->
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="40"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding [TBDnsBadgeTransparency], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"
+                                                   ToolTip="{Binding [TBDnsBadgeTransparencyTip], Source={x:Static local:Lang.Instance}}"/>
+                                        <Slider Grid.Column="1" x:Name="DnsBadgeOpacitySlider"
+                                                Minimum="0.1" Maximum="1.0" SmallChange="0.05"
+                                                VerticalAlignment="Center"
+                                                ValueChanged="DnsBadgeOpacity_Changed"/>
+                                        <TextBlock Grid.Column="2" x:Name="DnsBadgeOpacityLabel"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                    </Grid>
+
+                                    <!-- DNS badge size (% of the tray icon) -->
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="40"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding [TBDnsBadgeSize], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"
+                                                   ToolTip="{Binding [TBDnsBadgeSizeTip], Source={x:Static local:Lang.Instance}}"/>
+                                        <Slider Grid.Column="1" x:Name="DnsBadgeSizeSlider"
+                                                Minimum="10" Maximum="100" SmallChange="5"
+                                                VerticalAlignment="Center"
+                                                ValueChanged="DnsBadgeSize_Changed"/>
+                                        <TextBlock Grid.Column="2" x:Name="DnsBadgeSizeLabel"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextPrimary}"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                    </Grid>
+
+                                    <!-- DNS badge position (3×3 anchor grid) -->
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="120"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding [TBDnsBadgePosition], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"
+                                                   ToolTip="{Binding [TBDnsBadgePositionTip], Source={x:Static local:Lang.Instance}}"/>
+                                        <UniformGrid Grid.Column="1" x:Name="DnsBadgePosGrid" Rows="3" Columns="3"
+                                                     Width="66" Height="66" HorizontalAlignment="Left">
+                                            <UniformGrid.Resources>
+                                                <Style TargetType="RadioButton">
+                                                    <Setter Property="Margin" Value="2"/>
+                                                    <Setter Property="Cursor" Value="Hand"/>
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="RadioButton">
+                                                                <Border x:Name="b" Background="{DynamicResource CardBg}"
+                                                                        BorderBrush="{DynamicResource BorderColor}"
+                                                                        BorderThickness="1" CornerRadius="2"/>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                                                    </Trigger>
+                                                                    <Trigger Property="IsChecked" Value="True">
+                                                                        <Setter TargetName="b" Property="Background" Value="{DynamicResource Accent}"/>
+                                                                        <Setter TargetName="b" Property="BorderBrush" Value="{DynamicResource Accent}"/>
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Style>
+                                            </UniformGrid.Resources>
+                                            <RadioButton GroupName="DnsPos" Tag="top-left"      Checked="DnsBadgePos_Checked"/>
+                                            <RadioButton GroupName="DnsPos" Tag="top-center"    Checked="DnsBadgePos_Checked"/>
+                                            <RadioButton GroupName="DnsPos" Tag="top-right"     Checked="DnsBadgePos_Checked"/>
+                                            <RadioButton GroupName="DnsPos" Tag="middle-left"   Checked="DnsBadgePos_Checked"/>
+                                            <RadioButton GroupName="DnsPos" Tag="center"        Checked="DnsBadgePos_Checked"/>
+                                            <RadioButton GroupName="DnsPos" Tag="middle-right"  Checked="DnsBadgePos_Checked"/>
+                                            <RadioButton GroupName="DnsPos" Tag="bottom-left"   Checked="DnsBadgePos_Checked"/>
+                                            <RadioButton GroupName="DnsPos" Tag="bottom-center" Checked="DnsBadgePos_Checked"/>
+                                            <RadioButton GroupName="DnsPos" Tag="bottom-right"  Checked="DnsBadgePos_Checked"/>
+                                        </UniformGrid>
+                                    </Grid>
+
+                                    <!-- DNS badge custom SVG path - per variant. Empty → built-in shield.
+                                         The path is a silhouette filled with the DNS badge colour. -->
+                                    <TextBlock Text="{Binding [TBDnsBadgeSvg], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimary}" Margin="0,2,0,2"/>
+                                    <TextBlock Text="{Binding [TBDnsBadgeSvgTip], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="44"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding [WizardThemeDark], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="DnsBadgePathDarkBox" FontFamily="Consolas" FontSize="10"
+                                                 Padding="6,4" VerticalAlignment="Center" TextChanged="DnsBadgePathDark_Changed"/>
+                                        <Border Grid.Column="2" Width="40" Height="40" Margin="6,0,0,0" CornerRadius="4"
+                                                Background="#1C2128" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1">
+                                            <Path x:Name="DnsBadgePreviewDark" Stretch="Uniform" Margin="5"/>
+                                        </Border>
+                                    </Grid>
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="44"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding [WizardThemeLight], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" x:Name="DnsBadgePathLightBox" FontFamily="Consolas" FontSize="10"
+                                                 Padding="6,4" VerticalAlignment="Center" TextChanged="DnsBadgePathLight_Changed"/>
+                                        <Border Grid.Column="2" Width="40" Height="40" Margin="6,0,0,0" CornerRadius="4"
+                                                Background="#F0F0F0" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1">
+                                            <Path x:Name="DnsBadgePreviewLight" Stretch="Uniform" Margin="5"/>
+                                        </Border>
                                     </Grid>
 
                                     <!-- Per-colour transparency (alpha channel baked into that colour's hex) -->
@@ -874,7 +1005,7 @@
                                                 Click="ClearBgDark_Click"/>
                                     </Grid>
 
-                                    <!-- Stretch mode (shared — layout, not per-variant) -->
+                                    <!-- Stretch mode (shared - layout, not per-variant) -->
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                         <TextBlock Text="{Binding [TBStretch], Source={x:Static local:Lang.Instance}}"
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"

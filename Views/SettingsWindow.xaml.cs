@@ -21,10 +21,10 @@ namespace MasselGUARD.Views
         private bool   _loading   = true;
         private bool   _themeSwitching = false;
 
-        // _originalTheme removed — CancelThemePreview/CancelFontPreview/OnClosing
+        // _originalTheme removed - CancelThemePreview/CancelFontPreview/OnClosing
         // now call _main.ApplyThemeFromConfig() which reads the committed config and
         // correctly handles both system colours and custom theme files.
-        private Models.AppConfig _draft = new(); // staged copy — only written to config on Save
+        private Models.AppConfig _draft = new(); // staged copy - only written to config on Save
 
         /// <summary>Set before ShowDialog() to open on a specific tab. Defaults to "General".</summary>
         public string InitialTab { get; set; } = "General";
@@ -46,9 +46,9 @@ namespace MasselGUARD.Views
             Loaded += (_, _) =>
             {
                 _loading = false;
-                // Create a deep copy of the LIVE config — all edits go here until Save is pressed
+                // Create a deep copy of the LIVE config - all edits go here until Save is pressed
                 _draft = _main.ConfigSvc.Config.DeepClone();
-                // Shared-theme repo URL lives on the Advanced page — seed it once here so it
+                // Shared-theme repo URL lives on the Advanced page - seed it once here so it
                 // is populated regardless of which tab opens first.
                 if (SharedThemesRepoBox != null)
                 {
@@ -56,11 +56,7 @@ namespace MasselGUARD.Views
                     SharedThemesRepoBox.Text = _draft.SharedThemesRepoUrl ?? "";
                     _loading = false;
                 }
-                ApplyFeatureTabVisibility();   // hide module tabs that are turned off
-                // Don't open a hidden tab.
-                if ((InitialTab == "Tunnels" && !_main.ConfigSvc.Config.EnableTunnels) ||
-                    (InitialTab == "Dns"     && !_main.ConfigSvc.Config.EnableDns))
-                    InitialTab = "General";
+                ApplyFeatureTabVisibility();   // module tabs stay visible; sync their feature stubs
                 ShowTab(InitialTab);
                 RefreshUpdateState();
                 RefreshLocalizedStrings();
@@ -92,12 +88,19 @@ namespace MasselGUARD.Views
         private void TabBtn_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not Button btn) return;
+            // Dispatch by control name - Tag can't be used here because ShowTab repurposes each
+            // button's Tag for the "Active" highlight state. (TabBtnDns must be listed or the DNS
+            // tab falls through to General.)
             string tab = btn.Name switch
             {
                 "TabBtnTunnels"       => "Tunnels",
                 "TabBtnWifi"          => "Wifi",
+                "TabBtnDns"           => "Dns",
                 "TabBtnAppearance"    => "Appearance",
-                "TabBtnAdvanced"      => "Advanced",
+                "TabBtnStartup"       => "Startup",
+                "TabBtnDiagnostics"   => "Diagnostics",
+                "TabBtnNotifications" => "Notifications",
+                "TabBtnLog"           => "Log",
                 "TabBtnHistory"       => "History",
                 "TabBtnAbout"         => "About",
                 _                     => "General",
@@ -123,7 +126,10 @@ namespace MasselGUARD.Views
             PageWifi.Visibility       = tab == "Wifi"       ? Visibility.Visible : Visibility.Collapsed;
             PageDns.Visibility        = tab == "Dns"        ? Visibility.Visible : Visibility.Collapsed;
             PageAppearance.Visibility = tab == "Appearance" ? Visibility.Visible : Visibility.Collapsed;
-            PageAdvanced.Visibility   = tab == "Advanced"   ? Visibility.Visible : Visibility.Collapsed;
+            PageStartup.Visibility    = tab == "Startup"    ? Visibility.Visible : Visibility.Collapsed;
+            PageDiagnostics.Visibility= tab == "Diagnostics"? Visibility.Visible : Visibility.Collapsed;
+            PageNotifications.Visibility = tab == "Notifications" ? Visibility.Visible : Visibility.Collapsed;
+            PageLog.Visibility        = tab == "Log"        ? Visibility.Visible : Visibility.Collapsed;
             PageHistory.Visibility    = tab == "History"    ? Visibility.Visible : Visibility.Collapsed;
             PageAbout.Visibility      = tab == "About"      ? Visibility.Visible : Visibility.Collapsed;
 
@@ -132,27 +138,36 @@ namespace MasselGUARD.Views
             TabBtnWifi.Tag       = tab == "Wifi"       ? "Active" : null;
             TabBtnDns.Tag        = tab == "Dns"        ? "Active" : null;
             TabBtnAppearance.Tag = tab == "Appearance" ? "Active" : null;
-            TabBtnAdvanced.Tag   = tab == "Advanced"   ? "Active" : null;
+            TabBtnStartup.Tag    = tab == "Startup"     ? "Active" : null;
+            TabBtnDiagnostics.Tag= tab == "Diagnostics" ? "Active" : null;
+            TabBtnNotifications.Tag = tab == "Notifications" ? "Active" : null;
+            TabBtnLog.Tag        = tab == "Log"        ? "Active" : null;
             TabBtnHistory.Tag    = tab == "History"    ? "Active" : null;
             TabBtnAbout.Tag      = tab == "About"      ? "Active" : null;
 
-            if (tab == "General")    { RefreshFeatureControls(); RefreshGroupList(); SyncStartWithWindows(); SyncStartupOptions(); SyncConfirmOnClose(); }
+            // Feature-off stubs: the WireGuard / DNS tabs stay visible but swap their content for
+            // a short "enable this feature" panel when the module is turned off.
+            ApplyFeatureStubs();
+
+            if (tab == "General")    { RefreshFeatureControls(); RefreshGroupList(); }
             if (tab == "Tunnels")    { RefreshGroupList(); SyncArMode(); SyncKsMode(); SyncSkipTunnelValidation(); }
             if (tab == "Wifi")       { RefreshAutomationControls(); ApplyFeatureSectionVisibility(); }
-            if (tab == "Dns")        RefreshDnsControls();
+            if (tab == "Dns")        { RefreshDnsControls(); RefreshDnsLeakSection(); }
             if (tab == "Appearance") { PopulateThemePicker(); SyncCapStyle(); ApplyFeatureSectionVisibility(); }
+            if (tab == "Notifications") PopulateNotifSettings();
             if (tab == "History")    RefreshHistoryTab();
-            if (tab == "Advanced")   { RefreshInstallState(); RefreshDllStatus(); PopulateLogLevelPicker(); RefreshDnsLeakSection(); }
+            if (tab == "Log")        { PopulateLogLevelPicker(); PopulateLogSettings(); }
+            if (tab == "Startup")    { RefreshInstallState(); RefreshDllStatus(); SyncStartWithWindows(); SyncStartupOptions(); SyncConfirmOnClose(); }
             if (tab == "About")      RefreshUpdateState();
 
-            // Managed-preset lock UI — runs last so it wins over the per-tab populate above.
+            // Managed-preset lock UI - runs last so it wins over the per-tab populate above.
             ApplyPresetLocks();
         }
 
         /// <summary>
         /// Greys out + 🔒-tooltips every control whose AppConfig field is locked by the managed
         /// preset, and shows the "managed by …" banner. The forcing itself is guaranteed by
-        /// ConfigService (values re-asserted on save) — this pass is the visible signal.
+        /// ConfigService (values re-asserted on save) - this pass is the visible signal.
         /// </summary>
         private void ApplyPresetLocks()
         {
@@ -177,7 +192,7 @@ namespace MasselGUARD.Views
                 c.ToolTip   = Lang.T("SettingsLockedTip");
                 MarkLocked(c);
             }
-            // Disable only, no badge — for the sibling radios/buttons of an already-badged setting.
+            // Disable only, no badge - for the sibling radios/buttons of an already-badged setting.
             void D(FrameworkElement? c, string field)
             {
                 if (c == null || !cfg.IsLocked(field)) return;
@@ -191,12 +206,12 @@ namespace MasselGUARD.Views
             L(ConfirmOnCloseToggle, "ConfirmOnClose");
 
             // WiFi / automation
-            L(ManualModeToggle, "ManualMode");
+            L(FeatAutoEnableToggle, "ManualMode");
             L(ActionNone, "DefaultAction"); D(ActionDiscon, "DefaultAction"); D(ActionActivate, "DefaultAction");
             L(DefaultTunnelBox, "DefaultTunnel");
             L(OpenWifiTunnelBox, "OpenWifiTunnel");
             L(TrustedNetworksBox, "TrustedNetworks"); D(AddCurrentTrustedBtn, "TrustedNetworks");
-            // (WiFi rules list moved to the main window — no rule buttons to gate here.)
+            // (WiFi rules list moved to the main window - no rule buttons to gate here.)
 
             // Tunnels
             L(ArModeOff, "AutoReconnectMode"); D(ArModePerTunnel, "AutoReconnectMode"); D(ArModeAlways, "AutoReconnectMode");
@@ -243,7 +258,7 @@ namespace MasselGUARD.Views
         {
             Dispatcher.BeginInvoke(new Action(() =>
             {
-                if (!control.IsVisible) return;   // control's tab is hidden — retry when it shows
+                if (!control.IsVisible) return;   // control's tab is hidden - retry when it shows
 
                 // "Not allowed" cursor over the locked row. A disabled control ignores its own
                 // Cursor and passes mouse hits to its parent, so set it on the enabled row container.
@@ -267,7 +282,7 @@ namespace MasselGUARD.Views
         private bool IsSettingsCard(DependencyObject o)
             => o is Border b && ReferenceEquals(b.Style, TryFindResource("SettingsCard"));
 
-        /// <summary>The container to show the locked cursor over — the whole card if the locked
+        /// <summary>The container to show the locked cursor over - the whole card if the locked
         /// element is itself a card, otherwise the control's immediate parent (its row).</summary>
         private FrameworkElement? FindLockRow(FrameworkElement control)
             => IsSettingsCard(control)
@@ -444,7 +459,7 @@ namespace MasselGUARD.Views
             // Theme colour presets shown in the colour picker
             var themePresets = new[]
             {
-                ("", "—"),               // no colour / transparent
+                ("", "-"),               // no colour / transparent
                 ("Accent",   "Accent"),
                 ("Success",  "Success"),
                 ("Danger",   "Danger"),
@@ -487,7 +502,7 @@ namespace MasselGUARD.Views
                 };
                 row.Children.Add(eyeBtn);
 
-                // Default star — marks which group opens on startup
+                // Default star - marks which group opens on startup
                 var isDefault = _draft.DefaultGroup == groupKey;
                 var starBtn   = new Button
                 {
@@ -744,9 +759,9 @@ namespace MasselGUARD.Views
                     ThemePicker.SelectedIndex = 0;
             }
 
-            // Theme update badge — passive result of the last app-update check (same
+            // Theme update badge - passive result of the last app-update check (same
             // frequency/trigger; see MainWindow.CheckForThemeUpdatesAsync). Never re-checks
-            // itself here — that would mean a network call every time this tab is opened.
+            // itself here - that would mean a network call every time this tab is opened.
             if (ThemeUpdatesBadge != null)
             {
                 var themeUpdates = _main.ConfigSvc.Config.ThemeUpdatesAvailable ?? new System.Collections.Generic.List<string>();
@@ -768,29 +783,8 @@ namespace MasselGUARD.Views
             if (SysModeAuto  != null) SysModeAuto.IsChecked  = sysMode != "light" && sysMode != "dark";
             _loading = false;
 
-            // Tray popup toggle
-            if (TrayPopupToggle != null)
-            {
-                _loading = true;
-                TrayPopupToggle.IsChecked = _draft.ShowTrayPopupOnSwitch;
-                _loading = false;
-            }
-
-            // Notification duration picker
-            if (NotifDurationPicker != null)
-            {
-                _loading = true;
-                NotifDurationPicker.Items.Clear();
-                foreach (var s in new[] { 3, 5, 10, 15, 30 })
-                    NotifDurationPicker.Items.Add(new System.Windows.Controls.ComboBoxItem
-                        { Content = $"{s}s", Tag = s });
-                int cur = _draft.NotificationDurationSeconds;
-                NotifDurationPicker.SelectedItem = NotifDurationPicker.Items
-                    .OfType<System.Windows.Controls.ComboBoxItem>()
-                    .FirstOrDefault(i => (int)i.Tag == cur)
-                    ?? NotifDurationPicker.Items[1];
-                _loading = false;
-            }
+            // Tray popup + notification duration moved to the "Notifications & history" tab
+            // (see PopulateNotifSettings).
 
             // Font override sync (PopulateFontPicker manages its own _loading guard)
             PopulateFontPicker();
@@ -812,7 +806,7 @@ namespace MasselGUARD.Views
             if (sender is not RadioButton rb || rb.Tag is not string tag) return;
             _draft.SystemThemeMode = tag;
             if (_themePreviewActive) CancelThemePreview();
-            // Apply immediately — no countdown, stays until Saved or the window closes
+            // Apply immediately - no countdown, stays until Saved or the window closes
             // (OnClosing prompts to keep or discard if it's still unsaved by then).
             ApplySpecificTheme(forceLight: !IsDraftDark());
         }
@@ -825,7 +819,7 @@ namespace MasselGUARD.Views
                 _draft.ActiveTheme = item.FolderName;
                 _vm.ActiveTheme    = item.FolderName;
                 if (_themePreviewActive) CancelThemePreview();
-                // Apply immediately, respecting the draft's Light/Dark/Auto mode — not
+                // Apply immediately, respecting the draft's Light/Dark/Auto mode - not
                 // the raw Windows setting, which can disagree with what's picked here.
                 ApplySpecificTheme(forceLight: !IsDraftDark());
             }
@@ -951,7 +945,7 @@ namespace MasselGUARD.Views
                 FontPickerPanel.Visibility =
                     _draft.FontOverrideEnabled ? Visibility.Visible : Visibility.Collapsed;
 
-            // Populate the font list only once — it's an expensive enumeration
+            // Populate the font list only once - it's an expensive enumeration
             if (!_fontPickerPopulated)
             {
                 var items = new System.Collections.Generic.List<FontPickerItem>();
@@ -1165,9 +1159,7 @@ namespace MasselGUARD.Views
             if (ShowRulesColumnToggle != null)
                 ShowRulesColumnToggle.IsChecked = cfg.ShowTunnelRulesColumn;
 
-            // Manual mode (the WiFi rules list itself lives on the main window)
-            if (ManualModeToggle != null)
-                ManualModeToggle.IsChecked = cfg.ManualMode;
+            // (Automation enable/disable lives in General → Features now.)
 
             // WiFi default action radios
             if (ActionNone     != null) ActionNone.IsChecked     = cfg.DefaultAction == "none" || string.IsNullOrEmpty(cfg.DefaultAction);
@@ -1192,7 +1184,7 @@ namespace MasselGUARD.Views
                 OpenWifiTunnelBox.SelectedItem = (object?)match ?? Lang.T("OpenWifiNone");
             }
 
-            // Trusted-network auto-protect — only the safe-SSID list lives here now;
+            // Trusted-network auto-protect - only the safe-SSID list lives here now;
             // enabling it and choosing the tunnel is done via the WiFi rule itself.
             if (TrustedNetworksBox != null)
                 TrustedNetworksBox.Text = string.Join(Environment.NewLine, cfg.TrustedNetworks);
@@ -1286,13 +1278,6 @@ namespace MasselGUARD.Views
                 TrustedNetworksBox.Text = string.Join(Environment.NewLine, lines);
             _loading = false;
             CommitTrustedNetworks();
-        }
-
-        private void ManualMode_Changed(object sender, RoutedEventArgs e)
-        {
-            if (_loading) return;
-            bool on = ManualModeToggle?.IsChecked == true;
-            _vm.DisableWifiRules = on;
         }
 
         // ── DNS automation (Wifi page) ─────────────────────────────────────────
@@ -1448,48 +1433,200 @@ namespace MasselGUARD.Views
         // See docs/FeatureModules-Design.md.
         private bool _featLoading;
 
+        /// <summary>Populate the five unified Feature cards (General): enable, top-bar behaviour
+        /// (show/hide vs disable) and show-button, for WireGuard / DNS / Automation / Activity log /
+        /// Charts.</summary>
         private void RefreshFeatureControls()
         {
             var cfg = _main.ConfigSvc.Config;
             _featLoading = true;
-            if (FeatureTunnelsToggle != null) FeatureTunnelsToggle.IsChecked = cfg.EnableTunnels;
-            if (FeatureDnsToggle     != null) FeatureDnsToggle.IsChecked     = cfg.EnableDns;
-            // Disable whichever toggle is the sole enabled module, so it can't be turned off.
-            if (FeatureTunnelsToggle != null) FeatureTunnelsToggle.IsEnabled = !(cfg.EnableTunnels && !cfg.EnableDns);
-            if (FeatureDnsToggle     != null) FeatureDnsToggle.IsEnabled     = !(cfg.EnableDns && !cfg.EnableTunnels);
+
+            // Enable toggles
+            if (FeatWgEnableToggle     != null) FeatWgEnableToggle.IsChecked     = cfg.EnableTunnels;
+            if (FeatDnsEnableToggle    != null) FeatDnsEnableToggle.IsChecked    = cfg.EnableDns;
+            if (FeatAutoEnableToggle   != null) FeatAutoEnableToggle.IsChecked   = !cfg.ManualMode;
+            if (FeatLogEnableToggle    != null) FeatLogEnableToggle.IsChecked    = cfg.ActivityLogEnabled;
+            if (FeatChartsEnableToggle != null) FeatChartsEnableToggle.IsChecked = cfg.ChartsEnabled;
+            // The WireGuard/DNS module pair must keep at least one on - disable the sole-on toggle.
+            if (FeatWgEnableToggle  != null) FeatWgEnableToggle.IsEnabled  = !(cfg.EnableTunnels && !cfg.EnableDns);
+            if (FeatDnsEnableToggle != null) FeatDnsEnableToggle.IsEnabled = !(cfg.EnableDns && !cfg.EnableTunnels);
+
+            // Behaviour radios (Show/hide vs Enable/disable)
+            static void Beh(System.Windows.Controls.RadioButton? hide, System.Windows.Controls.RadioButton? dis, bool disables)
+            { if (hide != null) hide.IsChecked = !disables; if (dis != null) dis.IsChecked = disables; }
+            Beh(FeatWgBehHide,     FeatWgBehDisable,     cfg.TunnelToggleDisables);
+            Beh(FeatDnsBehHide,    FeatDnsBehDisable,    cfg.DnsToggleDisables);
+            Beh(FeatAutoBehHide,   FeatAutoBehDisable,   cfg.WifiToggleDisables);
+            Beh(FeatLogBehHide,    FeatLogBehDisable,    cfg.LogToggleDisables);
+            Beh(FeatChartsBehHide, FeatChartsBehDisable, cfg.ChartsToggleDisables);
+
+            // Show-button toggles
+            if (FeatWgShowBtn     != null) FeatWgShowBtn.IsChecked     = cfg.ShowTunnelToggleButton;
+            if (FeatDnsShowBtn    != null) FeatDnsShowBtn.IsChecked    = cfg.ShowDnsToggleButton;
+            if (FeatAutoShowBtn   != null) FeatAutoShowBtn.IsChecked   = cfg.ShowWifiToggleButton;
+            if (FeatLogShowBtn    != null) FeatLogShowBtn.IsChecked    = cfg.ShowLogToggleButton;
+            if (FeatChartsShowBtn != null) FeatChartsShowBtn.IsChecked = cfg.ShowChartsToggleButton;
+
             _featLoading = false;
         }
 
-        private void FeatureModule_Changed(object sender, RoutedEventArgs e)
+        /// <summary>A feature-area enable/disable toggle. Applies live + re-gates the main window
+        /// (and stops the log/history writing when the log/charts areas are disabled).</summary>
+        private void FeatEnable_Changed(object sender, RoutedEventArgs e)
         {
             if (_featLoading) return;
+            if (sender is not System.Windows.Controls.Primitives.ToggleButton tb) return;
             var cfg = _main.ConfigSvc.Config;
-            bool t = FeatureTunnelsToggle?.IsChecked == true;
-            bool d = FeatureDnsToggle?.IsChecked == true;
-            if (!t && !d)   // safety: never both off (the sole toggle is disabled, but guard anyway)
+            bool on = tb.IsChecked == true;
+            switch (tb.Tag as string)
             {
-                RefreshFeatureControls();
-                return;
+                case "wg":
+                case "dns":
+                {
+                    bool t = (tb.Tag as string) == "wg"  ? on : cfg.EnableTunnels;
+                    bool d = (tb.Tag as string) == "dns" ? on : cfg.EnableDns;
+                    if (!t && !d) { RefreshFeatureControls(); return; }   // keep at least one module on
+                    cfg.EnableTunnels = t; cfg.EnableDns = d;
+                    break;
+                }
+                case "auto":   cfg.ManualMode = !on; break;
+                case "log":    cfg.ActivityLogEnabled = on; _main.LogSvc.Enabled = on; break;
+                case "charts": cfg.ChartsEnabled = on; _main.HistorySvc.CaptureEnabled = on; break;
+                default: return;
             }
-            cfg.EnableTunnels = t;
-            cfg.EnableDns     = d;
+            NormalizeFeatureBehaviour();
             _main.ConfigSvc.Save();
             RefreshFeatureControls();
-            ApplyFeatureTabVisibility();
-            _main.ApplyFeatureVisibility();   // re-gate the main window live
+            ApplyFeatureTabVisibility();          // stubs for WireGuard / DNS / Automation tabs
+            _main.ApplyManualMode();              // re-evaluate WiFi automation from ManualMode
+            _main.ApplyFeatureVisibility();       // re-gate the main window (tunnels/dns/log/layout)
+            _main.RefreshWifiRulesPanel();        // automation rows
+            _main.ApplyInfoSectionMode();         // charts panel
+            _main.RefreshSectionToggleButtons();  // slash/dim on the title-bar icons
         }
 
-        /// <summary>Show/hide the module-specific Settings tabs from the feature flags. If the
-        /// active tab just got hidden, fall back to General.</summary>
+        /// <summary>A feature-area top-bar behaviour radio (Show/hide vs Enable/disable). Staged
+        /// directly to config (takes effect the next time the title-bar button is used).</summary>
+        private void FeatBeh_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_featLoading) return;
+            if (sender is not System.Windows.Controls.RadioButton rb || rb.IsChecked != true) return;
+            var parts = (rb.Tag as string ?? "").Split(':');
+            if (parts.Length != 2) return;
+            bool disables = parts[1] == "disable";
+            var cfg = _main.ConfigSvc.Config;
+            switch (parts[0])
+            {
+                case "wg":     cfg.TunnelToggleDisables = disables; break;
+                case "dns":    cfg.DnsToggleDisables    = disables; break;
+                case "auto":   cfg.WifiToggleDisables   = disables; break;
+                case "log":    cfg.LogToggleDisables    = disables; break;
+                case "charts": cfg.ChartsToggleDisables = disables; break;
+                default: return;
+            }
+            NormalizeFeatureBehaviour();
+            _main.ConfigSvc.Save();
+            RefreshFeatureControls();   // reflect any behaviour that had to be forced to Enable/disable
+        }
+
+        /// <summary>A feature-area "show title-bar button" toggle. Applies live.</summary>
+        private void FeatShowBtn_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_featLoading) return;
+            if (sender is not System.Windows.Controls.Primitives.ToggleButton tb) return;
+            bool on = tb.IsChecked == true;
+            var cfg = _main.ConfigSvc.Config;
+            switch (tb.Tag as string)
+            {
+                case "wg":     cfg.ShowTunnelToggleButton = on; break;
+                case "dns":    cfg.ShowDnsToggleButton    = on; break;
+                case "auto":   cfg.ShowWifiToggleButton   = on; break;
+                case "log":    cfg.ShowLogToggleButton    = on; break;
+                case "charts": cfg.ShowChartsToggleButton = on; break;
+                default: return;
+            }
+            NormalizeFeatureBehaviour();
+            _main.ConfigSvc.Save();
+            RefreshFeatureControls();
+            _main.RefreshSectionToggleButtons();
+        }
+
+        /// <summary>Invariant: a disabled feature whose title-bar button is shown must use the
+        /// Enable/disable behaviour - otherwise clicking the button (Show/hide) can't bring the
+        /// feature back. Force it so there's never a "disabled + button does nothing" state.</summary>
+        private void NormalizeFeatureBehaviour()
+        {
+            var cfg = _main.ConfigSvc.Config;
+            if (!cfg.EnableTunnels     && cfg.ShowTunnelToggleButton) cfg.TunnelToggleDisables = true;
+            if (!cfg.EnableDns         && cfg.ShowDnsToggleButton)    cfg.DnsToggleDisables    = true;
+            if ( cfg.ManualMode        && cfg.ShowWifiToggleButton)   cfg.WifiToggleDisables   = true;
+            if (!cfg.ActivityLogEnabled&& cfg.ShowLogToggleButton)    cfg.LogToggleDisables    = true;
+            if (!cfg.ChartsEnabled     && cfg.ShowChartsToggleButton) cfg.ChartsToggleDisables = true;
+        }
+
+        /// <summary>The module-specific tabs (WireGuard / DNS) always stay visible; when their
+        /// feature is off they show a "enable this feature" stub instead of the settings. Keeps the
+        /// stub state in sync after a feature toggle without leaving the current tab.</summary>
         private void ApplyFeatureTabVisibility()
         {
             var cfg = _main.ConfigSvc.Config;
-            if (TabBtnTunnels != null) TabBtnTunnels.Visibility = cfg.EnableTunnels ? Visibility.Visible : Visibility.Collapsed;
-            if (TabBtnDns     != null) TabBtnDns.Visibility     = cfg.EnableDns     ? Visibility.Visible : Visibility.Collapsed;
+            // Feature tabs stay visible + clickable (so the stub's Enable button is reachable) but
+            // dim when their feature is off, so they read as "feature settings, currently disabled".
+            if (TabBtnTunnels != null) { TabBtnTunnels.Visibility = Visibility.Visible; TabBtnTunnels.Opacity = cfg.EnableTunnels ? 1.0 : 0.45; }
+            if (TabBtnDns     != null) { TabBtnDns.Visibility     = Visibility.Visible; TabBtnDns.Opacity     = cfg.EnableDns     ? 1.0 : 0.45; }
+            if (TabBtnWifi    != null) TabBtnWifi.Opacity = !cfg.ManualMode ? 1.0 : 0.45;
+            if (TabBtnLog     != null) TabBtnLog.Opacity     = cfg.ActivityLogEnabled ? 1.0 : 0.45;
+            if (TabBtnHistory != null) TabBtnHistory.Opacity = cfg.ChartsEnabled       ? 1.0 : 0.45;
+            ApplyFeatureStubs();
+        }
 
-            if ((_activeTab == "Tunnels" && !cfg.EnableTunnels) ||
-                (_activeTab == "Dns"     && !cfg.EnableDns))
-                ShowTab("General");
+        /// <summary>On the WireGuard / DNS tabs, swap the real settings for a short "enable this
+        /// feature" stub when the module is off (owner chose stub over hiding the tab).</summary>
+        private void ApplyFeatureStubs()
+        {
+            var cfg = _main.ConfigSvc.Config;
+            bool auto = !cfg.ManualMode;
+            if (TunnelsFeatureStub     != null) TunnelsFeatureStub.Visibility     = cfg.EnableTunnels ? Visibility.Collapsed : Visibility.Visible;
+            if (TunnelsFeatureContent  != null) TunnelsFeatureContent.Visibility  = cfg.EnableTunnels ? Visibility.Visible   : Visibility.Collapsed;
+            if (DnsFeatureStub         != null) DnsFeatureStub.Visibility         = cfg.EnableDns     ? Visibility.Collapsed : Visibility.Visible;
+            if (DnsFeatureContent      != null) DnsFeatureContent.Visibility      = cfg.EnableDns     ? Visibility.Visible   : Visibility.Collapsed;
+            if (AutoFeatureStub        != null) AutoFeatureStub.Visibility        = auto ? Visibility.Collapsed : Visibility.Visible;
+            if (AutoFeatureContent     != null) AutoFeatureContent.Visibility     = auto ? Visibility.Visible   : Visibility.Collapsed;
+        }
+
+        private void EnableAutomationFromStub_Click(object sender, RoutedEventArgs e)
+        {
+            _main.ConfigSvc.Config.ManualMode = false;
+            _main.ConfigSvc.Save();
+            RefreshFeatureControls();
+            _main.RefreshWifiRulesPanel();
+            _main.RefreshSectionToggleButtons();
+            ApplyFeatureTabVisibility();   // un-dim the sidebar tab now that the feature is on
+            ShowTab("Wifi");
+        }
+
+        // Stub "Enable" buttons: turn the feature on, persist, re-gate the main window, and refresh
+        // the current tab so the real settings replace the stub immediately.
+        private void EnableTunnelsFromStub_Click(object sender, RoutedEventArgs e)
+        {
+            var cfg = _main.ConfigSvc.Config;
+            cfg.EnableTunnels = true;
+            _main.ConfigSvc.Save();
+            RefreshFeatureControls();
+            _main.ApplyFeatureVisibility();
+            ApplyFeatureTabVisibility();   // un-dim the sidebar tab now that the feature is on
+            ShowTab("Tunnels");
+        }
+
+        private void EnableDnsFromStub_Click(object sender, RoutedEventArgs e)
+        {
+            var cfg = _main.ConfigSvc.Config;
+            cfg.EnableDns = true;
+            _main.ConfigSvc.Save();
+            RefreshFeatureControls();
+            _main.ApplyFeatureVisibility();
+            ApplyFeatureTabVisibility();   // un-dim the sidebar tab now that the feature is on
+            ShowTab("Dns");
         }
 
         /// <summary>Hide the tunnel-only sections on shared tabs (Wifi default-action / open-network
@@ -1504,7 +1641,34 @@ namespace MasselGUARD.Views
         // The WiFi rules list (add/edit/delete/enable) lives on the main window;
         // Settings no longer duplicates it, so the rule list handlers were removed.
 
-        // ── Advanced tab ──────────────────────────────────────────────────────
+        // ── Notifications & history tab ────────────────────────────────────────
+        /// <summary>Populate the tray-popup toggle + notification-duration picker (moved here from
+        /// the Appearance tab). Called when the "Notifications & history" tab is shown.</summary>
+        private void PopulateNotifSettings()
+        {
+            if (TrayPopupToggle != null)
+            {
+                _loading = true;
+                TrayPopupToggle.IsChecked = _draft.ShowTrayPopupOnSwitch;
+                _loading = false;
+            }
+
+            if (NotifDurationPicker != null)
+            {
+                _loading = true;
+                NotifDurationPicker.Items.Clear();
+                foreach (var s in new[] { 3, 5, 10, 15, 30 })
+                    NotifDurationPicker.Items.Add(new System.Windows.Controls.ComboBoxItem
+                        { Content = $"{s}s", Tag = s });
+                int cur = _draft.NotificationDurationSeconds;
+                NotifDurationPicker.SelectedItem = NotifDurationPicker.Items
+                    .OfType<System.Windows.Controls.ComboBoxItem>()
+                    .FirstOrDefault(i => (int)i.Tag == cur)
+                    ?? NotifDurationPicker.Items[1];
+                _loading = false;
+            }
+        }
+
         private void PopulateLogLevelPicker()
         {
             if (LogLevelPicker == null || LogLevelPicker.Items.Count > 0) return;
@@ -1522,6 +1686,30 @@ namespace MasselGUARD.Views
                 _vm.LogLevel = "extended";
             else
                 _vm.LogLevel = "normal";
+        }
+
+        /// <summary>Populate the clear-on-start toggle + max-size box from the staged config.</summary>
+        private void PopulateLogSettings()
+        {
+            _loading = true;
+            if (ClearLogOnStartToggle != null) ClearLogOnStartToggle.IsChecked = _draft.ClearLogOnStart;
+            if (MaxLogSizeBox != null)         MaxLogSizeBox.Text = _draft.MaxLogSizeKB.ToString();
+            _loading = false;
+        }
+
+        private void ClearLogOnStart_Changed(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.ClearLogOnStart = ClearLogOnStartToggle?.IsChecked == true;
+        }
+
+        private void MaxLogSize_Changed(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (_loading) return;
+            if (int.TryParse(MaxLogSizeBox?.Text, out int kb) && kb >= 0)
+                _draft.MaxLogSizeKB = kb;
+            else if (MaxLogSizeBox != null)
+                MaxLogSizeBox.Text = _draft.MaxLogSizeKB.ToString();   // revert invalid input
         }
 
         private void RefreshInstallState()
@@ -1788,7 +1976,7 @@ namespace MasselGUARD.Views
             var cfg     = _main.ConfigSvc.Config;
             var current = UpdateChecker.CurrentVersionString;
 
-            // Version label — large, with optional codename
+            // Version label - large, with optional codename
             if (VersionLabel != null)
             {
                 var codename = UpdateChecker.Codename;
@@ -1797,7 +1985,7 @@ namespace MasselGUARD.Views
                     : $"MasselGUARD v{current}  |  {codename}";
             }
 
-            // Build stamp + architecture — small muted line below the version
+            // Build stamp + architecture - small muted line below the version
             if (BuildLabel != null)
             {
                 var stamp = UpdateChecker.BuildStamp;
@@ -1820,7 +2008,7 @@ namespace MasselGUARD.Views
 
             if (UpdateStatusBadge != null && UpdateStatusLabel != null)
             {
-                // All states use the theme Accent colour — icons distinguish them.
+                // All states use the theme Accent colour - icons distinguish them.
                 var accentBg = (System.Windows.Media.Brush)Application.Current.Resources["Accent"];
                 var onAccent = (System.Windows.Media.Brush)Application.Current.Resources["WindowBg"];
 
@@ -1831,7 +2019,7 @@ namespace MasselGUARD.Views
 
                 if (!hasLatest)
                 {
-                    // Never checked — muted pill until user hits Check Now
+                    // Never checked - muted pill until user hits Check Now
                     UpdateStatusBadge.Background      = (System.Windows.Media.Brush)
                         Application.Current.Resources["Surface"];
                     UpdateStatusBadge.BorderBrush     = (System.Windows.Media.Brush)
@@ -1839,7 +2027,7 @@ namespace MasselGUARD.Views
                     UpdateStatusBadge.BorderThickness = new Thickness(1);
                     UpdateStatusLabel.Foreground      = (System.Windows.Media.Brush)
                         Application.Current.Resources["TextMuted"];
-                    UpdateStatusLabel.Text = "— " + Lang.T("SettingsUpdateUnknown");
+                    UpdateStatusLabel.Text = "- " + Lang.T("SettingsUpdateUnknown");
                 }
                 else if (updateAvail)
                     UpdateStatusLabel.Text = "↑  " + Lang.T("SettingsUpdateAvailable", cfg.LatestKnownVersion!);
@@ -1849,7 +2037,7 @@ namespace MasselGUARD.Views
                     UpdateStatusLabel.Text = "✓  " + Lang.T("SettingsUpdateCurrent", current);
             }
 
-            // Theme update indicator — same passive cache as the Appearance tab's badge,
+            // Theme update indicator - same passive cache as the Appearance tab's badge,
             // just surfaced here too so "Check for update" guides the user toward it
             // instead of it only showing up on a tab they may never open.
             if (AboutThemeUpdatesRow != null && AboutThemeUpdatesLabel != null)
@@ -1869,7 +2057,7 @@ namespace MasselGUARD.Views
             if (CheckUpdateBtn != null)
                 CheckUpdateBtn.Content = Lang.T("BtnCheckUpdate");
 
-            // Download button — only appear after the user has pressed Check now this session.
+            // Download button - only appear after the user has pressed Check now this session.
             if (DoUpdateBtn != null)
             {
                 bool showDownload = updateAvail && _updateCheckedThisSession;
@@ -1878,7 +2066,7 @@ namespace MasselGUARD.Views
                     DoUpdateBtn.Content = Lang.T("BtnDownloadUpdate", cfg.LatestKnownVersion!);
             }
 
-            // What's New inline panel — fetch from GitHub; fall back to local file.
+            // What's New inline panel - fetch from GitHub; fall back to local file.
             if (WhatsNewBox != null && !_whatsNewLoaded)
             {
                 _whatsNewLoaded = true;
@@ -1934,7 +2122,7 @@ namespace MasselGUARD.Views
                 // Force mode: start update unconditionally (even if local build is newer).
                 if (_main.ShowThemedYesNo(
                     $"Force-install {latest.TagName}?\n\nThis will overwrite your current build. Use this only to test the update pipeline.",
-                    "MasselGUARD — Force Update"))
+                    "MasselGUARD - Force Update"))
                     await StartUpdateAsync(latest);
                 return;
             }
@@ -1989,7 +2177,7 @@ namespace MasselGUARD.Views
                     release, progress, _main.ConfigSvc.Config, _main.ConfigSvc.Save,
                     onShutdown: () => System.Windows.Application.Current.Dispatcher.Invoke(
                         () => ((App)System.Windows.Application.Current).ShutdownApp()));
-                // UpdateAsync calls onShutdown on success — execution never reaches here.
+                // UpdateAsync calls onShutdown on success - execution never reaches here.
             }
             catch (Exception ex)
             {
@@ -1998,7 +2186,7 @@ namespace MasselGUARD.Views
                 if (DoUpdateBtn    != null)  DoUpdateBtn.IsEnabled    = true;
                 _main.ShowThemedInfo(
                     $"{Lang.T("UpdateFailed")}\n\n{ex.Message}",
-                    "MasselGUARD — " + Lang.T("UpdateAvailableTitle"));
+                    "MasselGUARD - " + Lang.T("UpdateAvailableTitle"));
             }
         }
 
@@ -2055,48 +2243,7 @@ namespace MasselGUARD.Views
 
         private void CloseBtn_Click(object sender, RoutedEventArgs e) => Close();
 
-        // ── View preset — re-applies the same bundle of panel-visibility settings
-        // the first-run wizard offers. Applies immediately (like the individual
-        // toggles below) rather than waiting for the window's Save button.
-        private void PresetSimple_Click(object sender, System.Windows.RoutedEventArgs e) =>
-            ApplyViewPreset(showTimeline: false, showActivityLog: false, showWifiRules: true, manualMode: false);
-
-        private void PresetManual_Click(object sender, System.Windows.RoutedEventArgs e) =>
-            ApplyViewPreset(showTimeline: false, showActivityLog: true, showWifiRules: false, manualMode: true);
-
-        private void PresetExpert_Click(object sender, System.Windows.RoutedEventArgs e) =>
-            ApplyViewPreset(showTimeline: true, showActivityLog: true, showWifiRules: true, manualMode: false);
-
-        private void ApplyViewPreset(bool showTimeline, bool showActivityLog, bool showWifiRules, bool manualMode)
-        {
-            _draft.ShowTimeline              = showTimeline;
-            _draft.ShowActivityLog           = showActivityLog;
-            _draft.ShowWifiRulesOnMainWindow = showWifiRules;
-            _draft.ShowTunnelRulesColumn     = showWifiRules;
-            // The timeline panel also stays visible from WiFi history alone
-            // (ApplyInfoSectionMode: ShowTimeline || ShowWifiInChart) — tie it to the
-            // same on/off so Simple/Manual genuinely hide it, not just the tunnel bars.
-            _draft.ShowWifiInChart           = showTimeline;
-            _vm.DisableWifiRules             = manualMode;
-            // Every preset ships with config validation ACTIVE (bypass off).
-            _draft.SkipTunnelValidation      = false;
-
-            var cfg = _main.ConfigSvc.Config;
-            cfg.ShowTimeline              = showTimeline;
-            cfg.ShowActivityLog           = showActivityLog;
-            cfg.ShowWifiRulesOnMainWindow = showWifiRules;
-            cfg.ShowTunnelRulesColumn     = showWifiRules;
-            cfg.ShowWifiInChart           = showTimeline;
-            cfg.ManualMode                = manualMode;
-            cfg.SkipTunnelValidation      = false;
-            _main.ConfigSvc.Save();
-
-            _main.RefreshWifiRulesPanel();
-            _main._vm.NotifyRulesColumnChanged();
-            _main.ApplyInfoSectionMode();
-            _main.SetLogPanelVisible(showActivityLog);
-            RefreshCurrentTab();
-        }
+        // (View presets removed - features are configured individually in General → Features.)
 
         private void SuppressUpdatePrompt_Changed(object sender, System.Windows.RoutedEventArgs e)
         {
@@ -2234,7 +2381,8 @@ namespace MasselGUARD.Views
 
             bool local = TestLocalToggle?.IsChecked == true;
             bool dns   = TestDnsToggle?.IsChecked   == true;
-            if (!local && !dns)
+            bool cli   = TestCliToggle?.IsChecked   == true;
+            if (!local && !dns && !cli)
             {
                 if (TestLogBox != null) TestLogBox.Text = Lang.T("TesterSelectMode") + System.Environment.NewLine;
                 return;
@@ -2272,9 +2420,9 @@ namespace MasselGUARD.Views
 
             try
             {
-                // Awaited on the UI thread — RunAsync drives the tunnel view-models and offloads
+                // Awaited on the UI thread - RunAsync drives the tunnel view-models and offloads
                 // its own blocking work, so the window stays responsive.
-                await diag.RunAsync(local, dns, _main._vm, _main.TunnelSvc, _main._vm.Dns,
+                await diag.RunAsync(local, dns, cli, _main._vm, _main.TunnelSvc, _main._vm.Dns,
                                     cfg, guid, System.Threading.CancellationToken.None);
             }
             catch (System.Exception ex)
@@ -2291,10 +2439,15 @@ namespace MasselGUARD.Views
         private void CopyTestLog_Click(object sender, RoutedEventArgs e)
         {
             try { if (!string.IsNullOrEmpty(TestLogBox?.Text)) System.Windows.Clipboard.SetText(TestLogBox!.Text); }
-            catch { /* clipboard may be locked by another app — ignore */ }
+            catch { /* clipboard may be locked by another app - ignore */ }
         }
 
         private void ClearTestLog_Click(object sender, RoutedEventArgs e) => TestLogBox?.Clear();
+
+        private void OpenSystemDiagnostics_Click(object sender, RoutedEventArgs e)
+            => _main.OpenSystemDiagnostics(this);
+
+        // (Top-bar section-button controls moved to General → Features - see the Feat* handlers.)
 
         private async void DoUpdate_Click(object sender, System.Windows.RoutedEventArgs e)
         {
@@ -2383,7 +2536,7 @@ namespace MasselGUARD.Views
             }
             catch { /* network unavailable */ }
 
-            // Back on the UI thread — no ConfigureAwait(false) used
+            // Back on the UI thread - no ConfigureAwait(false) used
             if (text != null)
             {
                 WhatsNewBox.Document          = MarkdownToFlowDocument.Render(
@@ -2402,7 +2555,7 @@ namespace MasselGUARD.Views
         private bool         _savedSuccessfully        = false;
         private bool         _updateCheckedThisSession = false;  // Download button only visible after manual check
         private bool         _whatsNewLoaded           = false;  // Fetch once per session
-        private ReleaseInfo? _latestRelease;                     // Cached from last CheckNow — needed by DoUpdate button
+        private ReleaseInfo? _latestRelease;                     // Cached from last CheckNow - needed by DoUpdate button
 
         // ── Theme live-preview timer ──────────────────────────────────────────
         private System.Windows.Threading.DispatcherTimer? _themePreviewTimer;
@@ -2421,7 +2574,7 @@ namespace MasselGUARD.Views
         }
 
         /// <summary>Writes the whole draft to config + applies side effects. Does not close
-        /// the window — used by both the Save button and the close-time "keep changes" prompt.</summary>
+        /// the window - used by both the Save button and the close-time "keep changes" prompt.</summary>
         private void CommitDraft()
         {
             _savedSuccessfully = true;
@@ -2438,6 +2591,10 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.ShowWifiRulesOnMainWindow = _draft.ShowWifiRulesOnMainWindow;
             _main.ConfigSvc.Config.ShowTunnelRulesColumn = _draft.ShowTunnelRulesColumn;
             _main.ConfigSvc.Config.ShowActivityLog        = _draft.ShowActivityLog;
+            _main.ConfigSvc.Config.ClearLogOnStart        = _draft.ClearLogOnStart;
+            _main.ConfigSvc.Config.MaxLogSizeKB           = _draft.MaxLogSizeKB;
+            // (Top-bar toggle-button show/behaviour flags are written live by the General →
+            //  Features cards, not staged in the draft, so they are not copied here.)
             _main.ConfigSvc.Config.ShowTimeline             = _draft.ShowTimeline;
             _main.ConfigSvc.Config.StoreConnectionHistory  = _draft.StoreConnectionHistory;
             _main.ConfigSvc.Config.InfoTimeRangeDays       = _draft.InfoTimeRangeDays;
@@ -2490,8 +2647,8 @@ namespace MasselGUARD.Views
 
             void Check(string label, object? a, object? b)
             {
-                string sa = (a?.ToString() ?? "—").ToLowerInvariant();
-                string sb = (b?.ToString() ?? "—").ToLowerInvariant();
+                string sa = (a?.ToString() ?? "-").ToLowerInvariant();
+                string sb = (b?.ToString() ?? "-").ToLowerInvariant();
                 if (sa != sb)
                     log.Debug($"[Settings] {label,-26} {a}  →  {b}");
             }
@@ -2538,7 +2695,7 @@ namespace MasselGUARD.Views
 
         private void RefreshHistoryTab()
         {
-            // Sync chart option controls (suppress _loading guard — no draft needed for immediate-apply settings)
+            // Sync chart option controls (suppress _loading guard - no draft needed for immediate-apply settings)
             _loading = true;
             if (ChartRange24h  != null) ChartRange24h.IsChecked  = _draft.InfoTimeRangeDays == 1;
             if (ChartRange7d   != null) ChartRange7d.IsChecked   = _draft.InfoTimeRangeDays == 7;
@@ -2622,7 +2779,7 @@ namespace MasselGUARD.Views
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
         {
             base.OnClosing(e);
-            // Always stop any running preview timers — regardless of save/cancel.
+            // Always stop any running preview timers - regardless of save/cancel.
             _themePreviewTimer?.Stop();
             _themePreviewTimer     = null;
             _themePreviewActive    = false;
@@ -2634,7 +2791,7 @@ namespace MasselGUARD.Views
             if (!_savedSuccessfully)
             {
                 // The System theme mode (Dark/Light/Follow system) applies live as soon as
-                // it's changed (see SystemMode_Changed) — if that's still unsaved when the
+                // it's changed (see SystemMode_Changed) - if that's still unsaved when the
                 // window closes, ask whether to keep it instead of silently discarding it.
                 bool systemModeChanged = _draft.SystemThemeMode != _main.ConfigSvc.Config.SystemThemeMode;
                 if (systemModeChanged && ThemedMessageDialog.Confirm(this,

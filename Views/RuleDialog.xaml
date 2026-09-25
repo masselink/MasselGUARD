@@ -145,7 +145,7 @@
                     </Grid>
                 </StackPanel>
 
-                <!-- Tunnel — hidden when the tunnel feature module is off (DNS-only install) -->
+                <!-- Tunnel - hidden when the tunnel feature module is off (DNS-only install) -->
                 <StackPanel x:Name="TunnelPickerPanel">
                     <TextBlock Text="{Binding [RuleDialogTunnelLabel], Source={x:Static local:Lang.Instance}}"
                                FontFamily="{DynamicResource Theme.FontFamily}"
@@ -158,7 +158,7 @@
                                TextWrapping="Wrap"/>
                 </StackPanel>
 
-                <!-- DNS (optional) — applies on the trigger, with or without a tunnel.
+                <!-- DNS (optional) - applies on the trigger, with or without a tunnel.
                      Hidden when the DNS feature module is off (tunnels-only install). -->
                 <StackPanel x:Name="DnsPickerPanel">
                     <TextBlock Text="{Binding [RuleDialogDnsLabel], Source={x:Static local:Lang.Instance}}"

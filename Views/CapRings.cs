@@ -128,7 +128,7 @@ namespace MasselGUARD.Views
             trackPen.Freeze();
             dc.DrawEllipse(null, trackPen, c, r, r);
 
-            // Progress arc (skipped at zero usage — the track + glyph still show).
+            // Progress arc (skipped at zero usage - the track + glyph still show).
             double f = frac;
             if (f > 0)
             {
@@ -180,7 +180,7 @@ namespace MasselGUARD.Views
                 new Typeface(family, FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal),
                 r * 1.15, brush, dpi);
 
-            // Centre on the glyph's actual ink bounds — FormattedText.Height/Width include
+            // Centre on the glyph's actual ink bounds - FormattedText.Height/Width include
             // ascent/descent leading and side bearings, so centring by those sits the
             // letter slightly low and off; the ink bounds give a true optical centre.
             var geo = ft.BuildGeometry(new Point(0, 0));
@@ -223,7 +223,7 @@ namespace MasselGUARD.Views
         private Color GlyphColor()
         {
             var b = ThemeColor("TextMuted", Color.FromRgb(0x80, 0x80, 0x80));
-            return Color.FromArgb(0xC0, b.R, b.G, b.B);   // ~75% alpha — legible but quiet
+            return Color.FromArgb(0xC0, b.R, b.G, b.B);   // ~75% alpha - legible but quiet
         }
 
         private Color ThemeColor(string key, Color fallback)

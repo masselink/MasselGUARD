@@ -35,7 +35,7 @@
                 </Grid>
             </Border>
 
-            <!-- Tunnel name — above tabs, always visible -->
+            <!-- Tunnel name - above tabs, always visible -->
             <Border Grid.Row="1"
                     Background="{DynamicResource WindowBg}"
                     BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1"
@@ -378,7 +378,7 @@
                     </ScrollViewer>
                 </TabItem>
 
-                <!-- Options tab — behaviour toggles + data cap (moved out of the footer) -->
+                <!-- Options tab - behaviour toggles + data cap (moved out of the footer) -->
                 <TabItem x:Name="TabOptions"
                          Header="{Binding [TunnelDialogTabOptions], Source={x:Static local:Lang.Instance}}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,16">
@@ -492,7 +492,7 @@
                 </TabItem>
             </TabControl>
 
-            <!-- Button bar — toggles now live on the Options tab -->
+            <!-- Button bar - toggles now live on the Options tab -->
             <Border Grid.Row="3" Background="{DynamicResource Surface}" CornerRadius="{DynamicResource Theme.CornerRadiusBottom}">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                             VerticalAlignment="Center" Margin="16,10">

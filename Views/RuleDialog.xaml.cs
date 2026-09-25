@@ -13,7 +13,7 @@ namespace MasselGUARD.Views
         public string ResultName   { get; private set; } = "";
         public string ResultSsid   { get; private set; } = "";
         public string ResultTunnel { get; private set; } = "";
-        /// <summary>"wifi" | "schedule" | "trusted" — which trigger type the user chose.</summary>
+        /// <summary>"wifi" | "schedule" | "trusted" - which trigger type the user chose.</summary>
         public string ResultKind      { get; private set; } = "wifi";
         /// <summary>For a trusted rule: "untrusted" (activate off-list) or "trusted" (activate on-list).</summary>
         public string ResultTrustedWhen { get; private set; } = "untrusted";
@@ -195,7 +195,7 @@ namespace MasselGUARD.Views
                 Margin       = new Thickness(0, 0, 0, 12),
             });
 
-            // TextBox — pre-filled with current count, digits only
+            // TextBox - pre-filled with current count, digits only
             var input = new TextBox
             {
                 Text              = currentValue.ToString(),
@@ -260,7 +260,7 @@ namespace MasselGUARD.Views
         /// <param name="tunnelOverride">
         /// Tunnel value to use instead of <c>TunnelBox.Text</c>. Needed when called from the
         /// ComboBox's SelectionChanged handler, where <c>TunnelBox.Text</c> still holds the
-        /// previous value (editable ComboBoxes update Text only after the event completes) —
+        /// previous value (editable ComboBoxes update Text only after the event completes) -
         /// passing the freshly-selected item avoids regenerating a stale "→ disconnect" name.
         /// </param>
         private void AutoGenerateName(string? tunnelOverride = null)
