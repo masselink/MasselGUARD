@@ -912,5 +912,9 @@
   "WizPaneUsageLabel": "数据用量",
   "WizPaneDnsLabel": "DNS",
   "BtnExpandLog": "展开",
-  "MainLogExpandTip": "在更大的窗口中打开活动日志"
+  "MainLogExpandTip": "在更大的窗口中打开活动日志",
+  "DnsProfileV4Primary": "IPv4 主",
+  "DnsProfileV4Secondary": "IPv4 备用",
+  "DnsProfileV6Primary": "IPv6 主",
+  "DnsProfileV6Secondary": "IPv6 备用"
 }

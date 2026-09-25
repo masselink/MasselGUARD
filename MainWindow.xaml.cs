@@ -6188,12 +6188,12 @@ namespace MasselGUARD
             {
                 DnsColDef0.Width = new GridLength(cfg.DnsColNameW);
                 DnsColDef1.Width = new GridLength(cfg.DnsColTypeW);
-                DnsColDef2.Width = new GridLength(cfg.DnsColServerW);
+                DnsColDef2.Width = new GridLength(0);   // Server column removed
                 DnsColDef3.Width = new GridLength(cfg.DnsColRulesW);
                 DnsColDef4.Width = new GridLength(cfg.DnsColEnableW);
                 _vm.DnsCol0W = cfg.DnsColNameW;
                 _vm.DnsCol1W = cfg.DnsColTypeW;
-                _vm.DnsCol2W = cfg.DnsColServerW;
+                _vm.DnsCol2W = 0;
                 _vm.DnsCol3W = cfg.DnsColRulesW;
                 _vm.DnsCol4W = cfg.DnsColEnableW;
             }
@@ -6248,17 +6248,15 @@ namespace MasselGUARD
         private void DnsColGrid_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             double total = e.NewSize.Width;
-            // Name (0) and Server (2) are the flexible star columns; Type (1)/Rules (3)/Enable (4) fixed.
-            DnsColDef0.MinWidth = 60; DnsColDef1.MinWidth = 50; DnsColDef2.MinWidth = 60;
+            // Name (0) is the sole flexible star column; Type (1)/Rules (3)/Enable (4) fixed.
+            // The Server column (2) is removed - pinned to zero width.
+            DnsColDef0.MinWidth = 60; DnsColDef1.MinWidth = 50;
+            DnsColDef2.MinWidth = 0; DnsColDef2.MaxWidth = 0; DnsColDef2.Width = new GridLength(0);
             DnsColDef3.MinWidth = 40; DnsColDef4.MinWidth = 60;
             double reserved = 50 + 40 + 60;   // Type + Rules + Enable minimums
-            DnsColDef0.MaxWidth = Math.Max(60, total - reserved - 60);
-            DnsColDef2.MaxWidth = Math.Max(60, total - reserved - 60);
-            if (DnsColDef0.ActualWidth > 0)
-            {
-                if (DnsColDef0.ActualWidth < 60) DnsColDef0.Width = new GridLength(60);
-                if (DnsColDef2.ActualWidth < 60) DnsColDef2.Width = new GridLength(60);
-            }
+            DnsColDef0.MaxWidth = Math.Max(60, total - reserved);
+            if (DnsColDef0.ActualWidth > 0 && DnsColDef0.ActualWidth < 60)
+                DnsColDef0.Width = new GridLength(60);
         }
 
         // Reset star columns to proportional widths so they spread evenly.
@@ -6282,9 +6280,9 @@ namespace MasselGUARD
 
         private void ResetDnsColsToStars()
         {
-            DnsColDef0.Width = new GridLength(2.4, GridUnitType.Star);   // Name
+            DnsColDef0.Width = new GridLength(2.4, GridUnitType.Star);   // Name (sole star)
             // DnsColDef1 (Type) stays fixed 70px
-            DnsColDef2.Width = new GridLength(3,   GridUnitType.Star);   // Server
+            DnsColDef2.Width = new GridLength(0);                        // Server removed
             // DnsColDef3 (Rules) fixed 52px, DnsColDef4 (Enable) fixed 76px
         }
 

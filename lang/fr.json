@@ -912,5 +912,9 @@
   "WizPaneUsageLabel": "Utilisation des données",
   "WizPaneDnsLabel": "DNS",
   "BtnExpandLog": "Agrandir",
-  "MainLogExpandTip": "Ouvrir le journal d'activité dans une fenêtre plus grande"
+  "MainLogExpandTip": "Ouvrir le journal d'activité dans une fenêtre plus grande",
+  "DnsProfileV4Primary": "IPv4 primaire",
+  "DnsProfileV4Secondary": "IPv4 secondaire",
+  "DnsProfileV6Primary": "IPv6 primaire",
+  "DnsProfileV6Secondary": "IPv6 secondaire"
 }

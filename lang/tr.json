@@ -912,5 +912,9 @@
   "WizPaneUsageLabel": "Veri kullanımı",
   "WizPaneDnsLabel": "DNS",
   "BtnExpandLog": "Genişlet",
-  "MainLogExpandTip": "Etkinlik günlüğünü daha büyük bir pencerede aç"
+  "MainLogExpandTip": "Etkinlik günlüğünü daha büyük bir pencerede aç",
+  "DnsProfileV4Primary": "IPv4 birincil",
+  "DnsProfileV4Secondary": "IPv4 ikincil",
+  "DnsProfileV6Primary": "IPv6 birincil",
+  "DnsProfileV6Secondary": "IPv6 ikincil"
 }

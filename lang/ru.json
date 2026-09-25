@@ -912,5 +912,9 @@
   "WizPaneUsageLabel": "Трафик",
   "WizPaneDnsLabel": "DNS",
   "BtnExpandLog": "Развернуть",
-  "MainLogExpandTip": "Открыть журнал активности в отдельном окне"
+  "MainLogExpandTip": "Открыть журнал активности в отдельном окне",
+  "DnsProfileV4Primary": "IPv4 основной",
+  "DnsProfileV4Secondary": "IPv4 запасной",
+  "DnsProfileV6Primary": "IPv6 основной",
+  "DnsProfileV6Secondary": "IPv6 запасной"
 }

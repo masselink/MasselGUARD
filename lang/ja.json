@@ -912,5 +912,9 @@
   "WizPaneUsageLabel": "データ使用量",
   "WizPaneDnsLabel": "DNS",
   "BtnExpandLog": "拡大",
-  "MainLogExpandTip": "アクティビティログを大きいウィンドウで開く"
+  "MainLogExpandTip": "アクティビティログを大きいウィンドウで開く",
+  "DnsProfileV4Primary": "IPv4 プライマリ",
+  "DnsProfileV4Secondary": "IPv4 セカンダリ",
+  "DnsProfileV6Primary": "IPv6 プライマリ",
+  "DnsProfileV6Secondary": "IPv6 セカンダリ"
 }

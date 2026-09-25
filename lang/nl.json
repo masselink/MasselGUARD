@@ -912,5 +912,9 @@
   "WizPaneUsageLabel": "Dataverbruik",
   "WizPaneDnsLabel": "DNS",
   "BtnExpandLog": "Vergroten",
-  "MainLogExpandTip": "Activiteitenlogboek in een groter venster openen"
+  "MainLogExpandTip": "Activiteitenlogboek in een groter venster openen",
+  "DnsProfileV4Primary": "IPv4 primair",
+  "DnsProfileV4Secondary": "IPv4 secundair",
+  "DnsProfileV6Primary": "IPv6 primair",
+  "DnsProfileV6Secondary": "IPv6 secundair"
 }

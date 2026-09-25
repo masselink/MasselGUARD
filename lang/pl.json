@@ -912,5 +912,9 @@
   "WizPaneUsageLabel": "Zużycie danych",
   "WizPaneDnsLabel": "DNS",
   "BtnExpandLog": "Powiększ",
-  "MainLogExpandTip": "Otwórz dziennik aktywności w większym oknie"
+  "MainLogExpandTip": "Otwórz dziennik aktywności w większym oknie",
+  "DnsProfileV4Primary": "IPv4 podstawowy",
+  "DnsProfileV4Secondary": "IPv4 zapasowy",
+  "DnsProfileV6Primary": "IPv6 podstawowy",
+  "DnsProfileV6Secondary": "IPv6 zapasowy"
 }
