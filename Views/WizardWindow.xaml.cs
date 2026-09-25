@@ -57,51 +57,43 @@ namespace MasselGUARD.Views
                 if (steps[i] != null)
                     steps[i].Visibility = i == _vm.Step ? Visibility.Visible : Visibility.Collapsed;
 
-            // ── Step 0: Welcome ──────────────────────────────────────────────
+            var cfg = _main.ConfigSvc.Config;
+
+            // ── Step 0: Welcome + import + language ──────────────────────────
             if (WizUpgradeNotice != null)
                 WizUpgradeNotice.Visibility = _isUpgrade ? Visibility.Visible : Visibility.Collapsed;
             if (_isUpgrade)
             {
-                if (WizUpgradeTitle != null)
-                    WizUpgradeTitle.Text = Lang.T("WizardUpgradeTitle");
-                if (WizUpgradeBody != null)
-                    WizUpgradeBody.Text  = Lang.T("WizardUpgradeBody",
-                        UpdateChecker.CurrentVersionString, _vm.PreviousAppVersion);
+                if (WizUpgradeTitle != null) WizUpgradeTitle.Text = Lang.T("WizardUpgradeTitle");
+                if (WizUpgradeBody  != null) WizUpgradeBody.Text  = Lang.T("WizardUpgradeBody",
+                    UpdateChecker.CurrentVersionString, _vm.PreviousAppVersion);
             }
-
-            // ── Step 1: Language & theme ─────────────────────────────────────
-            if (_vm.Step == 1)
+            if (_vm.Step == 0)
             {
                 _settingControls = true;
                 WizLangPicker.SelectedItem = _vm.SelectedLanguage;
-                var sysMode = _main.ConfigSvc.Config.SystemThemeMode ?? "auto";
+                _settingControls = false;
+            }
+
+            // ── Step 1: Per-feature questions ────────────────────────────────
+            if (_vm.Step == 1) PopulateFeatureStep();
+
+            // ── Step 2: Appearance ───────────────────────────────────────────
+            if (_vm.Step == 2)
+            {
+                _settingControls = true;
+                var sysMode = cfg.SystemThemeMode ?? "auto";
                 if (WizThemeAuto  != null) WizThemeAuto.IsChecked  = sysMode == "auto";
                 if (WizThemeDark  != null) WizThemeDark.IsChecked  = sysMode == "dark";
                 if (WizThemeLight != null) WizThemeLight.IsChecked = sysMode == "light";
                 PopulateWizThemePicker();
+                if (WizShowChartsBtnToggle != null) WizShowChartsBtnToggle.IsChecked = cfg.ShowChartsToggleButton;
+                if (WizShowLogBtnToggle    != null) WizShowLogBtnToggle.IsChecked    = cfg.ShowLogToggleButton;
                 _settingControls = false;
             }
 
-            // ── Step 2: Choose your view ─────────────────────────────────────
-            if (_vm.Step == 2)
-                HighlightMatchingPreset();
-
-            // ── Step 3: Custom view details (only reachable via "Custom") ────
+            // ── Step 3: Startup ──────────────────────────────────────────────
             if (_vm.Step == 3)
-            {
-                var cfg = _main.ConfigSvc.Config;
-                _settingControls = true;
-                WizCustomTimelineToggle.IsChecked    = cfg.ShowTimeline;
-                WizCustomActivityLogToggle.IsChecked = cfg.ShowActivityLog;
-                WizCustomWifiRulesToggle.IsChecked   = cfg.ShowWifiRulesOnMainWindow;
-                WizCustomManualToggle.IsChecked      = _vm.DisableWifiRules;
-                _settingControls = false;
-            }
-
-            // ── Step 4: removed (operating-mode/companion selection) ─────────
-
-            // ── Step 5: Startup & Installation ───────────────────────────────
-            if (_vm.Step == 5)
             {
                 if (WizInstallChoice != null)
                     WizInstallChoice.Visibility =
@@ -109,59 +101,76 @@ namespace MasselGUARD.Views
                         ? Visibility.Visible : Visibility.Collapsed;
 
                 _settingControls = true;
-                var cfg = _main.ConfigSvc.Config;
-                if (WizStartWithWindowsToggle != null)
-                    WizStartWithWindowsToggle.IsChecked = cfg.StartWithWindows;
-                if (WizConfirmOnCloseToggle != null)
-                    WizConfirmOnCloseToggle.IsChecked = cfg.ConfirmOnClose;
+                if (WizStartWithWindowsToggle != null) WizStartWithWindowsToggle.IsChecked = cfg.StartWithWindows;
+                if (WizStartMinimizedToggle   != null) WizStartMinimizedToggle.IsChecked   = cfg.StartMinimized;
+                if (WizConfirmOnCloseToggle   != null) WizConfirmOnCloseToggle.IsChecked   = cfg.ConfirmOnClose;
                 _settingControls = false;
             }
 
-            // ── Step 6: WiFi Automation ──────────────────────────────────────
-            if (_vm.Step == 6)
+            // ── Step 4: WiFi settings ────────────────────────────────────────
+            if (_vm.Step == 4)
             {
                 _settingControls = true;
-                if (WizManualToggle != null)
-                    WizManualToggle.IsChecked = _vm.DisableWifiRules;
-                if (WizShowRulesToggle != null)
-                    WizShowRulesToggle.IsChecked = _main.ConfigSvc.Config.ShowWifiRulesOnMainWindow;
-                if (WizDnsIndicatorToggle != null)
-                    WizDnsIndicatorToggle.IsChecked = _main.ConfigSvc.Config.ShowDnsIndicator;
+                if (WizManualToggle   != null) WizManualToggle.IsChecked   = _vm.DisableWifiRules;
+                if (WizShowRulesToggle != null) WizShowRulesToggle.IsChecked = cfg.ShowWifiRulesOnMainWindow;
+                if (WizShowWifiBtnToggle != null) WizShowWifiBtnToggle.IsChecked = cfg.ShowWifiToggleButton;
+                if (WizWifiDisableToggle != null) WizWifiDisableToggle.IsChecked = cfg.WifiToggleDisables;
                 _settingControls = false;
                 if (WizShowRulesCard != null)
-                    WizShowRulesCard.Visibility = _vm.DisableWifiRules
-                        ? Visibility.Collapsed : Visibility.Visible;
+                    WizShowRulesCard.Visibility = _vm.DisableWifiRules ? Visibility.Collapsed : Visibility.Visible;
             }
 
-            // ── Step 7: Behavior ─────────────────────────────────────────────
-            if (_vm.Step == 7)
+            // ── Step 5: WireGuard Behaviour ──────────────────────────────────
+            if (_vm.Step == 5)
             {
                 _settingControls = true;
-                var cfg = _main.ConfigSvc.Config;
                 string ar = cfg.AutoReconnectMode;
                 if (WizArOff       != null) WizArOff.IsChecked       = ar == "off";
                 if (WizArPerTunnel != null) WizArPerTunnel.IsChecked = ar == "per-tunnel";
                 if (WizArAlways    != null) WizArAlways.IsChecked    = ar == "always";
-                if (WizArOff != null && WizArPerTunnel != null && WizArAlways != null
-                    && WizArOff.IsChecked != true && WizArPerTunnel.IsChecked != true && WizArAlways.IsChecked != true)
+                if (WizArOff != null && WizArOff.IsChecked != true && WizArPerTunnel?.IsChecked != true && WizArAlways?.IsChecked != true)
                     WizArOff.IsChecked = true;
 
-                if (WizStoreConnectionHistoryToggle != null)
-                    WizStoreConnectionHistoryToggle.IsChecked = cfg.StoreConnectionHistory;
-                if (WizStoreWifiHistoryToggle != null)
-                    WizStoreWifiHistoryToggle.IsChecked = cfg.StoreWifiHistory;
-                if (WizTrayPopupToggle != null)
-                    WizTrayPopupToggle.IsChecked = cfg.ShowTrayPopupOnSwitch;
+                string ks = cfg.KillSwitchMode;
+                if (WizKsOff       != null) WizKsOff.IsChecked       = ks == "off";
+                if (WizKsPerTunnel != null) WizKsPerTunnel.IsChecked = ks == "per-tunnel";
+                if (WizKsAlways    != null) WizKsAlways.IsChecked    = ks == "always";
+                if (WizKsPerTunnel != null && WizKsOff?.IsChecked != true && WizKsPerTunnel.IsChecked != true && WizKsAlways?.IsChecked != true)
+                    WizKsPerTunnel.IsChecked = true;
+
+                if (WizDnsIndicatorToggle != null) WizDnsIndicatorToggle.IsChecked = cfg.ShowDnsIndicator;
+                if (WizShowTunnelBtnToggle != null) WizShowTunnelBtnToggle.IsChecked = cfg.ShowTunnelToggleButton;
+                if (WizTunnelDisableToggle != null) WizTunnelDisableToggle.IsChecked = cfg.TunnelToggleDisables;
+                _settingControls = false;
+            }
+
+            // ── Step 6: DNS Profiles Behaviour ───────────────────────────────
+            if (_vm.Step == 6)
+            {
+                _settingControls = true;
+                if (WizDnsAutomationToggle != null) WizDnsAutomationToggle.IsChecked = cfg.DnsAutomationEnabled;
+                if (WizShowDnsBtnToggle != null) WizShowDnsBtnToggle.IsChecked = cfg.ShowDnsToggleButton;
+                if (WizDnsDisableToggle != null) WizDnsDisableToggle.IsChecked = cfg.DnsToggleDisables;
+                _settingControls = false;
+            }
+
+            // ── Step 7: Notifications ────────────────────────────────────────
+            if (_vm.Step == 7)
+            {
+                _settingControls = true;
+                if (WizTrayPopupToggle != null) WizTrayPopupToggle.IsChecked = cfg.ShowTrayPopupOnSwitch;
+                if (WizNotifDurationBox != null) WizNotifDurationBox.Text = cfg.NotificationDurationSeconds.ToString();
+                if (WizStoreConnectionHistoryToggle != null) WizStoreConnectionHistoryToggle.IsChecked = cfg.StoreConnectionHistory;
+                if (WizStoreWifiHistoryToggle != null) WizStoreWifiHistoryToggle.IsChecked = cfg.StoreWifiHistory;
+                if (WizStoreDnsHistoryToggle != null) WizStoreDnsHistoryToggle.IsChecked = cfg.StoreDnsHistory;
                 _settingControls = false;
             }
 
             // ── Step 8: Done ─────────────────────────────────────────────────
             if (_vm.Step == 8)
             {
-                if (WizVersionLabel != null)
-                    WizVersionLabel.Text = $"MasselGUARD v{UpdateChecker.CurrentVersionString}";
-                if (WizCheckUpdateBtn != null)
-                    WizCheckUpdateBtn.Content = Lang.T("BtnCheckUpdate");
+                if (WizVersionLabel   != null) WizVersionLabel.Text   = $"MasselGUARD v{UpdateChecker.CurrentVersionString}";
+                if (WizCheckUpdateBtn != null) WizCheckUpdateBtn.Content = Lang.T("BtnCheckUpdate");
                 BuildSummary();
             }
 
@@ -173,7 +182,7 @@ namespace MasselGUARD.Views
                     : Lang.T("WizardBtnNext");
         }
 
-        // ── Summary (step 6) ──────────────────────────────────────────────────
+        // ── Summary (Done step) ────────────────────────────────────────────────
         private void BuildSummary()
         {
             if (WizSummaryPanel == null) return;
@@ -182,47 +191,34 @@ namespace MasselGUARD.Views
 
             void Row(string label, string value)
             {
-                var g = new System.Windows.Controls.Grid();
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
+                var g = new Grid();
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(150) });
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                var lbl = new TextBlock
-                {
-                    Text       = label,
-                    FontFamily = (FontFamily)FindResource("Theme.FontFamily"),
-                    FontSize   = 10,
-                    Foreground = (Brush)FindResource("TextMuted"),
-                    VerticalAlignment = VerticalAlignment.Top,
-                };
-                var val = new TextBlock
-                {
-                    Text       = value,
-                    FontFamily = (FontFamily)FindResource("Theme.FontFamily"),
-                    FontSize   = 10,
-                    Foreground = (Brush)FindResource("TextPrimary"),
-                    TextWrapping = TextWrapping.Wrap,
-                };
-                System.Windows.Controls.Grid.SetColumn(lbl, 0);
-                System.Windows.Controls.Grid.SetColumn(val, 1);
-                g.Children.Add(lbl);
-                g.Children.Add(val);
+                var lbl = new TextBlock { Text = label, FontFamily = (FontFamily)FindResource("Theme.FontFamily"),
+                    FontSize = 10, Foreground = (Brush)FindResource("TextMuted"), VerticalAlignment = VerticalAlignment.Top };
+                var val = new TextBlock { Text = value, FontFamily = (FontFamily)FindResource("Theme.FontFamily"),
+                    FontSize = 10, Foreground = (Brush)FindResource("TextPrimary"), TextWrapping = TextWrapping.Wrap };
+                Grid.SetColumn(lbl, 0); Grid.SetColumn(val, 1);
+                g.Children.Add(lbl); g.Children.Add(val);
                 g.Margin = new Thickness(0, 0, 0, 4);
                 WizSummaryPanel.Children.Add(g);
             }
 
-            Row("Auto-reconnect",    cfg.AutoReconnectMode);
-            Row("Start with Windows", cfg.StartWithWindows ? "Yes" : "No");
-            Row("Record connections", cfg.StoreConnectionHistory ? "On" : "Off");
-            Row("Record WiFi SSID",   cfg.StoreWifiHistory ? "On" : "Off");
-            Row("Tray notifications", cfg.ShowTrayPopupOnSwitch ? "On" : "Off");
-        }
-
-        private bool IsCurrentThemeDark()
-        {
-            var bg = Application.Current?.Resources["WindowBg"] as SolidColorBrush;
-            if (bg == null) return true;
-            var c = bg.Color;
-            double lum = 0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B;
-            return lum < 128;
+            string features = _vm.EnableTunnels && _vm.EnableDns ? "WireGuard VPN + DNS"
+                            : _vm.EnableTunnels ? "WireGuard VPN"
+                            : "DNS automation";
+            Row("Features", features);
+            if (_vm.EnableTunnels)
+            {
+                Row("WiFi automation",  _vm.DisableWifiRules ? "Off (manual)" : "On");
+                Row("Auto-reconnect",   cfg.AutoReconnectMode);
+                Row("Kill switch",      cfg.KillSwitchMode);
+            }
+            if (_vm.EnableDns)
+                Row("DNS automation",   cfg.DnsAutomationEnabled ? "On" : "Off");
+            Row("Start with Windows",  cfg.StartWithWindows ? "Yes" : "No");
+            Row("Start minimized",     cfg.StartMinimized ? "Yes" : "No");
+            Row("Tray notifications",  cfg.ShowTrayPopupOnSwitch ? "On" : "Off");
         }
 
         // ── Dot indicators ────────────────────────────────────────────────────
@@ -252,12 +248,104 @@ namespace MasselGUARD.Views
         private void BtnSkip_Click(object sender, RoutedEventArgs e) => _vm.SkipCommand.Execute(null);
 
         // ── Language ──────────────────────────────────────────────────────────
-        private void WizLang_Changed(object sender,
-            System.Windows.Controls.SelectionChangedEventArgs e)
+        private void WizLang_Changed(object sender, SelectionChangedEventArgs e)
         {
             if (_settingControls) return;
             if (WizLangPicker.SelectedItem is LangItem item)
                 _vm.SelectedLanguage = item;
+        }
+
+        // ── Per-feature questions (Step 1) ──────────────────────────────────────
+        private void PopulateFeatureStep()
+        {
+            var cfg = _main.ConfigSvc.Config;
+            _settingControls = true;
+            if (WizFeatWgToggle     != null) WizFeatWgToggle.IsChecked     = _vm.EnableTunnels;
+            if (WizFeatDnsToggle    != null) WizFeatDnsToggle.IsChecked    = _vm.EnableDns;
+            if (WizFeatAutoToggle   != null) WizFeatAutoToggle.IsChecked   = !_vm.DisableWifiRules;
+            if (WizFeatLogToggle    != null) WizFeatLogToggle.IsChecked    = cfg.ActivityLogEnabled;
+            if (WizFeatChartsToggle != null) WizFeatChartsToggle.IsChecked = cfg.ChartsEnabled;
+
+            bool debug = cfg.LogLevelSetting == "extended";
+            if (WizLogNormal != null) WizLogNormal.IsChecked = !debug;
+            if (WizLogDebug  != null) WizLogDebug.IsChecked  = debug;
+
+            if (WizPaneTimeline != null) WizPaneTimeline.IsChecked = cfg.ShowTimelinePane;
+            if (WizPaneUsage    != null) WizPaneUsage.IsChecked    = cfg.ShowUsagePane;
+            if (WizPaneDns      != null) WizPaneDns.IsChecked      = cfg.ShowDnsPane;
+            _settingControls = false;
+
+            UpdateFeatureStepEnablement();
+        }
+
+        /// <summary>Grey the sub-options that only make sense when a feature/module is on.</summary>
+        private void UpdateFeatureStepEnablement()
+        {
+            var cfg = _main.ConfigSvc.Config;
+            if (WizLogLevelRow    != null) WizLogLevelRow.IsEnabled    = cfg.ActivityLogEnabled;
+            if (WizChartLayersRow != null) WizChartLayersRow.IsEnabled = cfg.ChartsEnabled;
+            // Data-usage layer needs tunnels; DNS layer needs the DNS feature.
+            if (WizPaneUsage != null) WizPaneUsage.IsEnabled = cfg.ChartsEnabled && _vm.EnableTunnels;
+            if (WizPaneDns   != null) WizPaneDns.IsEnabled   = cfg.ChartsEnabled && _vm.EnableDns;
+        }
+
+        private void WizFeatWg_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            bool on = WizFeatWgToggle?.IsChecked == true;
+            if (!on && !_vm.EnableDns) { _settingControls = true; WizFeatWgToggle!.IsChecked = true; _settingControls = false; return; } // keep ≥1 module
+            _vm.EnableTunnels = on;
+            UpdateFeatureStepEnablement();
+        }
+
+        private void WizFeatDns_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            bool on = WizFeatDnsToggle?.IsChecked == true;
+            if (!on && !_vm.EnableTunnels) { _settingControls = true; WizFeatDnsToggle!.IsChecked = true; _settingControls = false; return; }
+            _vm.EnableDns = on;
+            UpdateFeatureStepEnablement();
+        }
+
+        private void WizFeatAuto_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            _vm.DisableWifiRules = WizFeatAutoToggle?.IsChecked != true;
+        }
+
+        private void WizFeatLog_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            bool on = WizFeatLogToggle?.IsChecked == true;
+            _main.ConfigSvc.Config.ActivityLogEnabled = on;
+            _main.LogSvc.Enabled = on;
+            UpdateFeatureStepEnablement();
+        }
+
+        private void WizFeatCharts_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            bool on = WizFeatChartsToggle?.IsChecked == true;
+            _main.ConfigSvc.Config.ChartsEnabled = on;
+            _main.HistorySvc.CaptureEnabled = on;
+            UpdateFeatureStepEnablement();
+        }
+
+        private void WizLogLevel_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            bool debug = WizLogDebug?.IsChecked == true;
+            _main.ConfigSvc.Config.LogLevelSetting = debug ? "extended" : "normal";
+            _main.LogSvc.IsExtended = debug;
+        }
+
+        private void WizPane_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            var cfg = _main.ConfigSvc.Config;
+            cfg.ShowTimelinePane = WizPaneTimeline?.IsChecked == true;
+            cfg.ShowUsagePane    = WizPaneUsage?.IsChecked == true;
+            cfg.ShowDnsPane      = WizPaneDns?.IsChecked == true;
         }
 
         // ── Theme ─────────────────────────────────────────────────────────────
@@ -268,8 +356,7 @@ namespace MasselGUARD.Views
             if (WizThemeAuto?.IsChecked == true)
             {
                 cfg.SystemThemeMode = "auto";
-                bool sysIsDark = ThemeManager.GetSystemIsDark();
-                ThemeManager.Instance.Load(cfg.ActiveTheme ?? "__system__", sysIsDark);
+                ThemeManager.Instance.Load(cfg.ActiveTheme ?? "__system__", ThemeManager.GetSystemIsDark());
             }
             else if (WizThemeDark?.IsChecked == true)
             {
@@ -286,17 +373,12 @@ namespace MasselGUARD.Views
         private void WizDownloadThemes_Click(object sender, RoutedEventArgs e)
         {
             var url = (_main.ConfigSvc.Config.SharedThemesRepoUrl ?? "").Trim();
-            if (string.IsNullOrWhiteSpace(url))
-                url = AppConfig.DefaultSharedThemesRepoUrl;
-
+            if (string.IsNullOrWhiteSpace(url)) url = AppConfig.DefaultSharedThemesRepoUrl;
             var browser = new ThemeBrowserWindow(_main, url) { Owner = this };
             browser.ShowDialog();
-            if (browser.AnyInstalled)
-                PopulateWizThemePicker();   // surface newly downloaded themes right away
+            if (browser.AnyInstalled) PopulateWizThemePicker();
         }
 
-        /// <summary>Fills the theme picker from every installed theme and selects the active one —
-        /// without this, a theme downloaded via "Download more themes…" has no way to be picked.</summary>
         private void PopulateWizThemePicker()
         {
             if (WizThemePicker == null) return;
@@ -305,8 +387,7 @@ namespace MasselGUARD.Views
                 WizThemePicker.Items.Add(new ThemePickerItem(f, ThemeManager.GetThemeDisplayName(f)));
             var active = _main.ConfigSvc.Config.ActiveTheme;
             WizThemePicker.SelectedItem = WizThemePicker.Items
-                .OfType<ThemePickerItem>()
-                .FirstOrDefault(i => i.FolderName == active);
+                .OfType<ThemePickerItem>().FirstOrDefault(i => i.FolderName == active);
             if (WizThemePicker.SelectedItem == null && WizThemePicker.Items.Count > 0)
                 WizThemePicker.SelectedIndex = 0;
         }
@@ -327,108 +408,17 @@ namespace MasselGUARD.Views
             _       => ThemeManager.GetSystemIsDark(),
         };
 
-        // ── View preset (Step 2) ────────────────────────────────────────────────
-        // Simple/Manual/Expert just pre-fill the same panel-visibility toggles that
-        // live individually in Settings — nothing new to persist, and every value
-        // stays freely editable afterward (in Settings, or by re-picking a preset
-        // there via the reusable selector). Custom instead advances to Step 3, which
-        // shows the same four toggles individually (WizardViewModel skips Step 3 for
-        // any other card, so it's only ever reachable this way).
-        private void WizPresetSimple_Click(object sender, MouseButtonEventArgs e) =>
-            ApplyViewPreset(showTimeline: false, showActivityLog: false, showWifiRules: true, manualMode: false, WizPresetSimple);
-
-        private void WizPresetManual_Click(object sender, MouseButtonEventArgs e) =>
-            ApplyViewPreset(showTimeline: false, showActivityLog: true, showWifiRules: false, manualMode: true, WizPresetManual);
-
-        private void WizPresetExpert_Click(object sender, MouseButtonEventArgs e) =>
-            ApplyViewPreset(showTimeline: true, showActivityLog: true, showWifiRules: true, manualMode: false, WizPresetExpert);
-
-        private void ApplyViewPreset(bool showTimeline, bool showActivityLog, bool showWifiRules, bool manualMode, Border selectedCard)
-        {
-            _vm.CustomView = false;   // a fixed preset replaces any custom picks — Step 3 is skipped again
-
-            var cfg = _main.ConfigSvc.Config;
-            cfg.ShowTimeline              = showTimeline;
-            cfg.ShowActivityLog           = showActivityLog;
-            cfg.ShowWifiRulesOnMainWindow = showWifiRules;
-            cfg.ShowTunnelRulesColumn     = showWifiRules;
-            // The timeline panel also stays visible from WiFi history alone
-            // (ApplyInfoSectionMode: ShowTimeline || ShowWifiInChart) — tie it to the
-            // same on/off so Simple/Manual genuinely hide it rather than leaving a
-            // WiFi-only strip behind.
-            cfg.ShowWifiInChart           = showTimeline;
-            _vm.DisableWifiRules          = manualMode;   // committed to ManualMode when the wizard finishes
-            // Every preset ships with config validation ACTIVE (bypass off).
-            cfg.SkipTunnelValidation      = false;
-
-            ApplyViewLive(showActivityLog);
-            HighlightPresetCard(selectedCard);
-        }
-
-        private void WizPresetCustom_Click(object sender, MouseButtonEventArgs e)
-        {
-            _vm.CustomView = true;   // makes Step 3 reachable on Next
-            HighlightPresetCard(WizPresetCustom);
-        }
-
-        private void WizCustomToggle_Changed(object sender, RoutedEventArgs e)
-        {
-            if (_settingControls) return;
-
-            var cfg = _main.ConfigSvc.Config;
-            bool showTimeline    = WizCustomTimelineToggle.IsChecked == true;
-            bool showActivityLog = WizCustomActivityLogToggle.IsChecked == true;
-            bool showWifiRules   = WizCustomWifiRulesToggle.IsChecked == true;
-            bool manualMode      = WizCustomManualToggle.IsChecked == true;
-
-            cfg.ShowTimeline              = showTimeline;
-            cfg.ShowActivityLog           = showActivityLog;
-            cfg.ShowWifiRulesOnMainWindow = showWifiRules;
-            cfg.ShowTunnelRulesColumn     = showWifiRules;
-            cfg.ShowWifiInChart           = showTimeline;
-            _vm.DisableWifiRules          = manualMode;
-
-            ApplyViewLive(showActivityLog);
-        }
-
-        private void ApplyViewLive(bool showActivityLog)
-        {
-            _main.RefreshWifiRulesPanel();
-            _main._vm.NotifyRulesColumnChanged();
-            _main.ApplyInfoSectionMode();
-            _main.SetLogPanelVisible(showActivityLog);
-        }
-
-        /// <summary>Best-effort match of the current config against a known preset, for when
-        /// the user navigates back to this step after picking one.</summary>
-        private void HighlightMatchingPreset()
-        {
-            var cfg = _main.ConfigSvc.Config;
-            if (!cfg.ShowTimeline && !cfg.ShowActivityLog && cfg.ShowWifiRulesOnMainWindow && !_vm.DisableWifiRules)
-                HighlightPresetCard(WizPresetSimple);
-            else if (!cfg.ShowTimeline && cfg.ShowActivityLog && !cfg.ShowWifiRulesOnMainWindow && _vm.DisableWifiRules)
-                HighlightPresetCard(WizPresetManual);
-            else if (cfg.ShowTimeline && cfg.ShowActivityLog && cfg.ShowWifiRulesOnMainWindow && !_vm.DisableWifiRules)
-                HighlightPresetCard(WizPresetExpert);
-            // Otherwise leave whichever card (if any) the user already picked this
-            // session highlighted — re-guessing "Custom" on every back-navigation
-            // would fight a fixed preset that just doesn't match due to an unrelated
-            // config value.
-        }
-
-        private void HighlightPresetCard(Border? selected)
-        {
-            var accent = (Brush)FindResource("Accent");
-            var dim    = (Brush)FindResource("BorderColor");
-            foreach (var b in new[] { WizPresetSimple, WizPresetManual, WizPresetExpert, WizPresetCustom })
-                if (b != null) b.BorderBrush = b == selected ? accent : dim;
-        }
-
         // ── Startup ───────────────────────────────────────────────────────────
         private void WizStartWithWindows_Changed(object sender, RoutedEventArgs e)
         {
             if (_settingControls) return;
             _main.ConfigSvc.Config.StartWithWindows = WizStartWithWindowsToggle?.IsChecked == true;
+        }
+
+        private void WizStartMinimized_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            _main.ConfigSvc.Config.StartMinimized = WizStartMinimizedToggle?.IsChecked == true;
         }
 
         private void WizConfirmOnClose_Changed(object sender, RoutedEventArgs e)
@@ -437,9 +427,10 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.ConfirmOnClose = WizConfirmOnCloseToggle?.IsChecked == true;
         }
 
-        // ── WiFi Automation ───────────────────────────────────────────────────
+        // ── WiFi settings ───────────────────────────────────────────────────────
         private void WizManualToggle_Changed(object sender, RoutedEventArgs e)
         {
+            if (_settingControls) return;
             bool on = WizManualToggle?.IsChecked == true;
             _vm.DisableWifiRules = on;
             if (WizShowRulesCard != null)
@@ -448,8 +439,23 @@ namespace MasselGUARD.Views
 
         private void WizShowRules_Changed(object sender, RoutedEventArgs e)
         {
-            _main.ConfigSvc.Config.ShowWifiRulesOnMainWindow =
-                WizShowRulesToggle?.IsChecked == true;
+            if (_settingControls) return;
+            _main.ConfigSvc.Config.ShowWifiRulesOnMainWindow = WizShowRulesToggle?.IsChecked == true;
+        }
+
+        // ── WireGuard Behaviour ─────────────────────────────────────────────────
+        private void WizArMode_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            if (sender is RadioButton rb)
+                _main.ConfigSvc.Config.AutoReconnectMode = rb.Tag as string ?? "off";
+        }
+
+        private void WizKsMode_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            if (sender is RadioButton rb)
+                _main.ConfigSvc.Config.KillSwitchMode = rb.Tag as string ?? "per-tunnel";
         }
 
         private void WizDnsIndicator_Changed(object sender, RoutedEventArgs e)
@@ -458,47 +464,111 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.ShowDnsIndicator = WizDnsIndicatorToggle?.IsChecked == true;
         }
 
-        // ── Behavior ─────────────────────────────────────────────────────────
-        private void WizArMode_Changed(object sender, RoutedEventArgs e)
+        // ── DNS Profiles Behaviour ──────────────────────────────────────────────
+        private void WizDnsAutomation_Changed(object sender, RoutedEventArgs e)
         {
             if (_settingControls) return;
-            if (sender is RadioButton rb)
-                _main.ConfigSvc.Config.AutoReconnectMode = rb.Tag as string ?? "off";
+            _main.ConfigSvc.Config.DnsAutomationEnabled = WizDnsAutomationToggle?.IsChecked == true;
+        }
+
+        // ── Top-bar section toggle buttons (behaviour + visibility) ──────────────
+        private void WizShowTunnelBtn_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            _main.ConfigSvc.Config.ShowTunnelToggleButton = WizShowTunnelBtnToggle?.IsChecked == true;
+            _main.RefreshSectionToggleButtons();
+        }
+
+        private void WizTunnelDisable_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            _main.ConfigSvc.Config.TunnelToggleDisables = WizTunnelDisableToggle?.IsChecked == true;
+        }
+
+        private void WizShowDnsBtn_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            _main.ConfigSvc.Config.ShowDnsToggleButton = WizShowDnsBtnToggle?.IsChecked == true;
+            _main.RefreshSectionToggleButtons();
+        }
+
+        private void WizDnsDisable_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            _main.ConfigSvc.Config.DnsToggleDisables = WizDnsDisableToggle?.IsChecked == true;
+        }
+
+        private void WizShowChartsBtn_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            _main.ConfigSvc.Config.ShowChartsToggleButton = WizShowChartsBtnToggle?.IsChecked == true;
+            _main.RefreshSectionToggleButtons();
+        }
+
+        private void WizShowLogBtn_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            _main.ConfigSvc.Config.ShowLogToggleButton = WizShowLogBtnToggle?.IsChecked == true;
+            _main.RefreshSectionToggleButtons();
+        }
+
+        private void WizShowWifiBtn_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            _main.ConfigSvc.Config.ShowWifiToggleButton = WizShowWifiBtnToggle?.IsChecked == true;
+            _main.RefreshSectionToggleButtons();
+        }
+
+        private void WizWifiDisable_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            _main.ConfigSvc.Config.WifiToggleDisables = WizWifiDisableToggle?.IsChecked == true;
+        }
+
+        // ── Notifications ───────────────────────────────────────────────────────
+        private void WizTrayPopup_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            _main.ConfigSvc.Config.ShowTrayPopupOnSwitch = WizTrayPopupToggle?.IsChecked == true;
+        }
+
+        private void WizNotifDuration_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_settingControls) return;
+            if (int.TryParse(WizNotifDurationBox?.Text, out int s) && s >= 1 && s <= 60)
+                _main.ConfigSvc.Config.NotificationDurationSeconds = s;
+            else if (WizNotifDurationBox != null)
+                WizNotifDurationBox.Text = _main.ConfigSvc.Config.NotificationDurationSeconds.ToString();
         }
 
         private void WizStoreConnectionHistory_Changed(object sender, RoutedEventArgs e)
         {
             if (_settingControls) return;
-            _main.ConfigSvc.Config.StoreConnectionHistory =
-                WizStoreConnectionHistoryToggle?.IsChecked == true;
+            _main.ConfigSvc.Config.StoreConnectionHistory = WizStoreConnectionHistoryToggle?.IsChecked == true;
         }
 
         private void WizStoreWifiHistory_Changed(object sender, RoutedEventArgs e)
         {
             if (_settingControls) return;
-            _main.ConfigSvc.Config.StoreWifiHistory =
-                WizStoreWifiHistoryToggle?.IsChecked == true;
+            _main.ConfigSvc.Config.StoreWifiHistory = WizStoreWifiHistoryToggle?.IsChecked == true;
         }
 
-        private void WizTrayPopup_Changed(object sender, RoutedEventArgs e)
+        private void WizStoreDnsHistory_Changed(object sender, RoutedEventArgs e)
         {
             if (_settingControls) return;
-            _main.ConfigSvc.Config.ShowTrayPopupOnSwitch =
-                WizTrayPopupToggle?.IsChecked == true;
+            _main.ConfigSvc.Config.StoreDnsHistory = WizStoreDnsHistoryToggle?.IsChecked == true;
         }
 
         // ── Install choice ────────────────────────────────────────────────────
         private void WizRunPortable_Click(object sender, RoutedEventArgs e)
         {
-            if (WizInstallChoice != null)
-                WizInstallChoice.Visibility = Visibility.Collapsed;
+            if (WizInstallChoice != null) WizInstallChoice.Visibility = Visibility.Collapsed;
         }
 
         private void WizInstallNow_Click(object sender, RoutedEventArgs e)
         {
             _main.RunInstallPublic();
-            if (WizInstallChoice != null)
-                WizInstallChoice.Visibility = Visibility.Collapsed;
+            if (WizInstallChoice != null) WizInstallChoice.Visibility = Visibility.Collapsed;
         }
 
         // ── Import settings ───────────────────────────────────────────────────
@@ -521,14 +591,9 @@ namespace MasselGUARD.Views
                     int cmp = string.Compare(fileVersion, current, StringComparison.OrdinalIgnoreCase);
                     var key = cmp > 0 ? "SettingsImportVersionNewer" : "SettingsImportVersionWarning";
                     var proceed = MessageBox.Show(
-                        Lang.T(key, fileVersion, current),
-                        Lang.T("SettingsImportTitle"),
+                        Lang.T(key, fileVersion, current), Lang.T("SettingsImportTitle"),
                         MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                    if (proceed != MessageBoxResult.Yes)
-                    {
-                        _main.ConfigSvc.Load();
-                        return;
-                    }
+                    if (proceed != MessageBoxResult.Yes) { _main.ConfigSvc.Load(); return; }
                 }
 
                 if (WizImportResultLabel != null)
@@ -538,10 +603,7 @@ namespace MasselGUARD.Views
                 }
 
                 _vm.LoadFromConfig();
-
-                // Jump to Done step
-                while (_vm.Step < TotalSteps - 1)
-                    _vm.NextCommand.Execute(null);
+                while (_vm.Step < TotalSteps - 1) _vm.NextCommand.Execute(null);
             }
             catch (Exception ex)
             {
@@ -559,12 +621,7 @@ namespace MasselGUARD.Views
 
         private async void WizCheckUpdate_Click(object sender, RoutedEventArgs e)
         {
-            // Second click after a found update → trigger install
-            if (_pendingRelease != null)
-            {
-                await StartUpdateAsync(_pendingRelease);
-                return;
-            }
+            if (_pendingRelease != null) { await StartUpdateAsync(_pendingRelease); return; }
 
             if (WizCheckUpdateBtn != null)
             {
@@ -575,18 +632,17 @@ namespace MasselGUARD.Views
             ReleaseInfo? latest = null;
             try
             {
-                latest = await UpdateChecker.CheckNowAsync(
-                    _main.ConfigSvc.Config, _main.ConfigSvc.Save);
-                _ = _main.CheckForThemeUpdatesAsync();   // piggyback theme-update check on the same trigger
+                latest = await UpdateChecker.CheckNowAsync(_main.ConfigSvc.Config, _main.ConfigSvc.Save);
+                _ = _main.CheckForThemeUpdatesAsync();
             }
-            catch { /* network unavailable */ }
+            catch { }
 
             if (WizCheckUpdateBtn != null) WizCheckUpdateBtn.IsEnabled = true;
 
             if (latest == null)
             {
-                if (WizVersionLabel    != null) WizVersionLabel.Text    = $"MasselGUARD v{UpdateChecker.CurrentVersionString} — could not reach server";
-                if (WizCheckUpdateBtn  != null) WizCheckUpdateBtn.Content = Lang.T("BtnCheckUpdate");
+                if (WizVersionLabel   != null) WizVersionLabel.Text   = $"MasselGUARD v{UpdateChecker.CurrentVersionString} - could not reach server";
+                if (WizCheckUpdateBtn != null) WizCheckUpdateBtn.Content = Lang.T("BtnCheckUpdate");
                 return;
             }
 
@@ -595,17 +651,16 @@ namespace MasselGUARD.Views
                 _pendingRelease = latest;
                 if (WizVersionLabel   != null) WizVersionLabel.Text     = $"v{latest.TagName} is available  →  you are on v{UpdateChecker.CurrentVersionString}";
                 if (WizCheckUpdateBtn != null) WizCheckUpdateBtn.Content = Lang.T("BtnUpdate") is { Length: > 0 } s ? s : "Update now";
-                // Flip the footer Finish button to "Save & Update"
                 if (BtnNext != null) BtnNext.Content = "Save & Update";
             }
             else if (UpdateChecker.IsAheadOfLatest(latest.TagName))
             {
-                if (WizVersionLabel   != null) WizVersionLabel.Text     = $"MasselGUARD v{UpdateChecker.CurrentVersionString} — ahead of release";
+                if (WizVersionLabel   != null) WizVersionLabel.Text     = $"MasselGUARD v{UpdateChecker.CurrentVersionString} - ahead of release";
                 if (WizCheckUpdateBtn != null) { WizCheckUpdateBtn.Content = "✓  Dev build"; WizCheckUpdateBtn.IsEnabled = false; }
             }
             else
             {
-                if (WizVersionLabel   != null) WizVersionLabel.Text     = $"MasselGUARD v{UpdateChecker.CurrentVersionString} — up to date";
+                if (WizVersionLabel   != null) WizVersionLabel.Text     = $"MasselGUARD v{UpdateChecker.CurrentVersionString} - up to date";
                 if (WizCheckUpdateBtn != null) { WizCheckUpdateBtn.Content = "✓  Up to date"; WizCheckUpdateBtn.IsEnabled = false; }
             }
         }
@@ -618,8 +673,7 @@ namespace MasselGUARD.Views
                 return;
             }
 
-            // Save wizard settings before handing off to updater
-            _vm.NextCommand.Execute(null); // triggers ApplyAndFinish if on last step, otherwise harmless
+            _vm.NextCommand.Execute(null); // save wizard settings (ApplyAndFinish on last step)
 
             if (WizCheckUpdateBtn != null) WizCheckUpdateBtn.IsEnabled = false;
             if (WizVersionLabel   != null) WizVersionLabel.Text = Lang.T("UpdateDownloading", release.TagName);
@@ -633,7 +687,6 @@ namespace MasselGUARD.Views
                     release, progress, _main.ConfigSvc.Config, _main.ConfigSvc.Save,
                     onShutdown: () => System.Windows.Application.Current.Dispatcher.Invoke(
                         () => ((App)System.Windows.Application.Current).ShutdownApp()));
-                // UpdateAsync calls onShutdown on success — execution never continues here.
             }
             catch (Exception ex)
             {
