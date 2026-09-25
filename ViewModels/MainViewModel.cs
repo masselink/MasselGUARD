@@ -212,8 +212,18 @@ namespace MasselGUARD.ViewModels
             OnPropertyChanged(nameof(CurrentSsidDisplay));
             _log.Info($"WiFi: {ssid}{(isOpen ? " (open)" : "")}");
             var r = _rules.EvaluateWifi(_config.Config, ssid, isOpen);
-            ApplyRuleResult(r);
-            ApplyDnsForCurrentNetwork(ssid, isOpen);   // parallel DNS axis
+            // Coalesce the tunnel + DNS toasts from this one network change into a single pop-up.
+            _coalesceToasts = true;
+            try
+            {
+                ApplyRuleResult(r);
+                ApplyDnsForCurrentNetwork(ssid, isOpen);   // parallel DNS axis
+            }
+            finally
+            {
+                _coalesceToasts = false;
+                FlushCoalescedToasts();
+            }
         }
 
         /// <summary>Query current SSID and apply state - used on startup only.</summary>
@@ -727,6 +737,46 @@ namespace MasselGUARD.ViewModels
             ApplyRuleResult(result);
         }
 
+        // ── Toast coalescing ─────────────────────────────────────────────────
+        // During a single WiFi-state apply the tunnel action and the DNS action can each want a
+        // toast (e.g. on startup: "connected X" then "DNS Y"). While coalescing is on they buffer
+        // and FlushCoalescedToasts merges them into ONE notification instead of two stacked pop-ups.
+        private bool _coalesceToasts;
+        private readonly List<Views.ToastNotification> _toastBuffer = new();
+
+        private void EmitToast(Views.ToastNotification n)
+        {
+            if (_coalesceToasts) { _toastBuffer.Add(n); return; }
+            (Application.Current as App)?.ShowTrayNotification(n);
+        }
+
+        private void FlushCoalescedToasts()
+        {
+            if (_toastBuffer.Count == 0) return;
+            Views.ToastNotification n;
+            if (_toastBuffer.Count == 1)
+            {
+                n = _toastBuffer[0];
+            }
+            else
+            {
+                // Header = the first (tunnel) toast; append each other toast as a "Category: Primary"
+                // line so a startup connect + DNS apply reads as one message.
+                var first = _toastBuffer[0];
+                var extra = string.Join("\n", _toastBuffer.Skip(1).Select(t => $"{t.Category}: {t.Primary}"));
+                n = new Views.ToastNotification
+                {
+                    Category   = first.Category,
+                    Primary    = first.Primary,
+                    Secondary  = string.IsNullOrWhiteSpace(first.Secondary) ? extra : first.Secondary + "\n" + extra,
+                    StripColor = first.StripColor,
+                    DurationMs = first.DurationMs,
+                };
+            }
+            _toastBuffer.Clear();
+            (Application.Current as App)?.ShowTrayNotification(n);
+        }
+
         private void ApplyRuleResult(RuleEngine.RuleResult result)
         {
             if (result.Action == RuleEngine.ActionKind.None) return;
@@ -752,7 +802,7 @@ namespace MasselGUARD.ViewModels
                     string stripKey  = isOpen    ? "Success"
                                      : isDefault ? "Warning"
                                      :             "Accent";
-                    (Application.Current as App)?.ShowTrayNotification(
+                    EmitToast(
                         new Views.ToastNotification
                         {
                             Category   = category,
@@ -813,7 +863,7 @@ namespace MasselGUARD.ViewModels
                 string stripKey = isOpen    ? "Success"
                                 : isDefault ? "Warning"
                                 :             "Accent";
-                (Application.Current as App)?.ShowTrayNotification(
+                EmitToast(
                     new Views.ToastNotification
                     {
                         Category   = category,
@@ -1048,7 +1098,7 @@ namespace MasselGUARD.ViewModels
                             :                                          "DNS Automation";
             string stripKey = isOpen ? "Success" : isDefault ? "Warning" : "Accent";
 
-            (Application.Current as App)?.ShowTrayNotification(
+            EmitToast(
                 new Views.ToastNotification
                 {
                     Category   = category,

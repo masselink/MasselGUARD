@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:MasselGUARD"
         Title="{Binding [WizardTitle], Source={x:Static local:Lang.Instance}}"
-        Width="520" Height="520"
+        Width="640" Height="640"
         WindowStyle="None" AllowsTransparency="True"
         Background="Transparent" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner">
@@ -390,9 +390,9 @@
                     </Border>
                 </StackPanel>
 
-                <!-- ── Step 4: WiFi settings ───────────────────────────────────── -->
+                <!-- ── Step 4: Automation ──────────────────────────────────────── -->
                 <StackPanel x:Name="Step4" Visibility="Collapsed">
-                    <TextBlock Text="{Binding [SettingsTabWifi], Source={x:Static local:Lang.Instance}}"
+                    <TextBlock Text="{Binding [SettingsTabAutomation], Source={x:Static local:Lang.Instance}}"
                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="16" FontWeight="Bold"
                                Foreground="{DynamicResource Accent}" Margin="0,0,0,10"/>
                     <TextBlock Text="{Binding [WizardManualBody], Source={x:Static local:Lang.Instance}}"

@@ -239,7 +239,6 @@ namespace MasselGUARD.Views
             // Display
             L(HideWifiRulesToggle, "ShowWifiRulesOnMainWindow");
             L(ShowRulesColumnToggle, "ShowTunnelRulesColumn");
-            L(ShowActivityLogToggle, "ShowActivityLog");
             L(ShowTimelineToggle, "ShowTimeline");
         }
 
@@ -439,7 +438,6 @@ namespace MasselGUARD.Views
                         _draft.Language, StringComparison.OrdinalIgnoreCase));
 
             _loading = true;
-            if (ShowActivityLogToggle    != null) ShowActivityLogToggle.IsChecked    = _draft.ShowActivityLog;
             if (ShowTimelineToggle       != null) ShowTimelineToggle.IsChecked       = _draft.ShowTimeline;
             if (StoreConnectionHistoryToggle != null) StoreConnectionHistoryToggle.IsChecked = _draft.StoreConnectionHistory;
             _loading = false;
@@ -655,13 +653,6 @@ namespace MasselGUARD.Views
             if (_loading) return;
             _draft.ShowTunnelRulesColumn =
                 ShowRulesColumnToggle?.IsChecked == true;
-        }
-
-        private void ShowActivityLog_Changed(object sender, System.Windows.RoutedEventArgs e)
-        {
-            if (_loading) return;
-            _draft.ShowActivityLog = ShowActivityLogToggle?.IsChecked == true;
-            _main.SetLogPanelVisible(_draft.ShowActivityLog);
         }
 
         private void ShowTimeline_Changed(object sender, System.Windows.RoutedEventArgs e)

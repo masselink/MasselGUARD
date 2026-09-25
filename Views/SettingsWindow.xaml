@@ -1454,32 +1454,6 @@
                             </Border>
                             </StackPanel>
 
-                            <!-- Interface -->
-                            <TextBlock Text="{Binding [SettingsInterfaceSection], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SettingsSectionHeader}"
-                                       Margin="0,16,0,4"/>
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="{Binding [SettingsShowActivityLogLabel], Source={x:Static local:Lang.Instance}}"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
-                                                   Foreground="{DynamicResource TextPrimary}"/>
-                                        <TextBlock Text="{Binding [SettingsShowActivityLogDesc], Source={x:Static local:Lang.Instance}}"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
-                                                   Margin="0,2,0,0"/>
-                                    </StackPanel>
-                                    <ToggleButton Grid.Column="1" x:Name="ShowActivityLogToggle"
-                                                  Style="{StaticResource ToggleSwitch}"
-                                                  Checked="ShowActivityLog_Changed"
-                                                  Unchecked="ShowActivityLog_Changed"
-                                                  VerticalAlignment="Center"/>
-                                </Grid>
-                            </Border>
 
                         </StackPanel>
 
