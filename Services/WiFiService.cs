@@ -50,7 +50,7 @@ namespace MasselGUARD.Services
         // +4  NotificationCode   (DWORD)
         // +8  InterfaceGuid      (GUID, 16 bytes)
         // +24 dwDataSize         (DWORD)
-        // +28 pData              (POINTER — points to WLAN_MSM_NOTIFICATION_DATA or similar)
+        // +28 pData              (POINTER - points to WLAN_MSM_NOTIFICATION_DATA or similar)
         // For ACM_CONNECTED the pData pointer holds WLAN_CONNECTION_NOTIFICATION_DATA:
         //   +0  wlanConnectionMode (DWORD)
         //   +4  strProfileName[256] (512 bytes of WCHARs)
@@ -64,7 +64,7 @@ namespace MasselGUARD.Services
 
         // ── State ─────────────────────────────────────────────────────────────
         private IntPtr _handle = IntPtr.Zero;
-        private WlanNotifCallback? _cb; // must be field — GC must not collect it
+        private WlanNotifCallback? _cb; // must be field - GC must not collect it
         private string? _lastFiredSsid = "##INIT##"; // sentinel so first event always fires
 
         public string? CurrentSsid   { get; private set; }
@@ -131,7 +131,7 @@ namespace MasselGUARD.Services
             // Normalise null and empty to null
             if (string.IsNullOrEmpty(ssid)) ssid = null;
 
-            // Same SSID as last fired — swallow the duplicate
+            // Same SSID as last fired - swallow the duplicate
             if (ssid == _lastFiredSsid) return;
 
             _lastFiredSsid = ssid;

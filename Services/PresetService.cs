@@ -11,7 +11,7 @@ using MasselGUARD.Models;
 namespace MasselGUARD.Services
 {
     /// <summary>
-    /// The unified <c>.masselguard</c> file — a full settings snapshot that doubles as a portable
+    /// The unified <c>.masselguard</c> file - a full settings snapshot that doubles as a portable
     /// settings export AND a managed policy.
     /// <list type="bullet">
     /// <item><b>Import</b> (wizard / Advanced) → every setting value is applied and stays editable.</item>
@@ -110,7 +110,7 @@ namespace MasselGUARD.Services
 
         // ── Apply: import (all) ───────────────────────────────────────────────
 
-        /// <summary>Applies every setting value in the file (metadata + Locked ignored). Editable —
+        /// <summary>Applies every setting value in the file (metadata + Locked ignored). Editable -
         /// used for a normal import.</summary>
         public static void ApplyAll(AppConfig cfg, JsonObject obj)
         {
@@ -141,7 +141,7 @@ namespace MasselGUARD.Services
                 if (node != null)
                 {
                     try { prop.SetValue(cfg, JsonSerializer.Deserialize(node.ToJsonString(), prop.PropertyType, Opts)); }
-                    catch { continue; }        // bad value — don't lock what we couldn't apply
+                    catch { continue; }        // bad value - don't lock what we couldn't apply
                 }
                 locked.Add(prop.Name);
             }

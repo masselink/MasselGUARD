@@ -106,7 +106,7 @@ namespace MasselGUARD.ViewModels
         }
 
         // Appearance
-        // No live-apply side effect here — this setter has no way to know the draft's
+        // No live-apply side effect here - this setter has no way to know the draft's
         // Light/Dark/Auto mode, and previously always resolved via the raw Windows
         // setting (ThemeManager.GetSystemIsDark()), which could disagree with what the
         // user actually picked in Settings. The view (SettingsWindow) applies the theme
@@ -288,6 +288,6 @@ namespace MasselGUARD.ViewModels
             LogLevelChanged?.Invoke(_logLevel);
         }
 
-        private void SaveImmediate() { /* staged — explicit save via DoSave() */ }
+        private void SaveImmediate() { /* staged - explicit save via DoSave() */ }
     }
 }

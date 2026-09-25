@@ -8,7 +8,7 @@ namespace MasselGUARD
 {
     /// <summary>
     /// MasselGUARDcli entry point.
-    /// Pure console application — no WPF, no GUI dependencies.
+    /// Pure console application - no WPF, no GUI dependencies.
     /// Manifest is asInvoker: runs inline in any terminal and prints a clean
     /// error when Administrator rights are missing (no popup window).
     /// </summary>
@@ -54,7 +54,7 @@ namespace MasselGUARD
 
             if (args.Length == 0)
             {
-                Cli.CliOutput.Info("MasselGUARDcli — WireGuard tunnel manager (command-line interface)");
+                Cli.CliOutput.Info("MasselGUARDcli - WireGuard tunnel manager (command-line interface)");
                 Cli.CliOutput.Info("Run 'MasselGUARDcli help' for a list of commands.");
                 return 0;
             }
@@ -68,7 +68,7 @@ namespace MasselGUARD
             "help" or "--help" or "-h" or "-?"     => true,
             "version" or "--version" or "-v"       => true,
             "selftest"                             => true,
-            // `dns` is read-only (status) in this release — no driver/service access.
+            // `dns` is read-only (status) in this release - no driver/service access.
             // If a write subcommand (e.g. `dns set`) is added later, gate it inside the command.
             "dns"                                  => true,
             _                                      => false,

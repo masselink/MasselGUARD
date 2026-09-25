@@ -77,12 +77,12 @@ namespace MasselGUARD.ViewModels
             }
         }
 
-        /// <summary>Session traffic totals. "—" when not recorded.</summary>
+        /// <summary>Session traffic totals. "-" when not recorded.</summary>
         public string TrafficDisplay
         {
             get
             {
-                if (_entry.SessionRxBytes == 0 && _entry.SessionTxBytes == 0) return "—";
+                if (_entry.SessionRxBytes == 0 && _entry.SessionTxBytes == 0) return "-";
                 return $"↑ {FormatBytes(_entry.SessionTxBytes)}  ↓ {FormatBytes(_entry.SessionRxBytes)}";
             }
         }

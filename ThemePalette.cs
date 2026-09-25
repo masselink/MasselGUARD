@@ -9,7 +9,7 @@ namespace MasselGUARD
     /// <summary>
     /// Extracts a theme colour palette from an image (Theme Builder → New from image).
     /// Median-cut quantization over a downscaled copy of the picture. Only ambience
-    /// colours (backgrounds, surfaces, accent, text, tray) are derived — status colours
+    /// colours (backgrounds, surfaces, accent, text, tray) are derived - status colours
     /// (success/danger/warning) are left empty so they keep their semantic system hues.
     /// </summary>
     internal static class ThemePalette
@@ -98,7 +98,7 @@ namespace MasselGUARD
 
         private static List<Cluster> ExtractClusters(string imagePath, int maxClusters)
         {
-            // Decode downscaled — 64 px wide is plenty for dominant colours
+            // Decode downscaled - 64 px wide is plenty for dominant colours
             var src = new BitmapImage();
             src.BeginInit();
             src.UriSource        = new Uri(imagePath, UriKind.Absolute);

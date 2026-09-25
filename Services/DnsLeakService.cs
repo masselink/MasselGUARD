@@ -21,7 +21,7 @@ namespace MasselGUARD.Services
     /// set together for full leak prevention.
     ///
     /// These are GLOBAL (all-users) settings, not per-tunnel. Writing under HKLM needs
-    /// administrator rights — the GUI always runs elevated (requireAdministrator
+    /// administrator rights - the GUI always runs elevated (requireAdministrator
     /// manifest), so no extra elevation is required here.
     ///
     /// The DNS Client (Dnscache) service reads these policies and generally cannot be

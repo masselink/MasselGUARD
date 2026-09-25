@@ -12,14 +12,14 @@ namespace MasselGUARD
 {
     /// <summary>
     /// Checks GitHub Releases for a newer version and can auto-update by downloading
-    /// MasselGUARD.zip, extracting it next to the running exe, and relaunching.
+    /// the arch-specific zip, extracting it next to the running exe, and relaunching.
     ///
     /// GitHub API endpoint:
     ///   GET https://api.github.com/repos/masselink/MasselGUARD/releases/latest
     ///
-    /// The release must contain an architecture-specific asset — "MasselGUARD-x64.zip"
-    /// or "MasselGUARD-arm64.zip" — matching the running process. Older releases that
-    /// ship a single "MasselGUARD.zip" are still accepted as a fallback (x64).
+    /// The release must contain an architecture-specific asset - "MasselGUARD-x64.zip"
+    /// or "MasselGUARD-arm64.zip" - matching the running process. The legacy single-arch
+    /// "MasselGUARD.zip" is no longer produced or accepted.
     /// The tag name is used as the version string (e.g. "v2.0.1").
     /// </summary>
     public static class UpdateChecker
@@ -37,25 +37,20 @@ namespace MasselGUARD
         };
 
         /// <summary>
-        /// Candidate release-asset names for the given architecture, most-specific first:
-        /// the arch-specific zip, then the legacy single-arch "MasselGUARD.zip" (x64 only).
-        /// arm64 has no legacy fallback — MasselGUARD.zip is x64 and must never be handed to
-        /// an ARM64 install.
+        /// Release-asset name for the given architecture: only the arch-specific zip
+        /// ("MasselGUARD-x64.zip" / "MasselGUARD-arm64.zip"). The legacy single-arch
+        /// "MasselGUARD.zip" is no longer produced or accepted.
         /// </summary>
         private static string[] AssetCandidates(string arch)
-        {
-            return arch == "x64"
-                ? new[] { $"MasselGUARD-{arch}.zip", "MasselGUARD.zip" }
-                : new[] { $"MasselGUARD-{arch}.zip" };
-        }
+            => new[] { $"MasselGUARD-{arch}.zip" };
         private const string TagsApiUrl     = "https://api.github.com/repos/masselink/MasselGUARD/tags";
         private const string ReleasesApiUrl = "https://api.github.com/repos/masselink/MasselGUARD/releases";
-        // Major.Minor.Patch only — static, never modified by build.
+        // Major.Minor.Patch only - static, never modified by build.
         // The build timestamp is injected at compile time via -p:InformationalVersion
         // and read at runtime from the assembly attribute (see BuildStamp below).
-        private const string CurrentVersion = "4.2.0";
+        private const string CurrentVersion = "4.5.0";
 
-        // Release codenames — one entry per public version, keyed by Major.Minor.Patch.
+        // Release codenames - one entry per public version, keyed by Major.Minor.Patch.
         // Update both here AND in BUILD.bat (set CODENAME=...) when bumping the version.
         private static readonly System.Collections.Generic.Dictionary<string, string> _codenames =
             new(StringComparer.OrdinalIgnoreCase)
@@ -71,6 +66,7 @@ namespace MasselGUARD
                 { "4.0.0", "Forking Fox" },
                 { "4.1.0", "Layered Lynx" },
                 { "4.2.0", "Resolving Raven" },
+                { "4.5.0", "Resolving Raven" },
             };
 
         // ── Public: silent background check (called on startup) ──────────────
@@ -158,7 +154,7 @@ namespace MasselGUARD
                 UseShellExecute = false
             });
 
-            // Shutdown this instance — the batch will relaunch the new one.
+            // Shutdown this instance - the batch will relaunch the new one.
             // GUI callers supply onShutdown to run the WPF dispatcher shutdown.
             onShutdown?.Invoke();
         }
@@ -182,7 +178,7 @@ namespace MasselGUARD
             return current > latest;
         }
 
-        /// <summary>Major.Minor.Patch — use for version comparisons and display.</summary>
+        /// <summary>Major.Minor.Patch - use for version comparisons and display.</summary>
         public static string CurrentVersionString => CurrentVersion;
 
         /// <summary>
@@ -193,7 +189,7 @@ namespace MasselGUARD
             _codenames.TryGetValue(CurrentVersion, out var name) ? name : "";
 
         /// <summary>
-        /// Version + codename for display: "3.3.0 — Camouflaged Koala".
+        /// Version + codename for display: "3.3.0 - Camouflaged Koala".
         /// Falls back to just the version string when no codename is set.
         /// </summary>
         public static string VersionWithCodename
@@ -201,7 +197,7 @@ namespace MasselGUARD
             get
             {
                 var cn = Codename;
-                return string.IsNullOrEmpty(cn) ? CurrentVersionString : $"{CurrentVersionString} — {cn}";
+                return string.IsNullOrEmpty(cn) ? CurrentVersionString : $"{CurrentVersionString} - {cn}";
             }
         }
 
@@ -225,7 +221,7 @@ namespace MasselGUARD
             }
         }
 
-        /// <summary>Full display string: "3.3.0.2606011200" — or just "3.3.0" in IDE builds.</summary>
+        /// <summary>Full display string: "3.3.0.2606011200" - or just "3.3.0" in IDE builds.</summary>
         public static string FullVersionString
         {
             get
@@ -237,7 +233,7 @@ namespace MasselGUARD
 
         private static Version ParseVersion(string s)
         {
-            // Compare only Major.Minor.Patch — the 4th component is a build timestamp
+            // Compare only Major.Minor.Patch - the 4th component is a build timestamp
             // (yyMMddHHmm) that exceeds int.MaxValue from ~2022 onward, causing
             // Version.TryParse to silently fail and fall back to (0,0), which makes
             // any GitHub tag appear newer than the locally running build.
@@ -255,7 +251,7 @@ namespace MasselGUARD
         }
 
         // Fetch latest tag from GitHub tags API, then find its release asset.
-        // forceArch overrides the process architecture when selecting the asset — used by the
+        // forceArch overrides the process architecture when selecting the asset - used by the
         // "switch to ARM64" flow, where the running process is emulated x64 but we want the
         // arm64 build. Pass null (default) to select for the current process architecture.
         public static async Task<ReleaseInfo?> FetchLatestReleaseAsync(string? forceArch = null)
@@ -276,9 +272,8 @@ namespace MasselGUARD
             }
             if (latestTag == null) return null;
 
-            // Step 2: find the GitHub release for this tag and pick the asset that
-            // matches this process's architecture. Collect all assets first, then
-            // choose by priority (arch-specific zip, then legacy MasselGUARD.zip).
+            // Step 2: find the GitHub release for this tag and pick the arch-specific
+            // asset that matches this process's architecture.
             string? zipUrl = null;
             try
             {
@@ -303,7 +298,7 @@ namespace MasselGUARD
                 foreach (var candidate in AssetCandidates(wantArch))
                     if (byName.TryGetValue(candidate, out var url)) { zipUrl = url; break; }
             }
-            catch { /* tag exists but has no release — that is fine */ }
+            catch { /* tag exists but has no release - that is fine */ }
 
             return new ReleaseInfo(latestTag, zipUrl);
         }

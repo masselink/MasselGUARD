@@ -15,12 +15,12 @@ namespace MasselGUARD
     ///
     /// ── Colour format ────────────────────────────────────────────────────────
     /// All colour values accept:
-    ///   "#RRGGBB"        — fully opaque  (e.g. "#1F2328")
-    ///   "#AARRGGBB"      — with alpha    (e.g. "#CC1F2328" = 80% opaque)
-    ///   "#RGB" / "#ARGB" — shorthand
-    ///   Named colours    — "Transparent", "White", "Black", etc.
+    ///   "#RRGGBB"        - fully opaque  (e.g. "#1F2328")
+    ///   "#AARRGGBB"      - with alpha    (e.g. "#CC1F2328" = 80% opaque)
+    ///   "#RGB" / "#ARGB" - shorthand
+    ///   Named colours    - "Transparent", "White", "Black", etc.
     ///
-    /// ── theme.json colour keys — named by where the colour is used ───────────
+    /// ── theme.json colour keys - named by where the colour is used ───────────
     ///   colorWindowBg      main window and dialog background
     ///   colorSurface       title bar, footer, sidebar, button bars
     ///   colorCard          content cards, list backgrounds, input fields
@@ -67,17 +67,17 @@ namespace MasselGUARD
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MasselGUARD");
 
         /// <summary>
-        /// ALL non-System themes — downloaded (Theme Browser) and user-created (Theme Builder)
-        /// alike — live together per-user under %APPDATA%\MasselGUARD\themes\. Per-user so
+        /// ALL non-System themes - downloaded (Theme Browser) and user-created (Theme Builder)
+        /// alike - live together per-user under %APPDATA%\MasselGUARD\themes\. Per-user so
         /// downloads need no elevation and everything survives app updates/reinstalls. The only
         /// theme built into the binary is the virtual System (Windows colours) theme.
         /// </summary>
         private static string ThemeRoot => Path.Combine(AppDataDir, "themes");
 
-        /// <summary>Where the Theme Browser installs downloaded themes — the unified themes folder.</summary>
+        /// <summary>Where the Theme Browser installs downloaded themes - the unified themes folder.</summary>
         public static string SharedThemeRoot => ThemeRoot;
 
-        /// <summary>Where the Theme Builder writes user themes — the unified themes folder.</summary>
+        /// <summary>Where the Theme Builder writes user themes - the unified themes folder.</summary>
         public static string UserThemeRoot => ThemeRoot;
 
         /// <summary>
@@ -104,11 +104,11 @@ namespace MasselGUARD
                     if (!Directory.EnumerateFileSystemEntries(src).Any())
                         Directory.Delete(src);
                 }
-                catch { /* best-effort — never block startup */ }
+                catch { /* best-effort - never block startup */ }
             }
         }
 
-        /// <summary>All theme folder names (each containing a theme.json — see
+        /// <summary>All theme folder names (each containing a theme.json - see
         /// <see cref="HasThemeJson"/>) in the themes folder.</summary>
         public static List<string> ThemeNames()
         {
@@ -121,18 +121,18 @@ namespace MasselGUARD
                 .ToList();
         }
 
-        /// <summary>True only for the virtual System (Windows colours) theme — the single
+        /// <summary>True only for the virtual System (Windows colours) theme - the single
         /// embedded, read-only theme. Every theme in the themes\ folder is editable.</summary>
         public static bool IsBuiltinTheme(string name) =>
             name is "__system__" or "system";
 
-        /// <summary>True when a theme folder with that name already exists — used to block
+        /// <summary>True when a theme folder with that name already exists - used to block
         /// overwriting an existing theme when creating or duplicating.</summary>
         public static bool ThemeExists(string name) =>
             !string.IsNullOrWhiteSpace(name) && HasThemeJson(Path.Combine(ThemeRoot, name));
 
         /// <summary>
-        /// A theme folder's JSON file is normally "theme.json" — what Save/New/Duplicate always
+        /// A theme folder's JSON file is normally "theme.json" - what Save/New/Duplicate always
         /// write. The community theme repo instead distributes "&lt;id&gt;-theme.json" (its files
         /// are named to match the theme id), and a theme copied in by hand often keeps that same
         /// naming. Recognise both so nothing dropped into the folder is silently invisible.
@@ -142,7 +142,7 @@ namespace MasselGUARD
             File.Exists(Path.Combine(folderPath, $"{Path.GetFileName(folderPath)}-theme.json"));
 
         /// <summary>True when this theme's JSON file uses the "&lt;foldername&gt;-theme.json"
-        /// naming instead of the app's own "theme.json" — i.e. it came from the community repo's
+        /// naming instead of the app's own "theme.json" - i.e. it came from the community repo's
         /// distribution format or was copied in by hand, not created/saved by this app. Used by
         /// the Theme Manager to group these under "Custom themes".</summary>
         public static bool IsCustomNamedTheme(string name) =>
@@ -161,7 +161,7 @@ namespace MasselGUARD
         }
 
         /// <summary>Resolves the actual JSON file path for a theme: prefers "theme.json"
-        /// (the app's own convention) but falls back to "&lt;name&gt;-theme.json" — see
+        /// (the app's own convention) but falls back to "&lt;name&gt;-theme.json" - see
         /// <see cref="HasThemeJson"/>. Saving reuses whichever file already exists, so it
         /// never leaves an orphaned duplicate behind.</summary>
         public static string ThemeJsonPath(string name)
@@ -181,7 +181,7 @@ namespace MasselGUARD
         /// </summary>
         public static List<string> AvailableThemes()
         {
-            var themes = new List<string> { "__system__" };   // virtual — Windows system colours
+            var themes = new List<string> { "__system__" };   // virtual - Windows system colours
 
             // Built-in themes from exe folder
             var root = ThemeRoot;
@@ -274,12 +274,12 @@ namespace MasselGUARD
 
             if (variant != null)
             {
-                // Explicit variant defined — use it.
+                // Explicit variant defined - use it.
                 resolved = MergeVariant(def, variant);
             }
             else
             {
-                // No explicit variant for this mode — try the other side and invert it,
+                // No explicit variant for this mode - try the other side and invert it,
                 // or fall back to root (backward compat: old single-file themes with
                 // colours at root level and no dark/light sections).
                 var otherVariant = isDark ? def.Light : def.Dark;
@@ -322,7 +322,7 @@ namespace MasselGUARD
                 CornerRadius      = root.CornerRadius,
                 // Assets: a variant may carry its own logo / app icon / background image /
                 // tray icons (e.g. a light logo for the light variant); root is the shared
-                // fallback for legacy single-image themes. Stretch/opacity/size stay shared —
+                // fallback for legacy single-image themes. Stretch/opacity/size stay shared -
                 // they're layout numbers, not per-variant images.
                 BackgroundImage   = O(variant.BackgroundImage, root.BackgroundImage),
                 BackgroundStretch = root.BackgroundStretch,
@@ -367,6 +367,16 @@ namespace MasselGUARD
                 ColorTrayText        = O(variant.ColorTrayText,        root.ColorTrayText),
                 ColorTrayBorder      = O(variant.ColorTrayBorder,      root.ColorTrayBorder),
                 ColorTrayImageMargin = O(variant.ColorTrayImageMargin, root.ColorTrayImageMargin),
+                ColorDnsBadge        = O(variant.ColorDnsBadge,        root.ColorDnsBadge),
+                DnsBadgePath         = O(variant.DnsBadgePath,         root.DnsBadgePath),
+                IconTunnels          = O(variant.IconTunnels,          root.IconTunnels),
+                IconDns              = O(variant.IconDns,              root.IconDns),
+                IconAutomation       = O(variant.IconAutomation,       root.IconAutomation),
+                IconCharts           = O(variant.IconCharts,           root.IconCharts),
+                IconLog              = O(variant.IconLog,              root.IconLog),
+                DnsBadgeOpacity      = root.DnsBadgeOpacity,
+                DnsBadgeSize         = root.DnsBadgeSize,
+                DnsBadgeLocation     = O(variant.DnsBadgeLocation,     root.DnsBadgeLocation),
             };
         }
 
@@ -473,6 +483,17 @@ namespace MasselGUARD
                 ColorTrayText        = Inv(src.ColorTrayText),
                 ColorTrayBorder      = Inv(src.ColorTrayBorder),
                 ColorTrayImageMargin = InvBg(src.ColorTrayImageMargin),
+                ColorDnsBadge        = Inv(src.ColorDnsBadge),
+                // Shape + opacity + size + location are not colours - carry them across unchanged.
+                DnsBadgePath         = src.DnsBadgePath,
+                IconTunnels          = src.IconTunnels,
+                IconDns              = src.IconDns,
+                IconAutomation       = src.IconAutomation,
+                IconCharts           = src.IconCharts,
+                IconLog              = src.IconLog,
+                DnsBadgeOpacity      = src.DnsBadgeOpacity,
+                DnsBadgeSize         = src.DnsBadgeSize,
+                DnsBadgeLocation     = src.DnsBadgeLocation,
             };
         }
 
@@ -627,7 +648,7 @@ namespace MasselGUARD
             SetBrush(res, "ListHover",    lstHov);
             SetBrush(res, "ListSelected", lstSel);
 
-            // Log timestamp colour — falls back to resolved border colour if not set
+            // Log timestamp colour - falls back to resolved border colour if not set
             var tsHex = !string.IsNullOrWhiteSpace(d.ColorLogTimestamp) ? d.ColorLogTimestamp : border;
             res["Theme.LogTimestampColor"] = ParseColor(tsHex, Colors.Gray);
 
@@ -659,7 +680,7 @@ namespace MasselGUARD
             res["Theme.ShowStatusWifi"]  = d.ShowStatusWifi   ? Visibility.Visible : Visibility.Collapsed;
             res["Theme.ShowStatusTunnel"]= d.ShowStatusTunnel ? Visibility.Visible : Visibility.Collapsed;
 
-            // ── Tray menu colours — fall back to resolved semantic colours when empty ──
+            // ── Tray menu colours - fall back to resolved semantic colours when empty ──
             string trayBg     = Fallback(d.ColorTrayBg,          surface);
             string trayHover  = Fallback(d.ColorTrayHover,       border);
             string trayText   = Fallback(d.ColorTrayText,        txtPri);
@@ -676,6 +697,24 @@ namespace MasselGUARD
             res["Theme.TrayTextColor"]        = ToDrawingColor(trayText);
             res["Theme.TrayBorderColor"]      = ToDrawingColor(trayBorder);
             res["Theme.TrayImageMarginColor"] = ToDrawingColor(trayImg);
+
+            // ── DNS badge (tray shield overlay) - colour + shape (SVG path) + opacity ──
+            // Empty colour → built-in violet; empty path → built-in default shield (drawn in code).
+            string dnsBadge = Fallback(d.ColorDnsBadge, "#A78BFA");
+            res["Theme.DnsBadgeColor"]    = ToDrawingColor(dnsBadge);
+            res["Theme.DnsBadgePath"]     = string.IsNullOrWhiteSpace(d.DnsBadgePath) ? "" : d.DnsBadgePath.Trim();
+            res["Theme.DnsBadgeOpacity"]  = Math.Clamp(d.DnsBadgeOpacity, 0.1, 1.0);
+            res["Theme.DnsBadgeSize"]     = Math.Clamp(d.DnsBadgeSize <= 0 ? 45 : d.DnsBadgeSize, 10, 100) / 100.0;
+            res["Theme.DnsBadgeLocation"] = string.IsNullOrWhiteSpace(d.DnsBadgeLocation)
+                ? "bottom-right" : d.DnsBadgeLocation.Trim().ToLowerInvariant();
+
+            // Custom section icons — a parsed Geometry when the theme supplies one, else null so the
+            // main window falls back to the built-in default icon for that section.
+            res["Theme.Icon.Tunnels"]    = ParseIconGeometry(d.IconTunnels);
+            res["Theme.Icon.Dns"]        = ParseIconGeometry(d.IconDns);
+            res["Theme.Icon.Automation"] = ParseIconGeometry(d.IconAutomation);
+            res["Theme.Icon.Charts"]     = ParseIconGeometry(d.IconCharts);
+            res["Theme.Icon.Log"]        = ParseIconGeometry(d.IconLog);
 
             // Background image
             ApplyBackground(res, d, folder);
@@ -752,7 +791,7 @@ namespace MasselGUARD
         private static void ApplyAppIcon(ResourceDictionary res, ThemeDefinition d, string folder)
         {
             // appIcon = tray icon + Window.Icon (taskbar) only.
-            // The title bar uses 'logo' or the built-in shield — never appIcon.
+            // The title bar uses 'logo' or the built-in shield - never appIcon.
             var iconPath = ResolveThemeAsset(folder, d.AppIcon);
             if (iconPath != null)
             {
@@ -765,7 +804,7 @@ namespace MasselGUARD
 
                         if (iconPath.EndsWith(".ico", StringComparison.OrdinalIgnoreCase))
                         {
-                            // Load the native frames directly — a real .ico (like a
+                            // Load the native frames directly - a real .ico (like a
                             // downloaded/hand-made appIcon typically is) usually ships
                             // several resolutions (16/32/48/256…). Decoding it through
                             // BitmapImage grabs only one frame and the old single-frame
@@ -781,7 +820,7 @@ namespace MasselGUARD
                         }
                         else
                         {
-                            // Non-.ico asset (png/jpg) — no native multi-resolution concept,
+                            // Non-.ico asset (png/jpg) - no native multi-resolution concept,
                             // same bitmap serves every size.
                             var bmp = LoadImageUncached(iconPath);
                             appIconSrc = bmp;
@@ -825,8 +864,8 @@ namespace MasselGUARD
 
         /// <summary>
         /// Resolves the theme font. When the theme folder ships font files
-        /// (*.ttf / *.otf — added by the Theme Builder's export), they are used as
-        /// WPF private fonts — no installation needed on the client machine — with
+        /// (*.ttf / *.otf - added by the Theme Builder's export), they are used as
+        /// WPF private fonts - no installation needed on the client machine - with
         /// the installed system font of the same name as fallback.
         /// </summary>
         private static FontFamily ResolveFontFamily(string name, string folder)
@@ -856,8 +895,8 @@ namespace MasselGUARD
         /// <summary>
         /// Resolves a theme asset (logo / background / icon) named in theme.json to an
         /// absolute path, but ONLY if it stays inside the theme's own folder. Rejects
-        /// rooted/UNC paths and "../" traversal so a theme — including one downloaded from
-        /// a shared-theme repo — can't point the app at files outside its folder. Returns
+        /// rooted/UNC paths and "../" traversal so a theme - including one downloaded from
+        /// a shared-theme repo - can't point the app at files outside its folder. Returns
         /// null when the value is empty or escapes the folder (treated as "no asset").
         /// </summary>
         private static string? ResolveThemeAsset(string folder, string? fileName)
@@ -934,13 +973,13 @@ namespace MasselGUARD
         /// <summary>
         /// Returns the accent colour the user chose in Settings → Personalization → Colors.
         ///
-        /// Primary source — AccentPalette (REG_BINARY, 32 bytes):
+        /// Primary source - AccentPalette (REG_BINARY, 32 bytes):
         ///   HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Accent\AccentPalette
         ///   Layout: 8 × {R, G, B, reserved}, ordered lightest→darkest.
-        ///   Entry 3 (bytes 12-15) is the "Regular" shade — the exact chosen colour,
+        ///   Entry 3 (bytes 12-15) is the "Regular" shade - the exact chosen colour,
         ///   used by Windows for interactive controls (toggles, checkboxes, etc.).
         ///
-        /// Fallback — DWM\AccentColor (ABGR DWORD):
+        /// Fallback - DWM\AccentColor (ABGR DWORD):
         ///   HKCU\Software\Microsoft\Windows\DWM\AccentColor
         ///   This is the window-chrome shade (title bars) which can differ slightly.
         ///
@@ -948,7 +987,7 @@ namespace MasselGUARD
         /// </summary>
         public static string GetSystemAccentColor()
         {
-            // AccentColorMenu — the exact colour the user chose in Settings → Personalization → Colors,
+            // AccentColorMenu - the exact colour the user chose in Settings → Personalization → Colors,
             // stored by Windows Explorer as a packed ABGR DWORD.
             try
             {
@@ -987,7 +1026,7 @@ namespace MasselGUARD
         /// Builds a complete ThemeDefinition for the current Windows dark or light mode.
         ///
         /// Win32 GetSysColor() (which WPF's SystemColors wraps) does NOT return dark
-        /// values for apps that lack a dark-mode manifest entry — it always returns the
+        /// values for apps that lack a dark-mode manifest entry - it always returns the
         /// traditional light palette.  We therefore use hand-tuned palettes here and
         /// only read the accent colour dynamically from the registry.
         ///
@@ -1012,12 +1051,12 @@ namespace MasselGUARD
                 // ── Dark palette ──────────────────────────────────────────────
                 def.ColorWindowBg    = "#1C1C1C";   // true dark canvas
                 def.ColorSurface     = "#2C2C2C";   // title bar / footer / column headers
-                def.ColorCard        = "#252525";   // list panels — between bg and surface
+                def.ColorCard        = "#252525";   // list panels - between bg and surface
                 def.ColorBorder      = "#3D3D3D";   // subtle separation
-                def.ColorTextPrimary = "#EEEEEE";   // slightly off-white — easier on the eyes
+                def.ColorTextPrimary = "#EEEEEE";   // slightly off-white - easier on the eyes
                 def.ColorTextMuted   = "#9E9E9E";   // secondary / label text
                 def.ColorAccent      = accent;
-                def.ColorSuccess     = "#3FB950";   // GitHub green — legible on dark
+                def.ColorSuccess     = "#3FB950";   // GitHub green - legible on dark
                 def.ColorDanger      = "#F47067";   // warm red, not over-saturated
                 def.ColorHighlight   = BlendHex(accent, "#1C1C1C", 0.25);
                 def.ColorError       = "#F47067";
@@ -1037,8 +1076,8 @@ namespace MasselGUARD
                 def.ColorTextPrimary = "#1C1C1C";   // near-black, high contrast
                 def.ColorTextMuted   = "#646464";   // clearly secondary, never invisible
                 def.ColorAccent      = accent;
-                def.ColorSuccess     = "#1A7F37";   // dark green — readable on white
-                def.ColorDanger      = "#C62828";   // deep red — clear destructive signal
+                def.ColorSuccess     = "#1A7F37";   // dark green - readable on white
+                def.ColorDanger      = "#C62828";   // deep red - clear destructive signal
                 def.ColorHighlight   = BlendHex(accent, "#FFFFFF", 0.15);
                 def.ColorError       = "#C62828";
                 def.ColorErrorBg     = "#FDECEA";
@@ -1058,7 +1097,7 @@ namespace MasselGUARD
         /// Applies (or clears) a global font override on top of the active theme.
         /// Must be called AFTER Load() / LoadSystem() so it wins over the theme's own font.
         ///
-        /// When <paramref name="enabled"/> is false, does nothing — the theme font set by
+        /// When <paramref name="enabled"/> is false, does nothing - the theme font set by
         /// Apply() remains in effect.  When enabled with an empty family, the Windows UI
         /// system font (SystemParameters.MessageFontFamily) is used.
         /// </summary>
@@ -1078,7 +1117,7 @@ namespace MasselGUARD
                 res["Theme.FontFamily"]       = overrideFont;
                 res["Theme.HeaderFontFamily"] = overrideFont;
             }
-            catch { /* invalid font name — leave the current font in place */ }
+            catch { /* invalid font name - leave the current font in place */ }
 
             // Font size (only when explicitly set; 0 = keep theme default)
             if (size > 0.0)
@@ -1103,7 +1142,7 @@ namespace MasselGUARD
             ThemeChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        /// <summary>Convenience overload — detects dark/light from registry automatically.</summary>
+        /// <summary>Convenience overload - detects dark/light from registry automatically.</summary>
         public void LoadSystem() => LoadSystem(GetSystemIsDark());
 
         /// <summary>
@@ -1221,6 +1260,20 @@ namespace MasselGUARD
             catch { return fallback; }
         }
 
+        /// <summary>Parse theme icon path data (WPF/SVG mini-language) into a frozen Geometry, or null
+        /// when blank/invalid so the caller falls back to the built-in icon.</summary>
+        private static Geometry? ParseIconGeometry(string? data)
+        {
+            if (string.IsNullOrWhiteSpace(data)) return null;
+            try
+            {
+                var g = Geometry.Parse(data.Trim());
+                if (g.CanFreeze) g.Freeze();
+                return g;
+            }
+            catch { return null; }
+        }
+
         private static void SetColor(ResourceDictionary res, string key, string hex)
         {
             var c = ParseColor(hex, Colors.Transparent);
@@ -1270,9 +1323,9 @@ namespace MasselGUARD
         /// Empty string means "inherit FontFamily" (no distinct header font).</summary>
         public string HeaderFontFamily { get; set; } = "";
 
-        // ── Colours — named by where/how each appears in the UI ───────────────
+        // ── Colours - named by where/how each appears in the UI ───────────────
         // All values accept #RRGGBB (opaque) or #AARRGGBB (with transparency).
-        // Empty string ("") means "inherit from the Windows system palette" —
+        // Empty string ("") means "inherit from the Windows system palette" -
         // Apply() fills unset keys from BuildSystemTheme() before applying.
         public string ColorWindowBg     { get; set; } = "";
         public string ColorSurface      { get; set; } = "";
@@ -1299,7 +1352,7 @@ namespace MasselGUARD
         public string BackgroundStretch { get; set; } = "stretch";
         public double BackgroundOpacity { get; set; } = 1.0;
 
-        // ── App icon (.ico / .png / .bmp / .jpg) — tray + title bar ──────────
+        // ── App icon (.ico / .png / .bmp / .jpg) - tray + title bar ──────────
         public string AppIcon           { get; set; } = "";
 
         // ── Tray icons per connection state (optional; empty → AppIcon/shield) ──
@@ -1358,12 +1411,44 @@ namespace MasselGUARD
         /// <summary>Tray menu left image-margin column colour. Defaults to colorWindowBg.</summary>
         public string ColorTrayImageMargin { get; set; } = "";
 
+        // ── DNS badge (tray shield overlay shown when a DNS profile is active) ──
+        /// <summary>Colour of the DNS shield drawn over the tray icon. Empty → built-in violet.</summary>
+        public string ColorDnsBadge { get; set; } = "";
+        /// <summary>SVG path data (authored on a 24×24 grid) for the DNS shield shape. Empty → the
+        /// built-in default shield. The path is filled with <see cref="ColorDnsBadge"/> - the SVG's
+        /// own colours (if any) are ignored; it's a silhouette.</summary>
+        public string DnsBadgePath { get; set; } = "";
+        /// <summary>Opacity of the DNS shield overlay (0.1–1.0). 1.0 = opaque. Shared across variants.</summary>
+        public double DnsBadgeOpacity { get; set; } = 1.0;
+        /// <summary>Size of the DNS shield as a percentage of the tray icon (10–100). Shared across variants.</summary>
+        public double DnsBadgeSize { get; set; } = 45;
+        /// <summary>Corner/position of the DNS shield: one of top-left, top-center, top-right,
+        /// middle-left, center, middle-right, bottom-left, bottom-center, bottom-right. Shared.
+        /// Default empty so a variant section (which omits this key) doesn't shadow the root value
+        /// in MergeVariant's O(variant, root); the runtime "bottom-right" fallback lives in Apply.</summary>
+        public string DnsBadgeLocation { get; set; } = "";
+
+        // ── Custom section icons (optional) ─────────────────────────────────────
+        // Each is WPF/SVG path data on a 24×24 grid, rendered as a FILLED silhouette in the
+        // section's colour. Empty → the built-in default icon for that section is used. These
+        // drive both the title-bar toggle button and the dim panel header for each section.
+        /// <summary>Custom WireGuard/Tunnels icon (path data, 24×24). Empty → built-in shield.</summary>
+        public string IconTunnels { get; set; } = "";
+        /// <summary>Custom DNS icon (path data, 24×24). Empty → built-in globe.</summary>
+        public string IconDns { get; set; } = "";
+        /// <summary>Custom Automation icon (path data, 24×24). Empty → built-in robot.</summary>
+        public string IconAutomation { get; set; } = "";
+        /// <summary>Custom Charts/History icon (path data, 24×24). Empty → built-in bar-chart.</summary>
+        public string IconCharts { get; set; } = "";
+        /// <summary>Custom Activity-log icon (path data, 24×24). Empty → built-in hamburger.</summary>
+        public string IconLog { get; set; } = "";
+
         // ── Dual-variant support ──────────────────────────────────────────────
         /// <summary>
         /// Optional dark-mode color overrides.  When present, the app loads these
         /// colors (merged on top of the root values) when dark mode is active.
         /// All structural settings (font, corner radius, window chrome, etc.) are
-        /// always taken from the root — only color fields are merged from variants.
+        /// always taken from the root - only color fields are merged from variants.
         /// </summary>
         public ThemeDefinition? Dark  { get; set; } = null;
 
@@ -1380,7 +1465,7 @@ namespace MasselGUARD
         public static ThemeDefinition Default => WindowsDefault;
 
         /// <summary>
-        /// Hardcoded Windows Default theme — Fluent Design tokens, Segoe UI Variable.
+        /// Hardcoded Windows Default theme - Fluent Design tokens, Segoe UI Variable.
         /// Used when no theme file is found and as the built-in "windows-default" virtual theme.
         /// </summary>
         public static ThemeDefinition WindowsDefault => new ThemeDefinition

@@ -59,17 +59,24 @@ namespace MasselGUARD.ViewModels
             }
         }
 
-        // ── Step 2: Choose your view — was "Custom" picked? ─────────────────────
-        // Drives whether Step 3 (Custom view details) is reachable at all; Simple/
-        // Manual/Expert apply their fixed bundle directly and skip past it.
-        private bool _customView;
-        public bool CustomView
+        // ── Step 1: Feature modules (VPN / DNS / Both) ────────────────────────
+        // Drives which later steps are shown: WireGuard Behaviour needs tunnels,
+        // DNS Profiles Behaviour needs DNS. Committed on finish.
+        private bool _enableTunnels;
+        public bool EnableTunnels
         {
-            get => _customView;
-            set => SetField(ref _customView, value);
+            get => _enableTunnels;
+            set => SetField(ref _enableTunnels, value);
         }
 
-        // ── Step 6: Disable WiFi rules ────────────────────────────────────────
+        private bool _enableDns;
+        public bool EnableDns
+        {
+            get => _enableDns;
+            set => SetField(ref _enableDns, value);
+        }
+
+        // ── Step 4: Disable WiFi rules (manual mode) ──────────────────────────
         private bool _disableWifiRules;
         public bool DisableWifiRules
         {
@@ -103,6 +110,8 @@ namespace MasselGUARD.ViewModels
             _pendingLangChanged = onLangChanged;
 
             _disableWifiRules = config.Config.ManualMode;
+            _enableTunnels    = config.Config.EnableTunnels;
+            _enableDns        = config.Config.EnableDns;
 
             BackCommand        = new RelayCommand(GoBack,  () => CanGoBack);
             NextCommand        = new RelayCommand(GoNext);
@@ -116,7 +125,11 @@ namespace MasselGUARD.ViewModels
         public void LoadFromConfig()
         {
             _disableWifiRules = _config.Config.ManualMode;
+            _enableTunnels    = _config.Config.EnableTunnels;
+            _enableDns        = _config.Config.EnableDns;
             OnPropertyChanged(nameof(DisableWifiRules));
+            OnPropertyChanged(nameof(EnableTunnels));
+            OnPropertyChanged(nameof(EnableDns));
             // Re-select the imported language
             var match = AvailableLanguages.FirstOrDefault(
                 l => l.Code == _config.Config.Language);
@@ -125,22 +138,18 @@ namespace MasselGUARD.ViewModels
 
         // ── Navigation ────────────────────────────────────────────────────────
 
-        // Step 3 (Custom view details) is only reachable via the Step 2 "Custom" card —
-        // Simple/Manual/Expert apply their fixed bundle directly, nothing to configure there.
-        private const int CustomViewStep = 3;
-        // Step 4 (Operating mode) is gone — companion mode was removed, so it's always skipped.
-        private const int ModeStep = 4;
-        // Step 6 (WiFi Automation) has nothing left to configure once WiFi rules are
-        // disabled (from the Step 2 "Manual" preset or the step's own toggle) — skip
-        // over it too rather than showing an empty/redundant step.
-        private const int WifiAutomationStep = 6;
+        // New flow (0-8):
+        //   0 Welcome + import + language   1 Feature choice (VPN/DNS/Both)   2 Appearance
+        //   3 Startup                       4 WiFi settings                    5 WireGuard Behaviour
+        //   6 DNS Profiles Behaviour        7 Notifications                    8 Done
+        private const int WireGuardBehaviourStep = 5;   // needs tunnels
+        private const int DnsBehaviourStep       = 6;   // needs DNS
 
         private bool IsStepSkipped(int step) => step switch
         {
-            CustomViewStep     => !_customView,
-            ModeStep           => true,
-            WifiAutomationStep => _disableWifiRules,
-            _                  => false,
+            WireGuardBehaviourStep => !_enableTunnels,
+            DnsBehaviourStep       => !_enableDns,
+            _                      => false,
         };
 
         private void GoBack()
@@ -165,8 +174,11 @@ namespace MasselGUARD.ViewModels
 
         private void ApplyAndFinish()
         {
-            var cfg        = _config.Config;
-            cfg.ManualMode = _disableWifiRules;
+            var cfg           = _config.Config;
+            cfg.ManualMode    = _disableWifiRules;
+            // At least one module must stay enabled - fall back to tunnels if somehow both off.
+            cfg.EnableTunnels = _enableTunnels || !_enableDns;
+            cfg.EnableDns     = _enableDns;
             _config.Save();
             _log.Ok("Wizard completed");
             Finished?.Invoke();

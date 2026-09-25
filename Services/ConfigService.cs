@@ -32,7 +32,7 @@ namespace MasselGUARD.Services
 
         /// <summary>
         /// True if no config.json existed when Load() was called
-        /// (first run — show wizard).
+        /// (first run - show wizard).
         /// </summary>
         public bool IsFirstRun { get; private set; }
 
@@ -48,7 +48,7 @@ namespace MasselGUARD.Services
         /// <summary>True when the given AppConfig field is forced + locked by the managed preset.</summary>
         public bool IsLocked(string field) => _lockedKeys.Contains(field);
         /// <summary>True when the preset locks the tunnel list (only if a hand-authored preset
-        /// includes a Tunnels value — the normal export never does).</summary>
+        /// includes a Tunnels value - the normal export never does).</summary>
         public bool TunnelsLocked => _lockedKeys.Contains("Tunnels");
 
         // ── Load ─────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ namespace MasselGUARD.Services
                 Config = new AppConfig();
             }
 
-            // The shipped "grey" theme folder was renamed to "blueongrey" in 3.7 — keep
+            // The shipped "grey" theme folder was renamed to "blueongrey" in 3.7 - keep
             // users who had it selected pointed at the right theme.
             if (string.Equals(Config.ActiveTheme, "grey", StringComparison.OrdinalIgnoreCase))
             {
@@ -85,7 +85,7 @@ namespace MasselGUARD.Services
             ApplyPreset();
         }
 
-        /// <summary>Companion (WireGuard-for-Windows) mode has been removed — MasselGUARD only manages
+        /// <summary>Companion (WireGuard-for-Windows) mode has been removed - MasselGUARD only manages
         /// its own local tunnels now. Any legacy tunnel with a non-"local" Source is dropped on load
         /// (users re-import the ones they still want via Import → from WireGuard).</summary>
         private void DropCompanionTunnels()
@@ -138,7 +138,7 @@ namespace MasselGUARD.Services
             }
             catch
             {
-                // A broken preset must never prevent the app from starting — fail open.
+                // A broken preset must never prevent the app from starting - fail open.
                 _presetObj = null;
                 HasManagedPreset = false;
             }
@@ -202,7 +202,7 @@ namespace MasselGUARD.Services
 
         /// <summary>
         /// Restricts <paramref name="dir"/> (and everything inside it via
-        /// inheritable rules) to the current user only — removes the default
+        /// inheritable rules) to the current user only - removes the default
         /// Administrators read-access inherited from %APPDATA%.
         /// Safe to call on an already-restricted directory.
         /// </summary>
@@ -230,7 +230,7 @@ namespace MasselGUARD.Services
             }
             catch
             {
-                // Non-fatal — ACL tightening is best-effort.
+                // Non-fatal - ACL tightening is best-effort.
                 // Failure here does not affect functionality.
             }
         }
@@ -251,7 +251,7 @@ namespace MasselGUARD.Services
 
         // ── Import ───────────────────────────────────────────────────────────
         /// <summary>
-        /// Reads a <c>.masselguard</c> file and applies its settings into Config (editable — no
+        /// Reads a <c>.masselguard</c> file and applies its settings into Config (editable - no
         /// locking; that only happens for a file placed next to the exe). Returns the AppVersion
         /// string found in the file (empty if absent). Unknown fields are ignored.
         /// </summary>

@@ -14,7 +14,7 @@ namespace MasselGUARD.Services
     ///
     /// Two independent concerns, both WPF-free so the CLI can share them:
     ///
-    ///  1. <b>MasselGUARD settings passthrough</b> — the per-tunnel MasselGUARD
+    ///  1. <b>MasselGUARD settings passthrough</b> - the per-tunnel MasselGUARD
     ///     extras (group, scripts, kill-switch, auto-reconnect, data cap, notes)
     ///     that WireGuard itself knows nothing about. When "include settings" is
     ///     on they are serialized to a <i>single</i> comment line
@@ -23,14 +23,14 @@ namespace MasselGUARD.Services
     ///     a valid, importable <c>.conf</c> everywhere; MasselGUARD's own importer
     ///     recognises the line and restores the extras.
     ///
-    ///  2. <b>Password-based encryption</b> — a shareable, machine-independent
+    ///  2. <b>Password-based encryption</b> - a shareable, machine-independent
     ///     encrypted container (unlike DPAPI, which is bound to the local user +
     ///     machine and cannot be decrypted elsewhere). AES-256-GCM with a key
     ///     derived from the user's passphrase via PBKDF2-SHA256. The plaintext
     ///     inside is exactly the same "config (+ optional settings comment)" text,
     ///     so decryption feeds straight back into <see cref="ParseImportText"/>.
     ///
-    /// Everything here is from the .NET base class library — no extra dependency.
+    /// Everything here is from the .NET base class library - no extra dependency.
     /// </summary>
     public static class TunnelExportService
     {
@@ -43,14 +43,14 @@ namespace MasselGUARD.Services
         // A value that contains a newline or edge whitespace (embedded multi-line
         // scripts, notes) is base64-encoded and the key gains a "!b64" suffix.
         private const string KeyPrefix = "# MasselGUARD-";
-        // Legacy single-line base64-JSON blob — still parsed for backward-compat.
+        // Legacy single-line base64-JSON blob - still parsed for backward-compat.
         private const string LegacyPrefix = "# MasselGUARD-Settings: ";
 
         /// <summary>
         /// The subset of <see cref="StoredTunnel"/> that travels with an export.
         /// Every field is nullable so <see cref="ApplyTo"/> only overwrites what
         /// the export actually carried. Never includes <c>Name</c>/<c>Path</c>/
-        /// <c>Source</c> — those are decided at import time.
+        /// <c>Source</c> - those are decided at import time.
         /// </summary>
         public sealed class TunnelSettings
         {
@@ -67,7 +67,7 @@ namespace MasselGUARD.Services
             public string? PostConnectScript    { get; set; }
             public string? PreDisconnectScript  { get; set; }
             public string? PostDisconnectScript { get; set; }
-            // Split tunneling (route/IP-based). Portable — it defines the tunnel's routing
+            // Split tunneling (route/IP-based). Portable - it defines the tunnel's routing
             // intent, so it travels with an export. SplitApps is intentionally NOT carried
             // (unused per-app placeholder in 4.0.0). See docs/SplitTunneling-Design.md §10.
             public string?       SplitMode   { get; set; }
@@ -117,8 +117,8 @@ namespace MasselGUARD.Services
         }
 
         /// <summary>
-        /// Build the plaintext export: the WireGuard config, plus — when
-        /// <paramref name="includeSettings"/> is set — one trailing
+        /// Build the plaintext export: the WireGuard config, plus - when
+        /// <paramref name="includeSettings"/> is set - one trailing
         /// <c># MasselGUARD-Settings:</c> comment line. Line endings are
         /// normalised to LF (WireGuard is happy with LF and it keeps the QR /
         /// hash payload stable).
@@ -127,8 +127,8 @@ namespace MasselGUARD.Services
             => BuildExportText(config, includeSettings ? TunnelSettings.From(tunnel) : null);
 
         /// <summary>
-        /// Build the plaintext export: the WireGuard config, plus — when
-        /// <paramref name="settings"/> is non-null — a trailing block of readable
+        /// Build the plaintext export: the WireGuard config, plus - when
+        /// <paramref name="settings"/> is non-null - a trailing block of readable
         /// <c># MasselGUARD-&lt;Key&gt;:</c> comment lines. Line endings are
         /// normalised to LF.
         /// </summary>
@@ -198,7 +198,7 @@ namespace MasselGUARD.Services
             {
                 var trimmed = line.TrimStart();
 
-                // Legacy base64-JSON — must be tested before the generic prefix.
+                // Legacy base64-JSON - must be tested before the generic prefix.
                 if (trimmed.StartsWith(LegacyPrefix, StringComparison.Ordinal))
                 {
                     var b64 = trimmed.Substring(LegacyPrefix.Length).Trim();

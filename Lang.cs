@@ -65,7 +65,7 @@ namespace MasselGUARD
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
                 LanguageChanged?.Invoke(this, EventArgs.Empty);
             }
-            catch { /* corrupt file — keep current strings */ }
+            catch { /* corrupt file - keep current strings */ }
         }
 
         /// <summary>Returns all available language codes found in the lang folder.</summary>
@@ -92,7 +92,7 @@ namespace MasselGUARD
             return result.Count > 0 ? result : new List<(string, string, string)> { ("en", "English", "us") };
         }
 
-        // ── Indexer — used by WPF bindings ───────────────────────────────────
+        // ── Indexer - used by WPF bindings ───────────────────────────────────
         public string this[string key] =>
             _strings.TryGetValue(key, out var v) ? v : $"[{key}]";
 

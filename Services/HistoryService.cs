@@ -15,11 +15,17 @@ namespace MasselGUARD.Services
     {
         private const int MaxEntries = 500;
 
+        /// <summary>Master capture switch (mirrors <c>AppConfig.ChartsEnabled</c>). When false the
+        /// service records nothing new - used by the "Charts" feature's disable behaviour so a
+        /// disabled charts/history area stops writing to history entirely. Existing entries are
+        /// kept; reads still work.</summary>
+        public bool CaptureEnabled { get; set; } = true;
+
         private static readonly string HistoryPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "MasselGUARD", "tunnel_history.json");
 
-        // Legacy path — migrated on first Load()
+        // Legacy path - migrated on first Load()
         private static readonly string HistoryPathLegacy = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "MasselGUARD", "history.json");
@@ -29,6 +35,51 @@ namespace MasselGUARD.Services
             WriteIndented = true,
             PropertyNameCaseInsensitive = true,
         };
+
+        // Cross-process guard: the GUI and an elevated CLI are separate processes that both
+        // write these files. A named (Global) mutex serialises writers so their save sequences
+        // don't interleave; the write itself is atomic (temp file + MoveFileEx replace) so a
+        // crash mid-write - or a writer that couldn't take the mutex - can never leave a torn
+        // or truncated file. Whole-file last-writer-wins is still possible in a GUI+CLI race,
+        // but that only costs a couple of history rows, never corruption. All failures are
+        // non-critical (history is best-effort), so everything is wrapped and swallowed.
+        private const string WriteMutexName = @"Global\MasselGUARD-history-write";
+
+        /// <summary>Serialise <paramref name="data"/> to JSON and atomically replace
+        /// <paramref name="path"/>, guarded by a cross-process mutex. Best-effort.</summary>
+        private static void AtomicSave<T>(string path, T data)
+        {
+            System.Threading.Mutex? mtx = null;
+            bool held = false;
+            string? tmp = null;
+            try
+            {
+                try
+                {
+                    mtx  = new System.Threading.Mutex(false, WriteMutexName);
+                    held = mtx.WaitOne(TimeSpan.FromSeconds(5));
+                }
+                catch (System.Threading.AbandonedMutexException) { held = true; }  // prior owner died - we own it now
+                catch { /* can't create/own the mutex (permissions) - proceed best-effort */ }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                var json = JsonSerializer.Serialize(data, JsonOpts);
+                tmp = $"{path}.{Environment.ProcessId}.tmp";
+                File.WriteAllText(tmp, json);
+                File.Move(tmp, path, overwrite: true);   // atomic replace on the same NTFS volume
+                tmp = null;                               // moved - nothing to clean up
+            }
+            catch { /* non-critical */ }
+            finally
+            {
+                if (tmp != null) { try { File.Delete(tmp); } catch { } }   // failed before the move - drop the temp
+                if (mtx != null)
+                {
+                    if (held) { try { mtx.ReleaseMutex(); } catch { } }
+                    mtx.Dispose();
+                }
+            }
+        }
 
         private readonly object _lock = new();
         private List<ConnectionHistoryEntry> _entries = new();
@@ -59,21 +110,14 @@ namespace MasselGUARD.Services
                 if (list != null)
                     lock (_lock) { _entries = list; }
             }
-            catch { /* corrupt file — start fresh */ }
+            catch { /* corrupt file - start fresh */ }
         }
 
         public void Save()
         {
             List<ConnectionHistoryEntry> snapshot;
             lock (_lock) { snapshot = new List<ConnectionHistoryEntry>(_entries); }
-
-            try
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(HistoryPath)!);
-                File.WriteAllText(HistoryPath,
-                    JsonSerializer.Serialize(snapshot, JsonOpts));
-            }
-            catch { /* non-critical */ }
+            AtomicSave(HistoryPath, snapshot);
         }
 
         public void Clear()
@@ -83,14 +127,14 @@ namespace MasselGUARD.Services
         }
 
         // ══════════════════════════════════════════════════════════════════════
-        //  WiFi SSID history — separate file, same service
+        //  WiFi SSID history - separate file, same service
         // ══════════════════════════════════════════════════════════════════════
 
         private static readonly string SsidHistoryPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "MasselGUARD", "wifi_history.json");
 
-        // Legacy path — migrated on first LoadSsid()
+        // Legacy path - migrated on first LoadSsid()
         private static readonly string SsidHistoryPathLegacy = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "MasselGUARD", "ssid_history.json");
@@ -129,22 +173,17 @@ namespace MasselGUARD.Services
         {
             List<MasselGUARD.Models.WifiHistoryEntry> snap;
             lock (_ssidLock) { snap = new List<MasselGUARD.Models.WifiHistoryEntry>(_ssidEntries); }
-            try
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(SsidHistoryPath)!);
-                File.WriteAllText(SsidHistoryPath,
-                    System.Text.Json.JsonSerializer.Serialize(snap, JsonOpts));
-            }
-            catch { }
+            AtomicSave(SsidHistoryPath, snap);
         }
 
         /// <summary>Record connection to a new SSID (closes any previously-open entry first).</summary>
         public void RecordSsidConnect(string ssid, bool isOpen = false)
         {
+            if (!CaptureEnabled) return;
             if (string.IsNullOrWhiteSpace(ssid)) return;
             lock (_ssidLock)
             {
-                // Already recording this exact SSID — skip duplicate
+                // Already recording this exact SSID - skip duplicate
                 if (_ssidEntries.Any(e => e.DisconnectedAt == null &&
                         e.Ssid.Equals(ssid, StringComparison.OrdinalIgnoreCase)))
                     return;
@@ -169,6 +208,7 @@ namespace MasselGUARD.Services
         /// <summary>Close the current open SSID entry (WiFi disconnected or SSID changed).</summary>
         public void RecordSsidDisconnect()
         {
+            if (!CaptureEnabled) return;
             bool changed = false;
             lock (_ssidLock)
             {
@@ -209,19 +249,14 @@ namespace MasselGUARD.Services
         {
             List<MasselGUARD.Models.DnsHistoryEntry> snap;
             lock (_dnsLock) { snap = new List<MasselGUARD.Models.DnsHistoryEntry>(_dnsEntries); }
-            try
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(DnsHistoryPath)!);
-                File.WriteAllText(DnsHistoryPath,
-                    System.Text.Json.JsonSerializer.Serialize(snap, JsonOpts));
-            }
-            catch { }
+            AtomicSave(DnsHistoryPath, snap);
         }
 
         /// <summary>Record that a DNS profile became the active resolver (closes any open entry first).
         /// A repeat of the already-active profile is ignored.</summary>
         public void RecordDnsActivate(string name)
         {
+            if (!CaptureEnabled) return;
             if (string.IsNullOrWhiteSpace(name)) { RecordDnsDeactivate(); return; }
             lock (_dnsLock)
             {
@@ -243,6 +278,7 @@ namespace MasselGUARD.Services
         /// <summary>Close the current open DNS entry (reverted to default / tunnel took over / off).</summary>
         public void RecordDnsDeactivate()
         {
+            if (!CaptureEnabled) return;
             bool changed = false;
             lock (_dnsLock)
             {
@@ -294,6 +330,7 @@ namespace MasselGUARD.Services
         /// <summary>Called when a tunnel successfully connects.</summary>
         public void RecordConnect(string tunnelName, string source)
         {
+            if (!CaptureEnabled) return;
             var entry = new ConnectionHistoryEntry
             {
                 TunnelName  = tunnelName,
@@ -314,7 +351,7 @@ namespace MasselGUARD.Services
                 if (_entries.Count > MaxEntries)
                     _entries.RemoveRange(MaxEntries, _entries.Count - MaxEntries);
             }
-            // Save asynchronously on a threadpool thread — don't block the UI thread.
+            // Save asynchronously on a threadpool thread - don't block the UI thread.
             System.Threading.ThreadPool.QueueUserWorkItem(_ => Save());
         }
 
@@ -324,7 +361,7 @@ namespace MasselGUARD.Services
         /// force-killed, and tunnels that have since been deleted from the config.
         /// <para>
         /// <paramref name="isRunning"/> is a delegate that returns true when a named tunnel
-        /// is currently active — checked against the live SCM/kernel state, not config.
+        /// is currently active - checked against the live SCM/kernel state, not config.
         /// </para>
         /// </summary>
         public void CloseStaleHistoryEntries(Func<string, bool> isRunning)
@@ -348,6 +385,7 @@ namespace MasselGUARD.Services
         /// <summary>Called when a tunnel disconnects (clean disconnect).</summary>
         public void RecordDisconnect(string tunnelName, long sessionRxBytes = 0, long sessionTxBytes = 0)
         {
+            if (!CaptureEnabled) return;
             lock (_lock)
             {
                 var entry = _entries.FirstOrDefault(e =>

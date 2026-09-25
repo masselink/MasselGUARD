@@ -42,7 +42,7 @@ namespace MasselGUARD.Models
             }
         }
 
-        /// <summary>Row dimming for the rules list — full when enabled, faded when off.</summary>
+        /// <summary>Row dimming for the rules list - full when enabled, faded when off.</summary>
         [JsonIgnore] public double RowOpacity => _enabled ? 1.0 : 0.4;
 
         /// <summary>Small marker (with trailing space) shown before a disabled rule's name;
@@ -112,9 +112,9 @@ namespace MasselGUARD.Models
         /// <summary>
         /// For Kind=="trusted", which side of the trusted-network list activates
         /// this rule's tunnel:
-        ///   "untrusted" — activate when the current SSID is NOT on the trusted
+        ///   "untrusted" - activate when the current SSID is NOT on the trusted
         ///                 list (protect on public networks; typically a full tunnel).
-        ///   "trusted"   — activate when the current SSID IS on the list (bring a
+        ///   "trusted"   - activate when the current SSID IS on the list (bring a
         ///                 tunnel up only on known networks; e.g. a split tunnel).
         /// The rule fires only on its matching side; the other side falls through
         /// to the next rule and finally the Default action. Ignored for other kinds.
@@ -135,7 +135,7 @@ namespace MasselGUARD.Models
         public string SsidDisplay =>
             _kind == "schedule" ? $"⏰ {ScheduleSummary}"
           : _kind == "trusted"  ? (TrustedWhenOnList ? "🛡 Trusted networks" : "🛡 Untrusted networks")
-          : (string.IsNullOrEmpty(_ssid) ? "—" : $"📶 {_ssid}");   // 📶 matches the footer's current-SSID icon
+          : (string.IsNullOrEmpty(_ssid) ? "-" : $"📶 {_ssid}");   // 📶 matches the footer's current-SSID icon
 
         [JsonIgnore]
         public string TunnelDisplay =>

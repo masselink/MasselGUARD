@@ -8,9 +8,9 @@ namespace MasselGUARD.Services
     /// <summary>
     /// Abstraction over the two split-tunneling mechanisms (design §4):
     /// <list type="bullet">
-    ///   <item><see cref="RouteBasedBackend"/> — 4.0.0. Rewrites the peer's <c>AllowedIPs</c>
+    ///   <item><see cref="RouteBasedBackend"/> - 4.0.0. Rewrites the peer's <c>AllowedIPs</c>
     ///         so wireguard-NT programs the routes; no packet steering.</item>
-    ///   <item><c>WinDivertBackend</c> — later 4.x. Steers per-app flows in user mode;
+    ///   <item><c>WinDivertBackend</c> - later 4.x. Steers per-app flows in user mode;
     ///         leaves <c>AllowedIPs</c> alone. Not implemented in 4.0.0.</item>
     /// </list>
     /// WPF-free and CLI-shared (listed in <c>MasselGUARDcli.csproj</c>).
@@ -25,7 +25,7 @@ namespace MasselGUARD.Services
         /// (the excluded set in exclude-mode). Empty for include/off. See design §6.</summary>
         IReadOnlyList<string> KillSwitchBypassRanges(SplitConfig split);
 
-        /// <summary>Per-app steering hooks — no-ops for the route-based backend, implemented by
+        /// <summary>Per-app steering hooks - no-ops for the route-based backend, implemented by
         /// the future WinDivert backend.</summary>
         void OnConnected(string tunnelName, SplitConfig split);
         void OnDisconnected(string tunnelName);
@@ -47,7 +47,7 @@ namespace MasselGUARD.Services
             if (plaintextConf == null) return plaintextConf!;
             if (split == null || !split.HasRouteSplit) return plaintextConf;
 
-            // Base AllowedIPs = the first [Peer]'s current value (empty if none present —
+            // Base AllowedIPs = the first [Peer]'s current value (empty if none present -
             // CidrMath treats a wholly-empty base as a full tunnel for exclude mode).
             var m       = AllowedIpsLine.Match(plaintextConf);
             var baseIps = m.Success ? m.Groups[1].Value : "";
@@ -69,7 +69,7 @@ namespace MasselGUARD.Services
             return Array.Empty<string>();
         }
 
-        // Route-based split needs no packet steering — wireguard-NT owns the routes.
+        // Route-based split needs no packet steering - wireguard-NT owns the routes.
         public void OnConnected(string tunnelName, SplitConfig split) { }
         public void OnDisconnected(string tunnelName) { }
 

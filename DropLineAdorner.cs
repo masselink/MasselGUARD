@@ -36,7 +36,7 @@ namespace MasselGUARD
         {
             double width = AdornedElement is FrameworkElement fe ? fe.ActualWidth : 200;
 
-            // Small circles at both ends of the line — looks like a professional drop indicator
+            // Small circles at both ends of the line - looks like a professional drop indicator
             double r = 4;
             dc.DrawEllipse(_pen.Brush, null, new Point(r, _y), r, r);
             dc.DrawEllipse(_pen.Brush, null, new Point(width - r, _y), r, r);

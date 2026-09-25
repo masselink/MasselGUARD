@@ -6,14 +6,14 @@ using MasselGUARD.Models;
 namespace MasselGUARD.Services
 {
     /// <summary>
-    /// Pure DNS-rule precedence — the DNS axis of Model C (see
+    /// Pure DNS-rule precedence - the DNS axis of Model C (see
     /// <c>docs/DnsAutomation-Design.md</c>). Decides which resolver a network should use,
-    /// independently of any tunnel action. No side-effects, no UI, no Windows calls — the
+    /// independently of any tunnel action. No side-effects, no UI, no Windows calls - the
     /// applying/reverting lives in <c>DnsService</c> (GUI-side).
     ///
     /// This lives in a CLI-compiled file (added to <c>MasselGUARDcli.csproj</c>) so the
     /// precedence is exercised headlessly by <c>MasselGUARDcli selftest</c>
-    /// (<see cref="RunSelfTest"/>) — <c>RuleEngine</c> itself is GUI-only. <c>RuleEngine.EvaluateDns</c>
+    /// (<see cref="RunSelfTest"/>) - <c>RuleEngine</c> itself is GUI-only. <c>RuleEngine.EvaluateDns</c>
     /// is a thin wrapper over <see cref="Evaluate"/>; <c>RuleEngine.EvaluateWifi</c> uses
     /// <see cref="IsDnsOnly"/> to skip DNS-only rules on the tunnel axis, and
     /// <see cref="IsWithinSchedule"/> is the single schedule-window implementation.
@@ -37,7 +37,7 @@ namespace MasselGUARD.Services
         /// <summary>
         /// True when a rule expresses a DNS action but NO tunnel action (empty Tunnel +
         /// non-empty DnsProfileId). The tunnel engine (<c>RuleEngine.EvaluateWifi</c>) skips
-        /// these so a DNS-only rule never disconnects a tunnel — an empty Tunnel means
+        /// these so a DNS-only rule never disconnects a tunnel - an empty Tunnel means
         /// "disconnect" only when the rule carries no DNS profile.
         /// </summary>
         public static bool IsDnsOnly(TunnelRule r) =>
@@ -48,11 +48,11 @@ namespace MasselGUARD.Services
         /// mirroring <c>RuleEngine.EvaluateWifi</c> so the two axes are predictable:
         ///   1. DNS automation off (ManualMode or !DnsAutomationEnabled) → None.
         ///   2. Open-network profile (OpenWifiDnsProfileId) on an open network.
-        ///   3. SSID rule — enabled "wifi" rule matching the SSID with a DnsProfileId.
-        ///   4. Trusted rule — enabled "trusted" rule firing on its side of the list.
-        ///   5. Schedule rule — enabled "schedule" rule currently in-window.
+        ///   3. SSID rule - enabled "wifi" rule matching the SSID with a DnsProfileId.
+        ///   4. Trusted rule - enabled "trusted" rule firing on its side of the list.
+        ///   5. Schedule rule - enabled "schedule" rule currently in-window.
         ///   6. Default (DefaultDnsProfileId).
-        /// Steps 3–4 need an SSID; 5–6 apply regardless. Pure — does not mutate ExecutionCount.
+        /// Steps 3–4 need an SSID; 5–6 apply regardless. Pure - does not mutate ExecutionCount.
         /// </summary>
         public static DnsResult Evaluate(AppConfig cfg, string? ssid, bool isOpenNetwork, DateTime now)
         {
@@ -132,7 +132,7 @@ namespace MasselGUARD.Services
 
         /// <summary>
         /// True when <paramref name="now"/> falls inside a schedule rule's day + time window.
-        /// The single canonical implementation — <c>RuleEngine.IsWithinSchedule</c> delegates here.
+        /// The single canonical implementation - <c>RuleEngine.IsWithinSchedule</c> delegates here.
         /// </summary>
         public static bool IsWithinSchedule(TunnelRule r, DateTime now)
         {
@@ -152,7 +152,7 @@ namespace MasselGUARD.Services
         // ── Self-test (design §13 step 2; run via `MasselGUARDcli selftest`) ──────
         /// <summary>
         /// Table-driven precedence checks. Returns (passed, failed, failureMessages).
-        /// Pure — builds throwaway <see cref="AppConfig"/>s; touches no config file or network.
+        /// Pure - builds throwaway <see cref="AppConfig"/>s; touches no config file or network.
         /// </summary>
         public static (int passed, int failed, List<string> failures) RunSelfTest()
         {

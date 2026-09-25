@@ -21,7 +21,7 @@ namespace MasselGUARD.Models
 
     /// <summary>
     /// Root configuration object serialised to %APPDATA%\MasselGUARD\config.json.
-    /// Pure data — no UI, no logic.
+    /// Pure data - no UI, no logic.
     /// </summary>
     public class AppConfig
     {
@@ -52,7 +52,7 @@ namespace MasselGUARD.Models
         {
             new("Work"), new("Personal"), new("Travel")
         };
-        /// <summary>Tab names that are hidden — includes "All", "Uncategorized", and custom group names.</summary>
+        /// <summary>Tab names that are hidden - includes "All", "Uncategorized", and custom group names.</summary>
         public System.Collections.Generic.HashSet<string> HiddenTabs { get; set; } = new();
         /// <summary>Which group tab is selected on startup. Empty = show All.</summary>
         public string  DefaultGroup          { get; set; } = "";
@@ -71,6 +71,12 @@ namespace MasselGUARD.Models
         // ── App settings ─────────────────────────────────────────────────────
         public string  Language           { get; set; } = "en";
         public string  LogLevelSetting    { get; set; } = "normal";
+        /// <summary>Clear the activity log on each start. Default true (the classic behaviour).
+        /// When false, the log persists to a file across restarts (trimmed to <see cref="MaxLogSizeKB"/>).</summary>
+        public bool    ClearLogOnStart    { get; set; } = true;
+        /// <summary>Max size of the persisted log file in KB; oldest lines are dropped past it.
+        /// 0 = unlimited.</summary>
+        public int     MaxLogSizeKB       { get; set; } = 512;
         public bool    ShowTrayPopupOnSwitch { get; set; } = true;
         public int     NotificationDurationSeconds { get; set; } = 5;
         public bool    SuppressPortableUpdatePrompt { get; set; } = false;
@@ -94,6 +100,47 @@ namespace MasselGUARD.Models
         /// <see cref="DnsAutomationEnabled"/> remains the runtime on/off within it.</summary>
         public bool EnableDns { get; set; } = true;
 
+        /// <summary>Activity-log feature master. When false the app stops writing to the activity log
+        /// (and the panel is hidden). When true the panel can still be individually hidden via
+        /// <see cref="ShowActivityLog"/>. Set false by the top-bar toggle only when
+        /// <see cref="LogToggleDisables"/> is on.</summary>
+        public bool ActivityLogEnabled { get; set; } = true;
+
+        /// <summary>Charts/history feature master. When false the app stops recording connection,
+        /// WiFi and DNS history (and the charts panel is hidden). When true the panel can still be
+        /// individually hidden via <see cref="ChartsSectionVisible"/>. Set false by the top-bar
+        /// toggle only when <see cref="ChartsToggleDisables"/> is on.</summary>
+        public bool ChartsEnabled { get; set; } = true;
+
+        // ── Top-bar section toggles (Tunnels / DNS / Charts show-hide buttons) ──
+        /// <summary>Current show/hide state of each main-window section, driven by the top-bar toggle
+        /// buttons. Persisted so the layout is remembered across restarts.</summary>
+        public bool TunnelsSectionVisible { get; set; } = true;
+        public bool DnsSectionVisible     { get; set; } = true;
+        public bool ChartsSectionVisible  { get; set; } = true;
+
+        /// <summary>Top-bar toggle behaviour. false = hide only (the module keeps running, just the UI
+        /// hides); true = hide AND disable the module (EnableTunnels/EnableDns) when toggled off.</summary>
+        public bool TunnelToggleDisables { get; set; } = false;
+        public bool DnsToggleDisables    { get; set; } = false;
+
+        /// <summary>WiFi-rules top-bar toggle behaviour. false = hide only; true = also enable
+        /// Manual mode (disable WiFi automation) when toggled off.</summary>
+        public bool WifiToggleDisables { get; set; } = false;
+
+        /// <summary>Activity-log / charts top-bar toggle behaviour. false = hide only (feature keeps
+        /// working, panel hidden); true = disable the feature (stop writing the log / recording
+        /// history) when toggled off.</summary>
+        public bool LogToggleDisables    { get; set; } = false;
+        public bool ChartsToggleDisables { get; set; } = false;
+
+        /// <summary>Whether each top-bar toggle button is shown at all.</summary>
+        public bool ShowTunnelToggleButton { get; set; } = true;
+        public bool ShowDnsToggleButton    { get; set; } = true;
+        public bool ShowWifiToggleButton   { get; set; } = true;
+        public bool ShowChartsToggleButton { get; set; } = true;
+        public bool ShowLogToggleButton    { get; set; } = true;
+
         // ── Font override ────────────────────────────────────────────────────
         /// <summary>When true the user-chosen font replaces the theme's own font.</summary>
         public bool   FontOverrideEnabled { get; set; } = false;
@@ -107,7 +154,7 @@ namespace MasselGUARD.Models
         public string ActiveTheme { get; set; } = "__system__";
         /// <summary>"auto" (follow Windows) | "light" | "dark"</summary>
         public string SystemThemeMode  { get; set; } = "auto";
-        /// <summary>The official shared-themes repository — the default value and the
+        /// <summary>The official shared-themes repository - the default value and the
         /// target of the Settings "Default" button.</summary>
         public const string DefaultSharedThemesRepoUrl = "https://github.com/masselink/MasselGUARD-themes";
 
@@ -122,9 +169,9 @@ namespace MasselGUARD.Models
         // ── Auto-reconnect ────────────────────────────────────────────────────
         /// <summary>
         /// Controls when auto-reconnect is active.
-        /// "off"        — disabled globally.
-        /// "per-tunnel" — each tunnel controls its own toggle.
-        /// "always"     — every tunnel reconnects regardless of the per-tunnel toggle.
+        /// "off"        - disabled globally.
+        /// "per-tunnel" - each tunnel controls its own toggle.
+        /// "always"     - every tunnel reconnects regardless of the per-tunnel toggle.
         /// </summary>
         public string AutoReconnectMode { get; set; } = "always";
 
@@ -139,7 +186,7 @@ namespace MasselGUARD.Models
         // Three independent delivery channels for "this active tunnel may be leaking
         // DNS". The icon (ShowDnsIndicator above) is an always-on status badge; the
         // log + toast warnings are edge-triggered (once per leak episode) and only
-        // fire while the leak is UNMITIGATED — i.e. smart name resolution is still
+        // fire while the leak is UNMITIGATED - i.e. smart name resolution is still
         // enabled. Turn all three off to disable DNS-leak surfacing entirely.
 
         /// <summary>Write a warning line to the activity log on a possible (unmitigated) DNS leak.</summary>
@@ -191,7 +238,7 @@ namespace MasselGUARD.Models
         /// <summary>Legacy single-view selector ("timeline"/"usage"); superseded by the two
         /// independent pane toggles below. Kept for one-time migration on load.</summary>
         public string InfoPanelMode          { get; set; } = "timeline";
-        /// <summary>Info panel: show the Timeline pane. Timeline + Data-usage are independent —
+        /// <summary>Info panel: show the Timeline pane. Timeline + Data-usage are independent -
         /// both on = the layered (stacked) view; both off = the panel is hidden.</summary>
         public bool ShowTimelinePane         { get; set; } = true;
         /// <summary>Info panel: show the Data-usage pane (see <see cref="ShowTimelinePane"/>).</summary>
@@ -199,11 +246,11 @@ namespace MasselGUARD.Models
         /// <summary>Info panel: show the DNS pane (active DNS profile / server over time).</summary>
         public bool ShowDnsPane              { get; set; } = false;
         /// <summary>How per-tunnel data-cap usage is shown on the tunnel row:
-        /// "bars" (slim horizontal progress bars, breakdown on hover — the default) or
+        /// "bars" (slim horizontal progress bars, breakdown on hover - the default) or
         /// "rings" (compact concentric-style arcs).</summary>
         public string CapIndicatorStyle      { get; set; } = "bars";
 
-        // Legacy — kept for JSON backwards-compat deserialization only; not used by code.
+        // Legacy - kept for JSON backwards-compat deserialization only; not used by code.
         // The setter migrates old configs to the two new bools.
         [System.Text.Json.Serialization.JsonInclude]
         public InfoSectionMode InfoSection
@@ -237,8 +284,8 @@ namespace MasselGUARD.Models
 
         // ── Kill switch ───────────────────────────────────────────────────────
         /// <summary>
-        /// "per-tunnel" — each tunnel controls its own kill switch toggle (default).
-        /// "always"     — kill switch is always active for every tunnel regardless of
+        /// "per-tunnel" - each tunnel controls its own kill switch toggle (default).
+        /// "always"     - kill switch is always active for every tunnel regardless of
         ///                the per-tunnel setting.
         /// </summary>
         public string KillSwitchMode { get; set; } = "per-tunnel";
@@ -248,7 +295,7 @@ namespace MasselGUARD.Models
         /// Bypass switch for pre-flight WireGuard config validation.
         /// <para>
         /// Default <c>false</c> = validation is ACTIVE. Setting it true bypasses
-        /// validation for all tunnels — a last-resort escape hatch for a valid-but-unusual
+        /// validation for all tunnels - a last-resort escape hatch for a valid-but-unusual
         /// config the validator rejects. There is deliberately no per-tunnel equivalent.
         /// </para>
         /// </summary>
@@ -265,7 +312,7 @@ namespace MasselGUARD.Models
 
         /// <summary>Ids of installed themes whose repo "version" was newer than the installed
         /// one, as of the last check. Checked at the same time as the app update (same
-        /// frequency setting) — see MainWindow.CheckForUpdatesAsync.</summary>
+        /// frequency setting) - see MainWindow.CheckForUpdatesAsync.</summary>
         public List<string> ThemeUpdatesAvailable { get; set; } = new();
 
     }

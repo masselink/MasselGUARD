@@ -105,7 +105,7 @@ namespace MasselGUARD.ViewModels
         // ── DNS leak status ───────────────────────────────────────────────────
         private TunnelDll.DnsLeakStatus _dnsStatus = TunnelDll.DnsLeakStatus.Unknown;
         // True when machine-wide DNS-leak prevention (DisableSmartNameResolution) is active,
-        // which contains a PotentialLeak — the inline ⚠ icon is then suppressed to match the
+        // which contains a PotentialLeak - the inline ⚠ icon is then suppressed to match the
         // toast/log warnings, which already stay silent while prevention is enabled.
         private bool _dnsMitigated;
 
@@ -163,7 +163,7 @@ namespace MasselGUARD.ViewModels
         private DateTime? _lastHandshakeUtc;   // from the WireGuard UAPI pipe; null on the fallback
 
         // Health/traffic is shown by colouring the single status dot (StatusDot /
-        // StatusDotColor) in front of the status text — there is no separate dot.
+        // StatusDotColor) in front of the status text - there is no separate dot.
         // HealthTooltip is surfaced on that dot.
         // null (not "") when there's nothing to say, so the always-visible dot shows no
         // empty tooltip popup while disconnected / (dis)connecting.
@@ -185,7 +185,7 @@ namespace MasselGUARD.ViewModels
             }
         }
 
-        /// <summary>Relative age of the last WireGuard handshake, e.g. "12s", "3m" — empty when
+        /// <summary>Relative age of the last WireGuard handshake, e.g. "12s", "3m" - empty when
         /// unknown (inactive, or the fallback stats path with no handshake data).</summary>
         public string HandshakeDisplay
         {
@@ -321,10 +321,10 @@ namespace MasselGUARD.ViewModels
         // ── Data-usage warnings (day / week / month) ──────────────────────────
         private long _dayBytes, _weekBytes, _monthlyBytes;
 
-        /// <summary>Current session's total bytes (rx+tx) — used for live cap accounting.</summary>
+        /// <summary>Current session's total bytes (rx+tx) - used for live cap accounting.</summary>
         public long SessionBytes => _rxBytes + _txBytes;
 
-        /// <summary>Live session upload / download bytes — summed across active tunnels for the
+        /// <summary>Live session upload / download bytes - summed across active tunnels for the
         /// combined traffic figure in the info panel.</summary>
         public long TxBytesLive => _txBytes;
         public long RxBytesLive => _rxBytes;
@@ -374,7 +374,7 @@ namespace MasselGUARD.ViewModels
                 ? System.Windows.Visibility.Visible
                 : System.Windows.Visibility.Collapsed;
 
-        /// <summary>Over any configured cap — drives the usage colour and the row highlight.</summary>
+        /// <summary>Over any configured cap - drives the usage colour and the row highlight.</summary>
         public bool IsOverCap =>
             (DailyCapBytes   > 0 && _dayBytes     >= DailyCapBytes)   ||
             (WeeklyCapBytes  > 0 && _weekBytes    >= WeeklyCapBytes)  ||
@@ -383,7 +383,7 @@ namespace MasselGUARD.ViewModels
         public System.Windows.Media.Brush MonthlyUsageColor =>
             IsOverCap ? ThemeBrush("WarningColor") : ThemeBrush("TextMuted");
 
-        // ── Cap usage rings — shown in the row when connected ──────────────────
+        // ── Cap usage rings - shown in the row when connected ──────────────────
         // Three concentric arcs (day inner · week middle · month outer). A ring is
         // drawn only when that period's cap is set; each fills 0→360° as usage → cap.
         // The <see cref="Views.CapRings"/> control turns a ring amber near the limit
@@ -396,7 +396,7 @@ namespace MasselGUARD.ViewModels
 
         // A period's ring is shown when its cap is set AND its per-ring hide flag is off.
         // These feed CapRings.DaySet/WeekSet/MonthSet, so a hidden ring simply isn't drawn
-        // (its warning/enforcement still runs). Rings show even when disconnected — the
+        // (its warning/enforcement still runs). Rings show even when disconnected - the
         // CapRings control renders them greyed (Active=false) but at real usage.
         public bool DayCapSet   => DailyCapBytes   > 0 && !StoredTunnel.DailyCapHideRing;
         public bool WeekCapSet  => WeeklyCapBytes  > 0 && !StoredTunnel.WeeklyCapHideRing;
@@ -442,7 +442,7 @@ namespace MasselGUARD.ViewModels
             }
         }
 
-        /// <summary>Left accent strip on the tunnel row — amber while over a cap, else invisible.</summary>
+        /// <summary>Left accent strip on the tunnel row - amber while over a cap, else invisible.</summary>
         public System.Windows.Media.Brush CapHighlightBrush =>
             IsOverCap ? ThemeBrush("WarningColor") : System.Windows.Media.Brushes.Transparent;
 
@@ -516,7 +516,7 @@ namespace MasselGUARD.ViewModels
             get
             {
                 // The green status dot already conveys "connected", so the row shows just the
-                // uptime — this frees room for the traffic figures. (The word is kept only for
+                // uptime - this frees room for the traffic figures. (The word is kept only for
                 // the brief moment before the connect timestamp is set.)
                 if (!IsActive || _connectedAt == null) return Lang.T("StatusConnected");
                 var elapsed = DateTime.UtcNow - _connectedAt.Value;
@@ -674,7 +674,7 @@ namespace MasselGUARD.ViewModels
         private async void DoConnect() => await ConnectAsync();
 
         /// <summary>
-        /// Awaitable connect — auto-reconnect calls this instead of ConnectCommand so it
+        /// Awaitable connect - auto-reconnect calls this instead of ConnectCommand so it
         /// can wait for the result rather than reading IsActive mid-connect.
         /// </summary>
         public async Task ConnectAsync()
@@ -685,7 +685,7 @@ namespace MasselGUARD.ViewModels
             IsConnecting = true;
             try
             {
-                // Run on a background thread — companion tunnel connects block for several
+                // Run on a background thread - companion tunnel connects block for several
                 // seconds (CreateService P/Invoke + WaitForStatus polling).
                 await Task.Run(() => _tunnels.Connect(StoredTunnel, _config.Config, source));
             }

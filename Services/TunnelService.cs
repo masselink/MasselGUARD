@@ -15,15 +15,15 @@ namespace MasselGUARD.Services
     /// <summary>
     /// Connects and disconnects WireGuard tunnels.
     /// Supports two backends:
-    ///   Local  — tunnel.dll + wireguard.dll (wireguard-NT)
-    ///   WireGuard — WireGuard for Windows ServiceController
+    ///   Local  - tunnel.dll + wireguard.dll (wireguard-NT)
+    ///   WireGuard - WireGuard for Windows ServiceController
     ///
     /// All side-effect operations (DPAPI, ACL, services) live here.
     /// No UI references.
     /// </summary>
     public class TunnelService
     {
-        /// <summary>Persistent storage for .conf.dpapi files — one per tunnel.</summary>
+        /// <summary>Persistent storage for .conf.dpapi files - one per tunnel.</summary>
         public static readonly string TunnelStorageDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "MasselGUARD", "tunnels");
@@ -94,7 +94,7 @@ namespace MasselGUARD.Services
                 {
                     // A successful connect supersedes any earlier intentional-disconnect
                     // mark. Without this, a stale entry from a previous GUI/rule disconnect
-                    // (never consumed — the poll misses MasselGUARD's own transitions)
+                    // (never consumed - the poll misses MasselGUARD's own transitions)
                     // would swallow the next external-drop event.
                     _intentionalDisconnects.TryRemove(stored.Name, out _);
                     _history.RecordConnect(stored.Name, source);
@@ -128,7 +128,7 @@ namespace MasselGUARD.Services
                 return false;
             }
 
-            // Split tunneling — rewrite AllowedIPs before validating/writing so wireguard-NT
+            // Split tunneling - rewrite AllowedIPs before validating/writing so wireguard-NT
             // programs the split routes. No-op unless the tunnel has a route-based split
             // configured (SplitMode != off with ranges). See docs/SplitTunneling-Design.md.
             var split = Models.SplitConfig.From(stored);
@@ -152,7 +152,7 @@ namespace MasselGUARD.Services
                 }
             }
 
-            // Validate before writing — tunnel.dll exits with code 2 for any parse error.
+            // Validate before writing - tunnel.dll exits with code 2 for any parse error.
             // Active by default; only the global bypass switch can turn it off.
             if (!cfg.SkipTunnelValidation)
             {
@@ -160,7 +160,7 @@ namespace MasselGUARD.Services
                 if (validationError != null)
                 {
                     // Main message in accent colour, detail hint in grey below
-                    _log.Ok($"Config validation failed — {stored.Name}: {validationError.Message}");
+                    _log.Ok($"Config validation failed - {stored.Name}: {validationError.Message}");
                     if (validationError.Detail != null)
                         _log.Write(LogLevel.Debug, validationError.Detail, isContinuation: true);
                     return false;
@@ -176,7 +176,7 @@ namespace MasselGUARD.Services
             var tempPath = Path.Combine(TempDir, stored.Name + ".conf");
             WriteSecure(tempPath, plaintext);
 
-            // Verify the written file — log size and first line so we can diagnose parse failures.
+            // Verify the written file - log size and first line so we can diagnose parse failures.
             try
             {
                 var raw   = File.ReadAllBytes(tempPath);
@@ -217,17 +217,74 @@ namespace MasselGUARD.Services
                                    _splitBackend.KillSwitchBypassRanges(split));
                     return true;
                 }
-                _log.Warn($"TunnelDll: {err}"); return false;
+                _log.Warn($"TunnelDll: {err}");
+                WarnIfCloudSyncedInstall();
+                return false;
             }
             catch (Exception ex)
             {
                 _log.Warn($"TunnelDll.Connect failed: {ex.Message}");
+                WarnIfCloudSyncedInstall();
                 return false;
             }
             finally
             {
                 try { File.Delete(tempPath); } catch { }
             }
+        }
+
+        /// <summary>
+        /// When a local tunnel fails to start AND MasselGUARD is running from a cloud-synced folder
+        /// (OneDrive), log that as the concrete cause: the tunnel is hosted by a LocalSystem service
+        /// which cannot read the exe / native DLLs / temp .conf inside a per-user cloud folder (the
+        /// failure surfaces as "Element not found"). Only fires from a genuinely cloud-synced install,
+        /// so it never mis-blames a normal local install for an unrelated connect failure.
+        /// </summary>
+        private void WarnIfCloudSyncedInstall()
+        {
+            if (IsCloudSyncedLocation(AppContext.BaseDirectory, out string cloudDir))
+                _log.Warn($"Likely cause: MasselGUARD is running from a cloud-synced folder ({cloudDir}). " +
+                          "Local tunnels run as a LocalSystem service that cannot read files there. " +
+                          "Move MasselGUARD to a normal local folder (e.g. C:\\MasselGUARD or Program Files) and reconnect.");
+        }
+
+        /// <summary>
+        /// True only when <paramref name="dir"/> can be reliably confirmed as a cloud-synced location
+        /// a LocalSystem service can't read: under a real OneDrive root (from the OneDrive* environment
+        /// variables), or the folder / an ancestor carries a cloud placeholder / offline / reparse-point
+        /// attribute. Returns the matched directory via <paramref name="cloudDir"/>. WPF-free (CLI-shared).
+        /// </summary>
+        private static bool IsCloudSyncedLocation(string? dir, out string cloudDir)
+        {
+            cloudDir = dir ?? "";
+            if (string.IsNullOrEmpty(dir)) return false;
+
+            foreach (var v in new[] { "OneDrive", "OneDriveCommercial", "OneDriveConsumer" })
+            {
+                var root = Environment.GetEnvironmentVariable(v);
+                if (!string.IsNullOrEmpty(root) &&
+                    dir.StartsWith(root.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase))
+                { cloudDir = dir; return true; }
+            }
+
+            const FileAttributes RecallOnOpen       = (FileAttributes)0x00040000;
+            const FileAttributes RecallOnDataAccess = (FileAttributes)0x00400000;
+            try
+            {
+                var di = new DirectoryInfo(dir);
+                while (di != null)
+                {
+                    var a = di.Attributes;
+                    if ((a & FileAttributes.ReparsePoint) != 0
+                        || (a & FileAttributes.Offline) != 0
+                        || (a & RecallOnOpen) != 0
+                        || (a & RecallOnDataAccess) != 0)
+                    { cloudDir = dir; return true; }
+                    di = di.Parent;
+                }
+            }
+            catch { /* can't read attributes → can't detect → stay quiet */ }
+            return false;
         }
 
         // ── Disconnect ────────────────────────────────────────────────────────
@@ -259,7 +316,7 @@ namespace MasselGUARD.Services
         {
             try
             {
-                // Snapshot bytes BEFORE the adapter is torn down — it disappears on disconnect
+                // Snapshot bytes BEFORE the adapter is torn down - it disappears on disconnect
                 var finalStats = TunnelDll.GetTrafficStats(stored.Name);
                 TunnelDll.Disconnect(stored.Name, out string disconnErr);
                 LogDisconnect(stored.Name, finalStats, storeTraffic);
@@ -274,7 +331,7 @@ namespace MasselGUARD.Services
             TunnelDll.TunnelStats finalStats = default, bool storeTraffic = true,
             string logSuffix = "")
         {
-            // Compute session byte delta unconditionally — used for history and extended log
+            // Compute session byte delta unconditionally - used for history and extended log
             long sessionRx = 0, sessionTx = 0;
             if (finalStats.AdapterFound && _connectBytes.TryGetValue(name, out var startBytes))
             {
@@ -297,13 +354,13 @@ namespace MasselGUARD.Services
                            : elapsed.TotalHours < 24    ? $"{(int)elapsed.TotalHours}h {elapsed.Minutes:D2}m"
                            : $"{(int)elapsed.TotalDays}d {elapsed.Hours:D2}h {elapsed.Minutes:D2}m";
 
-                // Line 2 (traffic) — logged first so it appears lowest
+                // Line 2 (traffic) - logged first so it appears lowest
                 if (finalStats.AdapterFound)
                     _log.Write(LogLevel.Debug,
                         $"Traffic: ↑ {FormatBytes(sessionTx)}  ↓ {FormatBytes(sessionRx)}",
                         isContinuation: true);
 
-                // Line 1 (time) — logged second so it appears directly below disconnect
+                // Line 1 (time) - logged second so it appears directly below disconnect
                 _log.Write(LogLevel.Debug,
                     $"Time: {connectedAt.ToLocalTime():HH:mm:ss} → {now.ToLocalTime():HH:mm:ss}  |  {dur}",
                     isContinuation: true);
@@ -348,7 +405,7 @@ namespace MasselGUARD.Services
                     }
                     catch { }
 
-                    // Try LocalMachine scope — WireGuard for Windows encrypts its own
+                    // Try LocalMachine scope - WireGuard for Windows encrypts its own
                     // configs with LocalMachine DPAPI.  Succeeds when running as admin.
                     try
                     {
@@ -429,7 +486,7 @@ namespace MasselGUARD.Services
 
         private static void WriteSecure(string path, string content)
         {
-            // Create empty file first — inherits parent directory ACL
+            // Create empty file first - inherits parent directory ACL
             File.Create(path).Dispose();
 
             // Lock down to SYSTEM + Admins + current user before writing
@@ -447,7 +504,7 @@ namespace MasselGUARD.Services
             Allow(WindowsIdentity.GetCurrent().User!);
             fi.SetAccessControl(acl);
 
-            // Explicitly UTF-8 without BOM — WireGuard's config parser rejects a BOM.
+            // Explicitly UTF-8 without BOM - WireGuard's config parser rejects a BOM.
             using var sw = new StreamWriter(
                 new FileStream(path, FileMode.Open, FileAccess.Write,
                     FileShare.None, 4096, FileOptions.WriteThrough),
@@ -462,7 +519,7 @@ namespace MasselGUARD.Services
             if (string.IsNullOrWhiteSpace(script)) return;
             var result = _scripts.Run(script, hook, tunnel);
             _log.Debug($"[Script:{hook}] exit={result.ExitCode}" +
-                (string.IsNullOrEmpty(result.Output) ? "" : $" — {result.Output}"));
+                (string.IsNullOrEmpty(result.Output) ? "" : $" - {result.Output}"));
             if (result.ExitCode != 0)
                 _log.Warn($"Script {hook} exited {result.ExitCode}");
         }

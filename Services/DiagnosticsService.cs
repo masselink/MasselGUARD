@@ -38,7 +38,7 @@ namespace MasselGUARD.Services
 
         /// <summary>Run the selected suites. Must be awaited on the UI thread (it drives the tunnel
         /// view-models); blocking work is offloaded internally so the UI stays responsive.</summary>
-        public async Task RunAsync(bool testLocal, bool testDns,
+        public async Task RunAsync(bool testLocal, bool testDns, bool testCli,
                                    MainViewModel vm, TunnelService tunnels, DnsService dns,
                                    AppConfig cfg, Guid ifaceGuid, CancellationToken ct)
         {
@@ -53,8 +53,85 @@ namespace MasselGUARD.Services
             if (testDns)
                 await DnsTest(cfg, ifaceGuid, dns, ct);
 
+            if (testCli)
+                await CliTest(ct);
+
             Head("Done.");
         }
+
+        // ── Command-line interface (MasselGUARDcli) ─────────────────────────────────
+        /// <summary>Verifies the bundled CLI launches, reports its version, and passes its own
+        /// built-in <c>selftest</c> (CIDR math, conf rewrite, export round-trip, DNS-policy
+        /// precedence). Uses only non-elevated informational commands; the elevated GUI launches
+        /// the child without a UAC prompt.</summary>
+        private async Task CliTest(CancellationToken ct)
+        {
+            Head("Command-line interface (MasselGUARDcli)");
+
+            string cli = System.IO.Path.Combine(TunnelDll.ExeDirPublic, "MasselGUARDcli.exe");
+            if (!System.IO.File.Exists(cli))
+            {
+                Fail($"MasselGUARDcli.exe not found next to the app - {cli}");
+                return;
+            }
+            Info($"CLI: {cli} ({new System.IO.FileInfo(cli).Length:N0} bytes)");
+
+            // version - proves the exe launches and returns cleanly.
+            var (vCode, vOut) = await RunCli(cli, "version", ct);
+            if (vCode == 0 && vOut.Trim().Length > 0)
+                Pass($"`version` OK - {FirstLine(vOut)}");
+            else
+                Fail($"`version` failed (exit {vCode}) - {FirstLine(vOut)}");
+
+            // selftest - exercises the shared CIDR / conf-rewrite / export / DNS-policy logic.
+            var (sCode, sOut) = await RunCli(cli, "selftest", ct);
+            if (sCode == 0) Pass("`selftest` passed (exit 0).");
+            else            Fail($"`selftest` FAILED (exit {sCode}).");
+            foreach (var ln in sOut.Replace("\r", "").Split('\n').Where(l => l.Trim().Length > 0))
+                Info("  " + ln.TrimEnd());
+
+            Info("Confirmation: the bundled CLI launches, reports its version, and passes its built-in self-test.");
+        }
+
+        /// <summary>Run a MasselGUARDcli command, capturing stdout+stderr and the exit code, with a
+        /// 30 s watchdog. Returns (-1, message) on timeout or launch failure.</summary>
+        private static async Task<(int code, string output)> RunCli(string exe, string args, CancellationToken ct)
+        {
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo(exe, args)
+                {
+                    UseShellExecute        = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError  = true,
+                    CreateNoWindow         = true,
+                    // The CLI writes UTF-8 (✓/✗ glyphs); decode it as UTF-8 or they arrive as mojibake.
+                    StandardOutputEncoding = System.Text.Encoding.UTF8,
+                    StandardErrorEncoding  = System.Text.Encoding.UTF8,
+                };
+                using var p = new System.Diagnostics.Process { StartInfo = psi };
+                var sb = new System.Text.StringBuilder();
+                p.OutputDataReceived += (_, e) => { if (e.Data != null) sb.AppendLine(e.Data); };
+                p.ErrorDataReceived  += (_, e) => { if (e.Data != null) sb.AppendLine(e.Data); };
+                p.Start();
+                p.BeginOutputReadLine();
+                p.BeginErrorReadLine();
+
+                using var to = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                to.CancelAfter(TimeSpan.FromSeconds(30));
+                try { await p.WaitForExitAsync(to.Token); }
+                catch (OperationCanceledException)
+                {
+                    try { p.Kill(entireProcessTree: true); } catch { }
+                    return (-1, sb + Environment.NewLine + "(timed out after 30s)");
+                }
+                return (p.ExitCode, sb.ToString());
+            }
+            catch (Exception ex) { return (-1, ex.Message); }
+        }
+
+        private static string FirstLine(string s)
+            => s.Replace("\r", "").Split('\n').FirstOrDefault(l => l.Trim().Length > 0)?.Trim() ?? "(no output)";
 
         // ── Environment ────────────────────────────────────────────────────────────
         private void Environment_(AppConfig cfg)
@@ -66,10 +143,10 @@ namespace MasselGUARD.Services
             Info($"Process arch: {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}   " +
                  $"OS arch: {System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}");
             if (IsElevated()) Pass("Running elevated (administrator).");
-            else              Fail("NOT elevated — driver/service operations will fail. MasselGUARD normally auto-elevates.");
+            else              Fail("NOT elevated - driver/service operations will fail. MasselGUARD normally auto-elevates.");
             Info($"Exe directory: {TunnelDll.ExeDirPublic}");
             if (IsCloudSyncedPath(TunnelDll.ExeDirPublic))
-                Warn("Exe is in a cloud-synced (OneDrive) path — local tunnels run as LocalSystem and cannot read it. Move to e.g. C:\\MasselGUARD.");
+                Warn("Exe is in a cloud-synced (OneDrive) path - local tunnels run as LocalSystem and cannot read it. Move to e.g. C:\\MasselGUARD.");
             else
                 Pass("Exe is in a local (non-cloud) path.");
             Info($"Local tunnels configured: {cfg.Tunnels.Count(IsLocal)}.   DNS profiles: {cfg.DnsProfiles.Count}.   " +
@@ -79,7 +156,7 @@ namespace MasselGUARD.Services
         // ── Local WireGuard readiness (static) ───────────────────────────────────────
         private void LocalReadiness(AppConfig cfg)
         {
-            Head("WireGuard client — readiness");
+            Head("WireGuard client - readiness");
 
             var archErr = TunnelDll.ArchSupportError();
             if (archErr != null) { Fail($"Architecture: {archErr}"); return; }
@@ -89,7 +166,7 @@ namespace MasselGUARD.Services
             {
                 if (System.IO.File.Exists(path))
                     Info($"{label}: present ({new System.IO.FileInfo(path).Length:N0} bytes)");
-                else Fail($"{label}: MISSING — {path}");
+                else Fail($"{label}: MISSING - {path}");
             }
 
             var dllErr = TunnelDll.ValidateDlls();
@@ -109,20 +186,20 @@ namespace MasselGUARD.Services
         private async Task LiveTunnelTest(MainViewModel vm, TunnelService tunnels, DnsService? dns,
                                           AppConfig cfg, Guid guid, bool withDns, CancellationToken ct)
         {
-            Head("WireGuard client — live connection test");
+            Head("WireGuard client - live connection test");
 
             var entry = vm.TunnelList.FirstOrDefault(t => t.IsLocal && t.IsAvailable)
                      ?? vm.TunnelList.FirstOrDefault(t => t.IsLocal);
             if (entry == null)
             {
-                Warn("No tunnel available to test — add a tunnel first.");
+                Warn("No tunnel available to test - add a tunnel first.");
                 return;
             }
             Info($"Using tunnel: {entry.Name}");
 
             bool wasActive = entry.IsActive;
             if (wasActive)
-                Info("Tunnel already connected — testing the live connection without reconnecting.");
+                Info("Tunnel already connected - testing the live connection without reconnecting.");
             else
             {
                 Info("Connecting…");
@@ -146,11 +223,11 @@ namespace MasselGUARD.Services
             if (hs != null)
             {
                 double age = (DateTime.UtcNow - hs.Value).TotalSeconds;
-                if (age < 180) Pass($"Handshake OK ({(int)age}s ago) — the peer responded.  ↑{Bytes(tx)}  ↓{Bytes(rx)}");
-                else           Warn($"Last handshake was {(int)(age / 60)}m ago — the connection may be stale.");
+                if (age < 180) Pass($"Handshake OK ({(int)age}s ago) - the peer responded.  ↑{Bytes(tx)}  ↓{Bytes(rx)}");
+                else           Warn($"Last handshake was {(int)(age / 60)}m ago - the connection may be stale.");
             }
             else
-                Warn($"No handshake — the tunnel is up locally but the peer has not responded (check endpoint/keys/network).  ↑{Bytes(tx)}  ↓{Bytes(rx)}");
+                Warn($"No handshake - the tunnel is up locally but the peer has not responded (check endpoint/keys/network).  ↑{Bytes(tx)}  ↓{Bytes(rx)}");
 
             // Optional: test the tunnel together with a DNS profile applied on top.
             if (withDns && dns != null && guid != Guid.Empty && running)
@@ -159,10 +236,10 @@ namespace MasselGUARD.Services
                 var tp = TestProfile();
                 Info($"Applying test DNS profile '{tp.Name}' while the tunnel is up…");
                 await Task.Run(() => DnsApplyReadRestore(dns, guid, tp, cfg.DnsAddressFamilies), ct);
-                Info("A manually-enabled DNS profile is designed to override the tunnel's own DNS — the round-trip above confirms it applied and restored.");
+                Info("A manually-enabled DNS profile is designed to override the tunnel's own DNS - the round-trip above confirms it applied and restored.");
             }
             else if (withDns && guid == Guid.Empty)
-                Warn("Tunnel + DNS: no active interface to apply the DNS profile to — skipped.");
+                Warn("Tunnel + DNS: no active interface to apply the DNS profile to - skipped.");
 
             // Restore prior state: disconnect only if we connected it.
             if (!wasActive)
@@ -176,7 +253,7 @@ namespace MasselGUARD.Services
                     return !SafeIsRunning(entry.Name);
                 }, ct);
                 if (stopped) Pass("Disconnected cleanly.");
-                else         Warn("Tunnel still appears to be running after disconnect — check its status.");
+                else         Warn("Tunnel still appears to be running after disconnect - check its status.");
             }
             else
                 Info("Left the tunnel connected (it was already up before the test).");
@@ -184,19 +261,19 @@ namespace MasselGUARD.Services
             Info("Confirmation: the connection works when the service runs AND a recent handshake is reported (the peer answered).");
         }
 
-        // ── DNS test (single throwaway profile — not every configured profile) ───────
+        // ── DNS test (single throwaway profile - not every configured profile) ───────
         private async Task DnsTest(AppConfig cfg, Guid guid, DnsService? dns, CancellationToken ct)
         {
             Head("DNS profile test");
 
             bool doh = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
             if (doh) Pass($"Encrypted DNS (DoH) supported (Windows build {Environment.OSVersion.Version.Build}).");
-            else     Warn($"No per-interface DoH on this build ({Environment.OSVersion.Version.Build}) — encrypted profiles apply plain servers unless they require encryption.");
+            else     Warn($"No per-interface DoH on this build ({Environment.OSVersion.Version.Build}) - encrypted profiles apply plain servers unless they require encryption.");
 
-            Info($"{cfg.DnsProfiles.Count} DNS profile(s) configured (not applied — only a throwaway test profile is exercised).");
+            Info($"{cfg.DnsProfiles.Count} DNS profile(s) configured (not applied - only a throwaway test profile is exercised).");
 
-            if (guid == Guid.Empty) { Warn("No active network interface — DNS apply/restore skipped (nothing to target)."); return; }
-            if (dns == null)        { Warn("DNS service unavailable — skipped."); return; }
+            if (guid == Guid.Empty) { Warn("No active network interface - DNS apply/restore skipped (nothing to target)."); return; }
+            if (dns == null)        { Warn("DNS service unavailable - skipped."); return; }
 
             string alias = AliasFor(guid);
             Info($"Active interface: {alias} ({guid:B})");
@@ -214,20 +291,20 @@ namespace MasselGUARD.Services
         private void DnsApplyReadRestore(DnsService dns, Guid guid, DnsProfile p, string families)
         {
             string before = CurrentResolvers(guid);
-            if (!dns.ApplyProfile(guid, p, families)) { Warn("  apply returned false (see activity log for the netsh error) — restoring."); dns.Restore(guid); return; }
+            if (!dns.ApplyProfile(guid, p, families)) { Warn("  apply returned false (see activity log for the netsh error) - restoring."); dns.Restore(guid); return; }
             Thread.Sleep(500);
             string after = CurrentResolvers(guid);
 
             var expect = new[] { p.V4Primary, p.V6Primary }.Where(s => !string.IsNullOrWhiteSpace(s)).Select(s => s.Trim()).ToArray();
             bool applied = expect.Length == 0 || expect.Any(e => after.Contains(e, StringComparison.OrdinalIgnoreCase));
-            if (applied) Pass($"  applied OK — resolvers now: {after}");
-            else         Warn($"  read-back did not show {string.Join(", ", expect)} — got: {after} (a tunnel or automation may have re-asserted DNS).");
+            if (applied) Pass($"  applied OK - resolvers now: {after}");
+            else         Warn($"  read-back did not show {string.Join(", ", expect)} - got: {after} (a tunnel or automation may have re-asserted DNS).");
 
             dns.Restore(guid);
             Thread.Sleep(300);
             string restored = CurrentResolvers(guid);
             if (restored == before) Pass($"  restored to original: {restored}");
-            else                    Warn($"  after restore: {restored} (was: {before}) — verify the interface returned to its previous setting.");
+            else                    Warn($"  after restore: {restored} (was: {before}) - verify the interface returned to its previous setting.");
         }
 
         // ── Helpers ──────────────────────────────────────────────────────────────────

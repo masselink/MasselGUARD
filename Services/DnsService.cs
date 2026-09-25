@@ -15,14 +15,14 @@ namespace MasselGUARD.Services
     /// <c>docs/DnsAutomation-Design.md</c> §5). The pure precedence that decides *which*
     /// resolver lives in <see cref="DnsPolicy"/>; this is the side-effecting half.
     ///
-    /// Step 3 uses <c>netsh</c> for plain (Do53) IPv4/IPv6 — reliable across Win10/11 and
+    /// Step 3 uses <c>netsh</c> for plain (Do53) IPv4/IPv6 - reliable across Win10/11 and
     /// trivial to revert to DHCP. DoH (<c>SetInterfaceDnsSettings</c> / <c>netsh dns add
     /// encryption</c>) arrives in step 6; an encrypted profile currently applies its plain
     /// servers and logs that encryption is pending.
     ///
     /// Before the first override of an interface, the interface's current static/DHCP DNS is
     /// snapshotted to <c>%APPDATA%\MasselGUARD\dns_state.json</c> (keyed by adapter GUID) so it
-    /// can be restored exactly — on leaving the network, on app exit, and on the next launch
+    /// can be restored exactly - on leaving the network, on app exit, and on the next launch
     /// after a crash (see <see cref="Restore"/> / <see cref="RestoreAll"/>). GUI-side only
     /// (not in <c>MasselGUARDcli.csproj</c>); the app is always elevated so the writes succeed.
     /// </summary>
@@ -83,10 +83,10 @@ namespace MasselGUARD.Services
             {
                 if (profile.RequireEncryption)
                 {
-                    _log?.Warn($"DNS: '{profile.Name}' requires encrypted DNS, but Windows build {OsBuild} has no per-interface DoH — not applied (fail-closed).");
+                    _log?.Warn($"DNS: '{profile.Name}' requires encrypted DNS, but Windows build {OsBuild} has no per-interface DoH - not applied (fail-closed).");
                     return false;
                 }
-                _log?.Info($"DNS: '{profile.Name}' requested DoH; unsupported on build {OsBuild} — applying plain servers.");
+                _log?.Info($"DNS: '{profile.Name}' requested DoH; unsupported on build {OsBuild} - applying plain servers.");
                 wantDoh = false;
             }
 
@@ -158,7 +158,7 @@ namespace MasselGUARD.Services
         }
 
         /// <summary>Restore every interface recorded in <c>dns_state.json</c>. Call on app exit
-        /// and once at startup (crash recovery — a prior run may have left an override).</summary>
+        /// and once at startup (crash recovery - a prior run may have left an override).</summary>
         public void RestoreAll()
         {
             List<string> keys;
@@ -172,7 +172,7 @@ namespace MasselGUARD.Services
         private void Snapshot(Guid guid, string alias)
         {
             var key = Key(guid);
-            if (_state.ContainsKey(key)) return;   // keep the ORIGINAL — never overwrite with our own override
+            if (_state.ContainsKey(key)) return;   // keep the ORIGINAL - never overwrite with our own override
             _state[key] = new DnsSnapshot
             {
                 V4Static    = ReadStaticNameServer(guid, ipv6: false),
@@ -283,7 +283,7 @@ namespace MasselGUARD.Services
             }
             catch (Exception ex)
             {
-                _log?.Warn($"DNS: netsh failed — {ex.Message}");
+                _log?.Warn($"DNS: netsh failed - {ex.Message}");
                 return false;
             }
         }
@@ -343,7 +343,7 @@ namespace MasselGUARD.Services
                 if (_state.Count == 0) { if (File.Exists(StatePath)) File.Delete(StatePath); return; }
                 File.WriteAllText(StatePath, JsonSerializer.Serialize(_state, JsonOpts));
             }
-            catch (Exception ex) { _log?.Warn($"DNS: could not persist state — {ex.Message}"); }
+            catch (Exception ex) { _log?.Warn($"DNS: could not persist state - {ex.Message}"); }
         }
     }
 }

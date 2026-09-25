@@ -12,15 +12,15 @@ namespace MasselGUARD.Services
     /// <c>AllowedIPs</c> list from a base list + a split mode + a set of ranges:
     ///
     /// <list type="bullet">
-    ///   <item><c>off</c>     — base returned verbatim.</item>
-    ///   <item><c>exclude</c> — base <b>minus</b> the ranges (full tunnel except these). This is
+    ///   <item><c>off</c>     - base returned verbatim.</item>
+    ///   <item><c>exclude</c> - base <b>minus</b> the ranges (full tunnel except these). This is
     ///         the classic WireGuard "AllowedIPs calculator": each covering block is split in
     ///         half until it either falls entirely inside or entirely outside an excluded range.</item>
-    ///   <item><c>include</c> — only the ranges are tunneled (intersected with the base).</item>
+    ///   <item><c>include</c> - only the ranges are tunneled (intersected with the base).</item>
     /// </list>
     ///
     /// IPv4 and IPv6 are computed independently and never mix. The result is emitted v4-first,
-    /// each family sorted by network then prefix — a comma-separated string ready to drop into
+    /// each family sorted by network then prefix - a comma-separated string ready to drop into
     /// the <c>[Peer] AllowedIPs =</c> line via <see cref="MasselGUARD.Cli.WireGuardConf.Patch"/>.
     ///
     /// WPF-free and CLI-shared (listed in <c>MasselGUARDcli.csproj</c>). No route-table code:
@@ -54,7 +54,7 @@ namespace MasselGUARD.Services
 
             if (mode == "exclude")
             {
-                // A tunnel with no AllowedIPs at all is meaningless for exclusion — treat a
+                // A tunnel with no AllowedIPs at all is meaningless for exclusion - treat a
                 // wholly-empty base as a full tunnel so exclusion has something to carve from.
                 if (v4Base.Count == 0 && v6Base.Count == 0)
                 {
@@ -146,7 +146,7 @@ namespace MasselGUARD.Services
 
         /// <summary>An IPv4 or IPv6 CIDR block: a masked network address (as a big-endian
         /// <see cref="BigInteger"/>) plus a prefix length. Two CIDRs of the same family are always
-        /// either disjoint or one contains the other — the property the split math relies on.</summary>
+        /// either disjoint or one contains the other - the property the split math relies on.</summary>
         private readonly struct Cidr : IEquatable<Cidr>
         {
             public readonly BigInteger Network;  // masked to Prefix

@@ -7,7 +7,7 @@ namespace MasselGUARD.Models
     /// <summary>
     /// A named DNS resolver that automation rules point at (see
     /// <c>docs/DnsAutomation-Design.md</c>). Applied to the physical adapter's TCP/IP
-    /// settings — independent of any tunnel. WPF-free (the CLI globs <c>Models\*.cs</c>);
+    /// settings - independent of any tunnel. WPF-free (the CLI globs <c>Models\*.cs</c>);
     /// <see cref="ObservableObject"/> lives in <c>Infrastructure</c>, which the CLI shares.
     /// </summary>
     public class DnsProfile : ObservableObject
@@ -37,7 +37,7 @@ namespace MasselGUARD.Models
             set => SetField(ref _name, value);
         }
 
-        // ── Plain (Do53) servers — empty string = that slot is unset ──────────────
+        // ── Plain (Do53) servers - empty string = that slot is unset ──────────────
         public string V4Primary   { get => _v4Primary;   set => SetField(ref _v4Primary,   value); }
         public string V4Secondary { get => _v4Secondary; set => SetField(ref _v4Secondary, value); }
         public string V6Primary   { get => _v6Primary;   set => SetField(ref _v6Primary,   value); }
@@ -60,7 +60,7 @@ namespace MasselGUARD.Models
         }
 
         /// <summary>Fail-closed: when true and DoH can't be established, do NOT fall back to
-        /// plain — surface an error instead. Default false (best-effort, may downgrade).</summary>
+        /// plain - surface an error instead. Default false (best-effort, may downgrade).</summary>
         public bool RequireEncryption
         {
             get => _requireEncryption;
@@ -115,7 +115,7 @@ namespace MasselGUARD.Models
                 if (!string.IsNullOrWhiteSpace(_v4Secondary)) parts.Add(_v4Secondary);
                 if (!string.IsNullOrWhiteSpace(_v6Primary))   parts.Add(_v6Primary);
                 if (!string.IsNullOrWhiteSpace(_v6Secondary)) parts.Add(_v6Secondary);
-                return parts.Count == 0 ? "—" : string.Join(", ", parts);
+                return parts.Count == 0 ? "-" : string.Join(", ", parts);
             }
         }
 

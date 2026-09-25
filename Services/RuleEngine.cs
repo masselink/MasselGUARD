@@ -6,7 +6,7 @@ namespace MasselGUARD.Services
 {
     /// <summary>
     /// Pure rule-evaluation logic.
-    /// No UI references, no side-effects — returns the action to take.
+    /// No UI references, no side-effects - returns the action to take.
     /// </summary>
     public class RuleEngine
     {
@@ -24,12 +24,12 @@ namespace MasselGUARD.Services
         /// Precedence (first match wins):
         ///   1. Manual mode → do nothing (all automation off).
         ///   2. Open-network protection (open/passwordless network + OpenWifiTunnel set).
-        ///   3. SSID rules — an enabled "wifi" rule whose SSID equals the current network.
-        ///   4. Trusted-network rules — enabled "trusted" rules, each firing only on its
+        ///   3. SSID rules - an enabled "wifi" rule whose SSID equals the current network.
+        ///   4. Trusted-network rules - enabled "trusted" rules, each firing only on its
         ///      side of the trusted list (TrustedWhen "trusted" = on the list, "untrusted"
         ///      = not on it); first match activates its tunnel / disconnects. Non-matching
         ///      side falls through.
-        ///   5. Default action — activate DefaultTunnel / disconnect / none.
+        ///   5. Default action - activate DefaultTunnel / disconnect / none.
         /// Schedule ("time") rules are evaluated separately on a timer (see EvaluateSchedules).
         /// </summary>
         public RuleResult EvaluateWifi(
@@ -37,7 +37,7 @@ namespace MasselGUARD.Services
             string?   ssid,
             bool      isOpenNetwork)
         {
-            // The tunnel axis is inert when the tunnel feature is disabled (DNS-only install) —
+            // The tunnel axis is inert when the tunnel feature is disabled (DNS-only install) -
             // a stored rule's tunnel must never activate. The DNS axis (DnsPolicy) is separate.
             if (cfg.ManualMode || !cfg.EnableTunnels)
                 return DoNothing;
@@ -50,7 +50,7 @@ namespace MasselGUARD.Services
             if (string.IsNullOrEmpty(ssid))
                 return DoNothing;
 
-            // 2. SSID rules — only "wifi"-kind rules match an SSID. ("schedule" is handled
+            // 2. SSID rules - only "wifi"-kind rules match an SSID. ("schedule" is handled
             //    by EvaluateSchedules; "trusted" is the broad policy in step 3 below.)
             //    The Tunnel field alone decides the tunnel action: an empty Tunnel disconnects,
             //    even when the rule also carries a DNS profile (DNS applies in parallel via DnsPolicy).
@@ -68,7 +68,7 @@ namespace MasselGUARD.Services
                     $"Rule: {ssid} → {match.Tunnel}");
             }
 
-            // 3. Trusted-network rules — each fires only on its matching side of the
+            // 3. Trusted-network rules - each fires only on its matching side of the
             //    shared TrustedNetworks list; the other side falls through to the next
             //    rule and finally the Default. This lets one rule bring a tunnel up on
             //    known networks (TrustedWhen="trusted", e.g. a split tunnel) and another
@@ -102,7 +102,7 @@ namespace MasselGUARD.Services
             };
         }
 
-        // ── DNS evaluation (Model C — parallel axis) ──────────────────────────
+        // ── DNS evaluation (Model C - parallel axis) ──────────────────────────
 
         /// <summary>
         /// Evaluate the DNS action for the current network, independently of the tunnel

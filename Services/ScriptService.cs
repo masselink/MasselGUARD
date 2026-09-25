@@ -16,7 +16,7 @@ namespace MasselGUARD.Services
 
         public record ScriptResult(int ExitCode, string Output);
 
-        // UTF-8 without BOM — cmd.exe chokes on BOM at the start of a .bat file.
+        // UTF-8 without BOM - cmd.exe chokes on BOM at the start of a .bat file.
         private static readonly Encoding NoBomUtf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 
         /// <summary>Strips a leading UTF-8 BOM (U+FEFF) if present.</summary>
@@ -39,7 +39,7 @@ namespace MasselGUARD.Services
                 ext      = content.TrimStart().StartsWith("#!") ? ".ps1" : ".bat";
                 tempFile = Path.Combine(Path.GetTempPath(),
                     $"masselguard_{hookName}_{tunnelName}{ext}");
-                // Write without BOM — cmd.exe interprets BOM as literal characters
+                // Write without BOM - cmd.exe interprets BOM as literal characters
                 File.WriteAllText(tempFile, content, NoBomUtf8);
                 path = tempFile;
             }

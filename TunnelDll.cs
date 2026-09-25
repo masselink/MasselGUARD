@@ -1,4 +1,4 @@
-// TunnelDll.cs — Local tunnel management via tunnel.dll + wireguard.dll
+// TunnelDll.cs - Local tunnel management via tunnel.dll + wireguard.dll
 //
 // This file handles ONLY local (standalone) tunnels.
 // WireGuard companion tunnels (managed by the official WireGuard client) are
@@ -23,7 +23,7 @@ using MasselGUARD.Models;
 namespace MasselGUARD
 {
     // ═══════════════════════════════════════════════════════════════════════════
-    //  Native Win32 — mirrors WireGuardClient reference exactly
+    //  Native Win32 - mirrors WireGuardClient reference exactly
     // ═══════════════════════════════════════════════════════════════════════════
     internal static class NativeMethods
     {
@@ -56,7 +56,7 @@ namespace MasselGUARD
         [StructLayout(LayoutKind.Sequential)]
         internal struct SERVICE_SID_INFO { public uint dwServiceSidType; }
 
-        // tunnel.dll entry point — blocks for the lifetime of the tunnel
+        // tunnel.dll entry point - blocks for the lifetime of the tunnel
         [DllImport("tunnel.dll", EntryPoint = "WireGuardTunnelService",
                    CallingConvention = CallingConvention.Cdecl,
                    CharSet = CharSet.Unicode)]
@@ -105,7 +105,7 @@ namespace MasselGUARD
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  TunnelDll — public API for local tunnels
+    //  TunnelDll - public API for local tunnels
     // ═══════════════════════════════════════════════════════════════════════════
     public static class TunnelDll
     {
@@ -118,7 +118,7 @@ namespace MasselGUARD
             new(StringComparer.OrdinalIgnoreCase);
         private static readonly object _lock = new();
 
-        // Exe directory — computed once from MainModule (reliable across all
+        // Exe directory - computed once from MainModule (reliable across all
         // publish configs). Cached so service-child and GUI both agree.
         private static string? _exeDir;
         private static string ExeDir
@@ -146,10 +146,10 @@ namespace MasselGUARD
             File.Exists(TunnelDllPath) && File.Exists(WireGuardDllPath);
 
         // Minimum size (bytes) for the wireguard-NT wireguard.dll, which embeds its own kernel
-        // driver. The WireGuard-for-Windows wireguard.dll (~400 KB) does NOT — it requires
+        // driver. The WireGuard-for-Windows wireguard.dll (~400 KB) does NOT - it requires
         // wireguard.sys to be pre-installed and fails with "cannot find file" at tunnel start.
         // The wireguard-NT dll size is architecture-dependent (official v1.1: amd64 ~1.32 MB,
-        // arm64 ~667 KB, x86 ~1.86 MB), so the floor is per-arch — it only needs to sit above
+        // arm64 ~667 KB, x86 ~1.86 MB), so the floor is per-arch - it only needs to sit above
         // the driverless ~400 KB dll. The PE machine-type check below is the primary gate.
         private static long WireGuardNtMinBytes => RuntimeInformation.ProcessArchitecture switch
         {
@@ -222,7 +222,7 @@ namespace MasselGUARD
         /// </summary>
         public static string? ValidateDlls()
         {
-            // Architecture gate first — a wrong-arch process can never load these DLLs
+            // Architecture gate first - a wrong-arch process can never load these DLLs
             // or the kernel driver, and the failure would otherwise be cryptic.
             var archErr = ArchSupportError();
             if (archErr != null) return archErr;
@@ -234,18 +234,18 @@ namespace MasselGUARD
 
             // Verify each DLL's architecture matches this process. A mismatched DLL
             // (e.g. x64 tunnel.dll shipped next to an arm64 exe) fails to load with a
-            // BadImageFormatException deep inside the P/Invoke — surface it clearly.
+            // BadImageFormatException deep inside the P/Invoke - surface it clearly.
             ushort want = ExpectedMachine;
             if (want != 0)
             {
                 var tnMachine = ReadPeMachine(TunnelDllPath);
                 if (tnMachine is ushort tm && tm != want)
-                    return $"tunnel.dll is the wrong architecture ({MachineName(tm)}) — this " +
+                    return $"tunnel.dll is the wrong architecture ({MachineName(tm)}) - this " +
                            $"{MachineName(want)} build needs a {MachineName(want)} tunnel.dll. " +
                            $"Reinstall the {MachineName(want)} release of MasselGUARD.";
                 var wgMachine = ReadPeMachine(WireGuardDllPath);
                 if (wgMachine is ushort wm && wm != want)
-                    return $"wireguard.dll is the wrong architecture ({MachineName(wm)}) — this " +
+                    return $"wireguard.dll is the wrong architecture ({MachineName(wm)}) - this " +
                            $"{MachineName(want)} build needs a {MachineName(want)} wireguard.dll. " +
                            $"Reinstall the {MachineName(want)} release of MasselGUARD.";
             }
@@ -254,7 +254,7 @@ namespace MasselGUARD
             {
                 var wgSize = new FileInfo(WireGuardDllPath).Length;
                 if (wgSize < WireGuardNtMinBytes)
-                    return $"Wrong wireguard.dll — this copy is {wgSize / 1024} KB and appears to be " +
+                    return $"Wrong wireguard.dll - this copy is {wgSize / 1024} KB and appears to be " +
                            $"the WireGuard-for-Windows version, which requires the WireGuard app to be " +
                            $"installed. Standalone mode needs the wireguard-NT version for this " +
                            $"architecture. Run get-wireguard-dlls.ps1 to download the correct file, or " +
@@ -352,7 +352,7 @@ namespace MasselGUARD
             //
             // Fix: open the adapter via wireguard.dll and close the handle.
             // WireGuardCloseAdapter destroys the adapter once the last handle is
-            // released — i.e. immediately when the service process has already exited.
+            // released - i.e. immediately when the service process has already exited.
             TearDownAdapter(tunnelName);
 
             return true;
@@ -366,7 +366,7 @@ namespace MasselGUARD
                 if (adapter != IntPtr.Zero)
                     NativeMethods.WireGuardCloseAdapter(adapter);
             }
-            catch { /* best effort — adapter may already be gone */ }
+            catch { /* best effort - adapter may already be gone */ }
         }
 
         // ── DisconnectAll ─────────────────────────────────────────────────────
@@ -394,7 +394,7 @@ namespace MasselGUARD
                 if (sc.Status == ServiceControllerStatus.Running)
                     return true;
             }
-            catch { /* service does not exist — fall through */ }
+            catch { /* service does not exist - fall through */ }
 
             // Fallback: probe the WireGuard management pipe.
             //
@@ -402,7 +402,7 @@ namespace MasselGUARD
             // on some wireguard-NT configurations) but the kernel adapter and its
             // management pipe are still alive.
             //
-            // ERROR_PIPE_BUSY (231): pipe exists but server momentarily unavailable —
+            // ERROR_PIPE_BUSY (231): pipe exists but server momentarily unavailable -
             // still means the tunnel is up.
             const uint GENERIC_READ    = 0x80000000;
             const uint FILE_SHARE_RW   = 3;
@@ -485,7 +485,7 @@ namespace MasselGUARD
         /// Combined per-tunnel stats: prefer the WireGuard UAPI pipe (accurate tx/rx incl. IPv6 +
         /// last handshake, for both local and companion tunnels), fall back to
         /// <see cref="GetTrafficStats"/> (NetworkInterface, IPv4-only, no handshake) when the pipe
-        /// isn't readable. Always safe — the pipe read is read-only.
+        /// isn't readable. Always safe - the pipe read is read-only.
         /// </summary>
         public static TunnelStats GetStats(string tunnelName)
         {
@@ -495,7 +495,7 @@ namespace MasselGUARD
 
         /// <summary>
         /// Reads tx/rx bytes and last-handshake from the WireGuard management pipe via the
-        /// cross-platform UAPI (<c>get=1</c>). Read-only IPC — cannot destroy the adapter (unlike
+        /// cross-platform UAPI (<c>get=1</c>). Read-only IPC - cannot destroy the adapter (unlike
         /// <c>WireGuardGetConfiguration</c> + Open/Close, whose Close deletes the adapter on the last
         /// handle). Returns a zeroed struct (<c>FromWireGuard=false</c>) when no pipe answers, so the
         /// caller falls back to <see cref="GetTrafficStats"/>. tx = sent (↑), rx = received (↓).
@@ -545,7 +545,7 @@ namespace MasselGUARD
                         FromWireGuard    = true,
                     };
                 }
-                catch { /* pipe missing / busy / no access — try next path, then fall back */ }
+                catch { /* pipe missing / busy / no access - try next path, then fall back */ }
             }
             return default;
         }
@@ -568,12 +568,12 @@ namespace MasselGUARD
             /// <summary>Could not determine status (adapter not found or error).</summary>
             Unknown,
             /// <summary>The tunnel adapter has DNS configured and no other active
-            /// adapter has external DNS servers — DNS is fully protected.</summary>
+            /// adapter has external DNS servers - DNS is fully protected.</summary>
             Secure,
             /// <summary>The tunnel has DNS, but other active adapters also have
-            /// non-loopback DNS servers that the OS may query — potential leak.</summary>
+            /// non-loopback DNS servers that the OS may query - potential leak.</summary>
             PotentialLeak,
-            /// <summary>The tunnel adapter has no DNS servers configured — DNS
+            /// <summary>The tunnel adapter has no DNS servers configured - DNS
             /// queries will bypass the tunnel.</summary>
             NotConfigured,
         }
@@ -645,7 +645,7 @@ namespace MasselGUARD
         }
 
         // ══════════════════════════════════════════════════════════════════════
-        //  Private — mirrors WireGuardClient.TunnelService.InstallAndStartService
+        //  Private - mirrors WireGuardClient.TunnelService.InstallAndStartService
         // ══════════════════════════════════════════════════════════════════════
         private static void InstallAndStart(string serviceName, string tunnelName,
             string confPath, Action<string> log)
@@ -669,7 +669,7 @@ namespace MasselGUARD
             try
             {
                 // A same-named WireGuardTunnel$ service left over from a previous run can make
-                // CreateService fail with 1072 (ERROR_SERVICE_MARKED_FOR_DELETE — the old
+                // CreateService fail with 1072 (ERROR_SERVICE_MARKED_FOR_DELETE - the old
                 // service is still being torn down, e.g. a handle held open by services.msc or a
                 // lingering adapter) or 1073 (ERROR_SERVICE_EXISTS). Both clear on their own
                 // shortly, so re-run EnsureStopped and retry a few times with a short backoff
@@ -699,7 +699,7 @@ namespace MasselGUARD
                         && attempt < maxCreateTries)
                     {
                         log($"CreateService win32={err} (a previous '{serviceName}' service is " +
-                            $"still being removed) — cleaning up and retrying ({attempt}/{maxCreateTries - 1})…");
+                            $"still being removed) - cleaning up and retrying ({attempt}/{maxCreateTries - 1})…");
                         try { EnsureStopped(serviceName, _ => { }); } catch { }
                         System.Threading.Thread.Sleep(400 * attempt);   // 0.4s, 0.8s, 1.2s, 1.6s
                         continue;
@@ -710,7 +710,7 @@ namespace MasselGUARD
                 if (svc == IntPtr.Zero)
                 {
                     string hint = (err == ERROR_SERVICE_MARKED_FOR_DELETE || err == ERROR_SERVICE_EXISTS)
-                        ? " A previous tunnel service is stuck being removed — close Services (services.msc)/Task Manager if open, or reboot, then retry."
+                        ? " A previous tunnel service is stuck being removed - close Services (services.msc)/Task Manager if open, or reboot, then retry."
                         : "";
                     throw new Win32Exception(err, $"CreateService failed (win32={err}).{hint}");
                 }
@@ -730,7 +730,7 @@ namespace MasselGUARD
                     sc.Start();
 
                     // wireguard-NT's WireGuardTunnelService() installs the kernel tunnel,
-                    // then returns immediately — the service process exits in ~50-100 ms.
+                    // then returns immediately - the service process exits in ~50-100 ms.
                     // The SCM races through StartPending → Running → Stopped so fast that
                     // WaitForStatus(Running) almost never catches the Running state.
                     //
@@ -759,7 +759,7 @@ namespace MasselGUARD
                             if (status == ServiceControllerStatus.Stopped)
                             {
                                 // wireguard-NT's WireGuardTunnelService() installs the
-                                // kernel adapter and returns immediately — service exits
+                                // kernel adapter and returns immediately - service exits
                                 // in ~50-100 ms.  BUT a failed launch (driver load error,
                                 // config not found, etc.) also yields Stopped.
                                 // Wait briefly then probe the management pipe so we can
@@ -767,23 +767,23 @@ namespace MasselGUARD
                                 Thread.Sleep(300);
                                 if (IsRunning(tunnelName))
                                 {
-                                    log("Service exited cleanly — tunnel is up in kernel.");
+                                    log("Service exited cleanly - tunnel is up in kernel.");
                                     tunnelUp = true;
                                 }
                                 else
                                 {
-                                    // Pipe not found — service exited but tunnel adapter
+                                    // Pipe not found - service exited but tunnel adapter
                                     // is not present.  Check network adapter as fallback.
                                     var stats = GetTrafficStats(tunnelName);
                                     if (stats.AdapterFound)
                                     {
-                                        log("Service exited — adapter present (no pipe yet).");
+                                        log("Service exited - adapter present (no pipe yet).");
                                         tunnelUp = true;
                                     }
                                     else
                                     {
                                         log("[ERR] Service exited but tunnel adapter not found. " +
-                                            "WireGuardTunnelService() likely failed — check Windows " +
+                                            "WireGuardTunnelService() likely failed - check Windows " +
                                             "Event Log (System) for driver errors.");
                                         // tunnelUp stays false → exception thrown below
                                     }
@@ -829,7 +829,7 @@ namespace MasselGUARD
                         TimeSpan.FromSeconds(15));
                 }
             }
-            catch { /* service may not exist — that is fine */ }
+            catch { /* service may not exist - that is fine */ }
 
             DeleteServiceEntry(serviceName);
         }
@@ -870,7 +870,7 @@ namespace MasselGUARD
 }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  Ringlogger — reads tunnel.dll memory-mapped ring-log
+    //  Ringlogger - reads tunnel.dll memory-mapped ring-log
     // ═══════════════════════════════════════════════════════════════════════════
     public sealed class Ringlogger : IDisposable
     {
@@ -939,7 +939,7 @@ namespace MasselGUARD
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    //  Curve25519 — pure-C# fallback for keypair generation when DLLs absent
+    //  Curve25519 - pure-C# fallback for keypair generation when DLLs absent
     // ═══════════════════════════════════════════════════════════════════════════
     internal static class Curve25519
     {
