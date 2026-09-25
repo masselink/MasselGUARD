@@ -1,8 +1,8 @@
-# MasselGUARD — CLI Manual
+# MasselGUARD - CLI Manual
 
-**Version 4.2.0 — Resolving Raven**
+**Version 4.2.0 - Resolving Raven**
 
-MasselGUARD includes a full command-line interface for scripting, automation, and headless operation. The CLI and the GUI share the same WireGuard kernel driver and the same configuration — any change made via CLI is reflected in the GUI within ~1 second, and vice versa.
+MasselGUARD includes a full command-line interface for scripting, automation, and headless operation. The CLI and the GUI share the same WireGuard kernel driver and the same configuration - any change made via CLI is reflected in the GUI within ~1 second, and vice versa.
 
 ---
 
@@ -35,9 +35,9 @@ MasselGUARD includes a full command-line interface for scripting, automation, an
 
 ## 1. Requirements
 
-- **Administrator privileges** — commands that manage WireGuard kernel adapters and Windows services require elevation. The informational commands **`help`** and **`version`** (and their aliases) run in any terminal without Administrator rights; everything that touches a tunnel needs elevation.
-- **Running from an elevated terminal** (recommended) — run PowerShell or cmd.exe as Administrator. Output appears inline in the same window.
-- **Running from a non-elevated terminal** — Windows will prompt for UAC elevation and open a new console window. A "Press any key to close" prompt appears so you can read the output before the window closes.
+- **Administrator privileges** - commands that manage WireGuard kernel adapters and Windows services require elevation. The informational commands **`help`** and **`version`** (and their aliases) run in any terminal without Administrator rights; everything that touches a tunnel needs elevation.
+- **Running from an elevated terminal** (recommended) - run PowerShell or cmd.exe as Administrator. Output appears inline in the same window.
+- **Running from a non-elevated terminal** - Windows will prompt for UAC elevation and open a new console window. A "Press any key to close" prompt appears so you can read the output before the window closes.
 
 > **Tip:** Install MasselGUARD and enable **Start with Windows** (Settings → General). The Scheduled Task runs at `RunLevel=Highest`, so subsequent CLI calls from any context will not show a UAC popup.
 
@@ -59,8 +59,8 @@ These flags work with any command.
 
 | Flag | Description |
 |---|---|
-| `--json` | Output in JSON format — suitable for piping to `jq` or other tools |
-| `--quiet`, `-q` | Suppress all output — rely on exit code only |
+| `--json` | Output in JSON format - suitable for piping to `jq` or other tools |
+| `--quiet`, `-q` | Suppress all output - rely on exit code only |
 | `--group <name>` | Scope `list`, `connect --all`, and `disconnect-all` to one tunnel group |
 | `--active` | Filter `list` to connected tunnels only |
 | `--logtype normal\|extended` | Control the detail level of `log` output (default: `normal`) |
@@ -72,8 +72,8 @@ These flags work with any command.
 | Code | Meaning |
 |---|---|
 | `0` | Success |
-| `1` | Error — tunnel not found, connect failed, file not found, etc. |
-| `2` | Already in desired state — tunnel was already connected / disconnected |
+| `1` | Error - tunnel not found, connect failed, file not found, etc. |
+| `2` | Already in desired state - tunnel was already connected / disconnected |
 
 `check-update` returns `1` when an update is available (useful for scripting: non-zero = action needed).
 
@@ -211,7 +211,7 @@ MasselGUARD connect "1.HomeVPN" --override-dns 9.9.9.9
 # Connect to the same tunnel via a different endpoint (failover)
 MasselGUARD connect "1.HomeVPN" --override-endpoint backup.example.com:51820
 
-# Connect silently — script checks exit code
+# Connect silently - script checks exit code
 MasselGUARD connect "1.HomeVPN" --quiet
 ```
 
@@ -271,7 +271,7 @@ MasselGUARD disconnect-all --group Work
 
 ### info
 
-Shows detailed status for a single tunnel, including type, group, live uptime, the source of the last connection, and — when configured — its split-tunnel setting.
+Shows detailed status for a single tunnel, including type, group, live uptime, the source of the last connection, and - when configured - its split-tunnel setting.
 
 ```
 MasselGUARD info <name>
@@ -291,7 +291,7 @@ MasselGUARD info "1.HomeVPN" --json
   Type:    Local (tunnel.dll)
   Group:   Home
   Status:  ● Connected  1h 23m
-  Split:   exclude — 192.168.1.0/24, 10.0.0.0/8
+  Split:   exclude - 192.168.1.0/24, 10.0.0.0/8
   Source:  Rule: HomeWifi → HomeVPN  (today 09:31)
 ```
 
@@ -303,7 +303,7 @@ The `Split:` line appears only when the tunnel has a route-based split configure
   Type:    WireGuard for Windows
   Group:   Work
   Status:  ○ Disconnected
-  Last:    yesterday 14:05  —  42m 10s  (Manual)
+  Last:    yesterday 14:05  -  42m 10s  (Manual)
 ```
 
 **JSON output:**
@@ -327,7 +327,7 @@ The `Split:` line appears only when the tunnel has a route-based split configure
 
 ### dns
 
-Shows the DNS-automation configuration (whether it's enabled, the default and open-network profiles, the address families, and the defined profiles) plus each active interface's current resolvers. **Read-only** and needs **no Administrator rights** — applying DNS is done from the GUI in this release.
+Shows the DNS-automation configuration (whether it's enabled, the default and open-network profiles, the address families, and the defined profiles) plus each active interface's current resolvers. **Read-only** and needs **no Administrator rights** - applying DNS is done from the GUI in this release.
 
 ```
 MasselGUARD dns status
@@ -348,8 +348,8 @@ Default DNS:     Cloudflare
 Open-network:    Cloudflare
 Families:        both
 Profiles:
-  • Cloudflare — 1.1.1.1, 1.0.0.1 [Auto]
-  • Work — 10.0.0.53 [Plain]
+  • Cloudflare - 1.1.1.1, 1.0.0.1 [Auto]
+  • Work - 10.0.0.53 [Plain]
 Active interface resolvers:
   • Wi-Fi: 1.1.1.1, 1.0.0.1
 ```
@@ -374,7 +374,7 @@ Active interface resolvers:
 
 ### log
 
-Shows recent connection history. Reads from `%APPDATA%\MasselGUARD\tunnel_history.json` — the **same file** that Settings → History shows in the GUI. No duplication; one source of truth.
+Shows recent connection history. Reads from `%APPDATA%\MasselGUARD\tunnel_history.json` - the **same file** that Settings → History shows in the GUI. No duplication; one source of truth.
 
 > **Note:** The GUI's activity log panel (debug entries, timing, script output) is in-memory only and is not accessible from the CLI. `log` shows connection history only.
 
@@ -454,7 +454,7 @@ MasselGUARD log 50 --json
 
 ### tunnel-history
 
-Shows tunnel connection history. Reads from `%APPDATA%\MasselGUARD\tunnel_history.json`. Always includes the trigger source and — in JSON output — session traffic bytes.
+Shows tunnel connection history. Reads from `%APPDATA%\MasselGUARD\tunnel_history.json`. Always includes the trigger source and - in JSON output - session traffic bytes.
 
 ```
 MasselGUARD tunnel-history
@@ -597,7 +597,7 @@ MasselGUARD import <file>
 | `--password <pw>` | Password for a `.mgconf` encrypted export (required for that format) |
 | `--unsecure` | Store without DPAPI encryption (copies plaintext to the tunnels folder) |
 
-**Default behaviour (secure):** The config is DPAPI-encrypted (`CurrentUser` scope) and written to `%APPDATA%\MasselGUARD\tunnels\<name>.conf.dpapi`. Only the file path is stored in `config.json` — no key material. The original file is not moved or deleted.
+**Default behaviour (secure):** The config is DPAPI-encrypted (`CurrentUser` scope) and written to `%APPDATA%\MasselGUARD\tunnels\<name>.conf.dpapi`. Only the file path is stored in `config.json` - no key material. The original file is not moved or deleted.
 
 **`--unsecure` behaviour:** A copy of the plaintext `.conf` is written to `<exedir>\tunnels\<name>.conf`. A warning is printed. Useful when the config must be readable on disk (e.g. shared admin tools), but not recommended.
 
@@ -610,7 +610,7 @@ MasselGUARD import <file>
 **Examples:**
 
 ```powershell
-# Basic import — name taken from filename
+# Basic import - name taken from filename
 MasselGUARD import "C:\VPN\home.conf"
 
 # Import with custom name and group
@@ -685,7 +685,7 @@ MasselGUARD rawconnect --endpoint <host:port> --pubkey <key>
 |---|---|
 | `--endpoint <host:port>` | Server endpoint, e.g. `vpn.example.com:51820` |
 | `--pubkey <base64>` | Server public key |
-| `--privkey <base64>` | Client private key (⚠ visible in process listings — see Security notes) |
+| `--privkey <base64>` | Client private key (⚠ visible in process listings - see Security notes) |
 | `--privkeyfile <path>` | Client private key read from a file (recommended) |
 
 **Optional flags:**
@@ -704,7 +704,7 @@ MasselGUARD rawconnect --endpoint <host:port> --pubkey <key>
 **Examples:**
 
 ```powershell
-# Minimal connection — private key loaded from file
+# Minimal connection - private key loaded from file
 MasselGUARD rawconnect `
   --endpoint vpn.example.com:51820 `
   --pubkey   <server-public-key> `
@@ -756,7 +756,7 @@ MasselGUARD --check-update
 | Code | Meaning |
 |---|---|
 | `0` | Up to date (or running ahead of latest) |
-| `1` | Update available — or check failed |
+| `1` | Update available - or check failed |
 
 > Exit code `1` on update available is intentional for scripting: non-zero means action is needed.
 
@@ -770,7 +770,7 @@ MasselGUARD check-update --json
 
 **Plain output:**
 ```
-Up to date — v4.0.0 is the latest release.
+Up to date - v4.0.0 is the latest release.
 ```
 ```
 Update available: v4.0.1  (current: v4.0.0)
@@ -782,7 +782,7 @@ Update available: v4.0.1  (current: v4.0.0)
   "result":  "up_to_date",
   "current": "4.0.0",
   "latest":  "4.0.0",
-  "message": "Up to date — v4.0.0 is the latest release."
+  "message": "Up to date - v4.0.0 is the latest release."
 }
 ```
 ```json
@@ -879,7 +879,7 @@ foreach ($f in Get-ChildItem $drop -Filter "*.conf") {
         Write-Host "Imported: $($f.Name)"
         Remove-Item $f.FullName
     } else {
-        Write-Host "Skipped:  $($f.Name) — $($result.message)"
+        Write-Host "Skipped:  $($f.Name) - $($result.message)"
     }
 }
 ```
@@ -914,16 +914,16 @@ MasselGUARD log 100 --logtype extended --json |
     Format-Table
 ```
 
-### Health check — alert if VPN drops
+### Health check - alert if VPN drops
 
 ```powershell
 # Run every 5 minutes via Scheduled Task
 $status = MasselGUARD status --json | ConvertFrom-Json
 if ($status.active_count -eq 0) {
-    # No active tunnels — reconnect default
+    # No active tunnels - reconnect default
     MasselGUARD connect --default --quiet
     if ($LASTEXITCODE -ne 0) {
-        # Still failed — log or alert
+        # Still failed - log or alert
         Add-Content "C:\Logs\vpn-monitor.log" "$(Get-Date) VPN reconnect failed"
     }
 }

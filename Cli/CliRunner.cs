@@ -11,7 +11,7 @@ namespace MasselGUARD.Cli
     /// <summary>
     /// CLI entry point. Invoked from Program.Main when command-line args are present.
     ///
-    /// Runs entirely without WPF — no App, no MainWindow.
+    /// Runs entirely without WPF - no App, no MainWindow.
     /// Coexists safely with a running GUI instance: both talk to the same WireGuard
     /// kernel driver; the GUI picks up state changes within ~1 second via its poll timer.
     ///
@@ -36,7 +36,7 @@ namespace MasselGUARD.Cli
     ///
     /// Flags (any command)
     ///   --json                       Machine-readable JSON output
-    ///   --quiet / -q                 No output — exit code only
+    ///   --quiet / -q                 No output - exit code only
     ///   --group &lt;name&gt;               Scope list / connect --all / disconnect-all to one group
     ///   --active                     Filter list to connected tunnels only
     ///   --logtype normal|extended    Log detail level (default: normal)
@@ -126,7 +126,7 @@ namespace MasselGUARD.Cli
 
         // ── dns (read-only status) ──────────────────────────────────────────────
 
-        /// <summary>`dns status` — shows the DNS-automation config (enabled, default/open
+        /// <summary>`dns status` - shows the DNS-automation config (enabled, default/open
         /// profiles, families, profiles) plus each active interface's current resolvers.
         /// Read-only; needs no elevation. Applying DNS is GUI-only in this release.</summary>
         private static int CmdDns(string[] args, AppConfig cfg, bool json)
@@ -143,7 +143,7 @@ namespace MasselGUARD.Cli
               : id == Models.DnsProfile.AutomaticId          ? "Automatic (DHCP)"
               : cfg.DnsProfiles.FirstOrDefault(p => p.Id == id)?.Name ?? $"(unknown: {id})";
 
-            // Current per-interface resolvers — managed read, no admin required.
+            // Current per-interface resolvers - managed read, no admin required.
             var live = new List<(string name, string dns)>();
             foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
             {
@@ -176,7 +176,7 @@ namespace MasselGUARD.Cli
             {
                 CliOutput.Info("Profiles:");
                 foreach (var p in cfg.DnsProfiles)
-                    CliOutput.Info($"  • {p.Name} — {p.ServersDisplay} [{p.EncryptionDisplay}]");
+                    CliOutput.Info($"  • {p.Name} - {p.ServersDisplay} [{p.EncryptionDisplay}]");
             }
             if (live.Count > 0)
             {
@@ -323,7 +323,7 @@ namespace MasselGUARD.Cli
                 if (string.IsNullOrEmpty(plain))
                 {
                     PrintResult(quiet, json, "error",
-                        $"Cannot read config for '{tunnel.Name}' — override not possible.");
+                        $"Cannot read config for '{tunnel.Name}' - override not possible.");
                     return 1;
                 }
                 var patched = WireGuardConf.Patch(plain, overrides);
@@ -501,14 +501,14 @@ namespace MasselGUARD.Cli
             else
             {
                 CliOutput.Info($"  Name:    {tunnel.Name}");
-                CliOutput.Info($"  Group:   {(string.IsNullOrEmpty(tunnel.Group) ? "—" : tunnel.Group)}");
+                CliOutput.Info($"  Group:   {(string.IsNullOrEmpty(tunnel.Group) ? "-" : tunnel.Group)}");
                 CliOutput.Info($"  Status:  {(isActive ? $"● Connected  {(uptime.HasValue ? FormatUptime(uptime.Value) : "unknown")}" : "○ Disconnected")}");
 
                 if (SplitModeActive(tunnel))
                 {
                     var verb = tunnel.SplitMode!.Equals("exclude", StringComparison.OrdinalIgnoreCase)
                         ? "exclude" : "include";
-                    CliOutput.Info($"  Split:   {verb} — {string.Join(", ", tunnel.SplitRanges)}");
+                    CliOutput.Info($"  Split:   {verb} - {string.Join(", ", tunnel.SplitRanges)}");
                 }
 
                 if (lastSession != null)
@@ -520,8 +520,8 @@ namespace MasselGUARD.Cli
                     else
                     {
                         var dur = lastSession.DisconnectedAt.HasValue
-                            ? FormatUptime(lastSession.DisconnectedAt.Value - lastSession.ConnectedAt) : "—";
-                        CliOutput.Info($"  Last:    {when}  —  {dur}  ({src})");
+                            ? FormatUptime(lastSession.DisconnectedAt.Value - lastSession.ConnectedAt) : "-";
+                        CliOutput.Info($"  Last:    {when}  -  {dur}  ({src})");
                     }
                 }
             }
@@ -762,7 +762,7 @@ namespace MasselGUARD.Cli
                     }
                     catch { }
 
-                    // Fall back to LocalMachine scope — WireGuard for Windows uses this.
+                    // Fall back to LocalMachine scope - WireGuard for Windows uses this.
                     if (plain == null)
                     {
                         try
@@ -912,11 +912,11 @@ namespace MasselGUARD.Cli
             var endpoint = ParseFlagValue(args, "--endpoint");
             var pubkey   = ParseFlagValue(args, "--pubkey");
 
-            // Private key — inline or file
+            // Private key - inline or file
             var privkeyRaw  = ParseFlagValue(args, "--privkey");
             var privkeyFile = ParseFlagValue(args, "--privkeyfile");
 
-            // PSK — inline or file
+            // PSK - inline or file
             var pskRaw  = ParseFlagValue(args, "--psk");
             var pskFile = ParseFlagValue(args, "--pskfile");
 
@@ -1070,7 +1070,7 @@ namespace MasselGUARD.Cli
             string statusMsg = updateAvail
                 ? $"Update available: v{latest.TagName}  (current: v{current})"
                 : ahead ? $"Running ahead of latest release ({latest.TagName})."
-                        : $"Up to date — v{current} is the latest release.";
+                        : $"Up to date - v{current} is the latest release.";
 
             if (json)
                 CliOutput.PrintJson(new { result = statusKey, current, latest = latest.TagName, message = statusMsg });
@@ -1090,8 +1090,8 @@ namespace MasselGUARD.Cli
 
             var    latestKnown = cfg.LatestKnownVersion;
             string updateStatus =
-                string.IsNullOrEmpty(latestKnown) ? $"unknown — run '{ExeName} check-update'" :
-                UpdateChecker.IsNewerVersion(latestKnown) ? $"update available — v{latestKnown}" :
+                string.IsNullOrEmpty(latestKnown) ? $"unknown - run '{ExeName} check-update'" :
+                UpdateChecker.IsNewerVersion(latestKnown) ? $"update available - v{latestKnown}" :
                 UpdateChecker.IsAheadOfLatest(latestKnown) ? $"ahead of latest ({latestKnown})" :
                 "up to date";
 
@@ -1125,7 +1125,7 @@ namespace MasselGUARD.Cli
 
         private static int CmdHelp()
         {
-            CliOutput.Info($"{ExeName} — MasselGUARD command-line interface");
+            CliOutput.Info($"{ExeName} - MasselGUARD command-line interface");
             CliOutput.Info("");
             CliOutput.Info("Usage:");
             CliOutput.Info($"  {ExeName} <command> [options]");
@@ -1152,7 +1152,7 @@ namespace MasselGUARD.Cli
             CliOutput.Info("");
             CliOutput.Info("Options (any command):");
             CliOutput.Info("  --json                     Output in JSON format");
-            CliOutput.Info("  --quiet, -q                No output — exit code only");
+            CliOutput.Info("  --quiet, -q                No output - exit code only");
             CliOutput.Info("  --group <name>             Scope list / connect --all / disconnect-all");
             CliOutput.Info("  --active                   Filter list to connected tunnels only");
             CliOutput.Info("  --logtype normal|extended  Log detail level (default: normal)");

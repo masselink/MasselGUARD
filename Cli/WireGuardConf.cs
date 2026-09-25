@@ -177,8 +177,8 @@ namespace MasselGUARD.Cli
             for (int i = sectionStart + 1; i < lines.Count; i++)
             {
                 var t = lines[i].Trim();
-                if (t.StartsWith("[")) return i;       // next section — insert before it
-                if (string.IsNullOrEmpty(t)) return i; // blank line — insert before it
+                if (t.StartsWith("[")) return i;       // next section - insert before it
+                if (string.IsNullOrEmpty(t)) return i; // blank line - insert before it
             }
             return lines.Count; // end of file
         }
@@ -208,7 +208,7 @@ namespace MasselGUARD.Cli
 
             if (!firstContent.Equals("[Interface]", StringComparison.OrdinalIgnoreCase))
                 return new ValidationError(
-                    $"Config must start with [Interface] — found: '{firstContent}'.",
+                    $"Config must start with [Interface] - found: '{firstContent}'.",
                     "Ensure there are no blank lines or BOM characters before the header.");
 
             bool hasInterface  = false;
@@ -355,22 +355,22 @@ namespace MasselGUARD.Cli
                         {
                             var suggestion = SuggestIpv6Fix(ipPart, prefixPart);
                             return new ValidationError(
-                                $"{fieldName}: '{cidr}' — '{ipPart}' is not valid ({groups} of 8 IPv6 groups).",
+                                $"{fieldName}: '{cidr}' - '{ipPart}' is not valid ({groups} of 8 IPv6 groups).",
                                 $"Use '::' to fill missing groups." +
                                 (suggestion != null ? $" Did you mean: {suggestion}?" : ""));
                         }
                     }
-                    return new ValidationError($"{fieldName}: '{cidr}' — '{ipPart}' is not a valid IP address.");
+                    return new ValidationError($"{fieldName}: '{cidr}' - '{ipPart}' is not a valid IP address.");
                 }
 
                 if (!int.TryParse(prefixPart, out var prefix))
-                    return new ValidationError($"{fieldName}: '{cidr}' — '/{prefixPart}' is not a valid prefix length.");
+                    return new ValidationError($"{fieldName}: '{cidr}' - '/{prefixPart}' is not a valid prefix length.");
 
                 int maxPrefix = ip.AddressFamily ==
                     System.Net.Sockets.AddressFamily.InterNetworkV6 ? 128 : 32;
                 if (prefix < 0 || prefix > maxPrefix)
                     return new ValidationError(
-                        $"{fieldName}: '{cidr}' — /{prefix} is out of range.",
+                        $"{fieldName}: '{cidr}' - /{prefix} is out of range.",
                         $"Valid range: 0–{maxPrefix} for {(maxPrefix == 128 ? "IPv6" : "IPv4")}.");
             }
             return null;
@@ -392,7 +392,7 @@ namespace MasselGUARD.Cli
         {
             if (value.Length != 44)
                 return new ValidationError(
-                    $"{fieldName} has {value.Length} characters — expected 44.",
+                    $"{fieldName} has {value.Length} characters - expected 44.",
                     "WireGuard keys are base64-encoded 32-byte values. Generate a key pair via Settings → Keypairs.");
             try { Convert.FromBase64String(value); }
             catch
@@ -409,13 +409,13 @@ namespace MasselGUARD.Cli
             var lastColon = value.LastIndexOf(':');
             if (lastColon < 0)
                 return new ValidationError(
-                    $"Endpoint '{value}' is invalid — expected host:port format.",
+                    $"Endpoint '{value}' is invalid - expected host:port format.",
                     "Example: vpn.example.com:51820 or 192.0.2.1:51820");
 
             var portStr = value[(lastColon + 1)..];
             if (!int.TryParse(portStr, out var port) || port < 1 || port > 65535)
                 return new ValidationError(
-                    $"Endpoint '{value}' — port '{portStr}' is invalid.",
+                    $"Endpoint '{value}' - port '{portStr}' is invalid.",
                     "Port must be a number between 1 and 65535.");
 
             var host = value[..lastColon].Trim('[', ']');

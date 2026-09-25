@@ -1,6 +1,6 @@
-# MasselGUARD — User Manual
+# MasselGUARD - User Manual
 
-**Version 4.2.0 — Resolving Raven**
+**Version 4.2.0 - Resolving Raven**
 
 ---
 
@@ -8,19 +8,19 @@
 
 1. [Introduction](#1-introduction)
 2. [Installation and run modes](#2-installation-and-run-modes)
-3. [First run — Setup wizard](#3-first-run--setup-wizard)
+3. [First run - Setup wizard](#3-first-run--setup-wizard)
 4. [The main window](#4-the-main-window)
 5. [Managing tunnels](#5-managing-tunnels)
 6. [Connecting and disconnecting](#6-connecting-and-disconnecting)
 7. [Default action and open network protection](#7-default-action-and-open-network-protection)
 8. [WiFi Rules](#8-wifi-rules)
-9. [Settings — General](#9-settings--general)
-10. [Settings — Tunnels](#10-settings--tunnels)
-11. [Settings — WiFi](#11-settings--wifi)
-12. [Settings — Appearance](#12-settings--appearance)
-13. [Settings — History](#13-settings--history)
-14. [Settings — Advanced](#14-settings--advanced)
-15. [Settings — About](#15-settings--about)
+9. [Settings - General](#9-settings--general)
+10. [Settings - Tunnels](#10-settings--tunnels)
+11. [Settings - WiFi](#11-settings--wifi)
+12. [Settings - Appearance](#12-settings--appearance)
+13. [Settings - History](#13-settings--history)
+14. [Settings - Advanced](#14-settings--advanced)
+15. [Settings - About](#15-settings--about)
 16. [Pre/post scripts](#16-prepost-scripts)
 17. [Quick Connect](#17-quick-connect)
 18. [Import / Export settings](#18-import--export-settings)
@@ -33,7 +33,7 @@
 25. [Font override](#25-font-override)
 26. [Multiple languages](#26-multiple-languages)
 27. [Frequently asked questions](#27-frequently-asked-questions)
-28. [Command-line interface (CLI)](#28-command-line-interface-cli) — see also [`CLIManual.md`](CLIManual.md) for the full reference
+28. [Command-line interface (CLI)](#28-command-line-interface-cli) - see also [`CLIManual.md`](CLIManual.md) for the full reference
 
 ---
 
@@ -45,7 +45,7 @@ MasselGUARD is a WireGuard automation tool for Windows. It monitors your WiFi co
 
 ## 2. Installation and run modes
 
-**Requirements:** Windows 10 or 11 — **x64 or ARM64** (download the matching build: `MasselGUARD-x64.zip` for Intel/AMD PCs, `MasselGUARD-arm64.zip` for Windows-on-ARM devices), the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) for that architecture, and Administrator rights. On Windows-on-ARM the ARM64 build is required for local (standalone) tunnels; if unsure which you have, Settings → About shows the running architecture.
+**Requirements:** Windows 10 or 11 - **x64 or ARM64** (download the matching build: `MasselGUARD-x64.zip` for Intel/AMD PCs, `MasselGUARD-arm64.zip` for Windows-on-ARM devices), the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) for that architecture, and Administrator rights. On Windows-on-ARM the ARM64 build is required for local (standalone) tunnels; if unsure which you have, Settings → About shows the running architecture.
 
 ### Run modes
 
@@ -53,7 +53,7 @@ MasselGUARD is a WireGuard automation tool for Windows. It monitors your WiFi co
 |---|---|
 | **Standalone** | Running as a portable exe; no installed version detected |
 | **Managed (Portable)** | An installed version exists; this is a separate copy |
-| **Managed** | Running from the installed location — shown **green** in footer |
+| **Managed** | Running from the installed location - shown **green** in footer |
 
 ### Installing
 
@@ -62,33 +62,33 @@ MasselGUARD is a WireGuard automation tool for Windows. It monitors your WiFi co
 3. Optionally enable **Start with Windows** (Scheduled Task, no UAC on relaunch)
 4. MasselGUARD relaunches from the installed location
 
-### Managed Portable — version prompt
+### Managed Portable - version prompt
 
 When running as Managed Portable and the version **differs** from the installed copy (including build number differences), a themed prompt offers to overwrite. The message adapts: "is newer than" or "differs from" depending on direction.
 
 ---
 
-## 3. First run — Setup wizard
+## 3. First run - Setup wizard
 
 Runs on first launch and when starting a newer version than the last wizard run.
 
-**Step 0 — Welcome:** Upgrade banner (on version change). Install-choice card (first-run Standalone). Import settings card.
+**Step 0 - Welcome:** Upgrade banner (on version change). Install-choice card (first-run Standalone). Import settings card.
 
-**Step 1 — Language & Appearance:** Language picker (with country flags), Dark/Light/Auto colour-scheme mode, and a theme picker (every installed theme, including downloaded ones). Changes apply immediately as a preview. "Download more themes…" opens the community theme browser directly and refreshes the picker with anything newly installed.
+**Step 1 - Language & Appearance:** Language picker (with country flags), Dark/Light/Auto colour-scheme mode, and a theme picker (every installed theme, including downloaded ones). Changes apply immediately as a preview. "Download more themes…" opens the community theme browser directly and refreshes the picker with anything newly installed.
 
-**Step 2 — Choose your view:** Simple / Manual / Expert preset cards pre-fill the timeline, activity log, and WiFi rules panel/column visibility toggles in one click (also hides the timeline's WiFi-only strip, not just the tunnel bars). Manual also turns off WiFi automation, since rules don't apply without it. Every value stays freely editable afterward — in Settings, or by re-picking a preset from the reusable selector at the top of Settings → General.
+**Step 2 - Choose your view:** Simple / Manual / Expert preset cards pre-fill the timeline, activity log, and WiFi rules panel/column visibility toggles in one click (also hides the timeline's WiFi-only strip, not just the tunnel bars). Manual also turns off WiFi automation, since rules don't apply without it. Every value stays freely editable afterward - in Settings, or by re-picking a preset from the reusable selector at the top of Settings → General.
 
-**Step 3 — Custom view:** Only reached by picking the **Custom** card in Step 2 — the same four toggles individually, on their own step instead of buried below the preset cards. **Skipped entirely** (both Next and Back) for Simple/Manual/Expert, since those already applied a fixed bundle.
+**Step 3 - Custom view:** Only reached by picking the **Custom** card in Step 2 - the same four toggles individually, on their own step instead of buried below the preset cards. **Skipped entirely** (both Next and Back) for Simple/Manual/Expert, since those already applied a fixed bundle.
 
-**Step 4 — Operating mode:** Standalone / Companion / Mixed.
+**Step 4 - Operating mode:** Standalone / Companion / Mixed.
 
-**Step 5 — Startup:** How MasselGUARD is installed, whether it starts automatically with Windows, and confirm disconnect on exit.
+**Step 5 - Startup:** How MasselGUARD is installed, whether it starts automatically with Windows, and confirm disconnect on exit.
 
-**Step 6 — WiFi:** Explains how WiFi rules, the default action, and open network protection work together (rules themselves are created after the wizard, on the main window). Disable WiFi rules toggle. Show WiFi rules panel toggle. **Skipped entirely** (both Next and Back) if WiFi rules were already disabled in Step 2/3 — nothing left to configure there.
+**Step 6 - WiFi:** Explains how WiFi rules, the default action, and open network protection work together (rules themselves are created after the wizard, on the main window). Disable WiFi rules toggle. Show WiFi rules panel toggle. **Skipped entirely** (both Next and Back) if WiFi rules were already disabled in Step 2/3 - nothing left to configure there.
 
-**Step 7 — Behavior:** Auto-reconnect mode (Off / Per tunnel / Always), DNS leak indicator, history capture (connections / WiFi), tray notifications.
+**Step 7 - Behavior:** Auto-reconnect mode (Off / Per tunnel / Always), DNS leak indicator, history capture (connections / WiFi), tray notifications.
 
-**Step 8 — Done:** Summary of every chosen setting, version label, and Check for updates.
+**Step 8 - Done:** Summary of every chosen setting, version label, and Check for updates.
 
 ---
 
@@ -98,21 +98,21 @@ Runs on first launch and when starting a newer version than the last wizard run.
 
 Columns: **Tunnel** | **Type** | **Status** | **Rules** | **Action**
 
-- **Colour strip** — 4 px strip per row showing the tunnel's group colour
-- **Badges** — `⚡` (default action) and `🔓` (open network protection) after the tunnel name
-- **Status** — a status dot + uptime for active tunnels (e.g. `● 2h 34m`). When a data cap is set, the row also shows its usage as **bars** (day / week / month) — or compact **rings** if you prefer; switch the style in **Settings → Appearance** (see §10). Live ↑/↓ traffic is no longer per-row — it's shown **combined for all active tunnels** in the Timeline / Data-usage panel header (hover it for the per-tunnel breakdown).
-- **Rules** — count of WiFi rules referencing this tunnel; click to highlight matching rules in the WiFi Rules panel. Rebuilds immediately on rule add/edit/delete
-- **Action** — Connect / Disconnect, centred (a 🛑 marker appears if a data cap disconnected the tunnel, until you next start it)
+- **Colour strip** - 4 px strip per row showing the tunnel's group colour
+- **Badges** - `⚡` (default action) and `🔓` (open network protection) after the tunnel name
+- **Status** - a status dot + uptime for active tunnels (e.g. `● 2h 34m`). When a data cap is set, the row also shows its usage as **bars** (day / week / month) - or compact **rings** if you prefer; switch the style in **Settings → Appearance** (see §10). Live ↑/↓ traffic is no longer per-row - it's shown **combined for all active tunnels** in the Timeline / Data-usage panel header (hover it for the per-tunnel breakdown).
+- **Rules** - count of WiFi rules referencing this tunnel; click to highlight matching rules in the WiFi Rules panel. Rebuilds immediately on rule add/edit/delete
+- **Action** - Connect / Disconnect, centred (a 🛑 marker appears if a data cap disconnected the tunnel, until you next start it)
 
 **Toolbar buttons:** + Add | Edit | Import | **Export** | **Defaults** | Delete
 
-**Export** hands a selected tunnel to another device — see *Exporting a tunnel* in §5.
+**Export** hands a selected tunnel to another device - see *Exporting a tunnel* in §5.
 
 ### Defaults button
 
 Opens a themed popup centred on the main window with:
-- **⚡ Default action tunnel** — dropdown + "— clear —"
-- **🔓 Open network protection** — dropdown + "— clear —"
+- **⚡ Default action tunnel** - dropdown + "- clear -"
+- **🔓 Open network protection** - dropdown + "- clear -"
 
 Saves immediately on clicking Save. Badges and footer update in place.
 
@@ -120,7 +120,7 @@ Saves immediately on clicking Save. Badges and footer update in place.
 
 Columns: **Name** (widest) | **SSID** | **Action** | **Hits** | **Tunnel**
 
-- **Hits** — how many times each rule has triggered (persisted, accent colour when > 0)
+- **Hits** - how many times each rule has triggered (persisted, accent colour when > 0)
 - Rows are **draggable** to reorder
 - Highlighted rows (from clicking a tunnel's rule count): 2 px Accent left border + tinted background
 - Add / Edit / Delete buttons; Delete uses themed confirmation dialog
@@ -131,8 +131,8 @@ Columns: **Name** (widest) | **SSID** | **Action** | **Hits** | **Tunnel**
 Column header: **Time** | **Event**. Entry count badge. Export Log button.
 
 The log panel can be shown or hidden:
-- **`☰` button** — appears on the right side of the tunnel header only when the log is collapsed; click to show
-- **`»` button** — appears on the right side of the activity log header; click to collapse
+- **`☰` button** - appears on the right side of the tunnel header only when the log is collapsed; click to show
+- **`»` button** - appears on the right side of the activity log header; click to collapse
 - Toggle state persists across sessions (see Settings → Appearance → Interface)
 
 ### Footer bar
@@ -164,31 +164,31 @@ Drag tunnel rows to reorder within the current group. A 2 px Accent drop-line sh
 
 Select a tunnel and use the toolbar **Export** button to hand it to another device or keep a backup. Three formats:
 
-- **Plain file (`.conf`)** — a standard WireGuard config; import it into any WireGuard client, phone, or router.
-- **Encrypted file (`.mgconf`)** — password-protected with AES-256-GCM. Unlike the at-rest storage, it's **portable** — open it on any machine with the password. There's no recovery if the password is lost.
-- **QR code** — scan straight into the WireGuard mobile app.
+- **Plain file (`.conf`)** - a standard WireGuard config; import it into any WireGuard client, phone, or router.
+- **Encrypted file (`.mgconf`)** - password-protected with AES-256-GCM. Unlike the at-rest storage, it's **portable** - open it on any machine with the password. There's no recovery if the password is lost.
+- **QR code** - scan straight into the WireGuard mobile app.
 
-**Include MasselGUARD settings** (file formats only) bundles the tunnel's extras — group, notes, scripts, kill switch, auto-reconnect, data caps, and split-tunnel settings — as readable `# MasselGUARD-…` comment lines that other WireGuard clients ignore, so the `.conf` stays universally importable. MasselGUARD restores them on import (the CLI too: `MasselGUARDcli import file.mgconf --password <pw>`).
+**Include MasselGUARD settings** (file formats only) bundles the tunnel's extras - group, notes, scripts, kill switch, auto-reconnect, data caps, and split-tunnel settings - as readable `# MasselGUARD-…` comment lines that other WireGuard clients ignore, so the `.conf` stays universally importable. MasselGUARD restores them on import (the CLI too: `MasselGUARDcli import file.mgconf --password <pw>`).
 
-> The exported config contains the tunnel's **private key** — keep plain and QR exports private; use the encrypted format to share safely. Export is disabled when a managed policy locks *Tunnels*.
+> The exported config contains the tunnel's **private key** - keep plain and QR exports private; use the encrypted format to share safely. Export is disabled when a managed policy locks *Tunnels*.
 
 ---
 
 ### Split tunneling
 
-By default a tunnel is a **full tunnel** — all your traffic goes through it. On a **local tunnel's** editor, the **Split** tab lets you route only *some* traffic through it, by destination IP range:
+By default a tunnel is a **full tunnel** - all your traffic goes through it. On a **local tunnel's** editor, the **Split** tab lets you route only *some* traffic through it, by destination IP range:
 
-- **Off** — route everything through the tunnel (the default).
-- **Exclude these ranges** — a full tunnel *except* the ranges you list. Use this to keep specific destinations on your normal connection — a local printer or NAS (`192.168.1.0/24`), or a service you don't want tunnelled.
-- **Only these ranges** — the reverse: only the listed ranges go through the tunnel; everything else uses your normal connection. Use this for a split VPN that reaches just a few subnets or services.
+- **Off** - route everything through the tunnel (the default).
+- **Exclude these ranges** - a full tunnel *except* the ranges you list. Use this to keep specific destinations on your normal connection - a local printer or NAS (`192.168.1.0/24`), or a service you don't want tunnelled.
+- **Only these ranges** - the reverse: only the listed ranges go through the tunnel; everything else uses your normal connection. Use this for a split VPN that reaches just a few subnets or services.
 
-Enter ranges **one per line**, in CIDR notation (`10.0.0.0/8`, `192.168.1.0/24`) or as a single address (`10.0.0.5`, treated as a `/32`). **IPv4 and IPv6** are both supported. MasselGUARD works out the tunnel's effective routes automatically — you don't edit any route tables. An invalid entry is flagged when you save.
+Enter ranges **one per line**, in CIDR notation (`10.0.0.0/8`, `192.168.1.0/24`) or as a single address (`10.0.0.5`, treated as a `/32`). **IPv4 and IPv6** are both supported. MasselGUARD works out the tunnel's effective routes automatically - you don't edit any route tables. An invalid entry is flagged when you save.
 
-The Split tab shows a live **Effective AllowedIPs (preview)** underneath: *Base* is the `AllowedIPs` from the Fields tab, and *Effective* is what the tunnel will actually route once your split is applied — it updates as you change the mode or ranges, so you can see exactly what will be tunnelled before you save.
+The Split tab shows a live **Effective AllowedIPs (preview)** underneath: *Base* is the `AllowedIPs` from the Fields tab, and *Effective* is what the tunnel will actually route once your split is applied - it updates as you change the mode or ranges, so you can see exactly what will be tunnelled before you save.
 
 Notes:
 - Split tunneling applies to **local** tunnels (the ones MasselGUARD builds). Companion WireGuard-for-Windows tunnels are managed by that app and have no Split tab.
-- With a **kill switch** active, *Exclude* ranges are still allowed out over your normal connection (they're not blocked) — so excluded traffic keeps working while the rest is protected.
+- With a **kill switch** active, *Exclude* ranges are still allowed out over your normal connection (they're not blocked) - so excluded traffic keeps working while the rest is protected.
 - Split settings **travel with an export** (they're part of the *Include MasselGUARD settings* extras) and are shown by `MasselGUARDcli info <name>`.
 - *Per-app* split (choosing by application instead of IP range) is planned for a later 4.x update and is not in this version yet.
 
@@ -208,7 +208,7 @@ Active tunnels show elapsed uptime: `< 1 min` → `Xs`, `< 1 h` → `Xm YYs`, `<
 
 What happens when connecting to WiFi with no matching rule. Options: Do nothing / Disconnect all / Activate a tunnel. The assigned tunnel shows `⚡` in the list and `⚡ TunnelName` in the footer.
 
-> **Default action vs. Trusted networks.** Both are catch-alls, but a *Trusted-networks* rule is evaluated **before** the default action and reacts to whether you're on a trusted SSID. Each trusted rule covers one direction (activate when *not* on the list, or when *on* it) and only acts on that side — the default action still fills the side it doesn't cover. Full precedence and comparison: **§8 → Rule evaluation order**.
+> **Default action vs. Trusted networks.** Both are catch-alls, but a *Trusted-networks* rule is evaluated **before** the default action and reacts to whether you're on a trusted SSID. Each trusted rule covers one direction (activate when *not* on the list, or when *on* it) and only acts on that side - the default action still fills the side it doesn't cover. Full precedence and comparison: **§8 → Rule evaluation order**.
 
 ### Open network protection
 
@@ -216,9 +216,9 @@ Activates automatically on **passwordless** WiFi before any SSID rule. The assig
 
 ### Setting them
 
-- **Defaults button** in the tunnel toolbar (popup centred on window) — immediate save
-- **Settings → WiFi** — saves on Settings Save
-- **Edit tunnel dialog** footer bar toggles — saves on dialog Save
+- **Defaults button** in the tunnel toolbar (popup centred on window) - immediate save
+- **Settings → WiFi** - saves on Settings Save
+- **Edit tunnel dialog** footer bar toggles - saves on dialog Save
 
 ---
 
@@ -228,19 +228,19 @@ Activates automatically on **passwordless** WiFi before any SSID rule. The assig
 
 | Field | Description |
 |---|---|
-| **Trigger type** | **WiFi network (SSID)**, **Schedule**, or **Trusted networks** — see *Rule trigger types* below. |
-| **Name** | Display name — auto-generates from the trigger + tunnel as you type. Stops auto-generating once manually edited. |
-| **SSID** | *(WiFi type)* Network name — case-sensitive. "Use Current" fills from active WiFi. |
+| **Trigger type** | **WiFi network (SSID)**, **Schedule**, or **Trusted networks** - see *Rule trigger types* below. |
+| **Name** | Display name - auto-generates from the trigger + tunnel as you type. Stops auto-generating once manually edited. |
+| **SSID** | *(WiFi type)* Network name - case-sensitive. "Use Current" fills from active WiFi. |
 | **Active days / Start / End** | *(Schedule type)* The day-of-week and `HH:mm` window the rule is active. |
 | **Tunnel** | Leave empty to disconnect all tunnels when the rule fires. |
 
 ### Rule trigger types
 
-- **WiFi network (SSID)** — fires when you join that exact named network.
-- **Schedule** — fires during a day-of-week + time window (e.g. Work 09:00–18:00, Mon–Fri). Schedule rules are checked on a one-minute timer, independent of WiFi changes; overnight windows such as 22:00–06:00 are supported.
-- **Trusted networks** — reacts to your trusted-SSID list, in **one of two directions** you pick per rule:
-    - **When NOT on a trusted network** — activate the chosen tunnel on any network that is *not* on the list (e.g. a **full tunnel** on public WiFi). This is the classic "protect me on untrusted networks".
-    - **When on a trusted network** — activate the chosen tunnel only on networks that *are* on the list (e.g. a **split tunnel** you bring up at home or work).
+- **WiFi network (SSID)** - fires when you join that exact named network.
+- **Schedule** - fires during a day-of-week + time window (e.g. Work 09:00–18:00, Mon–Fri). Schedule rules are checked on a one-minute timer, independent of WiFi changes; overnight windows such as 22:00–06:00 are supported.
+- **Trusted networks** - reacts to your trusted-SSID list, in **one of two directions** you pick per rule:
+    - **When NOT on a trusted network** - activate the chosen tunnel on any network that is *not* on the list (e.g. a **full tunnel** on public WiFi). This is the classic "protect me on untrusted networks".
+    - **When on a trusted network** - activate the chosen tunnel only on networks that *are* on the list (e.g. a **split tunnel** you bring up at home or work).
 
     A trusted rule acts **only on its own side**; the other side falls through to your other rules and the Default action. Add **two** trusted rules to cover both directions (one tunnel on trusted, another on untrusted). Leave the tunnel empty to *disconnect* on that side instead. The trusted-SSID list is shared by all trusted rules and is managed in **Settings → WiFi → Trusted networks** (one SSID per line, or use *Add current WiFi network*).
 
@@ -248,35 +248,35 @@ Activates automatically on **passwordless** WiFi before any SSID rule. The assig
 
 On every WiFi change the engine walks these steps and **stops at the first match**:
 
-1. **Manual mode** — if WiFi automation is off, nothing happens.
-2. **Open network protection** — on an open (passwordless) network with a tunnel assigned, that tunnel is activated before any rule.
-3. **WiFi-SSID rules** — an *enabled* WiFi rule whose SSID equals the current network. (Drag to reorder; first match wins.)
-4. **Trusted-network rules** — each *enabled* Trusted-networks rule is checked in list order; a rule matches only when the current network is on **its** side of the trusted list (its *not-on-list* or *on-list* direction). The first match connects its tunnel (or disconnects). A rule whose side doesn't match is skipped, so evaluation continues.
-5. **Default action** — the fallback (do nothing / disconnect / activate a tunnel).
+1. **Manual mode** - if WiFi automation is off, nothing happens.
+2. **Open network protection** - on an open (passwordless) network with a tunnel assigned, that tunnel is activated before any rule.
+3. **WiFi-SSID rules** - an *enabled* WiFi rule whose SSID equals the current network. (Drag to reorder; first match wins.)
+4. **Trusted-network rules** - each *enabled* Trusted-networks rule is checked in list order; a rule matches only when the current network is on **its** side of the trusted list (its *not-on-list* or *on-list* direction). The first match connects its tunnel (or disconnects). A rule whose side doesn't match is skipped, so evaluation continues.
+5. **Default action** - the fallback (do nothing / disconnect / activate a tunnel).
 
-Schedule rules run on their own timer rather than in this WiFi chain. When WiFi drops **entirely** (no network at all), only *Default action = Disconnect* applies — nothing can classify a network that isn't there.
+Schedule rules run on their own timer rather than in this WiFi chain. When WiFi drops **entirely** (no network at all), only *Default action = Disconnect* applies - nothing can classify a network that isn't there.
 
 #### Default action vs. Trusted networks
 
-Both are catch-alls for a network that no specific rule matched — the difference is that a trusted rule looks at *which* network you're on:
+Both are catch-alls for a network that no specific rule matched - the difference is that a trusted rule looks at *which* network you're on:
 
 | | **Default action** | **Trusted-network rule** |
 |---|---|---|
-| Decides based on | Nothing — same result for every unmatched network | Whether the SSID is in your trusted list (and the rule's direction) |
+| Decides based on | Nothing - same result for every unmatched network | Whether the SSID is in your trusted list (and the rule's direction) |
 | Fires on | Every unmatched network | Only its side (on-list *or* not-on-list) |
 | Runs when WiFi drops completely | Yes | No (no SSID to classify) |
 
-A trusted rule only ever acts on its own side, so the **Default still applies** to the side it doesn't cover. Common setups: one *not-on-list → full-tunnel* rule = "VPN on everything except my home/office WiFi" (Default handles the trusted side); add an *on-list → split-tunnel* rule as well to bring a different tunnel up at home/work. Two rules, one shared list, both directions covered — and the Default fills any gap.
+A trusted rule only ever acts on its own side, so the **Default still applies** to the side it doesn't cover. Common setups: one *not-on-list → full-tunnel* rule = "VPN on everything except my home/office WiFi" (Default handles the trusted side); add an *on-list → split-tunnel* rule as well to bring a different tunnel up at home/work. Two rules, one shared list, both directions covered - and the Default fills any gap.
 
 ### Enable / disable a rule
 
-Select a rule and click **Disable** (or **Enable**) below the list. A disabled rule stays in the list but is skipped by the engine — its row greys out and shows a `⊘` marker before the name. This is the tidy way to switch a rule off temporarily without deleting it.
+Select a rule and click **Disable** (or **Enable**) below the list. A disabled rule stays in the list but is skipped by the engine - its row greys out and shows a `⊘` marker before the name. This is the tidy way to switch a rule off temporarily without deleting it.
 
 ### Hits counter
 
-The **Hits** column shows how many times each rule has triggered. Persisted in config — survives restarts. Shown in Accent colour when > 0, muted when 0.
+The **Hits** column shows how many times each rule has triggered. Persisted in config - survives restarts. Shown in Accent colour when > 0, muted when 0.
 
-**Editing the counter** — open the Edit Rule dialog for any existing rule. Below the form fields (separated by a divider) the current hit count is displayed. Click **(Re)set counter** to open a small input dialog:
+**Editing the counter** - open the Edit Rule dialog for any existing rule. Below the form fields (separated by a divider) the current hit count is displayed. Click **(Re)set counter** to open a small input dialog:
 
 - Type any positive integer to set a specific value.
 - Type `0` to clear the counter.
@@ -294,38 +294,38 @@ Adding, editing, or deleting a rule immediately refreshes both the WiFi Rules pa
 
 ---
 
-## 9. Settings — General
+## 9. Settings - General
 
 ### Language
 
-Language picker — changes take effect immediately. Twelve languages: English, Dutch, German, French, Spanish, Japanese, Italian, Portuguese (Brazil), Russian, Polish, Turkish, Chinese (Simplified). Hold **Shift** while starting MasselGUARD to reset the language to English.
+Language picker - changes take effect immediately. Twelve languages: English, Dutch, German, French, Spanish, Japanese, Italian, Portuguese (Brazil), Russian, Polish, Turkish, Chinese (Simplified). Hold **Shift** while starting MasselGUARD to reset the language to English.
 
 ### App mode
 
-- **Standalone** — MasselGUARD manages tunnels directly (`tunnel.dll`)
-- **Companion** — Automates the WireGuard for Windows app
-- **Mixed** — Both simultaneously
+- **Standalone** - MasselGUARD manages tunnels directly (`tunnel.dll`)
+- **Companion** - Automates the WireGuard for Windows app
+- **Mixed** - Both simultaneously
 
 ### Startup & exit
 
-- **Start with Windows** — registers a Scheduled Task at `RunLevel=Highest`, so MasselGUARD starts elevated without a UAC prompt
-- **Confirm disconnect on exit** — when active tunnels are running, ask before disconnecting them on exit. When off, tunnels are disconnected silently (default: on)
+- **Start with Windows** - registers a Scheduled Task at `RunLevel=Highest`, so MasselGUARD starts elevated without a UAC prompt
+- **Confirm disconnect on exit** - when active tunnels are running, ask before disconnecting them on exit. When off, tunnels are disconnected silently (default: on)
 
 ### View preset
 
-**Simple / Manual / Expert** buttons re-apply the same interface bundle offered in the first-run wizard's "Choose your view" step (timeline, activity log, WiFi rules panel/column visibility — Manual also turns WiFi automation off). Applies and saves immediately; each toggle stays individually editable in Tunnels/WiFi/History afterward.
+**Simple / Manual / Expert** buttons re-apply the same interface bundle offered in the first-run wizard's "Choose your view" step (timeline, activity log, WiFi rules panel/column visibility - Manual also turns WiFi automation off). Applies and saves immediately; each toggle stays individually editable in Tunnels/WiFi/History afterward.
 
 All other changes on this tab are deferred until Save.
 
 ---
 
-## 10. Settings — Tunnels
+## 10. Settings - Tunnels
 
 All tunnel-wide configuration in one place: groups, connection behaviour, and display options.
 
 ### Tunnel groups
 
-- Group list — add/edit/reorder/delete groups, set colour and visibility
+- Group list - add/edit/reorder/delete groups, set colour and visibility
 - Add group: type name + click + Add
 
 ### Auto-reconnect mode
@@ -345,50 +345,50 @@ All tunnel-wide configuration in one place: groups, connection behaviour, and di
 
 ### Config validation
 
-Pre-flight validation checks WireGuard config files for errors (invalid IPs, missing keys, bad CIDRs) before connecting. The **Skip config validation globally** toggle disables it as a last resort — invalid configs will still fail, just with a less clear error.
+Pre-flight validation checks WireGuard config files for errors (invalid IPs, missing keys, bad CIDRs) before connecting. The **Skip config validation globally** toggle disables it as a last resort - invalid configs will still fail, just with a less clear error.
 
 ### Display
 
-- **Always hide tunnel count** — removes the `n` number from all group tab buttons
-- **Hide empty groups** — suppresses tabs with no tunnels in the current filter
-- **Show DNS leak indicator** — shows or hides the DNS status badge on active tunnels
+- **Always hide tunnel count** - removes the `n` number from all group tab buttons
+- **Hide empty groups** - suppresses tabs with no tunnels in the current filter
+- **Show DNS leak indicator** - shows or hides the DNS status badge on active tunnels
 
 Changes deferred until Save.
 
 ---
 
-## 11. Settings — WiFi
+## 11. Settings - WiFi
 
 Everything that controls what happens when your network changes. For the exact precedence see **§8 → Rule evaluation order** (open network → SSID rules → trusted-network → default action).
 
-The **rules list itself lives on the main window** (add / edit / delete / enable there) — it is not duplicated here. This page holds the automation *settings* around it.
+The **rules list itself lives on the main window** (add / edit / delete / enable there) - it is not duplicated here. This page holds the automation *settings* around it.
 
 **Layout (top to bottom):**
-1. **Disable WiFi rules** toggle — pauses all automation
-2. **Default action** picker: None / Disconnect / Activate tunnel — the fallback when no rule matches. Same as the Defaults button popup but deferred to Settings Save
-3. **Open network protection** tunnel picker — activated on an unsecured (open) WiFi network, before any SSID rule or default action
-4. **Trusted networks** — the safe-SSID list for a *Trusted networks* rule (one SSID per line; **Add current WiFi network** appends the network you're on, skipping duplicates). Enabling the feature and choosing its tunnel is done in the rule itself, not here — see §8
-5. Display — **Hide WiFi rules on main window** and **Show Rules column** in tunnel list toggles
+1. **Disable WiFi rules** toggle - pauses all automation
+2. **Default action** picker: None / Disconnect / Activate tunnel - the fallback when no rule matches. Same as the Defaults button popup but deferred to Settings Save
+3. **Open network protection** tunnel picker - activated on an unsecured (open) WiFi network, before any SSID rule or default action
+4. **Trusted networks** - the safe-SSID list for a *Trusted networks* rule (one SSID per line; **Add current WiFi network** appends the network you're on, skipping duplicates). Enabling the feature and choosing its tunnel is done in the rule itself, not here - see §8
+5. Display - **Hide WiFi rules on main window** and **Show Rules column** in tunnel list toggles
 
 ### DNS automation (Settings → DNS)
 
-DNS automation has its own **DNS** tab in Settings. There you can set the **DNS resolver based on the network you join — even when no tunnel is active** (for example: "on any open Wi-Fi, use encrypted Cloudflare DNS", or "on the office SSID, use the internal resolver"). While a tunnel is connected, the tunnel's own DNS takes over; when it drops, your DNS rule is re-applied. Your original DNS is saved first and restored when you close MasselGUARD (and recovered automatically if the app was closed unexpectedly).
+DNS automation has its own **DNS** tab in Settings. There you can set the **DNS resolver based on the network you join - even when no tunnel is active** (for example: "on any open Wi-Fi, use encrypted Cloudflare DNS", or "on the office SSID, use the internal resolver"). While a tunnel is connected, the tunnel's own DNS takes over; when it drops, your DNS rule is re-applied. Your original DNS is saved first and restored when you close MasselGUARD (and recovered automatically if the app was closed unexpectedly).
 
-- **Enable DNS automation** — the master switch (off by default; nothing changes until you turn it on).
-- **Default DNS** — the resolver used on any network without a more specific rule. *— none —* leaves the network's own DNS alone; *Automatic (DHCP)* forces the network-provided DNS.
-- **Open-network DNS** — applied on an unsecured (open) Wi-Fi network, so you can force encrypted DNS on public hotspots with no per-network rule.
-- **Address families** — whether to set IPv4, IPv6, or both. Setting only IPv4 leaves IPv6 on the network's resolver.
-- **DNS profiles** — named resolvers your rules and the defaults point at. **Add presets** drops in the well-known public resolvers (Cloudflare, Google, Quad9, AdGuard, OpenDNS, NextDNS); **Add…** creates your own. Each profile has IPv4/IPv6 servers and an **Encryption** mode:
-  - *Plain* — standard unencrypted DNS.
-  - *DNS-over-HTTPS (DoH)* / *Automatic* — encrypted DNS. **DoH needs Windows 11.** Well-known resolvers work with no template; for a custom resolver enter its **DoH template URL**. Tick **Require encryption** to fail closed (never fall back to plaintext).
+- **Enable DNS automation** - the master switch (off by default; nothing changes until you turn it on).
+- **Default DNS** - the resolver used on any network without a more specific rule. *- none -* leaves the network's own DNS alone; *Automatic (DHCP)* forces the network-provided DNS.
+- **Open-network DNS** - applied on an unsecured (open) Wi-Fi network, so you can force encrypted DNS on public hotspots with no per-network rule.
+- **Address families** - whether to set IPv4, IPv6, or both. Setting only IPv4 leaves IPv6 on the network's resolver.
+- **DNS profiles** - named resolvers your rules and the defaults point at. **Add presets** drops in the well-known public resolvers (Cloudflare, Google, Quad9, AdGuard, OpenDNS, NextDNS); **Add…** creates your own. Each profile has IPv4/IPv6 servers and an **Encryption** mode:
+  - *Plain* - standard unencrypted DNS.
+  - *DNS-over-HTTPS (DoH)* / *Automatic* - encrypted DNS. **DoH needs Windows 11.** Well-known resolvers work with no template; for a custom resolver enter its **DoH template URL**. Tick **Require encryption** to fail closed (never fall back to plaintext).
 
-To apply a resolver on a **specific SSID** (with or without a tunnel), open a Wi-Fi rule and pick a **DNS** profile — leave the tunnel blank for a DNS-only rule.
+To apply a resolver on a **specific SSID** (with or without a tunnel), open a Wi-Fi rule and pick a **DNS** profile - leave the tunnel blank for a DNS-only rule.
 
 The CLI command `MasselGUARD dns status` shows the current configuration and each interface's live resolvers (see the CLI manual).
 
 ---
 
-## 12. Settings — Appearance
+## 12. Settings - Appearance
 
 ### System theme mode
 
@@ -402,7 +402,7 @@ A pill strip sets whether dark or light mode is used:
 
 ### Theme
 
-A **single theme picker** selects the theme. Every theme contains both a dark and a light colour variant — the System mode pill decides which variant is shown. **System (Windows colors)** is a first-class entry in the picker and uses the Windows 11 accent palette instead of a theme file.
+A **single theme picker** selects the theme. Every theme contains both a dark and a light colour variant - the System mode pill decides which variant is shown. **System (Windows colors)** is a first-class entry in the picker and uses the Windows 11 accent palette instead of a theme file.
 
 Next to the picker: **Manage themes…** opens the Theme Manager (create, edit, duplicate, import/export, delete), and **Download themes…** jumps straight to the Community themes browser. See [24. Themes](#24-themes) for details on both.
 
@@ -414,18 +414,18 @@ Theme selections are **not applied immediately**. Click **▶ Dark** or **▶ Li
 
 Enable **Override font** to replace the theme's typeface with any installed system font.
 
-- **Font family** — editable ComboBox; each font name renders in its own typeface. Leave blank to use the Windows system UI font.
-- **Preview label** — sample text shown in the current preview state
-- **Font size slider** — 8–18 pt
+- **Font family** - editable ComboBox; each font name renders in its own typeface. Leave blank to use the Windows system UI font.
+- **Preview label** - sample text shown in the current preview state
+- **Font size slider** - 8–18 pt
 
 ### Font preview
 
-The **▶ Preview** button next to the size slider applies the draft font to the whole interface for 10 seconds. The preview label updates when Preview is clicked — not on every picker change. Changing the font family or size while a preview is running cancels it and reverts to the committed font.
+The **▶ Preview** button next to the size slider applies the draft font to the whole interface for 10 seconds. The preview label updates when Preview is clicked - not on every picker change. Changing the font family or size while a preview is running cancels it and reverts to the committed font.
 
 ### Notifications
 
-- **Background notifications** toggle — show WPF toast when a tunnel auto-switches
-- **Notification duration** — 3 / 5 / 10 / 15 / 30 seconds
+- **Background notifications** toggle - show WPF toast when a tunnel auto-switches
+- **Notification duration** - 3 / 5 / 10 / 15 / 30 seconds
 
 ### Toast notification format
 
@@ -438,17 +438,17 @@ The **▶ Preview** button next to the size slider applies the draft font to the
 ╚══════════════════════════════════════════╝
 ```
 
-- App name from `Theme.AppName` — custom themes override it
+- App name from `Theme.AppName` - custom themes override it
 - Strip colour: Accent (rule), Success/green (open network), Warning (default action)
 - Slides in from bottom-right; auto-dismisses after configured duration
 
 ### Interface
 
-- **Show activity log** — shows or hides the activity log panel on the right side of the main window. Changes take immediate effect. Saved state persists across restarts.
+- **Show activity log** - shows or hides the activity log panel on the right side of the main window. Changes take immediate effect. Saved state persists across restarts.
 
 ---
 
-## 13. Settings — History
+## 13. Settings - History
 
 Controls what connection and WiFi data is recorded and displayed in the activity timeline.
 
@@ -466,29 +466,29 @@ Controls what connection and WiFi data is recorded and displayed in the activity
 | **Connections** | Draw tunnel session bars in the timeline chart | Capture Connections is on |
 | **WiFi (SSID)** | Draw WiFi SSID rows in the timeline chart | Capture WiFi is on |
 
-The timeline panel **auto-hides** when both Show toggles are effectively off (either disabled by their capture toggle, or manually switched off). Turning off Capture does not force the Show toggle off — it only disables it, preserving your preference for when Capture is re-enabled.
+The timeline panel **auto-hides** when both Show toggles are effectively off (either disabled by their capture toggle, or manually switched off). Turning off Capture does not force the Show toggle off - it only disables it, preserving your preference for when Capture is re-enabled.
 
-### Activity chart — Time range
+### Activity chart - Time range
 
 Pill selector: **Last 24 hours** · **Last 7 days** · **Last 31 days**
 
 ---
 
-## 14. Settings — Advanced
+## 14. Settings - Advanced
 
-App maintenance and diagnostics only — tunnel behaviour settings (auto-reconnect, kill switch, config validation) live on the **Tunnels** tab; startup settings live on **General**.
+App maintenance and diagnostics only - tunnel behaviour settings (auto-reconnect, kill switch, config validation) live on the **Tunnels** tab; startup settings live on **General**.
 
 **Order:**
 1. Import / Export settings
-2. Managed preset — export the current settings as a locked policy
+2. Managed preset - export the current settings as a locked policy
 3. Log level (Normal / Extended)
-4. Installation — run mode, Install/Uninstall button
-5. WireGuard client — open the WireGuard for Windows app
-6. Orphaned services — scan and clean up
+4. Installation - run mode, Install/Uninstall button
+5. WireGuard client - open the WireGuard for Windows app
+6. Orphaned services - scan and clean up
 
 ### Managed preset (locked settings)
 
-A **managed preset** lets you ship a build in which the settings are pre-set and **locked** — for a company rollout, a family/kids' laptop, a kiosk, or any "configure once, hand it out" scenario.
+A **managed preset** lets you ship a build in which the settings are pre-set and **locked** - for a company rollout, a family/kids' laptop, a kiosk, or any "configure once, hand it out" scenario.
 
 **One file, two roles.** A **`.masselguard`** file always holds a full snapshot of the app's settings, plus an optional **`Locked`** marker. What it does depends on where it is:
 - **Imported** (Setup wizard Step 0, or Advanced → Import) → *all* its settings are applied and stay **editable**; `Locked` is ignored.
@@ -496,17 +496,17 @@ A **managed preset** lets you ship a build in which the settings are pre-set and
 
 **How the lock works.** On startup the app looks for any `*.masselguard` next to the exe. If it finds one with a `Locked` list, it forces those settings and locks them, and re-applies them on every save so editing `config.json` by hand can't override them. Delete the file and everything unlocks on the next launch. `MasselGUARDcli.exe` (same folder) obeys the same policy.
 
-> **Soft lock, not tamper-proof.** The file sits in the app folder, so anyone who can write there can edit or delete it. Meant for **managed distributions** where users don't tamper with the build — not a security boundary against a hostile local user.
+> **Soft lock, not tamper-proof.** The file sits in the app folder, so anyone who can write there can edit or delete it. Meant for **managed distributions** where users don't tamper with the build - not a security boundary against a hostile local user.
 
-**What a locked setting looks like.** A banner appears at the top of Settings — *"🔒 Some settings are locked by the *&lt;policy name&gt;* policy."* — and every locked control is greyed out with a 🔒 tooltip. WiFi-rule **Add / Edit / Delete** buttons are disabled when the automation section is locked.
+**What a locked setting looks like.** A banner appears at the top of Settings - *"🔒 Some settings are locked by the *&lt;policy name&gt;* policy."* - and every locked control is greyed out with a 🔒 tooltip. WiFi-rule **Add / Edit / Delete** buttons are disabled when the automation section is locked.
 
-**Creating one.** Configure the app the way you want, then **Advanced → Import / Export → "Export settings as preset…"** (next to Export/Import settings). Enter a **policy name** (shown in the banner) and tick which **settings to lock** — items are grouped by section, and each section header selects/clears all of its items, so you can lock a whole section *or* single settings (e.g. lock **Tray notification on switch** but leave **Notification duration** open, both under Appearance/Notifications). The saved `.masselguard` contains **all** current settings (so it's also a normal, importable backup); the ticked items go under `Locked.settings`. **Tunnel definitions are never included** — they're per-site, and their secrets never leave the app. Drop the file next to the exe in your distribution zip.
+**Creating one.** Configure the app the way you want, then **Advanced → Import / Export → "Export settings as preset…"** (next to Export/Import settings). Enter a **policy name** (shown in the banner) and tick which **settings to lock** - items are grouped by section, and each section header selects/clears all of its items, so you can lock a whole section *or* single settings (e.g. lock **Tray notification on switch** but leave **Notification duration** open, both under Appearance/Notifications). The saved `.masselguard` contains **all** current settings (so it's also a normal, importable backup); the ticked items go under `Locked.settings`. **Tunnel definitions are never included** - they're per-site, and their secrets never leave the app. Drop the file next to the exe in your distribution zip.
 
 **Themes.** If a locked policy sets a theme that isn't installed in the build, the app downloads it from the shared-themes repo on first launch; if that fails it falls back to system colours.
 
 **Installing.** If you use **Advanced → Install** (managed install) and a `.masselguard` sits next to the exe, the app offers to copy it into the install folder so the installed copy stays locked.
 
-**Format** (human-readable JSON — all settings present; `PolicyName` and `Locked` are the policy bits):
+**Format** (human-readable JSON - all settings present; `PolicyName` and `Locked` are the policy bits):
 ```json
 {
   "PolicyName": "Family Safe",
@@ -532,7 +532,7 @@ When extended logging is active, only **changed** fields are logged after Save:
 
 ---
 
-## 15. Settings — About
+## 15. Settings - About
 
 ### Version and update
 
@@ -543,15 +543,15 @@ build  2606040000
 ```
 Version codenames are assigned per Major.Minor.Patch release. The build stamp is hidden in IDE/debug builds.
 
-- **Last checked** — timestamp of the most recent update check
-- **Status badge** — coloured pill:
+- **Last checked** - timestamp of the most recent update check
+- **Status badge** - coloured pill:
   - `↑` update available → Download button appears
   - `🚀` running ahead of latest release (dev build)
   - `✓` up to date
-  - `—` never checked
-- **Frequency** — On start / Daily / Weekly / Manual pill selector
-- **Check now** — runs an immediate check; if an update is found the Download button appears and a themed prompt offers to install now
-- **Download** button — only visible after a manual Check now in the current session; starts the in-app pipeline (download → extract → copy → relaunch)
+  - `-` never checked
+- **Frequency** - On start / Daily / Weekly / Manual pill selector
+- **Check now** - runs an immediate check; if an update is found the Download button appears and a themed prompt offers to install now
+- **Download** button - only visible after a manual Check now in the current session; starts the in-app pipeline (download → extract → copy → relaunch)
 
 ### What's New panel
 
@@ -573,20 +573,20 @@ Connect a `.conf` or `.conf.dpapi` file without importing. Appears as `⚡ filen
 
 ## 18. Import / Export settings
 
-**Export** — saves to `.masselguard` (JSON). Tunnel configs not included. A themed confirmation dialog warns that configs are excluded before writing.
+**Export** - saves to `.masselguard` (JSON). Tunnel configs not included. A themed confirmation dialog warns that configs are excluded before writing.
 
-**Import** — replaces settings and saves immediately to disk.
+**Import** - replaces settings and saves immediately to disk.
 - Version mismatch (file older **or** newer than the running build) shows a themed Yes/No warning before proceeding.
 - On success a themed prompt offers to **restart now** so all imported settings take effect immediately.
-  - **Yes** — launches a new MasselGUARD process and exits the current one.
-  - **No** — settings are already saved; a notice warns that some displayed values may not yet match the imported data until the next restart.
+  - **Yes** - launches a new MasselGUARD process and exits the current one.
+  - **No** - settings are already saved; a notice warns that some displayed values may not yet match the imported data until the next restart.
 - Available in Settings → Advanced and on wizard Step 0.
 
 ---
 
 ## 19. The activity log
 
-Column header: **Time** | **Event** — consistent with Tunnels and WiFi Rules panels.
+Column header: **Time** | **Event** - consistent with Tunnels and WiFi Rules panels.
 
 Extended mode adds:
 - `[DBG]` debug entries (connect timing, tunnel config fields)
@@ -618,8 +618,8 @@ The activity timeline is a canvas shown above the footer when at least one histo
 
 Move the mouse anywhere over the canvas. A vertical crosshair follows the cursor and a tooltip shows everything active at that point in time:
 
-- **Tunnel rows** — coloured dot, tunnel name, connected-since / time range, duration, traffic (↑/↓). If the cursor is near the right edge (live data), shows live KB/s instead.
-- **WiFi row** — 📶 SSID name, connection time or range, duration, 🔒 secured / ⚠ open network tag.
+- **Tunnel rows** - coloured dot, tunnel name, connected-since / time range, duration, traffic (↑/↓). If the cursor is near the right edge (live data), shows live KB/s instead.
+- **WiFi row** - 📶 SSID name, connection time or range, duration, 🔒 secured / ⚠ open network tag.
 
 The tooltip shows on all Y positions (tunnel bar, WiFi rows, gap). If nothing is active at the hovered time, only the crosshair is drawn.
 
@@ -627,15 +627,15 @@ The tooltip shows on all Y positions (tunnel bar, WiFi rows, gap). If nothing is
 
 The `<` and `>` buttons step through tunnel sessions within the current time window. Each click pins a tooltip to that session's midpoint showing the full session detail plus the WiFi SSID active at that time.
 
-### Settings — History (effect on timeline)
+### Settings - History (effect on timeline)
 
 | Capture Connections | Capture WiFi | Show Connections | Show WiFi | Panel |
 |---|---|---|---|---|
 | ✓ | ✓ | ✓ | ✓ | Tunnel bars + WiFi rows |
 | ✓ | ✓ | ✓ | ✗ | Tunnel bars only |
 | ✓ | ✓ | ✗ | ✓ | WiFi rows only |
-| ✓ | ✗ | ✓ | — | Tunnel bars only |
-| ✗ | ✓ | — | ✓ | WiFi rows only |
+| ✓ | ✗ | ✓ | - | Tunnel bars only |
+| ✗ | ✓ | - | ✓ | WiFi rows only |
 | any | any | ✗ | ✗ | Panel hidden |
 
 ---
@@ -643,12 +643,12 @@ The `<` and `>` buttons step through tunnel sessions within the current time win
 ## 21. System tray
 
 **Icon states:**
-- Filled green shield — one or more tunnels active
-- Outline grey shield — no active tunnels
+- Filled green shield - one or more tunnels active
+- Outline grey shield - no active tunnels
 
 **Tray menu:**
 - 🪟 Show Window
-- 🛡 Tunnels (submenu) — shield is green when active
+- 🛡 Tunnels (submenu) - shield is green when active
 - ⬛→ Exit
 
 Right-click → menu. Double-click → show main window. × in main window → minimise to tray (tunnels keep running).
@@ -676,13 +676,13 @@ Set in **Settings → Tunnels → Kill switch mode = Always**. Every tunnel auto
 
 ### Crash recovery
 
-At startup, `KillSwitchService.CleanupStaleRules()` removes any leftover `MasselGUARD_KS_*` firewall rules and resets the default outbound policy to Allow — recovering from a previous crash that prevented normal cleanup.
+At startup, `KillSwitchService.CleanupStaleRules()` removes any leftover `MasselGUARD_KS_*` firewall rules and resets the default outbound policy to Allow - recovering from a previous crash that prevented normal cleanup.
 
 ---
 
 ## 23. Auto-reconnect
 
-MasselGUARD detects when a tunnel drops unexpectedly and reconnects it automatically — up to 3 attempts with increasing backoff (5 s, 10 s, 15 s).
+MasselGUARD detects when a tunnel drops unexpectedly and reconnects it automatically - up to 3 attempts with increasing backoff (5 s, 10 s, 15 s).
 
 ### What counts as unexpected
 
@@ -690,7 +690,7 @@ An unexpected drop is any tunnel failure **not** triggered deliberately. These a
 - User clicking Disconnect
 - A WiFi rule disconnecting the tunnel
 - CLI `disconnect` or `disconnect-all`
-- Deactivating the tunnel in the WireGuard for Windows app — MasselGUARD recognises a clean deactivate and logs `was deactivated via the WireGuard app — not reconnecting`
+- Deactivating the tunnel in the WireGuard for Windows app - MasselGUARD recognises a clean deactivate and logs `was deactivated via the WireGuard app - not reconnecting`
 
 These **are** retried:
 - WireGuard kernel adapter crash
@@ -703,7 +703,7 @@ Set in **Settings → Tunnels → Auto-reconnect**:
 
 | Mode | Behaviour |
 |---|---|
-| **Off** | Disabled globally — no tunnels reconnect automatically |
+| **Off** | Disabled globally - no tunnels reconnect automatically |
 | **Per tunnel** | Each tunnel has its own toggle in the Edit Tunnel dialog |
 | **Always** (default) | Every tunnel reconnects; the per-tunnel toggle is not shown |
 
@@ -717,15 +717,15 @@ When global mode is **Off**, the toggle is hidden entirely.
 ### Activity log entries
 
 ```
-[AutoReconnect] 'WorkVPN' dropped — reconnecting in 5s (attempt 1/3)…
+[AutoReconnect] 'WorkVPN' dropped - reconnecting in 5s (attempt 1/3)…
 [AutoReconnect] 'WorkVPN' reconnected successfully.
 ```
 
 ```
-[AutoReconnect] 'WorkVPN' dropped — reconnecting in 5s (attempt 1/3)…
-[AutoReconnect] 'WorkVPN' — attempt 1 failed.
-[AutoReconnect] 'WorkVPN' dropped — reconnecting in 10s (attempt 2/3)…
-[AutoReconnect] 'WorkVPN' — giving up after 3 attempts.
+[AutoReconnect] 'WorkVPN' dropped - reconnecting in 5s (attempt 1/3)…
+[AutoReconnect] 'WorkVPN' - attempt 1 failed.
+[AutoReconnect] 'WorkVPN' dropped - reconnecting in 10s (attempt 2/3)…
+[AutoReconnect] 'WorkVPN' - giving up after 3 attempts.
 ```
 
 ---
@@ -734,11 +734,11 @@ When global mode is **Off**, the toggle is hidden entirely.
 
 ### Built-in theme
 
-Only **System (Windows colors)** is built into the app — it uses the live Windows 11 accent palette and is the default. Every other theme is downloaded or hand-made; the app ships with none pre-installed. Each theme contains both a dark and a light colour variant; the Appearance System mode (Light / Dark / Auto) decides which one is shown.
+Only **System (Windows colors)** is built into the app - it uses the live Windows 11 accent palette and is the default. Every other theme is downloaded or hand-made; the app ships with none pre-installed. Each theme contains both a dark and a light colour variant; the Appearance System mode (Light / Dark / Auto) decides which one is shown.
 
 ### Custom theme files
 
-All themes — downloaded and self-made — live together in `%APPDATA%\MasselGUARD\themes\<theme-id>\theme.json`, per-user and surviving app updates. The root level holds structural settings (font, corner radius, chrome); colours live in `"dark"` and `"light"` sections. Either section may be omitted — the missing variant is auto-generated at load time by HSL lightness inversion. Image assets (logo, app icon, background, tray icons) can also be set per dark/light variant, with a shared value as a legacy fallback.
+All themes - downloaded and self-made - live together in `%APPDATA%\MasselGUARD\themes\<theme-id>\theme.json`, per-user and surviving app updates. The root level holds structural settings (font, corner radius, chrome); colours live in `"dark"` and `"light"` sections. Either section may be omitted - the missing variant is auto-generated at load time by HSL lightness inversion. Image assets (logo, app icon, background, tray icons) can also be set per dark/light variant, with a shared value as a legacy fallback.
 
 Custom themes can override `AppName` to change the name shown in toast notifications.
 
@@ -749,10 +749,10 @@ catalogue, see the [MasselGUARD-themes](https://github.com/masselink/MasselGUARD
 
 **Settings → Appearance → Manage themes…** opens the Theme Manager, where every theme (System excepted) is fully editable and deletable:
 
-- **+ Add theme** — create a new theme (from the current theme, from a pair of light/dark images, or as a copy of any existing theme), browse **Community themes**, or **Import…** a `.zip`.
-- **Editor** — Identity, Colors (Light/Dark side by side with copy arrows and a global "Copy inverted colour" mode), Typography (body font, an optional separate **Header font** for the title bar and section headers, and base font size), Transparency (app/panel opacity plus dedicated sliders for the list-hover, tray-hover, and highlight colours), Window (title bar + status bar layout), and Assets (a separate Light and Dark picker for the logo, app icon, background image, and both tray icons).
-- Edits **apply live** to the running app as you make them (debounced ~180 ms) — the **● LIVE** indicator confirms it (click it to pause/resume). Closing without saving reverts to the last saved state; **Undo/Redo** (Ctrl+Z/Ctrl+Y) step back through the session's edits.
-- The footer has **Save** and **Close** buttons (Close behaves like the title-bar ✕ — prompts to save if there are unsaved changes).
+- **+ Add theme** - create a new theme (from the current theme, from a pair of light/dark images, or as a copy of any existing theme), browse **Community themes**, or **Import…** a `.zip`.
+- **Editor** - Identity, Colors (Light/Dark side by side with copy arrows and a global "Copy inverted colour" mode), Typography (body font, an optional separate **Header font** for the title bar and section headers, and base font size), Transparency (app/panel opacity plus dedicated sliders for the list-hover, tray-hover, and highlight colours), Window (title bar + status bar layout), and Assets (a separate Light and Dark picker for the logo, app icon, background image, and both tray icons).
+- Edits **apply live** to the running app as you make them (debounced ~180 ms) - the **● LIVE** indicator confirms it (click it to pause/resume). Closing without saving reverts to the last saved state; **Undo/Redo** (Ctrl+Z/Ctrl+Y) step back through the session's edits.
+- The footer has **Save** and **Close** buttons (Close behaves like the title-bar ✕ - prompts to save if there are unsaved changes).
 - Right-click a theme in the list for **Apply / Duplicate / Export / Delete**.
 - **Hold Shift** to temporarily fall back to plain Windows colours if a draft edit makes the Manager itself unreadable.
 
@@ -761,8 +761,8 @@ catalogue, see the [MasselGUARD-themes](https://github.com/masselink/MasselGUARD
 **Settings → Appearance → Download themes…** (or Manage themes… → Community themes) opens a searchable, tag-filterable gallery of themes from the shared repository, each with dark/light preview cards.
 
 - **Click a preview to zoom it** to full size; hover shows a 🔍 hint. Close with the ✕, by clicking outside the image, or Escape. The Dark/Light toggle still works, and the zoomed image updates with it.
-- **Install** downloads a theme into `%APPDATA%\MasselGUARD\themes\`. An already-installed theme shows **Reinstall** instead — or **Update** when the repository has a newer version than the one you installed (redownloading confirms first, since it overwrites any local edits).
-- **Update detection** — installed community themes are checked automatically alongside the regular app-update check. When one has an update waiting, a badge appears in **Settings → Appearance** and a click-through banner in **Settings → About**, both jumping straight to Community themes.
+- **Install** downloads a theme into `%APPDATA%\MasselGUARD\themes\`. An already-installed theme shows **Reinstall** instead - or **Update** when the repository has a newer version than the one you installed (redownloading confirms first, since it overwrites any local edits).
+- **Update detection** - installed community themes are checked automatically alongside the regular app-update check. When one has an update waiting, a badge appears in **Settings → Appearance** and a click-through banner in **Settings → About**, both jumping straight to Community themes.
 - The repository URL is configurable in Settings → Advanced (blank uses the default MasselGUARD-themes repository).
 
 ### Live preview
@@ -786,74 +786,74 @@ To return to the theme's own font: toggle **Override font** off.
 
 ## 26. Multiple languages
 
-English, Dutch, German, French, Spanish, Japanese, Italian, Portuguese (Brazil), Russian, Polish, Turkish, Chinese (Simplified). Change in Settings → General — the picker shows a country flag next to each language, and a reminder that holding **Shift** at startup resets to English. Add a language: copy `lang\en.json`, translate, set the `_code`, `_language`, and `_flag` keys, and drop a matching 20×15 `<flag>.png` into `lang\flags\`.
+English, Dutch, German, French, Spanish, Japanese, Italian, Portuguese (Brazil), Russian, Polish, Turkish, Chinese (Simplified). Change in Settings → General - the picker shows a country flag next to each language, and a reminder that holding **Shift** at startup resets to English. Add a language: copy `lang\en.json`, translate, set the `_code`, `_language`, and `_flag` keys, and drop a matching 20×15 `<flag>.png` into `lang\flags\`.
 
 ---
 
 ## 27. Frequently asked questions
 
 **Rules fire twice when switching networks.**
-Fixed — debounce re-fire guard and `ApplyWifiState` duplicate guard prevent double execution.
+Fixed - debounce re-fire guard and `ApplyWifiState` duplicate guard prevent double execution.
 
 **Groups tab in Settings does nothing when clicked.**
-Fixed — the Tunnels tab shows the group management controls.
+Fixed - the Tunnels tab shows the group management controls.
 
 **My tunnel group picker is empty when editing a tunnel.**
-Fixed — the dialog now receives the group list directly from the live config.
+Fixed - the dialog now receives the group list directly from the live config.
 
 **Settings Save shows too many changed fields.**
-Fixed — `_draft` now correctly snapshots the live config on Settings open.
+Fixed - `_draft` now correctly snapshots the live config on Settings open.
 
 **Rules column doesn't update after adding a rule.**
-Fixed — `_vm.RebuildTunnelList()` now called after every rule add/edit/delete.
+Fixed - `_vm.RebuildTunnelList()` now called after every rule add/edit/delete.
 
 **Can I reorder WiFi rules?**
-Yes — drag rows in the WiFi Rules panel on the main window.
+Yes - drag rows in the WiFi Rules panel on the main window.
 
 **Where is the WiFi rules Save button?**
-There isn't one — rules are managed on the main window and each add / edit / delete / enable saves immediately. (The Settings → WiFi page no longer duplicates the rules list; it only holds the automation settings, which save on the Settings Save button.)
+There isn't one - rules are managed on the main window and each add / edit / delete / enable saves immediately. (The Settings → WiFi page no longer duplicates the rules list; it only holds the automation settings, which save on the Settings Save button.)
 
 **Can I drag a tunnel into a different group?**
-Yes — drag the tunnel row and drop it onto the target group tab.
+Yes - drag the tunnel row and drop it onto the target group tab.
 
 **Can I run without a UAC prompt?**
-Yes — enable Start with Windows in Settings → General after installing. Subsequent launches relaunch via the Scheduled Task automatically.
+Yes - enable Start with Windows in Settings → General after installing. Subsequent launches relaunch via the Scheduled Task automatically.
 
 **What does the Hits column show?**
-How many times each WiFi rule has triggered since it was created. Persisted across restarts. You can view and edit it by opening the Edit Rule dialog — the counter appears below the form fields with a **(Re)set counter** button.
+How many times each WiFi rule has triggered since it was created. Persisted across restarts. You can view and edit it by opening the Edit Rule dialog - the counter appears below the form fields with a **(Re)set counter** button.
 
 **How do I exit completely instead of minimizing to tray?**
-Hold **Shift** while clicking the window's X button (or pressing Alt+F4). This performs a clean exit — same as Tray → Exit. Without Shift, the window hides to the tray and the app keeps running.
+Hold **Shift** while clicking the window's X button (or pressing Alt+F4). This performs a clean exit - same as Tray → Exit. Without Shift, the window hides to the tray and the app keeps running.
 
 **Can I hide the activity log?**
-Yes — click `»` in the log header, or use Settings → Appearance → Interface → Show activity log. The `☰` button reappears in the tunnel header to bring it back.
+Yes - click `»` in the log header, or use Settings → Appearance → Interface → Show activity log. The `☰` button reappears in the tunnel header to bring it back.
 
-**Theme changes apply immediately and I can't cancel — how do I preview safely?**
+**Theme changes apply immediately and I can't cancel - how do I preview safely?**
 Use the **▶ Preview** button in Settings → Appearance. It applies the theme for 10 seconds then automatically reverts. Cancel Settings to undo all uncommitted changes.
 
 **Can I use a different font than the theme's?**
-Yes — enable Override font in Settings → Appearance → Font, pick a family and size, and click **▶ Preview** to try it for 10 seconds before saving.
+Yes - enable Override font in Settings → Appearance → Font, pick a family and size, and click **▶ Preview** to try it for 10 seconds before saving.
 
-**The font or theme I chose makes the UI unreadable — how do I recover?**
+**The font or theme I chose makes the UI unreadable - how do I recover?**
 Hold **Shift** while launching MasselGUARD. Before any window opens, the app detects the key and resets both the font override (back to system UI font) and the custom theme (back to Windows system colours, auto mode). A confirmation dialog lists exactly what was cleared. Normal startup continues afterwards with the reset settings.
 
 **The What's New panel shows a "Could not load" message.**
-The panel fetches release notes live from GitHub. Check your internet connection. You can also visit `github.com/masselink/MasselGUARD` or `masselink.net` directly — both links in the error panel are clickable.
+The panel fetches release notes live from GitHub. Check your internet connection. You can also visit `github.com/masselink/MasselGUARD` or `masselink.net` directly - both links in the error panel are clickable.
 
 **How does auto-reconnect work?**
 When MasselGUARD detects that a tunnel dropped unexpectedly, it waits 5 seconds then tries to reconnect. If that fails it retries after 10 s, then 15 s. It gives up after 3 failed attempts. Every step is logged in the activity log.
 
 **Auto-reconnect fired when I intentionally disconnected.**
-This should not happen — MasselGUARD marks all intentional disconnects (user click, WiFi rule, CLI) before stopping the tunnel, and the reconnect logic checks that mark. If you see it happening please report the steps that triggered it.
+This should not happen - MasselGUARD marks all intentional disconnects (user click, WiFi rule, CLI) before stopping the tunnel, and the reconnect logic checks that mark. If you see it happening please report the steps that triggered it.
 
 **The Auto-reconnect toggle is greyed out / missing in the Edit Tunnel dialog.**
-If it is greyed out with *(controlled globally)*, Settings → Tunnels → Auto-reconnect is set to **Always**. If it is missing entirely, the mode is **Off** — enable Per tunnel or Always first.
+If it is greyed out with *(controlled globally)*, Settings → Tunnels → Auto-reconnect is set to **Always**. If it is missing entirely, the mode is **Off** - enable Per tunnel or Always first.
 
 **How does the kill switch work?**
 When enabled, MasselGUARD sets the Windows Firewall default outbound policy to Block and adds explicit Allow rules for the WireGuard tunnel adapter and endpoint. If the tunnel drops, traffic is blocked rather than routing over your regular internet connection.
 
 **My internet stopped working after MasselGUARD crashed.**
-The kill switch firewall rules were not cleaned up. Restart MasselGUARD — it removes stale `MasselGUARD_KS_*` rules and restores the default outbound policy to Allow at startup. Alternatively, open Windows Defender Firewall, remove any rules starting with `MasselGUARD_KS_`, and set the default outbound action back to Allow.
+The kill switch firewall rules were not cleaned up. Restart MasselGUARD - it removes stale `MasselGUARD_KS_*` rules and restores the default outbound policy to Allow at startup. Alternatively, open Windows Defender Firewall, remove any rules starting with `MasselGUARD_KS_`, and set the default outbound action back to Allow.
 
 **The kill switch toggle is greyed out in the tunnel edit dialog.**
 Settings → Tunnels → Kill switch mode is set to **Always**, which forces the kill switch on for all tunnels. Set it to **Off** to re-enable the per-tunnel toggle.
@@ -861,31 +861,31 @@ Settings → Tunnels → Kill switch mode is set to **Always**, which forces the
 **Where do I see bandwidth usage?**
 In the activity log (Extended mode). After each disconnect a grey continuation line shows the session duration and bandwidth: `↳ 2h 14m  ·  ↑ 142 MB  ↓ 1.2 GB`. Switch to Extended in Settings → Advanced → Log level.
 
-**Can I get warned about — or cut off at — data usage?**
-Yes. Edit a tunnel → **Options** → **DATA-USAGE WARNINGS** and set a **daily**, **weekly**, and/or **monthly** threshold in MB (0 = off). When usage for a period crosses its threshold you get a one-time log entry, a tray toast, and the row is highlighted in amber. A cap you set also draws a **usage ring** on the connected tunnel's row (day inner · week middle · month outer, filling 0→360°, amber near the limit and red once over) — hover for the exact breakdown.
+**Can I get warned about - or cut off at - data usage?**
+Yes. Edit a tunnel → **Options** → **DATA-USAGE WARNINGS** and set a **daily**, **weekly**, and/or **monthly** threshold in MB (0 = off). When usage for a period crosses its threshold you get a one-time log entry, a tray toast, and the row is highlighted in amber. A cap you set also draws a **usage ring** on the connected tunnel's row (day inner · week middle · month outer, filling 0→360°, amber near the limit and red once over) - hover for the exact breakdown.
 
 Ticking **Kill at cap** next to a threshold turns the warning into **enforcement**: the tunnel is disconnected the moment that period's usage is reached (with a sticky *Ignore & reconnect* toast and a 🛑 row marker), and connecting over the limit asks first. Trying to reconnect an over-cap tunnel via a rule shows an interactive Connect / Cancel toast. Editing the caps re-arms enforcement. Leave *Kill at cap* off for warning-only behaviour.
 
-The bottom info panel has a **Timeline ⇄ Data usage** switch that charts per-tunnel usage over the selected range, with a red marker where a cap was reached. Usage is drawn from the connection history, so keep **Settings → History → Capture → Connections** on for accurate totals. Estimates are not exact — MasselGUARD isn't responsible for inaccurate reporting or for tunnels being disconnected (or not) as a result.
+The bottom info panel has a **Timeline ⇄ Data usage** switch that charts per-tunnel usage over the selected range, with a red marker where a cap was reached. Usage is drawn from the connection history, so keep **Settings → History → Capture → Connections** on for accurate totals. Estimates are not exact - MasselGUARD isn't responsible for inaccurate reporting or for tunnels being disconnected (or not) as a result.
 
-**A local tunnel won't start — "Tunnel did not come up… Element not found".**
-Most often this is because MasselGUARD is running from a **OneDrive (cloud-synced) folder**. A local tunnel is driven by a Windows service that runs as **LocalSystem**, and LocalSystem cannot read files inside your personal OneDrive folder — so the tunnel can't start. Move MasselGUARD to a normal local folder (e.g. `C:\MasselGUARD` or Program Files) and run it from there. MasselGUARD now warns you at startup if it detects this. (Companion / WireGuard-for-Windows tunnels are unaffected.) Other possible causes: the wireguard-NT driver blocked by antivirus or Secure Boot — check the Windows **Event Log → System** for details.
+**A local tunnel won't start - "Tunnel did not come up… Element not found".**
+Most often this is because MasselGUARD is running from a **OneDrive (cloud-synced) folder**. A local tunnel is driven by a Windows service that runs as **LocalSystem**, and LocalSystem cannot read files inside your personal OneDrive folder - so the tunnel can't start. Move MasselGUARD to a normal local folder (e.g. `C:\MasselGUARD` or Program Files) and run it from there. MasselGUARD now warns you at startup if it detects this. (Companion / WireGuard-for-Windows tunnels are unaffected.) Other possible causes: the wireguard-NT driver blocked by antivirus or Secure Boot - check the Windows **Event Log → System** for details.
 
 **Where's the rings-vs-bars usage setting?**
-**Settings → Appearance** (it moved there from the Tunnels page — it's a display choice for the tunnel list).
+**Settings → Appearance** (it moved there from the Tunnels page - it's a display choice for the tunnel list).
 
 **The import settings dialog showed raw placeholder text instead of a warning.**
-Fixed in v3.3.0 — `SettingsImportVersionWarning` and `SettingsImportVersionNewer` are now present in all five language files.
+Fixed in v3.3.0 - `SettingsImportVersionWarning` and `SettingsImportVersionNewer` are now present in all five language files.
 
 ---
 
 ## 28. Command-line interface (CLI)
 
-MasselGUARD includes a full CLI for scripting and automation. The GUI and CLI share the same WireGuard kernel driver — any change made via CLI is reflected in the GUI within ~1 second.
+MasselGUARD includes a full CLI for scripting and automation. The GUI and CLI share the same WireGuard kernel driver - any change made via CLI is reflected in the GUI within ~1 second.
 
 ### Requirements
 
-Must run as Administrator. When invoked from a non-elevated terminal, Windows will prompt for elevation via UAC and open a new console window. To avoid the prompt, install MasselGUARD and enable **Start with Windows** (Settings → General) — the Scheduled Task runs at `RunLevel=Highest` so no UAC dialog appears.
+Must run as Administrator. When invoked from a non-elevated terminal, Windows will prompt for elevation via UAC and open a new console window. To avoid the prompt, install MasselGUARD and enable **Start with Windows** (Settings → General) - the Scheduled Task runs at `RunLevel=Highest` so no UAC dialog appears.
 
 **Tip:** run PowerShell or cmd.exe as Administrator for inline output without a separate window.
 
@@ -895,15 +895,15 @@ Must run as Administrator. When invoked from a non-elevated terminal, Windows wi
 |---|---|---|
 | `list` | `--list` | List all tunnels and their status |
 | `status` | `--status` | Show active tunnel count and names |
-| `connect <name>` | — | Connect a tunnel by name |
-| `connect --default` | — | Connect the configured default tunnel |
-| `connect --all` | — | Connect all tunnels |
-| `disconnect <name>` | — | Disconnect a tunnel by name |
-| `disconnect-all` | — | Disconnect all active tunnels |
-| `info <name>` | — | Detailed status for one tunnel (type, group, uptime, source) |
-| `log [n]` | — | Last *n* activity log entries (default 20) |
-| `tunnel-history [n]` | — | Connection history with source and traffic (default 20) |
-| `wifi-history [n]` | — | WiFi SSID history with duration and security (default 20) |
+| `connect <name>` | - | Connect a tunnel by name |
+| `connect --default` | - | Connect the configured default tunnel |
+| `connect --all` | - | Connect all tunnels |
+| `disconnect <name>` | - | Disconnect a tunnel by name |
+| `disconnect-all` | - | Disconnect all active tunnels |
+| `info <name>` | - | Detailed status for one tunnel (type, group, uptime, source) |
+| `log [n]` | - | Last *n* activity log entries (default 20) |
+| `tunnel-history [n]` | - | Connection history with source and traffic (default 20) |
+| `wifi-history [n]` | - | WiFi SSID history with duration and security (default 20) |
 | `check-update` | `--check-update` | Live update check against GitHub |
 | `version` | `--version`, `-v` | Show version, build, author and update status |
 | `help` | `--help`, `-h` | Show this command reference |
@@ -913,7 +913,7 @@ Must run as Administrator. When invoked from a non-elevated terminal, Windows wi
 | Flag | Description |
 |---|---|
 | `--json` | Machine-readable JSON output |
-| `--quiet`, `-q` | No output — exit code only (for scripting) |
+| `--quiet`, `-q` | No output - exit code only (for scripting) |
 | `--group <name>` | Scope `list` / `connect --all` / `disconnect-all` to one group |
 | `--active` | Filter `list` to connected tunnels only |
 | `--logtype normal\|extended` | Log detail level for `log` command (default: `normal`) |
@@ -928,7 +928,7 @@ Must run as Administrator. When invoked from a non-elevated terminal, Windows wi
 
 ### About `log [n]`
 
-`log` reads from `%APPDATA%\MasselGUARD\tunnel_history.json` — the **same file** the GUI's Settings → History tab reads. There is no separate CLI log and no duplication.
+`log` reads from `%APPDATA%\MasselGUARD\tunnel_history.json` - the **same file** the GUI's Settings → History tab reads. There is no separate CLI log and no duplication.
 
 The GUI's activity log panel (right side of the main window) is **in-memory only** and is not accessible from the CLI. `log` shows connection history only.
 
@@ -1014,6 +1014,6 @@ switch ($LASTEXITCODE) {
 
 ## License
 
-MasselGUARD is free, open-source software released under the **MIT License** — you may use, copy, modify, and redistribute it. The full text is in the `LICENSE` file in the project root.
+MasselGUARD is free, open-source software released under the **MIT License** - you may use, copy, modify, and redistribute it. The full text is in the `LICENSE` file in the project root.
 
-MasselGUARD bundles the WireGuard native libraries, which remain under their own licenses; see `THIRD-PARTY-NOTICES.md`. **WireGuard** is a registered trademark of Jason A. Donenfeld — MasselGUARD is an independent project, not affiliated with or endorsed by WireGuard LLC.
+MasselGUARD bundles the WireGuard native libraries, which remain under their own licenses; see `THIRD-PARTY-NOTICES.md`. **WireGuard** is a registered trademark of Jason A. Donenfeld - MasselGUARD is an independent project, not affiliated with or endorsed by WireGuard LLC.
