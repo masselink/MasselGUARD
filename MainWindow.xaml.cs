@@ -1410,6 +1410,51 @@ namespace MasselGUARD
         private void DnsPanelRow_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
             => OpenSettings("Dns");
 
+        // ── DNS profile drag-to-reorder ───────────────────────────────────────
+        private DnsProfileRow? _dragDnsRow;
+        private System.Windows.Point _dnsDragStart;
+
+        private void DnsRow_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            _dnsDragStart = e.GetPosition(null);
+            _dragDnsRow   = (e.OriginalSource as FrameworkElement)?.DataContext as DnsProfileRow;
+        }
+
+        private void DnsRow_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (_dragDnsRow == null || e.LeftButton != System.Windows.Input.MouseButtonState.Pressed) return;
+            var delta = e.GetPosition(null) - _dnsDragStart;
+            if (Math.Abs(delta.X) < 4 && Math.Abs(delta.Y) < 4) return;
+            DragDrop.DoDragDrop(DnsProfilesPanelList, _dragDnsRow, DragDropEffects.Move);
+            _dragDnsRow = null;
+        }
+
+        private void DnsRow_Drop(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetData(typeof(DnsProfileRow)) is not DnsProfileRow dragged) return;
+            var target = (e.OriginalSource as FrameworkElement)?.DataContext as DnsProfileRow;
+            if (target == null || target.Id == dragged.Id) return;
+
+            var profiles = ConfigSvc.Config.DnsProfiles;
+            int si = profiles.FindIndex(p => p.Id == dragged.Id);
+            int ti = profiles.FindIndex(p => p.Id == target.Id);
+            if (si < 0 || ti < 0) return;
+
+            var moved = profiles[si];
+            profiles.RemoveAt(si);
+            profiles.Insert(ti, moved);
+
+            // Manual reorder implies the manual order, so clear any active column sort and show it.
+            _dnsSortCol = ""; _dnsSortAsc = true;
+            if (DnsArrowName   != null) DnsArrowName.Text   = "";
+            if (DnsArrowType   != null) DnsArrowType.Text   = "";
+            if (DnsArrowServer != null) DnsArrowServer.Text = "";
+            if (DnsArrowRules  != null) DnsArrowRules.Text  = "";
+
+            ConfigSvc.Save();
+            RebuildDnsPanel();
+        }
+
         /// <summary>Clicking a DNS profile's "Rules #" selects and scrolls to the first WiFi rule that
         /// uses that profile, highlighting it.</summary>
         private void DnsRulesCell_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -6262,8 +6307,8 @@ namespace MasselGUARD
         // Reset star columns to proportional widths so they spread evenly.
         private void ResetTunnelColsToStars()
         {
-            TunColDef0.Width = new GridLength(3,   GridUnitType.Star);
-            TunColDef1.Width = new GridLength(3.2, GridUnitType.Star);
+            TunColDef0.Width = new GridLength(4,   GridUnitType.Star);   // Name - widest
+            TunColDef1.Width = new GridLength(3,   GridUnitType.Star);
             // TunColDef2 stays fixed 50px
             TunColDef3.Width = new GridLength(1.5, GridUnitType.Star);
         }

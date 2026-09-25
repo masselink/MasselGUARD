@@ -87,7 +87,7 @@
   "BtnClearLog": "Clear Log",
   "LogCleared": "Log cleared.",
   "BtnExportLog": "Export Log",
-  "TunnelColName": "Tunnel",
+  "TunnelColName": "WireGuard tunnel",
   "TunnelColStatus": "Status",
   "RuleColSsid": "Network (SSID)",
   "RuleColTunnel": "Tunnel",
@@ -916,5 +916,6 @@
   "DnsProfileV4Primary": "IPv4 primary",
   "DnsProfileV4Secondary": "IPv4 secondary",
   "DnsProfileV6Primary": "IPv6 primary",
-  "DnsProfileV6Secondary": "IPv6 secondary"
+  "DnsProfileV6Secondary": "IPv6 secondary",
+  "DnsColName": "DNS profile name"
 }

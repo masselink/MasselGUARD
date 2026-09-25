@@ -462,8 +462,8 @@
                                           LayoutUpdated="TunnelColGrid_LayoutUpdated"
                                           SizeChanged="TunnelColGrid_SizeChanged">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition x:Name="TunColDef0" Width="3*"   MinWidth="60"/>
-                                            <ColumnDefinition x:Name="TunColDef1" Width="3.2*" MinWidth="60"/>
+                                            <ColumnDefinition x:Name="TunColDef0" Width="4*"   MinWidth="60"/>
+                                            <ColumnDefinition x:Name="TunColDef1" Width="3*"   MinWidth="60"/>
                                             <ColumnDefinition x:Name="TunColDef2" Width="50"   MinWidth="30"/>
                                             <ColumnDefinition x:Name="TunColDef3" Width="1.5*" MinWidth="50"/>
                                         </Grid.ColumnDefinitions>
@@ -498,7 +498,7 @@
                                         <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Left"
                                                       Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
                                                       PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
-                                        <Button Grid.Column="3" Style="{StaticResource SortHeaderBtn}" Click="TunSort_Action" HorizontalAlignment="Center">
+                                        <Button Grid.Column="3" Style="{StaticResource SortHeaderBtn}" Click="TunSort_Action" HorizontalAlignment="Right">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{Binding [TunnelColAction], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
                                                 <TextBlock x:Name="TunArrowAction" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
@@ -688,7 +688,7 @@
                                                                MouseLeftButtonDown="RuleCount_Click"/>
                                                     <!-- Connect / Disconnect button + cap-kill marker -->
                                                     <StackPanel Grid.Column="3" Orientation="Horizontal"
-                                                                HorizontalAlignment="Center"
+                                                                HorizontalAlignment="Right"
                                                                 VerticalAlignment="Center">
                                                         <Button Content="{Binding ButtonLabel}"
                                                                 IsEnabled="{Binding ButtonEnabled}"
@@ -1054,7 +1054,7 @@
                                         </Grid.ColumnDefinitions>
                                         <Button Grid.Column="0" Style="{StaticResource SortHeaderBtn}" Click="DnsSort_Name">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding [DnsProfileName], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
+                                                <TextBlock Text="{Binding [DnsColName], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
                                                 <TextBlock x:Name="DnsArrowName" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
                                             </StackPanel>
                                         </Button>
@@ -1089,7 +1089,7 @@
                                         <TextBlock Grid.Column="4" Text="{Binding [RuleColAction], Source={x:Static local:Lang.Instance}}"
                                                    FontSize="{DynamicResource Theme.FontSize.Tiny}"
                                                    Foreground="{DynamicResource TextMuted}"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                     </Grid>
                                 </Border>
 
@@ -1099,6 +1099,10 @@
                                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                           ScrollViewer.VerticalScrollBarVisibility="Auto"
                                           FontSize="{DynamicResource Theme.FontSize.Small}"
+                                          AllowDrop="True"
+                                          PreviewMouseLeftButtonDown="DnsRow_PreviewMouseDown"
+                                          PreviewMouseMove="DnsRow_PreviewMouseMove"
+                                          Drop="DnsRow_Drop"
                                           SelectionChanged="DnsPanelList_SelectionChanged"
                                           MouseDoubleClick="DnsPanelRow_DoubleClick">
                                     <ListView.ItemContainerStyle>
@@ -1172,7 +1176,7 @@
                                                 <Button Grid.Column="4" Content="{Binding EnableLabel}"
                                                         Click="DnsRowEnable_Click"
                                                         FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="8,2"
-                                                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                        HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <Button.Style>
                                                         <Style TargetType="Button" BasedOn="{StaticResource FlatBtn}">
                                                             <Style.Triggers>

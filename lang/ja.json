@@ -87,7 +87,7 @@
   "BtnClearLog": "ログをクリア",
   "LogCleared": "ログをクリアしました。",
   "BtnExportLog": "ログをエクスポート",
-  "TunnelColName": "トンネル",
+  "TunnelColName": "WireGuard トンネル",
   "TunnelColStatus": "状態",
   "RuleColSsid": "ネットワーク (SSID)",
   "RuleColTunnel": "トンネル",
@@ -916,5 +916,6 @@
   "DnsProfileV4Primary": "IPv4 プライマリ",
   "DnsProfileV4Secondary": "IPv4 セカンダリ",
   "DnsProfileV6Primary": "IPv6 プライマリ",
-  "DnsProfileV6Secondary": "IPv6 セカンダリ"
+  "DnsProfileV6Secondary": "IPv6 セカンダリ",
+  "DnsColName": "DNS プロファイル名"
 }

@@ -87,7 +87,7 @@
   "BtnClearLog": "清除日志",
   "LogCleared": "日志已清除。",
   "BtnExportLog": "导出日志",
-  "TunnelColName": "隧道",
+  "TunnelColName": "WireGuard 隧道",
   "TunnelColStatus": "状态",
   "RuleColSsid": "网络（SSID）",
   "RuleColTunnel": "隧道",
@@ -916,5 +916,6 @@
   "DnsProfileV4Primary": "IPv4 主",
   "DnsProfileV4Secondary": "IPv4 备用",
   "DnsProfileV6Primary": "IPv6 主",
-  "DnsProfileV6Secondary": "IPv6 备用"
+  "DnsProfileV6Secondary": "IPv6 备用",
+  "DnsColName": "DNS 配置文件名称"
 }

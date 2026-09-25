@@ -87,7 +87,7 @@
   "BtnClearLog": "Effacer le journal",
   "LogCleared": "Journal effacé.",
   "BtnExportLog": "Exporter le journal",
-  "TunnelColName": "Tunnel",
+  "TunnelColName": "Tunnel WireGuard",
   "TunnelColStatus": "Statut",
   "RuleColSsid": "Réseau (SSID)",
   "RuleColTunnel": "Tunnel",
@@ -916,5 +916,6 @@
   "DnsProfileV4Primary": "IPv4 primaire",
   "DnsProfileV4Secondary": "IPv4 secondaire",
   "DnsProfileV6Primary": "IPv6 primaire",
-  "DnsProfileV6Secondary": "IPv6 secondaire"
+  "DnsProfileV6Secondary": "IPv6 secondaire",
+  "DnsColName": "Nom du profil DNS"
 }

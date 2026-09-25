@@ -87,7 +87,7 @@
   "BtnClearLog": "Очистить журнал",
   "LogCleared": "Журнал очищен.",
   "BtnExportLog": "Экспорт журнала",
-  "TunnelColName": "Туннель",
+  "TunnelColName": "Туннель WireGuard",
   "TunnelColStatus": "Статус",
   "RuleColSsid": "Сеть (SSID)",
   "RuleColTunnel": "Туннель",
@@ -916,5 +916,6 @@
   "DnsProfileV4Primary": "IPv4 основной",
   "DnsProfileV4Secondary": "IPv4 запасной",
   "DnsProfileV6Primary": "IPv6 основной",
-  "DnsProfileV6Secondary": "IPv6 запасной"
+  "DnsProfileV6Secondary": "IPv6 запасной",
+  "DnsColName": "Имя профиля DNS"
 }

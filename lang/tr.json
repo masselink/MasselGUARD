@@ -87,7 +87,7 @@
   "BtnClearLog": "Günlüğü temizle",
   "LogCleared": "Günlük temizlendi.",
   "BtnExportLog": "Günlüğü dışa aktar",
-  "TunnelColName": "Tünel",
+  "TunnelColName": "WireGuard tüneli",
   "TunnelColStatus": "Durum",
   "RuleColSsid": "Ağ (SSID)",
   "RuleColTunnel": "Tünel",
@@ -916,5 +916,6 @@
   "DnsProfileV4Primary": "IPv4 birincil",
   "DnsProfileV4Secondary": "IPv4 ikincil",
   "DnsProfileV6Primary": "IPv6 birincil",
-  "DnsProfileV6Secondary": "IPv6 ikincil"
+  "DnsProfileV6Secondary": "IPv6 ikincil",
+  "DnsColName": "DNS profili adı"
 }
