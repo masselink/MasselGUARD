@@ -9,10 +9,10 @@ using System.Windows.Media;
 namespace MasselGUARD.Views
 {
     /// <summary>
-    /// Asks for a policy name and which settings to LOCK — grouped by section, each item
+    /// Asks for a policy name and which settings to LOCK - grouped by section, each item
     /// individually checkable, with a section header that selects/clears its items. The exported
     /// <c>.masselguard</c> always contains all settings (for import); the ticked items go under
-    /// <c>Locked.settings</c> and are what a preset enforces. Labels are English (admin tool).
+    /// <c>Locked.settings</c> and are what a preset enforces. Labels are lang keys.
     /// </summary>
     internal sealed class ExportPresetWindow : Window
     {
@@ -22,48 +22,48 @@ namespace MasselGUARD.Views
         // Section label → items (AppConfig property name, label). Property names must match PolicyFields.
         private static readonly (string Section, (string Prop, string Label)[] Items)[] Groups =
         {
-            ("General", new[] {
-                ("Mode", "App mode"),
-                ("Language", "Language"),
-                ("StartWithWindows", "Start with Windows"),
-                ("ConfirmOnClose", "Confirm disconnect on exit"),
+            ("PresetSecGeneral", new[] {
+                ("Mode", "PresetItemMode"),
+                ("Language", "PresetItemLanguage"),
+                ("StartWithWindows", "PresetItemStartWithWindows"),
+                ("ConfirmOnClose", "PresetItemConfirmOnClose"),
             }),
-            ("Automation (WiFi)", new[] {
-                ("ManualMode", "Disable WiFi rules (manual mode)"),
-                ("DefaultAction", "Default action"),
-                ("DefaultTunnel", "Default tunnel"),
-                ("OpenWifiTunnel", "Open-network tunnel"),
-                ("TrustedNetworks", "Trusted networks list"),
-                ("Rules", "WiFi rules"),
+            ("PresetSecAutomation", new[] {
+                ("ManualMode", "PresetItemManualMode"),
+                ("DefaultAction", "PresetItemDefaultAction"),
+                ("DefaultTunnel", "PresetItemDefaultTunnel"),
+                ("OpenWifiTunnel", "PresetItemOpenWifiTunnel"),
+                ("TrustedNetworks", "PresetItemTrustedNetworks"),
+                ("Rules", "PresetItemRules"),
             }),
-            ("Tunnels", new[] {
-                ("AutoReconnectMode", "Auto-reconnect mode"),
-                ("KillSwitchMode", "Kill switch mode"),
-                ("SkipTunnelValidation", "Config validation bypass"),
+            ("WireGuard", new[] {
+                ("AutoReconnectMode", "PresetItemAutoReconnectMode"),
+                ("KillSwitchMode", "PresetItemKillSwitchMode"),
+                ("SkipTunnelValidation", "PresetItemSkipTunnelValidation"),
             }),
-            ("DNS leak", new[] {
-                ("ShowDnsIndicator", "DNS leak indicator"),
-                ("DnsLeakWarnLog", "DNS leak log warning"),
-                ("DnsLeakWarnToast", "DNS leak toast warning"),
+            ("PresetSecDnsLeak", new[] {
+                ("ShowDnsIndicator", "PresetItemShowDnsIndicator"),
+                ("DnsLeakWarnLog", "PresetItemDnsLeakWarnLog"),
+                ("DnsLeakWarnToast", "PresetItemDnsLeakWarnToast"),
             }),
-            ("Notifications", new[] {
-                ("ShowTrayPopupOnSwitch", "Tray notification on switch"),
-                ("NotificationDurationSeconds", "Notification duration"),
+            ("PresetSecNotifications", new[] {
+                ("ShowTrayPopupOnSwitch", "PresetItemShowTrayPopupOnSwitch"),
+                ("NotificationDurationSeconds", "PresetItemNotificationDurationSeconds"),
             }),
-            ("Appearance", new[] {
-                ("ActiveTheme", "Theme"),
-                ("SystemThemeMode", "Light / Dark mode"),
-                ("SharedThemesRepoUrl", "Shared-themes repo URL"),
+            ("PresetSecAppearance", new[] {
+                ("ActiveTheme", "PresetItemActiveTheme"),
+                ("SystemThemeMode", "PresetItemSystemThemeMode"),
+                ("SharedThemesRepoUrl", "PresetItemSharedThemesRepoUrl"),
             }),
-            ("Updates & install", new[] {
-                ("UpdateCheckFrequency", "Update check frequency"),
-                ("WireGuardInstallDirectory", "WireGuard install path"),
+            ("PresetSecUpdates", new[] {
+                ("UpdateCheckFrequency", "PresetItemUpdateCheckFrequency"),
+                ("WireGuardInstallDirectory", "PresetItemWireGuardInstallDirectory"),
             }),
-            ("Display", new[] {
-                ("ShowWifiRulesOnMainWindow", "Show WiFi rules panel"),
-                ("ShowTunnelRulesColumn", "Show rules column"),
-                ("ShowActivityLog", "Show activity log"),
-                ("ShowTimeline", "Show timeline"),
+            ("PresetSecDisplay", new[] {
+                ("ShowWifiRulesOnMainWindow", "PresetItemShowWifiRulesOnMainWindow"),
+                ("ShowTunnelRulesColumn", "PresetItemShowTunnelRulesColumn"),
+                ("ShowActivityLog", "PresetItemShowActivityLog"),
+                ("ShowTimeline", "PresetItemShowTimeline"),
             }),
         };
 
@@ -129,7 +129,7 @@ namespace MasselGUARD.Views
                 var sectionItems = new List<CheckBox>();
                 var header = new CheckBox
                 {
-                    Content    = section,
+                    Content    = section == "WireGuard" ? section : Lang.T(section),
                     FontWeight = FontWeights.SemiBold,
                     Foreground = Res("TextPrimary"),
                     FontFamily = ff, FontSize = 11,
@@ -143,7 +143,7 @@ namespace MasselGUARD.Views
                 {
                     var cb = new CheckBox
                     {
-                        Content    = label,
+                        Content    = Lang.T(label),
                         Tag        = prop,
                         Foreground = Res("TextMuted"),
                         FontFamily = ff, FontSize = 10,

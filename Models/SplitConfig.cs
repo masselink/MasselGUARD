@@ -12,9 +12,9 @@ namespace MasselGUARD.Models
     {
         /// <summary>"off" | "exclude" | "include".</summary>
         public string Mode { get; init; } = "off";
-        /// <summary>Destination CIDRs/IPs (route-based split — 4.0.0).</summary>
+        /// <summary>Destination CIDRs/IPs (route-based split - 4.0.0).</summary>
         public IReadOnlyList<string> Ranges { get; init; } = new List<string>();
-        /// <summary>App paths (per-app split — reserved for the WinDivert backend, inert in 4.0.0).</summary>
+        /// <summary>App paths (per-app split - reserved for the WinDivert backend, inert in 4.0.0).</summary>
         public IReadOnlyList<string> Apps { get; init; } = new List<string>();
 
         /// <summary>True when route-based split should actually rewrite AllowedIPs
@@ -22,7 +22,7 @@ namespace MasselGUARD.Models
         public bool HasRouteSplit =>
             !string.Equals(Mode, "off", System.StringComparison.OrdinalIgnoreCase) && Ranges.Count > 0;
 
-        /// <summary>True when per-app split is configured (WinDivert territory — never true in 4.0.0 UI).</summary>
+        /// <summary>True when per-app split is configured (WinDivert territory - never true in 4.0.0 UI).</summary>
         public bool HasAppSplit => Apps.Count > 0;
 
         /// <summary>Builds a <see cref="SplitConfig"/> from a stored tunnel (null-safe copies).</summary>

@@ -4,8 +4,8 @@
         xmlns:local="clr-namespace:MasselGUARD"
         xmlns:views="clr-namespace:MasselGUARD.Views"
         Title="{Binding [AppTitle], Source={x:Static local:Lang.Instance}}"
-        Height="660" Width="1200"
-        MinHeight="540" MinWidth="980"
+        Height="700" Width="1440"
+        MinHeight="540" MinWidth="1120"
         Background="{DynamicResource WindowBg}"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -32,7 +32,7 @@
                 </Border.Background>
             </Border>
 
-            <Grid>
+            <Grid x:Name="RootContentGrid">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="{DynamicResource Theme.TitleBarHeight}"/>
                     <RowDefinition Height="0"/>
@@ -46,7 +46,8 @@
                 <!-- ── Title bar ──────────────────────────────────────────── -->
                 <Border Grid.Row="0" Background="{DynamicResource Surface}"
                         CornerRadius="0"
-                        MouseLeftButtonDown="TitleBar_MouseDown">
+                        MouseLeftButtonDown="TitleBar_MouseDown"
+                        MouseMove="TitleBar_MouseMove">
                     <Grid>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0">
 
@@ -93,7 +94,7 @@
                         <!-- Window controls: update badge | settings | minimize / maximize / close -->
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                                     VerticalAlignment="Stretch">
-                            <!-- Update available badge — hidden until a newer version is found -->
+                            <!-- Update available badge - hidden until a newer version is found -->
                             <Button x:Name="UpdateAvailableBtn"
                                     FontSize="14" FontWeight="Bold" Padding="10,0"
                                     Style="{StaticResource ChromeBtn}"
@@ -110,6 +111,141 @@
                                        Width="1" Height="16" VerticalAlignment="Center"
                                        Margin="0,0,4,0" Fill="{DynamicResource BorderColor}"
                                        Visibility="Collapsed"/>
+                            <!-- Section show/hide toggles: Tunnels | DNS | Charts -->
+                            <Button x:Name="ToggleTunnelsBtn" Padding="10,0"
+                                    Style="{StaticResource ChromeBtn}" VerticalAlignment="Stretch"
+                                    Click="ToggleTunnelsBtn_Click"
+                                    ToolTip="{Binding [MainTbTunnelsTip], Source={x:Static local:Lang.Instance}}">
+                                <Grid Width="15" Height="15">
+                                    <Viewbox x:Name="IconTunnelsDef">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  Data="M12 2 L20 5 L20 11 C20 16 16.4 19.6 12 21 C7.6 19.6 4 16 4 11 L4 5 Z"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <Viewbox x:Name="IconTunnelsOvr" Visibility="Collapsed">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  Data="{DynamicResource Theme.Icon.Tunnels}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <Path x:Name="ToggleTunnelsSlash" Visibility="Collapsed"
+                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          Data="M2,2 L13,13"/>
+                                </Grid>
+                            </Button>
+                            <Button x:Name="ToggleDnsBtn" Padding="10,0"
+                                    Style="{StaticResource ChromeBtn}" VerticalAlignment="Stretch"
+                                    Click="ToggleDnsBtn_Click"
+                                    ToolTip="{Binding [MainTbDnsTip], Source={x:Static local:Lang.Instance}}">
+                                <Grid Width="15" Height="15">
+                                    <Viewbox x:Name="IconDnsDef">
+                                        <Canvas Width="24" Height="24">
+                                            <Ellipse Width="20" Height="20" Canvas.Left="2" Canvas.Top="2"
+                                                     Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6"/>
+                                            <Ellipse Width="10" Height="20" Canvas.Left="7" Canvas.Top="2"
+                                                     Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6"/>
+                                            <Line X1="2" Y1="12" X2="22" Y2="12"
+                                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6"/>
+                                            <Line X1="4" Y1="6.5" X2="20" Y2="6.5"
+                                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.4"/>
+                                            <Line X1="4" Y1="17.5" X2="20" Y2="17.5"
+                                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.4"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <Viewbox x:Name="IconDnsOvr" Visibility="Collapsed">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  Data="{DynamicResource Theme.Icon.Dns}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <Path x:Name="ToggleDnsSlash" Visibility="Collapsed"
+                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          Data="M2,2 L13,13"/>
+                                </Grid>
+                            </Button>
+                            <Button x:Name="ToggleWifiBtn" Padding="10,0"
+                                    Style="{StaticResource ChromeBtn}" VerticalAlignment="Stretch"
+                                    Click="ToggleWifiBtn_Click"
+                                    ToolTip="{Binding [MainTbWifiTip], Source={x:Static local:Lang.Instance}}">
+                                <Grid Width="15" Height="15">
+                                    <Viewbox x:Name="IconAutomationDef">
+                                        <!-- Automation = solid robot (head with cut-out eyes + mouth) -->
+                                        <Canvas Width="24" Height="24">
+                                            <Ellipse Canvas.Left="10.6" Canvas.Top="1" Width="2.8" Height="2.8"
+                                                     Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                            <Rectangle Canvas.Left="11.2" Canvas.Top="3" Width="1.6" Height="3.4"
+                                                       Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                            <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  Data="F0 M6,6.5 h12 a3,3 0 0 1 3,3 v6.5 a3,3 0 0 1 -3,3 h-12 a3,3 0 0 1 -3,-3 v-6.5 a3,3 0 0 1 3,-3 z M7.9,11 a1.5,1.5 0 1 0 3,0 a1.5,1.5 0 1 0 -3,0 z M13.1,11 a1.5,1.5 0 1 0 3,0 a1.5,1.5 0 1 0 -3,0 z M9,15.1 h6 v1.7 h-6 z"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <Viewbox x:Name="IconAutomationOvr" Visibility="Collapsed">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  Data="{DynamicResource Theme.Icon.Automation}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <Path x:Name="ToggleWifiSlash" Visibility="Collapsed"
+                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          Data="M2,2 L13,13"/>
+                                </Grid>
+                            </Button>
+                            <!-- Activity log toggle sits before Charts (reads more naturally). -->
+                            <Button x:Name="ToggleLogBtn" Padding="10,0"
+                                    Style="{StaticResource ChromeBtn}" VerticalAlignment="Stretch"
+                                    Click="ToggleLogBtn_Click"
+                                    ToolTip="{Binding [MainTbLogTip], Source={x:Static local:Lang.Instance}}">
+                                <Grid Width="15" Height="15">
+                                    <Viewbox x:Name="IconLogDef">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                  Data="M4 6 H20 M4 12 H20 M4 18 H20"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <Viewbox x:Name="IconLogOvr" Visibility="Collapsed">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  Data="{DynamicResource Theme.Icon.Log}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <Path x:Name="ToggleLogSlash" Visibility="Collapsed"
+                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          Data="M2,2 L13,13"/>
+                                </Grid>
+                            </Button>
+                            <Button x:Name="ToggleChartsBtn" Padding="10,0"
+                                    Style="{StaticResource ChromeBtn}" VerticalAlignment="Stretch"
+                                    Click="ToggleChartsBtn_Click"
+                                    ToolTip="{Binding [MainTbChartsTip], Source={x:Static local:Lang.Instance}}">
+                                <Grid Width="15" Height="15">
+                                    <Viewbox x:Name="IconChartsDef">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  Data="M3 13 H7 V21 H3 Z M10 8 H14 V21 H10 Z M17 3 H21 V21 H17 Z"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <Viewbox x:Name="IconChartsOvr" Visibility="Collapsed">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                  Data="{DynamicResource Theme.Icon.Charts}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <Path x:Name="ToggleChartsSlash" Visibility="Collapsed"
+                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          Data="M2,2 L13,13"/>
+                                </Grid>
+                            </Button>
+                            <Rectangle x:Name="ToggleSectionsSep"
+                                       Width="1" Height="16" VerticalAlignment="Center"
+                                       Margin="4,0" Fill="{DynamicResource BorderColor}"/>
+
                             <!-- Settings -->
                             <Button Padding="12,0"
                                     Style="{StaticResource ChromeBtn}"
@@ -124,13 +260,13 @@
                             <!-- Separator -->
                             <Rectangle Width="1" Height="16" VerticalAlignment="Center"
                                        Margin="4,0" Fill="{DynamicResource BorderColor}"/>
-                            <!-- Chrome — crisp vector glyphs (uniform 10×10) instead of text
+                            <!-- Chrome - crisp vector glyphs (uniform 10×10) instead of text
                                  characters, which rendered at inconsistent sizes/baselines. -->
                             <Button Padding="12,0"
                                     Style="{StaticResource ChromeBtn}"
                                     VerticalAlignment="Stretch"
                                     Click="MinimizeBtn_Click"
-                                    ToolTip="Minimize">
+                                    ToolTip="{Binding [TooltipMinimize], Source={x:Static local:Lang.Instance}}">
                                 <Path Width="10" Height="10"
                                       Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
                                       StrokeThickness="1" Data="M0,5 H10"/>
@@ -140,16 +276,28 @@
                                     Style="{StaticResource ChromeBtn}"
                                     VerticalAlignment="Stretch"
                                     Click="MaximizeBtn_Click"
-                                    ToolTip="Maximize">
-                                <Path Width="10" Height="10"
-                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                      StrokeThickness="1" Data="M0.5,0.5 H9.5 V9.5 H0.5 Z"/>
+                                    ToolTip="{Binding [TooltipMaximize], Source={x:Static local:Lang.Instance}}">
+                                <!-- Two vector glyphs; Window_StateChanged toggles their visibility
+                                     (a single square = maximize, overlapping squares = restore).
+                                     Must stay vectors - never replace with text glyphs, which render
+                                     small and off-baseline next to the minimize/close paths. -->
+                                <Grid Width="10" Height="10">
+                                    <Rectangle x:Name="MaxGlyph" Width="10" Height="9"
+                                               Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                               StrokeThickness="1" SnapsToDevicePixels="True"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <Path x:Name="RestoreGlyph" Visibility="Collapsed"
+                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          StrokeThickness="1" SnapsToDevicePixels="True"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          Data="M2,0 H10 V8 H2 Z M0,2 H8 V10 H0 Z"/>
+                                </Grid>
                             </Button>
                             <Button Padding="12,0"
                                     Style="{StaticResource ChromeCloseBtn}"
                                     VerticalAlignment="Stretch"
                                     Click="CloseBtn_Click"
-                                    ToolTip="Close to tray">
+                                    ToolTip="{Binding [TooltipClose], Source={x:Static local:Lang.Instance}}">
                                 <Path Width="10" Height="10"
                                       Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
                                       StrokeThickness="1" Data="M0,0 L10,10 M10,0 L0,10"/>
@@ -158,7 +306,7 @@
                     </Grid>
                 </Border>
 
-                <!-- ── Status bar — removed; row height = 0; elements kept for code compat ── -->
+                <!-- ── Status bar - removed; row height = 0; elements kept for code compat ── -->
                 <Border Grid.Row="1" Visibility="Collapsed">
                     <Grid Margin="16,0">
                         <Grid.ColumnDefinitions>
@@ -175,14 +323,14 @@
                                    Text="{Binding [StatusWifi], Source={x:Static local:Lang.Instance}}"
                                    Foreground="{DynamicResource TextMuted}" FontSize="11" VerticalAlignment="Center"
                                    Visibility="{DynamicResource Theme.ShowStatusWifi}"
-                                   ToolTip="Current WiFi network"
+                                   ToolTip="{Binding [MainWifiTip], Source={x:Static local:Lang.Instance}}"
                                    ToolTipService.InitialShowDelay="800"/>
                         <TextBlock Grid.Column="1" x:Name="WifiLabel"
                                    Text="{Binding [StatusScanning], Source={x:Static local:Lang.Instance}}"
                                    FontSize="11" FontWeight="Bold" Margin="6,0,0,0"
                                    VerticalAlignment="Center"
                                    Visibility="{DynamicResource Theme.ShowStatusWifi}"
-                                   ToolTip="Click to see WiFi rules for this network"
+                                   ToolTip="{Binding [MainWifiRulesTip], Source={x:Static local:Lang.Instance}}"
                                    ToolTipService.InitialShowDelay="800"/>
 
                         <!-- Active tunnel label removed; TunnelLabel kept hidden for code compat -->
@@ -226,16 +374,22 @@
                 </Border>
 
                 <!-- ── Main content ─────────────────────────────────────────── -->
-                <Grid Grid.Row="4" x:Name="MainContentGrid" Margin="14,12,14,8"
-                      Grid.IsSharedSizeScope="True">
+                <!-- No Grid.IsSharedSizeScope: shared-size rows combined with the star sizing here can
+                     trip a WPF bug (IndexOutOfRange in Grid.SetFinalSizeMaxDiscrepancy) on some themes.
+                     Header rows are aligned by matched MinHeight instead. -->
+                <Grid Grid.Row="4" x:Name="MainContentGrid" Margin="14,12,14,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="1.5*"/>
-                        <ColumnDefinition Width="10"/>         <!-- gap — collapses when log hidden -->
-                        <ColumnDefinition Width="*"/>          <!-- log panel — collapses when log hidden -->
+                        <ColumnDefinition Width="10"/>         <!-- gap - collapses when log hidden -->
+                        <ColumnDefinition Width="*"/>          <!-- log panel - collapses when log hidden -->
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" SharedSizeGroup="HeaderRow"/>
-                        <RowDefinition Height="3*" MinHeight="80"/>
+                        <RowDefinition x:Name="TopHeaderRow" Height="Auto" MinHeight="30"/>
+                        <!-- Star rows: each takes a fixed share of the content area regardless of how
+                             much a list/log holds, so a long activity log can never inflate the row
+                             and float the section beside it. Lists/log scroll inside their card.
+                             Capped (ListRowMaxHeight) in ApplyContentGeometry. -->
+                        <RowDefinition x:Name="TunnelsListRow" Height="5*" MinHeight="165"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition x:Name="WifiRulesHeaderRow" Height="Auto"/>
                         <RowDefinition x:Name="WifiRulesPanelRow"  Height="2*" MinHeight="152"/>
@@ -245,19 +399,41 @@
                     <!-- LEFT: Tunnels only -->
 
                         <!-- Header row: TUNNELS label + category tabs (left) | ☰ log-open button (right) -->
-                        <Grid Grid.Column="0" Grid.Row="0" Margin="0,0,0,6" VerticalAlignment="Center">
+                        <Grid Grid.Column="0" Grid.Row="0" x:Name="TunnelsHeaderGrid" Margin="0,0,0,6" VerticalAlignment="Center">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <StackPanel Grid.Column="0"
+                            <StackPanel Grid.Column="0" x:Name="TunnelsHeaderContent"
                                         Orientation="Horizontal"
                                         VerticalAlignment="Center">
+                                <!-- Dim section icon (matches the title-bar toggle glyph) -->
+                                <Viewbox x:Name="IconTunnelsHdrDef" Width="13" Height="13" Margin="0,0,6,0" VerticalAlignment="Center" Opacity="0.7">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Fill="{DynamicResource TextMuted}"
+                                              Data="M12 2 L20 5 L20 11 C20 16 16.4 19.6 12 21 C7.6 19.6 4 16 4 11 L4 5 Z"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <Viewbox x:Name="IconTunnelsHdrOvr" Width="13" Height="13" Margin="0,0,6,0" VerticalAlignment="Center" Opacity="0.7" Visibility="Collapsed">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Fill="{DynamicResource TextMuted}" Data="{DynamicResource Theme.Icon.Tunnels}"/>
+                                    </Canvas>
+                                </Viewbox>
                                 <TextBlock Text="{Binding [SectionTunnels], Source={x:Static local:Lang.Instance}}"
                                            Style="{StaticResource SectionLabel}" Margin="0,0,6,0"
                                            VerticalAlignment="Center"/>
-                                <!-- Tunnel count / hidden-override badge — sits right after the label -->
+                                <!-- Total tunnel count (all tunnels), right after the name -->
+                                <Border CornerRadius="8" Padding="6,1" Margin="0,0,8,0"
+                                        VerticalAlignment="Center" HorizontalAlignment="Left">
+                                    <Border.Background>
+                                        <SolidColorBrush Color="{DynamicResource C.Accent}" Opacity="0.18"/>
+                                    </Border.Background>
+                                    <TextBlock x:Name="TunnelTotalCount" Text="0"
+                                               FontSize="{DynamicResource Theme.FontSize.Tiny}" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Accent}"/>
+                                </Border>
+                                <!-- Tunnel count / hidden-override badge - sits right after the label -->
                                 <Border x:Name="HiddenCountBadge"
                                         Background="{DynamicResource BorderColor}"
                                         CornerRadius="8" Padding="6,1" Margin="0,0,10,0"
@@ -280,20 +456,12 @@
                                 </ScrollViewer>
                             </StackPanel>
 
-                            <!-- ☰ — shown only when the log panel is collapsed -->
-                            <Button x:Name="LogOpenBtn"
-                                    Grid.Column="1"
-                                    Content="☰" FontSize="11" Padding="6,2"
-                                    Style="{StaticResource FlatBtn}"
-                                    Foreground="{DynamicResource TextMuted}"
-                                    Visibility="Collapsed"
-                                    VerticalAlignment="Center"
-                                    Click="LogToggle_Click"
-                                    ToolTip="Show activity log"/>
+                            <!-- (The ☰ log-open button now lives in the WiFi-rules header,
+                                 above where the Activity log appears.) -->
                         </Grid>
 
                         <!-- Tunnel box -->
-                        <Border Grid.Column="0" Grid.Row="1"
+                        <Border Grid.Column="0" Grid.Row="1" x:Name="TunnelBoxBorder"
                                 Background="{DynamicResource CardBg}"
                                 BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
                                 CornerRadius="{DynamicResource Theme.CornerRadius}">
@@ -313,8 +481,8 @@
                                           LayoutUpdated="TunnelColGrid_LayoutUpdated"
                                           SizeChanged="TunnelColGrid_SizeChanged">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition x:Name="TunColDef0" Width="3*"   MinWidth="60"/>
-                                            <ColumnDefinition x:Name="TunColDef1" Width="3.2*" MinWidth="60"/>
+                                            <ColumnDefinition x:Name="TunColDef0" Width="4*"   MinWidth="60"/>
+                                            <ColumnDefinition x:Name="TunColDef1" Width="3*"   MinWidth="60"/>
                                             <ColumnDefinition x:Name="TunColDef2" Width="50"   MinWidth="30"/>
                                             <ColumnDefinition x:Name="TunColDef3" Width="1.5*" MinWidth="50"/>
                                         </Grid.ColumnDefinitions>
@@ -345,11 +513,11 @@
                                                 <TextBlock x:Name="TunArrowRules" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
                                             </StackPanel>
                                         </Button>
-                                        <!-- Drag handle: left edge of Action — resizes Rules vs Action -->
+                                        <!-- Drag handle: left edge of Action - resizes Rules vs Action -->
                                         <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Left"
                                                       Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
                                                       PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
-                                        <Button Grid.Column="3" Style="{StaticResource SortHeaderBtn}" Click="TunSort_Action" HorizontalAlignment="Center">
+                                        <Button Grid.Column="3" Style="{StaticResource SortHeaderBtn}" Click="TunSort_Action" HorizontalAlignment="Right">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{Binding [TunnelColAction], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
                                                 <TextBlock x:Name="TunArrowAction" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
@@ -379,6 +547,9 @@
                                             <Setter Property="MinHeight" Value="{Binding RowMinHeight}"/>
                                             <EventSetter Event="PreviewMouseLeftButtonDown"
                                                          Handler="TunnelItem_MouseDown"/>
+                                            <!-- Right-click menu: default action / open protection / connect on start / QR (ShowTunnelPopup). -->
+                                            <EventSetter Event="PreviewMouseRightButtonUp"
+                                                         Handler="TunnelItem_RightClick"/>
                                             <Style.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter Property="Background" Value="{DynamicResource ListHover}"/>
@@ -392,12 +563,6 @@
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
                                             <Grid Margin="0">
-                                                <Grid.ContextMenu>
-                                                    <ContextMenu>
-                                                        <MenuItem Header="{Binding [MenuShowQr], Source={x:Static local:Lang.Instance}}"
-                                                                  Click="ShowQr_Click"/>
-                                                    </ContextMenu>
-                                                </Grid.ContextMenu>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="4"/>
                                                     <ColumnDefinition Width="*"/>
@@ -434,14 +599,20 @@
                                                                    Foreground="{DynamicResource Accent}"
                                                                    FontSize="{DynamicResource Theme.FontSize.Tiny}"
                                                                    VerticalAlignment="Center"
-                                                                   ToolTip="Default action tunnel"
+                                                                   ToolTip="{Binding [MainDefaultTunnelTip], Source={x:Static local:Lang.Instance}}"
                                                                    Visibility="{Binding DefaultBadgeVis}"/>
                                                         <TextBlock Text=" 🔓"
                                                                    Foreground="{DynamicResource Accent}"
                                                                    FontSize="{DynamicResource Theme.FontSize.Tiny}"
                                                                    VerticalAlignment="Center"
-                                                                   ToolTip="Open network protection tunnel"
+                                                                   ToolTip="{Binding [MainOpenTunnelTip], Source={x:Static local:Lang.Instance}}"
                                                                    Visibility="{Binding OpenBadgeVis}"/>
+                                                        <TextBlock Text=" 🚀"
+                                                                   Foreground="{DynamicResource Accent}"
+                                                                   FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                                   VerticalAlignment="Center"
+                                                                   ToolTip="{Binding [MainConnectOnStartTip], Source={x:Static local:Lang.Instance}}"
+                                                                   Visibility="{Binding ConnectOnStartBadgeVis}"/>
                                                     </StackPanel>
                                                     <!-- Status  ·  DNS leak (left) · usage rings/bars (fill right). Live traffic
                                                          moved to the info-panel header (combined across active tunnels). -->
@@ -456,7 +627,7 @@
                                                         </Grid.ColumnDefinitions>
                                                         <!-- Status dot + text -->
                                                         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                                            <!-- Status dot — colour reflects health/traffic when active. -->
+                                                            <!-- Status dot - colour reflects health/traffic when active. -->
                                                             <TextBlock Text="{Binding StatusDot}"
                                                                        Foreground="{Binding StatusDotColor}"
                                                                        FontSize="{DynamicResource Theme.FontSize}"
@@ -469,7 +640,7 @@
                                                                        VerticalAlignment="Center"
                                                                        MaxWidth="98" TextTrimming="CharacterEllipsis"/>
                                                         </StackPanel>
-                                                        <!-- DNS leak badge — kept its own slot next to the status. -->
+                                                        <!-- DNS leak badge - kept its own slot next to the status. -->
                                                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
                                                                     Visibility="{Binding DnsLeakVisibility}">
                                                             <TextBlock Text="  |  "
@@ -482,7 +653,7 @@
                                                                        VerticalAlignment="Center"
                                                                        ToolTip="{Binding DnsLeakTooltip}"/>
                                                         </StackPanel>
-                                                        <!-- Data-cap usage rings — day · week · month, each drawn only when its cap
+                                                        <!-- Data-cap usage rings - day · week · month, each drawn only when its cap
                                                              is set (d/w/m centre glyph). Pinned in its own right-hand Grid cell with a
                                                              fixed left gap, so the growing uptime text never shifts it. Hover = breakdown. -->
                                                         <views:CapRings Grid.Column="2"
@@ -497,10 +668,13 @@
                                                                         DaySet="{Binding DayCapSet}"
                                                                         WeekSet="{Binding WeekCapSet}"
                                                                         MonthSet="{Binding MonthCapSet}"
+                                                                        DayHistory="{Binding DayIsHistory}"
+                                                                        WeekHistory="{Binding WeekIsHistory}"
+                                                                        MonthHistory="{Binding MonthIsHistory}"
                                                                         ToolTip="{Binding CapRingsTooltip}"
                                                                         ToolTipService.InitialShowDelay="0"
                                                                         ToolTipService.BetweenShowDelay="0"/>
-                                                        <!-- Bars variant — same data, taller layout; shown when CapIndicatorStyle = bars. -->
+                                                        <!-- Bars variant - same data, taller layout; shown when CapIndicatorStyle = bars. -->
                                                         <views:CapBars Grid.Column="2"
                                                                        Margin="14,0,2,0"
                                                                        HorizontalAlignment="Stretch"
@@ -514,6 +688,9 @@
                                                                        DaySet="{Binding DayCapSet}"
                                                                        WeekSet="{Binding WeekCapSet}"
                                                                        MonthSet="{Binding MonthCapSet}"
+                                                                       DayHistory="{Binding DayIsHistory}"
+                                                                       WeekHistory="{Binding WeekIsHistory}"
+                                                                       MonthHistory="{Binding MonthIsHistory}"
                                                                        ToolTip="{Binding CapRingsTooltip}"
                                                                        ToolTipService.InitialShowDelay="0"
                                                                        ToolTipService.BetweenShowDelay="0"/>
@@ -533,7 +710,7 @@
                                                                MouseLeftButtonDown="RuleCount_Click"/>
                                                     <!-- Connect / Disconnect button + cap-kill marker -->
                                                     <StackPanel Grid.Column="3" Orientation="Horizontal"
-                                                                HorizontalAlignment="Center"
+                                                                HorizontalAlignment="Right"
                                                                 VerticalAlignment="Center">
                                                         <Button Content="{Binding ButtonLabel}"
                                                                 IsEnabled="{Binding ButtonEnabled}"
@@ -560,7 +737,7 @@
                         </Border>
 
                         <!-- Tunnel management buttons -->
-                        <StackPanel Grid.Column="0" Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
+                        <StackPanel Grid.Column="0" Grid.Row="2" x:Name="TunnelButtonsPanel" Orientation="Horizontal" Margin="0,6,0,0">
                             <Button Content="{Binding [BtnAddTunnel], Source={x:Static local:Lang.Instance}}"
                                     x:Name="AddTunnelBtn"
                                     Style="{StaticResource SuccessBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
@@ -589,25 +766,42 @@
                                     Click="DeleteTunnel_Click"/>
                         </StackPanel>
 
-                        <!-- WIFI RULES section — row 3 header, row 4 content -->
-                        <StackPanel Grid.Column="0" Grid.Row="3"
-                                    x:Name="WifiRulesHeader"
-                                    Orientation="Horizontal"
-                                    Margin="0,12,0,6"
-                                    VerticalAlignment="Center">
-                            <TextBlock Text="{Binding [SectionWifiRules], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SectionLabel}" Margin="0,0,6,0"
-                                       VerticalAlignment="Center"/>
-                            <Border CornerRadius="8" Padding="6,1"
-                                    VerticalAlignment="Center" HorizontalAlignment="Left">
-                                <Border.Background>
-                                    <SolidColorBrush Color="{DynamicResource C.Accent}" Opacity="0.18"/>
-                                </Border.Background>
-                                <TextBlock x:Name="WifiRuleCountLabel"
-                                           FontSize="{DynamicResource Theme.FontSize.Tiny}" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource Accent}" Text="0"/>
-                            </Border>
-                        </StackPanel>
+                        <!-- WIFI RULES section - row 3 header, row 4 content.
+                             (The activity log is shown/hidden from the title-bar toggle only -
+                             no in-panel ☰ re-open button here anymore.) -->
+                        <Grid Grid.Column="0" Grid.Row="3"
+                              x:Name="WifiRulesHeader"
+                              Margin="0,12,0,6" MinHeight="24"
+                              VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- Dim section icon (matches the title-bar Automation robot glyph) -->
+                                <Viewbox x:Name="IconAutomationHdrDef" Width="13" Height="13" Margin="0,0,6,0" VerticalAlignment="Center" Opacity="0.7">
+                                    <Canvas Width="24" Height="24">
+                                        <Ellipse Canvas.Left="10.6" Canvas.Top="1" Width="2.8" Height="2.8" Fill="{DynamicResource TextMuted}"/>
+                                        <Rectangle Canvas.Left="11.2" Canvas.Top="3" Width="1.6" Height="3.4" Fill="{DynamicResource TextMuted}"/>
+                                        <Path Fill="{DynamicResource TextMuted}"
+                                              Data="F0 M6,6.5 h12 a3,3 0 0 1 3,3 v6.5 a3,3 0 0 1 -3,3 h-12 a3,3 0 0 1 -3,-3 v-6.5 a3,3 0 0 1 3,-3 z M7.9,11 a1.5,1.5 0 1 0 3,0 a1.5,1.5 0 1 0 -3,0 z M13.1,11 a1.5,1.5 0 1 0 3,0 a1.5,1.5 0 1 0 -3,0 z M9,15.1 h6 v1.7 h-6 z"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <Viewbox x:Name="IconAutomationHdrOvr" Width="13" Height="13" Margin="0,0,6,0" VerticalAlignment="Center" Opacity="0.7" Visibility="Collapsed">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Fill="{DynamicResource TextMuted}" Data="{DynamicResource Theme.Icon.Automation}"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock Text="{Binding [SectionWifiRules], Source={x:Static local:Lang.Instance}}"
+                                           Style="{StaticResource SectionLabel}" Margin="0,0,6,0"
+                                           VerticalAlignment="Center"/>
+                                <Border CornerRadius="8" Padding="6,1"
+                                        VerticalAlignment="Center" HorizontalAlignment="Left">
+                                    <Border.Background>
+                                        <SolidColorBrush Color="{DynamicResource C.Accent}" Opacity="0.18"/>
+                                    </Border.Background>
+                                    <TextBlock x:Name="WifiRuleCountLabel"
+                                               FontSize="{DynamicResource Theme.FontSize.Tiny}" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource Accent}" Text="0"/>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
 
                         <Border Grid.Column="0" Grid.Row="4"
                                 x:Name="WifiRulesPanel"
@@ -635,6 +829,7 @@
                                             <ColumnDefinition x:Name="WifColDef2" Width="1.5*" MinWidth="50"/>
                                             <ColumnDefinition x:Name="WifColDef3" Width="40"   MinWidth="30"/>
                                             <ColumnDefinition x:Name="WifColDef4" Width="2*"   MinWidth="50"/>
+                                            <ColumnDefinition x:Name="WifColDef5" Width="2*"   MinWidth="50"/>
                                         </Grid.ColumnDefinitions>
                                         <Button Grid.Column="0" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Name">
                                             <StackPanel Orientation="Horizontal">
@@ -669,14 +864,24 @@
                                                 <TextBlock x:Name="RuleArrowCount" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
                                             </StackPanel>
                                         </Button>
-                                        <!-- Drag handle: left edge of Tunnel — resizes Count vs Tunnel -->
-                                        <GridSplitter Grid.Column="4" Width="5" HorizontalAlignment="Left"
+                                        <!-- Drag handle: left edge of Tunnel - resizes Count vs Tunnel -->
+                                        <GridSplitter x:Name="WifTunnelSplitter" Grid.Column="4" Width="5" HorizontalAlignment="Left"
                                                       Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
                                                       PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
-                                        <Button Grid.Column="4" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Tunnel">
+                                        <Button x:Name="WifTunnelHeaderBtn" Grid.Column="4" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Tunnel">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding [RuleColTunnel], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
+                                                <TextBlock Text="{Binding [TunnelColName], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
                                                 <TextBlock x:Name="RuleArrowTunnel" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <!-- Drag handle: left edge of DNS - resizes Tunnel vs DNS -->
+                                        <GridSplitter x:Name="WifDnsSplitter" Grid.Column="5" Width="5" HorizontalAlignment="Left"
+                                                      Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
+                                                      PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
+                                        <Button x:Name="WifDnsHeaderBtn" Grid.Column="5" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Dns">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [SettingsFeatureDnsLabel], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
+                                                <TextBlock x:Name="RuleArrowDns" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
                                             </StackPanel>
                                         </Button>
                                     </Grid>
@@ -690,6 +895,8 @@
                                           AllowDrop="True"
                                           PreviewMouseLeftButtonDown="WifiRule_PreviewMouseDown"
                                           PreviewMouseMove="WifiRule_PreviewMouseMove"
+                                          DragOver="WifiRule_DragOver"
+                                          DragLeave="WifiRule_DragLeave"
                                           Drop="WifiRule_Drop"
                                           SelectionChanged="WifiRulesListView_SelectionChanged">
                                     <ListView.ItemContainerStyle>
@@ -720,7 +927,8 @@
                                                         <ColumnDefinition Width="{Binding Data.WifCol1W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="50"/>
                                                         <ColumnDefinition Width="{Binding Data.WifCol2W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="50"/>
                                                         <ColumnDefinition Width="{Binding Data.WifCol3W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="30"/>
-                                                        <ColumnDefinition Width="{Binding Data.WifCol4W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="50"/>
+                                                        <ColumnDefinition Width="{Binding Data.WifCol4W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="0"/>
+                                                        <ColumnDefinition Width="{Binding Data.WifCol5W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="0"/>
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                                                         <TextBlock Text="{Binding Rule.DisabledIcon}"
@@ -750,13 +958,31 @@
                                                                FontSize="{DynamicResource Theme.FontSize.Small}"
                                                                HorizontalAlignment="Center"
                                                                VerticalAlignment="Center"/>
-                                                    <TextBlock Grid.Column="4"
-                                                               Text="{Binding TunnelName}"
-                                                               Foreground="{Binding TunnelFg}"
-                                                               FontWeight="{Binding TunnelFontWeight}"
-                                                               FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                               VerticalAlignment="Center"
-                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <!-- Tunnel target (🔒) -->
+                                                    <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center"
+                                                                Visibility="{Binding TunnelVisibility}">
+                                                        <TextBlock Text="🔒" FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                                   Foreground="{Binding TunnelFg}"
+                                                                   VerticalAlignment="Center" Margin="0,0,3,0"/>
+                                                        <TextBlock Text="{Binding TunnelName}"
+                                                                   Foreground="{Binding TunnelFg}"
+                                                                   FontWeight="{Binding TunnelFontWeight}"
+                                                                   FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+                                                    <!-- DNS profile target (🌐) -->
+                                                    <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center"
+                                                                Visibility="{Binding DnsVisibility}">
+                                                        <TextBlock Text="🌐" FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                                   Foreground="{DynamicResource TextMuted}"
+                                                                   VerticalAlignment="Center" Margin="0,0,3,0"/>
+                                                        <TextBlock Text="{Binding DnsProfileName}"
+                                                                   Foreground="{DynamicResource TextMuted}"
+                                                                   FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
@@ -765,7 +991,7 @@
                             </Grid>
                         </Border>
 
-                        <!-- WiFi Rules edit buttons — outside the box, same level as tunnel buttons -->
+                        <!-- WiFi Rules edit buttons - outside the box, same level as tunnel buttons -->
                         <StackPanel Grid.Column="0" Grid.Row="5"
                                     Orientation="Horizontal" Margin="0,6,0,0"
                                     x:Name="WifiRuleButtonsPanel">
@@ -790,29 +1016,296 @@
                                     Click="WifiRuleToggle_Click"/>
                         </StackPanel>
 
-                    <!-- RIGHT: Activity Log — self-contained, spans all left rows -->
-                        <Grid Grid.Column="2" Grid.Row="0" Grid.RowSpan="6" x:Name="LogPanelGrid">
+                    <!-- RIGHT: Activity Log - self-contained, spans all left rows -->
+                        <!-- ══ RIGHT COLUMN ══ DNS profiles (rows 0-2, aligned row-for-row with the
+                             Tunnels section) + Activity log (rows 3-5, aligned with the WiFi rules). -->
+
+                        <!-- DNS PROFILES header - aligns with the TUNNELS header row (no group tabs) -->
+                        <StackPanel Grid.Column="2" Grid.Row="0" x:Name="DnsHeaderPanel"
+                                    Orientation="Horizontal" Margin="0,0,0,6" VerticalAlignment="Center">
+                            <!-- Dim section icon (matches the title-bar DNS glyph) -->
+                            <Viewbox x:Name="IconDnsHdrDef" Width="13" Height="13" Margin="0,0,6,0" VerticalAlignment="Center" Opacity="0.7">
+                                <Canvas Width="24" Height="24">
+                                    <Ellipse Width="20" Height="20" Canvas.Left="2" Canvas.Top="2"
+                                             Stroke="{DynamicResource TextMuted}" StrokeThickness="1.6"/>
+                                    <Ellipse Width="10" Height="20" Canvas.Left="7" Canvas.Top="2"
+                                             Stroke="{DynamicResource TextMuted}" StrokeThickness="1.6"/>
+                                    <Line X1="2" Y1="12" X2="22" Y2="12" Stroke="{DynamicResource TextMuted}" StrokeThickness="1.6"/>
+                                    <Line X1="4" Y1="6.5" X2="20" Y2="6.5" Stroke="{DynamicResource TextMuted}" StrokeThickness="1.4"/>
+                                    <Line X1="4" Y1="17.5" X2="20" Y2="17.5" Stroke="{DynamicResource TextMuted}" StrokeThickness="1.4"/>
+                                </Canvas>
+                            </Viewbox>
+                            <Viewbox x:Name="IconDnsHdrOvr" Width="13" Height="13" Margin="0,0,6,0" VerticalAlignment="Center" Opacity="0.7" Visibility="Collapsed">
+                                <Canvas Width="24" Height="24">
+                                    <Path Fill="{DynamicResource TextMuted}" Data="{DynamicResource Theme.Icon.Dns}"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock Text="{Binding [SectionDnsProfiles], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SectionLabel}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <Border CornerRadius="8" Padding="6,1" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                <Border.Background>
+                                    <SolidColorBrush Color="{DynamicResource C.Accent}" Opacity="0.18"/>
+                                </Border.Background>
+                                <TextBlock x:Name="DnsPanelCount" Text="0"
+                                           FontSize="{DynamicResource Theme.FontSize.Tiny}" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Accent}"/>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- DNS PROFILES list - aligns with the tunnel list row; same header/list
+                             styling as Tunnels & WiFi rules (draggable + sortable columns). -->
+                        <Border Grid.Column="2" Grid.Row="1" x:Name="DnsPanelBox"
+                                Background="{DynamicResource CardBg}"
+                                BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
+                                CornerRadius="{DynamicResource Theme.CornerRadius}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Column header bar -->
+                                <Border Grid.Row="0"
+                                        Background="{DynamicResource Surface}"
+                                        BorderBrush="{DynamicResource BorderColor}"
+                                        BorderThickness="0,0,0,1"
+                                        CornerRadius="{DynamicResource Theme.CornerRadiusTop}">
+                                    <Grid x:Name="DnsColGrid" Margin="8,5"
+                                          LayoutUpdated="DnsColGrid_LayoutUpdated"
+                                          SizeChanged="DnsColGrid_SizeChanged">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition x:Name="DnsColDef0" Width="2.4*" MinWidth="60"/>
+                                            <ColumnDefinition x:Name="DnsColDef1" Width="70"   MinWidth="50"/>
+                                            <ColumnDefinition x:Name="DnsColDef2" Width="0"    MinWidth="0"/>
+                                            <ColumnDefinition x:Name="DnsColDef3" Width="52"   MinWidth="40"/>
+                                            <ColumnDefinition x:Name="DnsColDef4" Width="76"   MinWidth="60"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Style="{StaticResource SortHeaderBtn}" Click="DnsSort_Name">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [DnsColName], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
+                                                <TextBlock x:Name="DnsArrowName" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <GridSplitter Grid.Column="0" Width="5" HorizontalAlignment="Right"
+                                                      Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
+                                                      PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
+                                        <Button Grid.Column="1" Style="{StaticResource SortHeaderBtn}" Click="DnsSort_Type">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [DnsColType], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
+                                                <TextBlock x:Name="DnsArrowType" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Right" Visibility="Collapsed"
+                                                      Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
+                                                      PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
+                                        <!-- Server column removed (pinned to zero width) -->
+                                        <Button Grid.Column="2" Style="{StaticResource SortHeaderBtn}" Click="DnsSort_Server" Visibility="Collapsed">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [DnsColServer], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
+                                                <TextBlock x:Name="DnsArrowServer" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <GridSplitter Grid.Column="2" Width="5" HorizontalAlignment="Right" Visibility="Collapsed"
+                                                      Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
+                                                      PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
+                                        <Button Grid.Column="3" Style="{StaticResource SortHeaderBtn}" Click="DnsSort_Rules" HorizontalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [DnsColRules], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
+                                                <TextBlock x:Name="DnsArrowRules" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <TextBlock Grid.Column="4" Text="{Binding [RuleColAction], Source={x:Static local:Lang.Instance}}"
+                                                   FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                   Foreground="{DynamicResource TextMuted}"
+                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Profile rows -->
+                                <ListView Grid.Row="1" x:Name="DnsProfilesPanelList"
+                                          Background="Transparent" BorderThickness="0"
+                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                          FontSize="{DynamicResource Theme.FontSize.Small}"
+                                          AllowDrop="True"
+                                          PreviewMouseLeftButtonDown="DnsRow_PreviewMouseDown"
+                                          PreviewMouseMove="DnsRow_PreviewMouseMove"
+                                          DragOver="DnsRow_DragOver"
+                                          DragLeave="DnsRow_DragLeave"
+                                          Drop="DnsRow_Drop"
+                                          SelectionChanged="DnsPanelList_SelectionChanged"
+                                          MouseDoubleClick="DnsPanelRow_DoubleClick">
+                                    <ListView.ItemContainerStyle>
+                                        <Style TargetType="ListViewItem">
+                                            <Setter Property="Background"                 Value="Transparent"/>
+                                            <Setter Property="BorderThickness"            Value="0"/>
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                            <Setter Property="Padding"                    Value="0"/>
+                                            <Setter Property="Margin"                     Value="0,0,0,1"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource ListHover}"/>
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource ListSelected}"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ListView.ItemContainerStyle>
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="8,3">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="{Binding Data.DnsCol0W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="60"/>
+                                                    <ColumnDefinition Width="{Binding Data.DnsCol1W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="50"/>
+                                                    <ColumnDefinition Width="{Binding Data.DnsCol2W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="0"/>
+                                                    <ColumnDefinition Width="{Binding Data.DnsCol3W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="40"/>
+                                                    <ColumnDefinition Width="{Binding Data.DnsCol4W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="60"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="●" Foreground="{DynamicResource Success}"
+                                                               FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                               VerticalAlignment="Center" Margin="0,0,4,0"
+                                                               Visibility="{Binding EnabledDot}"/>
+                                                    <TextBlock Text="{Binding Name}"
+                                                               Foreground="{DynamicResource TextPrimary}"
+                                                               FontSize="{DynamicResource Theme.FontSize}"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" Text="{Binding Type}"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Grid.Column="2" Text="{Binding Server}" Visibility="Collapsed"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Grid.Column="3" Text="{Binding Rules}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                           MouseLeftButtonUp="DnsRulesCell_Click"
+                                                           ToolTip="{Binding [DnsRulesClickTip], Source={x:Static local:Lang.Instance}}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Cursor" Value="Hand"/>
+                                                            <Setter Property="Foreground" Value="{DynamicResource Accent}"/>
+                                                            <Setter Property="TextDecorations" Value="Underline"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Rules}" Value="0">
+                                                                    <Setter Property="Cursor" Value="Arrow"/>
+                                                                    <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+                                                                    <Setter Property="TextDecorations" Value="{x:Null}"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <Button Grid.Column="4" Content="{Binding EnableLabel}"
+                                                        Click="DnsRowEnable_Click"
+                                                        FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="8,2"
+                                                        HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource FlatBtn}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Enabled}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource Success}"/>
+                                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </Grid>
+                        </Border>
+
+                        <!-- DNS PROFILES buttons - aligns with the tunnel management buttons row.
+                             Enable/Disable is one state-toggling button; the less-used actions
+                             (presets / import / export) live under the More… dropdown. -->
+                        <StackPanel Grid.Column="2" Grid.Row="2" x:Name="DnsButtonsPanel"
+                                    Orientation="Horizontal" Margin="0,6,0,0">
+                            <Button x:Name="DnsPanelRevertBtn"
+                                    Content="{Binding [BtnDnsRevertDefault], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Click="DnsPanelRevertDefault_Click"
+                                    ToolTip="{Binding [BtnDnsRevertDefaultTip], Source={x:Static local:Lang.Instance}}"/>
+                            <Border Width="1" Margin="8,2" Background="{DynamicResource BorderColor}"/>
+                            <Button x:Name="DnsPanelAddBtn"
+                                    Content="{Binding [BtnDnsAddProfile], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource SuccessBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Click="DnsPanelAdd_Click"/>
+                            <Button x:Name="DnsPanelEditBtn"
+                                    Content="{Binding [BtnDnsEditProfile], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Margin="6,0,0,0" IsEnabled="False" Click="DnsPanelEdit_Click"/>
+                            <Button x:Name="DnsPanelDeleteBtn"
+                                    Content="{Binding [BtnDnsRemoveProfile], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource DangerBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Margin="6,0,0,0" IsEnabled="False" Click="DnsPanelDelete_Click"/>
+                            <Button x:Name="DnsPanelMoreBtn"
+                                    Content="{Binding [BtnDnsMore], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Margin="6,0,0,0" Click="DnsPanelMore_Click">
+                                <Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="{Binding [BtnDnsAddPresets], Source={x:Static local:Lang.Instance}}"
+                                                  Click="DnsPanelPresets_Click"/>
+                                        <MenuItem Header="{Binding [BtnDnsImport], Source={x:Static local:Lang.Instance}}"
+                                                  Click="DnsPanelImport_Click"/>
+                                        <MenuItem Header="{Binding [BtnDnsExport], Source={x:Static local:Lang.Instance}}"
+                                                  Click="DnsPanelExport_Click"/>
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- ACTIVITY LOG - rows 3-5, aligned with the WiFi rules section -->
+                        <Grid Grid.Column="2" Grid.Row="3" Grid.RowSpan="3" x:Name="LogPanelGrid">
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" SharedSizeGroup="HeaderRow"/>
+                                <!-- Header size + margin are set in ApplyContentGeometry: shared with the
+                                     top header row when the log spans the whole column (one top section),
+                                     or matched to the WiFi-rules header when both top sections are on. -->
+                                <RowDefinition x:Name="LogHeaderRowDef" Height="Auto"/>
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <!-- ACTIVITY LOG header -->
-                            <Grid Grid.Row="0" Margin="0,0,0,6" MinHeight="24">
+                            <!-- Header: the activity log is shown/hidden solely from the title-bar
+                                 toggle now - no in-panel collapse (») button. -->
+                            <Grid x:Name="LogHeaderGrid" Grid.Row="0" Margin="0,0,0,6" MinHeight="24">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0"
-                                           Text="{Binding [ActivityLogHeader], Source={x:Static local:Lang.Instance}}"
-                                           Style="{StaticResource SectionLabel}" Margin="0"
-                                           VerticalAlignment="Center"/>
+                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <!-- Dim section icon (matches the title-bar Activity-log glyph) -->
+                                    <Viewbox x:Name="IconLogHdrDef" Width="13" Height="13" Margin="0,0,6,0" VerticalAlignment="Center" Opacity="0.7">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Stroke="{DynamicResource TextMuted}" StrokeThickness="1.8"
+                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                  Data="M4 6 H20 M4 12 H20 M4 18 H20"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <Viewbox x:Name="IconLogHdrOvr" Width="13" Height="13" Margin="0,0,6,0" VerticalAlignment="Center" Opacity="0.7" Visibility="Collapsed">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Fill="{DynamicResource TextMuted}" Data="{DynamicResource Theme.Icon.Log}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock Text="{Binding [ActivityLogHeader], Source={x:Static local:Lang.Instance}}"
+                                               Style="{StaticResource SectionLabel}" Margin="0,0,6,0"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
                                 <Border Grid.Column="1"
-                                        CornerRadius="8" Padding="6,1" Margin="6,0,0,0"
-                                        VerticalAlignment="Center">
+                                        CornerRadius="8" Padding="6,1"
+                                        VerticalAlignment="Center" HorizontalAlignment="Left">
                                     <Border.Background>
                                         <SolidColorBrush Color="{DynamicResource C.Accent}" Opacity="0.18"/>
                                     </Border.Background>
@@ -820,14 +1313,6 @@
                                                FontSize="{DynamicResource Theme.FontSize.Tiny}" FontWeight="SemiBold"
                                                Foreground="{DynamicResource Accent}" Text="0"/>
                                 </Border>
-                                <!-- Collapse button — collapses with the log panel -->
-                                <Button Grid.Column="3"
-                                        Content="»" FontSize="22" Padding="4,0"
-                                        Style="{StaticResource FlatBtn}"
-                                        Foreground="{DynamicResource TextMuted}"
-                                        VerticalAlignment="Center"
-                                        Click="LogToggle_Click"
-                                        ToolTip="Hide activity log"/>
                             </Grid>
 
                             <!-- Log content -->
@@ -849,7 +1334,8 @@
                                             CornerRadius="{DynamicResource Theme.CornerRadiusTop}">
                                         <Grid Margin="8,5">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="62"/>
+                                                <!-- Width set from LogTable.TimeWidth in RebuildLog so events align under "Event" -->
+                                                <ColumnDefinition x:Name="LogTimeHeaderCol" Width="70"/>
                                                 <ColumnDefinition Width="*"/>
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0"
@@ -862,7 +1348,7 @@
                                     </Border>
 
                                     <!-- Log entries -->
-                                    <RichTextBox Grid.Row="1" x:Name="LogBox"
+                                    <RichTextBox Grid.Row="1" x:Name="LogBox" IsUndoEnabled="False"
                                                  Background="Transparent"
                                                  Foreground="{DynamicResource TextMuted}"
                                                  FontFamily="{DynamicResource Theme.FontFamily}"
@@ -885,10 +1371,34 @@
                                 <Button Content="{Binding [BtnExportLog], Source={x:Static local:Lang.Instance}}"
                                         Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
                                         Click="ExportLog_Click"/>
+                                <Button Content="{Binding [BtnExpandLog], Source={x:Static local:Lang.Instance}}"
+                                        Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                        Margin="6,0,0,0" HorizontalAlignment="Right"
+                                        ToolTip="{Binding [MainLogExpandTip], Source={x:Static local:Lang.Instance}}"
+                                        Click="ExpandLog_Click"/>
                             </StackPanel>
                         </Grid>
 
                 </Grid>
+
+                <!-- Empty state: shown when every section is hidden/disabled (see ApplyContentGeometry). -->
+                <StackPanel Grid.Row="4" x:Name="EmptyStateOverlay" Visibility="Collapsed"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440" Margin="24">
+                    <Viewbox Width="48" Height="52" HorizontalAlignment="Center" Margin="0,0,0,14">
+                        <Canvas Width="24" Height="24">
+                            <Path Fill="{DynamicResource CardBg}" Stroke="{DynamicResource BorderColor}" StrokeThickness="1.2"
+                                  Data="M12,1 L22,5 L22,13 C22,18.5 17.5,22.5 12,24 C6.5,22.5 2,18.5 2,13 L2,5 Z"/>
+                            <Polyline Points="7,9 12,15 17,9" Stroke="{DynamicResource ShieldChevronBrush}" StrokeThickness="2.2"
+                                      StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="Transparent"/>
+                        </Canvas>
+                    </Viewbox>
+                    <TextBlock Text="MasselGUARD" FontFamily="{DynamicResource Theme.HeaderFontFamily}"
+                               FontSize="20" FontWeight="Bold" Foreground="{DynamicResource Accent}"
+                               HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                    <TextBlock Text="{Binding [MainEmptyStateBody], Source={x:Static local:Lang.Instance}}"
+                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12"
+                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" TextAlignment="Center"/>
+                </StackPanel>
 
                 <!-- ── Timeline (Connection History) ─────────────────────── -->
                 <Border Grid.Row="5" x:Name="InfoSectionBorder"
@@ -898,11 +1408,11 @@
                     <Grid Margin="14,6,14,6">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/> <!-- chart card with TIMELINE header -->
-                            <RowDefinition Height="5"/>    <!-- gap -->
-                            <RowDefinition Height="18"/>   <!-- legend -->
+                            <RowDefinition x:Name="ChartGapRowDef"  Height="5"/>    <!-- gap (collapses to 0 when no pane shown) -->
+                            <RowDefinition x:Name="LegendRowDef"    Height="18"/>   <!-- legend (collapses to 0 when no pane shown) -->
                         </Grid.RowDefinitions>
 
-                        <!-- Chart card — TIMELINE header bar + canvases -->
+                        <!-- Chart card - TIMELINE header bar + canvases -->
                         <Border Grid.Row="0"
                                 Background="{DynamicResource CardBg}"
                                 BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
@@ -913,34 +1423,57 @@
                                     <RowDefinition Height="Auto"/> <!-- chart canvases -->
                                 </Grid.RowDefinitions>
 
-                                <!-- TIMELINE header bar — label left, range toggles right -->
-                                <Border Grid.Row="0"
+                                <!-- TIMELINE header bar - label left, range toggles right.
+                                     Bottom border + top-only corners while a pane is shown; when both
+                                     panes are off it becomes a self-contained status bar (see RenderChart). -->
+                                <Border Grid.Row="0" x:Name="InfoHeaderBar"
                                         Background="{DynamicResource Surface}"
                                         BorderBrush="{DynamicResource BorderColor}"
                                         BorderThickness="0,0,0,1"
                                         CornerRadius="{DynamicResource Theme.CornerRadiusTop}">
                                     <Grid Margin="8,5">
-                                        <!-- View switch: Timeline ⇄ Data usage -->
+                                        <!-- View switch: Timeline ⇄ Data usage ⇄ DNS -->
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <RadioButton x:Name="ModeTimelineBtn" GroupName="InfoPanelMode"
+                                            <TextBlock Text="{Binding [ChartsLabel], Source={x:Static local:Lang.Instance}}"
+                                                       FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                                       Foreground="{DynamicResource TextMuted}"
+                                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <!-- Independent toggles: both on = layered (stacked) view; both off = panel hidden. -->
+                                            <ToggleButton x:Name="ModeTimelineBtn"
                                                          IsChecked="True" Margin="0,0,12,0"
-                                                         VerticalAlignment="Center" Checked="InfoMode_Changed">
-                                                <RadioButton.Style><Style TargetType="RadioButton"><Setter Property="Template"><Setter.Value>
-                                                    <ControlTemplate TargetType="RadioButton">
-                                                        <TextBlock x:Name="tb" Text="TIMELINE" FontSize="{DynamicResource Theme.FontSize.Tiny}" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand" VerticalAlignment="Center"/>
+                                                         VerticalAlignment="Center"
+                                                         Checked="InfoMode_Changed" Unchecked="InfoMode_Changed"
+                                                         ToolTip="{Binding [ChartModeTimelineTip], Source={x:Static local:Lang.Instance}}">
+                                                <ToggleButton.Style><Style TargetType="ToggleButton"><Setter Property="Template"><Setter.Value>
+                                                    <ControlTemplate TargetType="ToggleButton">
+                                                        <TextBlock x:Name="tb" Text="{Binding [ChartModeTimeline], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand" VerticalAlignment="Center"/>
                                                         <ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="tb" Property="Foreground" Value="{DynamicResource Accent}"/><Setter TargetName="tb" Property="FontWeight" Value="SemiBold"/></Trigger></ControlTemplate.Triggers>
                                                     </ControlTemplate>
-                                                </Setter.Value></Setter></Style></RadioButton.Style>
-                                            </RadioButton>
-                                            <RadioButton x:Name="ModeUsageBtn" GroupName="InfoPanelMode"
-                                                         VerticalAlignment="Center" Checked="InfoMode_Changed">
-                                                <RadioButton.Style><Style TargetType="RadioButton"><Setter Property="Template"><Setter.Value>
-                                                    <ControlTemplate TargetType="RadioButton">
-                                                        <TextBlock x:Name="tb" Text="DATA USAGE" FontSize="{DynamicResource Theme.FontSize.Tiny}" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand" VerticalAlignment="Center"/>
+                                                </Setter.Value></Setter></Style></ToggleButton.Style>
+                                            </ToggleButton>
+                                            <ToggleButton x:Name="ModeUsageBtn"
+                                                         VerticalAlignment="Center" Margin="0,0,12,0"
+                                                         Checked="InfoMode_Changed" Unchecked="InfoMode_Changed"
+                                                         ToolTip="{Binding [ChartModeUsageTip], Source={x:Static local:Lang.Instance}}">
+                                                <ToggleButton.Style><Style TargetType="ToggleButton"><Setter Property="Template"><Setter.Value>
+                                                    <ControlTemplate TargetType="ToggleButton">
+                                                        <TextBlock x:Name="tb" Text="{Binding [ChartModeUsage], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand" VerticalAlignment="Center"/>
                                                         <ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="tb" Property="Foreground" Value="{DynamicResource Accent}"/><Setter TargetName="tb" Property="FontWeight" Value="SemiBold"/></Trigger></ControlTemplate.Triggers>
                                                     </ControlTemplate>
-                                                </Setter.Value></Setter></Style></RadioButton.Style>
-                                            </RadioButton>
+                                                </Setter.Value></Setter></Style></ToggleButton.Style>
+                                            </ToggleButton>
+                                            <ToggleButton x:Name="ModeDnsBtn"
+                                                         VerticalAlignment="Center"
+                                                         Checked="InfoMode_Changed" Unchecked="InfoMode_Changed"
+                                                         ToolTip="{Binding [ChartModeDnsTip], Source={x:Static local:Lang.Instance}}">
+                                                <ToggleButton.Style><Style TargetType="ToggleButton"><Setter Property="Template"><Setter.Value>
+                                                    <ControlTemplate TargetType="ToggleButton">
+                                                        <TextBlock x:Name="tb" Text="DNS" FontSize="{DynamicResource Theme.FontSize.Tiny}" FontFamily="{DynamicResource Theme.FontFamily}" Foreground="{DynamicResource TextMuted}" Cursor="Hand" VerticalAlignment="Center"/>
+                                                        <ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="tb" Property="Foreground" Value="{DynamicResource Accent}"/><Setter TargetName="tb" Property="FontWeight" Value="SemiBold"/></Trigger></ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value></Setter></Style></ToggleButton.Style>
+                                            </ToggleButton>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal"
                                                     HorizontalAlignment="Right"
@@ -965,7 +1498,7 @@
                                             <Rectangle Width="1" Height="10" Fill="{DynamicResource BorderColor}"
                                                        VerticalAlignment="Center" Margin="0,0,10,0"
                                                        Visibility="{Binding CombinedTrafficVisibility}"/>
-                                            <!-- Session navigation (timeline mode only) — to the right of the traffic.
+                                            <!-- Session navigation (timeline mode only) - to the right of the traffic.
                                                  Wrapped so its trailing separator hides together in usage mode. -->
                                             <StackPanel x:Name="NavGroup" Orientation="Horizontal" VerticalAlignment="Center">
                                                 <TextBlock x:Name="ChartNavLabel" FontSize="{DynamicResource Theme.FontSize.Tiny}"
@@ -984,6 +1517,8 @@
                                                 <Rectangle Width="1" Height="10" Fill="{DynamicResource BorderColor}"
                                                            VerticalAlignment="Center" Margin="0,0,10,0"/>
                                             </StackPanel>
+                                            <!-- Time-range selector - hidden when both panes are off (see RenderChart). -->
+                                            <StackPanel x:Name="RangeGroup" Orientation="Horizontal" VerticalAlignment="Center">
                                             <RadioButton x:Name="Range24hBtn" GroupName="InfoTimeRange"
                                                          IsChecked="True" Margin="0,0,10,0"
                                                          VerticalAlignment="Center"
@@ -1015,77 +1550,97 @@
                                                     </ControlTemplate>
                                                 </Setter.Value></Setter></Style></RadioButton.Style>
                                             </RadioButton>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
 
-                                <!-- Chart canvases -->
-                                <Grid Grid.Row="1" Margin="8,6">
-                                    <Canvas x:Name="TimelineCanvas" ClipToBounds="True"
-                                            SizeChanged="TimelineCanvas_SizeChanged"
-                                            MouseMove="TimelineCanvas_MouseMove"
-                                            MouseLeave="TimelineCanvas_MouseLeave"/>
-                                    <Canvas x:Name="ChartOverlayCanvas"
-                                            IsHitTestVisible="False" Panel.ZIndex="10"/>
-                                </Grid>
+                                <!-- Chart canvases - two stacked panes (timeline / data-usage);
+                                     both visible = the layered view. Row heights set in code. -->
+                                <!-- Stacked panes (Data usage / Timeline / DNS). Each is its own view;
+                                     when ≥2 are shown they get a border + gap (managed in RenderChart). -->
+                                <StackPanel x:Name="ChartCanvasArea" Grid.Row="1" Margin="8,6">
+                                    <!-- Data-usage pane (top when stacked) -->
+                                    <Border x:Name="UsagePaneHost"
+                                            BorderBrush="{DynamicResource BorderColor}" BorderThickness="0" CornerRadius="4">
+                                        <Grid>
+                                            <Canvas x:Name="UsageCanvas" ClipToBounds="True"
+                                                    SizeChanged="UsageCanvas_SizeChanged"
+                                                    MouseMove="UsageCanvas_MouseMove"
+                                                    MouseLeave="UsageCanvas_MouseLeave"/>
+                                            <Canvas x:Name="UsageOverlayCanvas"
+                                                    IsHitTestVisible="False" Panel.ZIndex="10"/>
+                                        </Grid>
+                                    </Border>
+                                    <!-- Timeline pane -->
+                                    <Border x:Name="TimelinePaneHost"
+                                            BorderBrush="{DynamicResource BorderColor}" BorderThickness="0" CornerRadius="4">
+                                        <Grid>
+                                            <Canvas x:Name="TimelineCanvas" ClipToBounds="True"
+                                                    SizeChanged="TimelineCanvas_SizeChanged"
+                                                    MouseMove="TimelineCanvas_MouseMove"
+                                                    MouseLeave="TimelineCanvas_MouseLeave"/>
+                                            <Canvas x:Name="ChartOverlayCanvas"
+                                                    IsHitTestVisible="False" Panel.ZIndex="10"/>
+                                        </Grid>
+                                    </Border>
+                                    <!-- DNS pane - which DNS profile / server was active over time -->
+                                    <Border x:Name="DnsPaneHost"
+                                            BorderBrush="{DynamicResource BorderColor}" BorderThickness="0" CornerRadius="4">
+                                        <Grid>
+                                            <Canvas x:Name="DnsPaneCanvas" ClipToBounds="True"
+                                                    SizeChanged="DnsPaneCanvas_SizeChanged"
+                                                    MouseMove="DnsPaneCanvas_MouseMove"
+                                                    MouseLeave="DnsPaneCanvas_MouseLeave"/>
+                                            <Canvas x:Name="DnsOverlayCanvas"
+                                                    IsHitTestVisible="False" Panel.ZIndex="10"/>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
                             </Grid>
                         </Border>
 
-                        <!-- Legend row: tunnel items left, WiFi SSID items right -->
-                        <Grid Grid.Row="2" VerticalAlignment="Center">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-
-                            <!-- Tunnel legend with scroll markers -->
-                            <Grid Grid.Column="0">
+                        <!-- Legend - wrapping colour-dot chips grouped under VPN / Wi-Fi captions.
+                             Auto-height (rows sized in RenderChart); chips built in BuildLegendChip.
+                             Click a chip to hide/show that series in the chart. -->
+                        <StackPanel x:Name="LegendRow" Grid.Row="2" Orientation="Vertical" Grid.IsSharedSizeScope="True">
+                            <!-- WireGuard tunnels -->
+                            <Grid x:Name="VpnLegendGroup">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto" MinWidth="36" SharedSizeGroup="LegendLabel"/>
                                     <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <Button x:Name="TunnelScrollLeft" Grid.Column="0" Content="‹" FontSize="9"
-                                        Padding="1,0" Style="{StaticResource FlatBtn}"
-                                        Foreground="{DynamicResource TextMuted}" Visibility="Collapsed"
-                                        Click="TunnelScrollLeft_Click"/>
-                                <ScrollViewer x:Name="TunnelLegendScroll" Grid.Column="1"
-                                              HorizontalScrollBarVisibility="Hidden"
-                                              VerticalScrollBarVisibility="Disabled"
-                                              ScrollChanged="LegendScroll_Changed"
-                                              PreviewMouseWheel="LegendScroll_Wheel">
-                                    <StackPanel x:Name="LegendPanel" Orientation="Horizontal"/>
-                                </ScrollViewer>
-                                <Button x:Name="TunnelScrollRight" Grid.Column="2" Content="›" FontSize="9"
-                                        Padding="1,0" Style="{StaticResource FlatBtn}"
-                                        Foreground="{DynamicResource TextMuted}" Visibility="Collapsed"
-                                        Click="TunnelScrollRight_Click"/>
+                                <TextBlock Grid.Column="0" Text="WireGuard" FontSize="9" FontWeight="SemiBold"
+                                           FontFamily="{DynamicResource Theme.FontFamily}"
+                                           Foreground="{DynamicResource TextMuted}"
+                                           VerticalAlignment="Top" Margin="0,2,6,0"/>
+                                <WrapPanel Grid.Column="1" x:Name="LegendPanel"/>
                             </Grid>
-
-                            <!-- WiFi SSID legend, right-aligned -->
-                            <Grid Grid.Column="1" x:Name="WifiLegendContainer" Visibility="Collapsed">
+                            <!-- Wi-Fi SSIDs -->
+                            <Grid x:Name="WifiLegendContainer" Visibility="Collapsed">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="Auto" MaxWidth="280"/>
-                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto" MinWidth="36" SharedSizeGroup="LegendLabel"/>
+                                    <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <Button x:Name="WifiScrollLeft" Grid.Column="0" Content="‹" FontSize="9"
-                                        Padding="1,0" Style="{StaticResource FlatBtn}"
-                                        Foreground="{DynamicResource TextMuted}" Visibility="Collapsed"
-                                        Click="WifiScrollLeft_Click"/>
-                                <ScrollViewer x:Name="WifiLegendScroll" Grid.Column="1"
-                                              HorizontalScrollBarVisibility="Hidden"
-                                              VerticalScrollBarVisibility="Disabled"
-                                              ScrollChanged="LegendScroll_Changed"
-                                              PreviewMouseWheel="LegendScroll_Wheel">
-                                    <StackPanel x:Name="WifiLegendPanel" Orientation="Horizontal"/>
-                                </ScrollViewer>
-                                <Button x:Name="WifiScrollRight" Grid.Column="2" Content="›" FontSize="9"
-                                        Padding="1,0" Style="{StaticResource FlatBtn}"
-                                        Foreground="{DynamicResource TextMuted}" Visibility="Collapsed"
-                                        Click="WifiScrollRight_Click"/>
+                                <TextBlock Grid.Column="0" Text="Wi-Fi" FontSize="9" FontWeight="SemiBold"
+                                           FontFamily="{DynamicResource Theme.FontFamily}"
+                                           Foreground="{DynamicResource TextMuted}"
+                                           VerticalAlignment="Top" Margin="0,2,6,0"/>
+                                <WrapPanel Grid.Column="1" x:Name="WifiLegendPanel"/>
                             </Grid>
-                        </Grid>
+                            <!-- DNS profiles / servers -->
+                            <Grid x:Name="DnsLegendContainer" Visibility="Collapsed">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" MinWidth="36" SharedSizeGroup="LegendLabel"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="DNS" FontSize="9" FontWeight="SemiBold"
+                                           FontFamily="{DynamicResource Theme.FontFamily}"
+                                           Foreground="{DynamicResource TextMuted}"
+                                           VerticalAlignment="Top" Margin="0,2,6,0"/>
+                                <WrapPanel Grid.Column="1" x:Name="DnsLegendPanel"/>
+                            </Grid>
+                        </StackPanel>
                     </Grid>
                 </Border>
 
@@ -1097,7 +1652,7 @@
                                    HorizontalAlignment="Left"
                                    Foreground="{DynamicResource TextMuted}" FontSize="{DynamicResource Theme.FontSize.Tiny}"
                                    VerticalAlignment="Center"/>
-                        <!-- Centre: wifi · default action · open protection — truly centred -->
+                        <!-- Centre: wifi · default action · open protection - truly centred -->
                         <StackPanel Orientation="Horizontal"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center">
@@ -1105,7 +1660,7 @@
                                        Foreground="{DynamicResource TextMuted}"
                                        FontSize="{DynamicResource Theme.FontSize.Tiny}" VerticalAlignment="Center"
                                        Visibility="Collapsed"
-                                       ToolTip="Current WiFi network"
+                                       ToolTip="{Binding [MainWifiTip], Source={x:Static local:Lang.Instance}}"
                                        ToolTipService.InitialShowDelay="800"/>
                             <Rectangle x:Name="WifiFooterSep" Width="1" Height="12" Margin="10,0"
                                        Fill="{DynamicResource BorderColor}" VerticalAlignment="Center"
@@ -1114,7 +1669,6 @@
                                        Foreground="{DynamicResource TextMuted}"
                                        FontSize="{DynamicResource Theme.FontSize.Tiny}" VerticalAlignment="Center"
                                        Visibility="Collapsed"
-                                       ToolTip="Default action tunnel — activates when no WiFi rule matches"
                                        ToolTipService.InitialShowDelay="800"/>
                             <Rectangle Width="1" Height="12" Margin="10,0"
                                        Fill="{DynamicResource BorderColor}" VerticalAlignment="Center"
@@ -1123,7 +1677,6 @@
                                        Foreground="{DynamicResource TextMuted}"
                                        FontSize="{DynamicResource Theme.FontSize.Tiny}" VerticalAlignment="Center"
                                        Visibility="Collapsed"
-                                       ToolTip="Open network protection — activates automatically on passwordless WiFi"
                                        ToolTipService.InitialShowDelay="800"/>
                         </StackPanel>
                         <TextBlock x:Name="AdminLabel"

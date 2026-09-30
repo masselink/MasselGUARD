@@ -14,7 +14,7 @@ namespace MasselGUARD.ViewModels
     /// <summary>
     /// ViewModel for MainWindow.
     /// Coordinates: tunnel list, WiFi state, rule evaluation, logging.
-    /// The View binds to properties and commands here — zero logic in code-behind.
+    /// The View binds to properties and commands here - zero logic in code-behind.
     /// </summary>
     public class MainViewModel : ObservableObject, IDisposable
     {
@@ -25,6 +25,9 @@ namespace MasselGUARD.ViewModels
         private readonly WiFiService    _wifi;
         private readonly RuleEngine     _rules;
         private readonly HistoryService _history;
+        private readonly DnsService     _dns;
+        /// <summary>The live DNS service (shared snapshot/restore state) - used by the diagnostics tester.</summary>
+        public DnsService Dns => _dns;
         private readonly DispatcherTimer _timer;
 
         // ── Observable state ──────────────────────────────────────────────────
@@ -38,17 +41,26 @@ namespace MasselGUARD.ViewModels
             new(StringComparer.OrdinalIgnoreCase);
 
         private string? _currentSsid;
-        public  string  CurrentSsidDisplay =>
-            string.IsNullOrEmpty(_currentSsid) ? "No WiFi" : _currentSsid;
 
-        private string _activeTunnelName = "Not connected";
+        // ── DNS automation (parallel axis; see docs/DnsAutomation-Design.md §6) ──
+        /// <summary>Last-evaluated DNS action for the current network, re-applied when a tunnel
+        /// releases ownership of resolution.</summary>
+        private DnsPolicy.DnsResult? _pendingDns;
+        /// <summary>True while ≥1 tunnel is active - the tunnel's own DNS/NRPT supersedes, so the
+        /// pending DNS action is held off the physical NIC until it drops.</summary>
+        private bool _tunnelOwnsDns;
+
+        public  string  CurrentSsidDisplay =>
+            string.IsNullOrEmpty(_currentSsid) ? Lang.T("StatusNoWifi") : _currentSsid;
+
+        private string _activeTunnelName = Lang.T("StatusDisconnected");
         public  string  ActiveTunnelName
         {
             get => _activeTunnelName;
             private set => SetField(ref _activeTunnelName, value);
         }
 
-        // ── Combined live traffic (all active tunnels) — shown in the info-panel header ──
+        // ── Combined live traffic (all active tunnels) - shown in the info-panel header ──
         private string _combinedTrafficDisplay = "";
         public string CombinedTrafficDisplay
         {
@@ -92,6 +104,12 @@ namespace MasselGUARD.ViewModels
         private double _wifCol2W = 100; public double WifCol2W { get => _wifCol2W; set => SetField(ref _wifCol2W, value); }
         private double _wifCol3W = 40;  public double WifCol3W { get => _wifCol3W; set => SetField(ref _wifCol3W, value); }
         private double _wifCol4W = 120; public double WifCol4W { get => _wifCol4W; set => SetField(ref _wifCol4W, value); }
+        private double _wifCol5W = 120; public double WifCol5W { get => _wifCol5W; set => SetField(ref _wifCol5W, value); }
+        private double _dnsCol0W = 130; public double DnsCol0W { get => _dnsCol0W; set => SetField(ref _dnsCol0W, value); }
+        private double _dnsCol1W = 70;  public double DnsCol1W { get => _dnsCol1W; set => SetField(ref _dnsCol1W, value); }
+        private double _dnsCol2W = 190; public double DnsCol2W { get => _dnsCol2W; set => SetField(ref _dnsCol2W, value); }
+        private double _dnsCol3W = 52;  public double DnsCol3W { get => _dnsCol3W; set => SetField(ref _dnsCol3W, value); }
+        private double _dnsCol4W = 76;  public double DnsCol4W { get => _dnsCol4W; set => SetField(ref _dnsCol4W, value); }
 
         // ── Commands ──────────────────────────────────────────────────────────
         public RelayCommand AddTunnelCommand    { get; }
@@ -116,6 +134,8 @@ namespace MasselGUARD.ViewModels
             _wifi    = wifi;
             _rules   = rules;
             _history = history;
+            _dns     = new DnsService(_log);
+            RecoverDnsFromPreviousRun();   // crash/reboot recovery - before any rule applies
 
             AddTunnelCommand    = new RelayCommand(DoAddTunnel);
             EditTunnelCommand   = new RelayCommand(DoEditTunnel,
@@ -163,7 +183,7 @@ namespace MasselGUARD.ViewModels
                     var (live, liveOpen) = _wifi.QueryCurrentSsid();
                     if (!string.IsNullOrEmpty(live))
                     {
-                        // Got a SSID — transient disconnect (VPN blip or network switch).
+                        // Got a SSID - transient disconnect (VPN blip or network switch).
                         // Only apply if we haven't already handled this SSID via a connect event.
                         if (live != _currentSsid)
                             Application.Current?.Dispatcher.Invoke(
@@ -185,17 +205,28 @@ namespace MasselGUARD.ViewModels
             _disconnectDebounce?.Dispose();
             _disconnectDebounce = null;
 
-            // Already on this SSID — swallow the duplicate
+            // Already on this SSID - swallow the duplicate
             if (ssid == _currentSsid) return;
 
             _currentSsid = ssid;
             OnPropertyChanged(nameof(CurrentSsidDisplay));
             _log.Info($"WiFi: {ssid}{(isOpen ? " (open)" : "")}");
             var r = _rules.EvaluateWifi(_config.Config, ssid, isOpen);
-            ApplyRuleResult(r);
+            // Coalesce the tunnel + DNS toasts from this one network change into a single pop-up.
+            _coalesceToasts = true;
+            try
+            {
+                ApplyRuleResult(r);
+                ApplyDnsForCurrentNetwork(ssid, isOpen);   // parallel DNS axis
+            }
+            finally
+            {
+                _coalesceToasts = false;
+                FlushCoalescedToasts();
+            }
         }
 
-        /// <summary>Query current SSID and apply state — used on startup only.</summary>
+        /// <summary>Query current SSID and apply state - used on startup only.</summary>
         public void InitialWifiCheck()
         {
             var (ssid, isOpen) = _wifi.QueryCurrentSsid();
@@ -228,8 +259,7 @@ namespace MasselGUARD.ViewModels
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                 TunnelList.Clear();
-                foreach (var s in _config.Config.Tunnels
-                    .Where(t => IsSourceAllowed(t.Source)))
+                foreach (var s in _config.Config.Tunnels)
                 {
                     var vm = new TunnelEntryViewModel(s, _tunnels, _log, _config);
                     TunnelList.Add(vm);
@@ -248,12 +278,6 @@ namespace MasselGUARD.ViewModels
             });
         }
 
-        private bool IsSourceAllowed(string source) => _config.Config.Mode switch
-        {
-            AppMode.Standalone => source == "local",
-            AppMode.Companion  => source != "local",
-            _                  => true,
-        };
 
         // ── DNS leak warning ──────────────────────────────────────────────────
 
@@ -268,25 +292,25 @@ namespace MasselGUARD.ViewModels
         /// fires a one-time tray toast + log line the first time the tunnel's
         /// period-to-date total crosses that period's configured cap, and re-arms at
         /// the next period boundary (the dedupe key encodes the period). Warnings
-        /// only — nothing is disconnected.
+        /// only - nothing is disconnected.
         /// </summary>
         private void MaybeWarnDataCaps(TunnelEntryViewModel t, long dayBytes, long weekBytes, long monthBytes, DateTime now)
         {
             // Skip the warning for periods that enforce (Kill): the kill toast supersedes
             // it, so we don't flash a warn toast a beat before the disconnect toast.
             if (!t.StoredTunnel.DailyCapKill)
-                WarnCap(t, t.StoredTunnel.DailyCapMB,   dayBytes,
-                        $"{t.Name}|D|{now:yyyy-MM-dd}", "Daily", "today");
+                WarnCap(t, t.StoredTunnel.DailyUserCapMB,   dayBytes,
+                        $"{t.Name}|D|{now:yyyy-MM-dd}", "Daily", "today", "D");
             if (!t.StoredTunnel.WeeklyCapKill)
-                WarnCap(t, t.StoredTunnel.WeeklyCapMB,  weekBytes,
-                        $"{t.Name}|W|{System.Globalization.ISOWeek.GetYear(now)}W{System.Globalization.ISOWeek.GetWeekOfYear(now):00}", "Weekly", "this week");
+                WarnCap(t, t.StoredTunnel.WeeklyUserCapMB,  weekBytes,
+                        $"{t.Name}|W|{System.Globalization.ISOWeek.GetYear(now)}W{System.Globalization.ISOWeek.GetWeekOfYear(now):00}", "Weekly", "this week", "W");
             if (!t.StoredTunnel.MonthlyCapKill)
-                WarnCap(t, t.StoredTunnel.MonthlyCapMB, monthBytes,
-                        $"{t.Name}|M|{now:yyyy-MM}", "Monthly", "this month");
+                WarnCap(t, t.StoredTunnel.MonthlyUserCapMB, monthBytes,
+                        $"{t.Name}|M|{now:yyyy-MM}", "Monthly", "this month", "M");
         }
 
         private void WarnCap(TunnelEntryViewModel t, int capMB, long usedBytes,
-                             string dedupeKey, string label, string when)
+                             string dedupeKey, string label, string when, string letter)
         {
             if (capMB <= 0) return;                                  // period cap off
             if (usedBytes < (long)capMB * 1_048_576L) return;        // under cap
@@ -297,9 +321,9 @@ namespace MasselGUARD.ViewModels
                 (Application.Current as App)?.ShowTrayNotification(
                     new Views.ToastNotification
                     {
-                        Category   = "Data cap reached",
-                        Primary    = $"{t.Name}: {label.ToLowerInvariant()} data cap reached",
-                        Secondary  = $"{capMB} MB used {when}.",
+                        Category   = Lang.T("ToastCatDataCap"),
+                        Primary    = Lang.T("CapWarnPrimary" + letter, t.Name),
+                        Secondary  = Lang.T("CapWarnUsed" + letter, capMB),
                         StripColor = "Warning",
                         DurationMs = _config.Config.NotificationDurationSeconds * 1000,
                     });
@@ -313,6 +337,33 @@ namespace MasselGUARD.ViewModels
 
         /// <summary>An over-budget, kill-enabled period that isn't currently overridden.</summary>
         public sealed record CapKillInfo(string Letter, string PeriodWord, long UsedBytes, long CapBytes, string OverrideKey);
+
+        // Historical average per tunnel (bytes/day over the last 365 days, or all history when
+        // shorter), cached for a few minutes - it scans the whole history, and a typical day
+        // doesn't move second by second.
+        private readonly Dictionary<string, (DateTime At, double? Avg, double Span)> _baselineCache =
+            new(StringComparer.OrdinalIgnoreCase);
+        private static readonly TimeSpan BaselineRefresh = TimeSpan.FromMinutes(5);
+
+        private (double? avg, double span) HistoryBaseline(string name, DateTime nowUtc)
+        {
+            if (_baselineCache.TryGetValue(name, out var c) && nowUtc - c.At < BaselineRefresh)
+                return (c.Avg, c.Span);
+            var avg = _history.GetAverageBytesPerDay(name, nowUtc, out var span);
+            _baselineCache[name] = (nowUtc, avg, span);
+            return (avg, span);
+        }
+
+        /// <summary>The tunnel's typical usage per day / week / month in MB (historical average,
+        /// rounded up), or null when it has no history - shown in the tunnel editor's greyed cap
+        /// boxes while "Use history" is ticked, and used as the starting cap when it's unticked.</summary>
+        public (int day, int week, int month)? HistoricalReferenceMB(string name)
+        {
+            var avg = _history.GetAverageBytesPerDay(name, DateTime.UtcNow, out _);
+            if (avg is not double v) return null;
+            static int Mb(double bytes) => (int)Math.Ceiling(bytes / 1_048_576.0);
+            return (Mb(v), Mb(v * 7), Mb(v * 365.25 / 12));
+        }
 
         private (long day, long week, long month) PeriodUsage(TunnelEntryViewModel vm, DateTime now)
         {
@@ -353,12 +404,12 @@ namespace MasselGUARD.ViewModels
                     : new CapKillInfo(letter, word, used, cap, key);
             }
 
-            return Check(st.DailyCapKill,   st.DailyCapMB,   day,   "d", "daily",   $"{now:yyyy-MM-dd}")
-                ?? Check(st.WeeklyCapKill,  st.WeeklyCapMB,  week,  "w", "weekly",  $"{System.Globalization.ISOWeek.GetYear(now)}W{System.Globalization.ISOWeek.GetWeekOfYear(now):00}")
-                ?? Check(st.MonthlyCapKill, st.MonthlyCapMB, month, "m", "monthly", $"{now:yyyy-MM}");
+            return Check(st.DailyCapKill,   st.DailyUserCapMB,   day,   "d", "daily",   $"{now:yyyy-MM-dd}")
+                ?? Check(st.WeeklyCapKill,  st.WeeklyUserCapMB,  week,  "w", "weekly",  $"{System.Globalization.ISOWeek.GetYear(now)}W{System.Globalization.ISOWeek.GetWeekOfYear(now):00}")
+                ?? Check(st.MonthlyCapKill, st.MonthlyUserCapMB, month, "m", "monthly", $"{now:yyyy-MM}");
         }
 
-        /// <summary>Forget any "ignore this period" override and kill marker for a tunnel — called
+        /// <summary>Forget any "ignore this period" override and kill marker for a tunnel - called
         /// when its caps are edited, so reconfiguring re-arms enforcement.</summary>
         public void ResetCapEnforcement(string name)
         {
@@ -380,9 +431,9 @@ namespace MasselGUARD.ViewModels
                 if (kill && capMB > 0 && used >= (long)capMB * 1_048_576L)
                     _capOverridden.Add($"{vm.Name}|{letter}|{instance}");
             }
-            Maybe(st.DailyCapKill,   st.DailyCapMB,   day,   "d", $"{now:yyyy-MM-dd}");
-            Maybe(st.WeeklyCapKill,  st.WeeklyCapMB,  week,  "w", $"{System.Globalization.ISOWeek.GetYear(now)}W{System.Globalization.ISOWeek.GetWeekOfYear(now):00}");
-            Maybe(st.MonthlyCapKill, st.MonthlyCapMB, month, "m", $"{now:yyyy-MM}");
+            Maybe(st.DailyCapKill,   st.DailyUserCapMB,   day,   "d", $"{now:yyyy-MM-dd}");
+            Maybe(st.WeeklyCapKill,  st.WeeklyUserCapMB,  week,  "w", $"{System.Globalization.ISOWeek.GetYear(now)}W{System.Globalization.ISOWeek.GetWeekOfYear(now):00}");
+            Maybe(st.MonthlyCapKill, st.MonthlyUserCapMB, month, "m", $"{now:yyyy-MM}");
         }
 
         /// <summary>Disconnect an active tunnel that has crossed a kill-enabled cap.</summary>
@@ -392,11 +443,11 @@ namespace MasselGUARD.ViewModels
             var kill = CapKillState(t);
             if (kill == null)
             {
-                // Over a kill cap but kept up (the user chose to ignore it this period) — note it
+                // Over a kill cap but kept up (the user chose to ignore it this period) - note it
                 // once so an "over budget yet connected" tunnel is never a silent mystery.
                 var over = CapOverBudget(t);
                 if (over != null && _capIgnoredLogged.Add(over.OverrideKey))
-                    _log.Info($"{t.Name}: over the {over.PeriodWord} cap but kept connected — limit ignored for this period.");
+                    _log.Info($"{t.Name}: over the {over.PeriodWord} cap but kept connected - limit ignored for this period.");
                 return;
             }
 
@@ -410,25 +461,25 @@ namespace MasselGUARD.ViewModels
 
             if (!_capKilled.Add(kill.OverrideKey)) return;   // already announced this period
 
-            _log.Warn($"Data cap reached — disconnecting {t.Name}: {kill.PeriodWord} " +
+            _log.Warn($"Data cap reached - disconnecting {t.Name}: {kill.PeriodWord} " +
                       $"{FmtBytes(kill.UsedBytes)} / {FmtBytes(kill.CapBytes)}.");
 
-            // Sticky, interactive confirmation — offer to ignore the cap and reconnect.
+            // Sticky, interactive confirmation - offer to ignore the cap and reconnect.
             (Application.Current as App)?.ShowTrayNotification(new Views.ToastNotification
             {
-                Category     = "Data cap reached",
-                Primary      = $"{t.Name}: disconnected — {kill.PeriodWord} cap reached",
-                Secondary    = $"{FmtBytes(kill.UsedBytes)} of {FmtBytes(kill.CapBytes)} used this period.",
+                Category     = Lang.T("ToastCatDataCap"),
+                Primary      = Lang.T("CapKillPrimary" + kill.Letter.ToUpperInvariant(), t.Name),
+                Secondary    = Lang.T("CapUsedThisPeriod", FmtBytes(kill.UsedBytes), FmtBytes(kill.CapBytes)),
                 StripColor   = "Danger",
                 Interactive  = true,
-                ConfirmLabel = "Ignore & reconnect",
-                CancelLabel  = "Dismiss",
+                ConfirmLabel = Lang.T("CapBtnIgnoreReconnect"),
+                CancelLabel  = Lang.T("BtnDismiss"),
                 OnConfirm    = () =>
                 {
                     OverrideCap(t);
                     t.PendingConnectSource = "Reconnected (cap ignored)";
                     t.ConnectCommand.Execute(null);
-                    _log.Info($"Reconnected {t.Name} — {kill.PeriodWord} cap ignored for this period.");
+                    _log.Info($"Reconnected {t.Name} - {kill.PeriodWord} cap ignored for this period.");
                 },
             });
         }
@@ -440,13 +491,13 @@ namespace MasselGUARD.ViewModels
                       $"({FmtBytes(kill.UsedBytes)} / {FmtBytes(kill.CapBytes)}).");
             (Application.Current as App)?.ShowTrayNotification(new Views.ToastNotification
             {
-                Category     = "Data cap reached",
-                Primary      = $"{vm.Name}: over the {kill.PeriodWord} cap",
-                Secondary    = $"{FmtBytes(kill.UsedBytes)} of {FmtBytes(kill.CapBytes)} used this period. Connect anyway?",
+                Category     = Lang.T("ToastCatDataCap"),
+                Primary      = Lang.T("CapOverPrimary" + kill.Letter.ToUpperInvariant(), vm.Name),
+                Secondary    = Lang.T("CapUsedConnectAnyway", FmtBytes(kill.UsedBytes), FmtBytes(kill.CapBytes)),
                 StripColor   = "Danger",
                 Interactive  = true,
-                ConfirmLabel = "Connect",
-                CancelLabel  = "Cancel",
+                ConfirmLabel = Lang.T("BtnConnect"),
+                CancelLabel  = Lang.T("BtnCancel"),
                 OnConfirm    = () => { OverrideCap(vm); onConnect(); },
                 OnCancel     = () => _log.Info($"Auto-connect cancelled for {vm.Name} (over {kill.PeriodWord} cap)."),
             });
@@ -461,7 +512,7 @@ namespace MasselGUARD.ViewModels
 
         /// <summary>
         /// Edge-triggered "possible DNS leak" warning. Fires a one-time tray toast + log
-        /// line when a tunnel's DNS status first becomes PotentialLeak — but only while the
+        /// line when a tunnel's DNS status first becomes PotentialLeak - but only while the
         /// leak is unmitigated (smart name resolution still enabled). It stays silent once
         /// the machine policy contains the leak, on Secure/NotConfigured/Unknown, and after
         /// the first warning until the status recovers (tracked in <see cref="_dnsLeakWarned"/>).
@@ -470,7 +521,7 @@ namespace MasselGUARD.ViewModels
         {
             if (dns != TunnelDll.DnsLeakStatus.PotentialLeak)
             {
-                _dnsLeakWarned.Remove(t.Name);   // episode over — re-arm for next time
+                _dnsLeakWarned.Remove(t.Name);   // episode over - re-arm for next time
                 return;
             }
             bool wantLog   = _config.Config.DnsLeakWarnLog;
@@ -482,14 +533,14 @@ namespace MasselGUARD.ViewModels
             _dnsLeakWarned.Add(t.Name);
             if (wantLog)
                 _log.Warn($"Possible DNS leak on {t.Name}: another network adapter has DNS servers. " +
-                          "Enable DNS leak protection in Settings → Advanced.");
+                          "Enable DNS leak protection in Settings → DNS.");
             if (wantToast)
                 (Application.Current as App)?.ShowTrayNotification(
                     new Views.ToastNotification
                     {
-                        Category   = "DNS leak warning",
-                        Primary    = $"Possible DNS leak: {t.Name}",
-                        Secondary  = "Enable DNS leak protection in Settings → Advanced.",
+                        Category   = Lang.T("ToastCatDnsLeak"),
+                        Primary    = Lang.T("DnsLeakToastPrimary", t.Name),
+                        Secondary  = Lang.T("DnsLeakToastSecondary"),
                         StripColor = "Warning",
                         DurationMs = _config.Config.NotificationDurationSeconds * 1000,
                     });
@@ -504,7 +555,6 @@ namespace MasselGUARD.ViewModels
 
             foreach (var t in TunnelList)
             {
-                bool wasActive = t.IsActive;
                 t.RefreshStatus();
                 bool nowActive = t.IsActive;
 
@@ -520,7 +570,7 @@ namespace MasselGUARD.ViewModels
                         stats = TunnelDll.GetStats(t.Name);
                         t.UpdateStats(stats);
                         var dns = TunnelDll.CheckDnsLeak(t.Name);
-                        // Prevention state (machine-wide) — a set leak becomes "contained".
+                        // Prevention state (machine-wide) - a set leak becomes "contained".
                         bool dnsMitigated = Services.DnsLeakService.IsSmartNameResolutionDisabled();
                         t.UpdateDnsStatus(dns, dnsMitigated);
                         MaybeWarnDnsLeak(t, dns, dnsMitigated);
@@ -528,8 +578,8 @@ namespace MasselGUARD.ViewModels
 
                     // Data usage per period = closed-session history for the calendar
                     // day / week / month + the current live session. Computed for EVERY
-                    // tunnel (not just active) so the row's cap rings stay visible —
-                    // greyed — while disconnected, still showing real usage-to-date.
+                    // tunnel (not just active) so the row's cap rings stay visible -
+                    // greyed - while disconnected, still showing real usage-to-date.
                     var now        = DateTime.UtcNow;
                     var dayStart   = now.Date;                                              // UTC midnight
                     var weekStart  = dayStart.AddDays(-(((int)dayStart.DayOfWeek + 6) % 7)); // Monday
@@ -542,6 +592,8 @@ namespace MasselGUARD.ViewModels
                     long weekTotal  = wrx + wtx + live;
                     long monthTotal = mrx + mtx + live;
                     t.UpdateUsage(dayTotal, weekTotal, monthTotal);
+                    var (avg, span) = HistoryBaseline(t.Name, now);
+                    t.UpdateHistoryBaseline(avg, span);
 
                     if (nowActive)
                     {
@@ -563,39 +615,23 @@ namespace MasselGUARD.ViewModels
                         }
                     }
                 }
-
-                // Companion tunnel connected externally (WireGuard client).
-                if (!t.IsLocal && !wasActive && nowActive && !t.IsConnecting)
-                {
-                    string via = _log.IsExtended ? " via WireGuard app" : "";
-                    _log.Ok($"Connected: {t.Name}{via}");
-                    // The external connect supersedes any earlier user disconnect —
-                    // clear the suppression flag so a later external drop is detected.
-                    t.UserDisconnected = false;
-                    _tunnels.RecordExternalConnect(t.Name, "WireGuard app");
-                }
-
-                // Companion tunnel dropped externally (WireGuard client).
-                if (!t.IsLocal && wasActive && !nowActive && !IsIntentionalDrop(t))
-                {
-                    string via = _log.IsExtended ? " via WireGuard app" : "";
-                    // Closes the open history entry and logs "Disconnected: <name>".
-                    _tunnels.RecordExternalDisconnect(t.Name, via);
-
-                    // Only auto-reconnect when the SCM entry still exists (service crashed).
-                    // An absent entry means the WireGuard client deactivated it intentionally.
-                    // The deactivate deletes the entry slightly AFTER stopping the service, so
-                    // this early check can race the deletion — AutoReconnectAsync re-checks
-                    // after its backoff delay and aborts when the entry is gone by then.
-                    var svcName = "WireGuardTunnel$" + t.Name;
-                    bool entryGone = !TunnelService.WireGuardServiceExists(svcName);
-                    if (!entryGone && TunnelService.ShouldAutoReconnect(t.StoredTunnel, _config.Config))
-                        _ = AutoReconnectAsync(t);
-                }
             }
 
             var active = TunnelList.FirstOrDefault(t => t.IsActive);
-            ActiveTunnelName = active?.Name ?? "Not connected";
+            ActiveTunnelName = active?.Name ?? Lang.T("StatusDisconnected");
+
+            // DNS resolver ownership (§6): while any tunnel is up, its own DNS/NRPT supersedes,
+            // so DNS rules are held off the physical NIC. On the falling edge (tunnel released),
+            // re-assert the current network's DNS rule.
+            bool tunnelOwns = active != null;
+            if (tunnelOwns != _tunnelOwnsDns)
+            {
+                _tunnelOwnsDns = tunnelOwns;
+                // Re-assert DNS on either edge: on release the network's rule/default resumes; on
+                // connect a manually-forced profile must be re-applied so it wins over the tunnel's
+                // own DNS (ApplyPendingDns no-ops back to the tunnel when no profile is forced).
+                ApplyPendingDns();
+            }
 
             if (doStatsPoll) UpdateCombinedTraffic();
         }
@@ -633,7 +669,7 @@ namespace MasselGUARD.ViewModels
 
         /// <summary>
         /// Returns true when the tunnel drop was caused by MasselGUARD itself
-        /// (user click, WiFi rule, CLI) — suppresses auto-reconnect in those cases.
+        /// (user click, WiFi rule, CLI) - suppresses auto-reconnect in those cases.
         /// Checks the TunnelService intentional-disconnect registry first, then falls
         /// back to the ViewModel's UserDisconnected flag.
         /// </summary>
@@ -653,25 +689,10 @@ namespace MasselGUARD.ViewModels
 
             try
             {
-                // Grace period before announcing anything: the WireGuard client's
-                // deactivate deletes the SCM entry just after stopping the service,
-                // so wait for the deletion to settle. A clean deactivate is then
-                // recognised up front and skipped silently — no reconnect countdown.
-                if (!vm.IsLocal)
-                {
-                    await System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(2));
-                    if (vm.IsActive) return; // came back up on its own
-                    if (!TunnelService.WireGuardServiceExists("WireGuardTunnel$" + vm.Name))
-                    {
-                        _log.Info($"[AutoReconnect] '{vm.Name}' was deactivated via the WireGuard app — not reconnecting.");
-                        return;
-                    }
-                }
-
                 for (int attempt = 1; attempt <= AutoReconnectMaxAttempts; attempt++)
                 {
                     int delaySec = attempt * 5;   // 5 s, 10 s, 15 s
-                    _log.Info($"[AutoReconnect] '{vm.Name}' dropped — reconnecting in {delaySec}s (attempt {attempt}/{AutoReconnectMaxAttempts})…");
+                    _log.Info($"[AutoReconnect] '{vm.Name}' dropped - reconnecting in {delaySec}s (attempt {attempt}/{AutoReconnectMaxAttempts})…");
 
                     await System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(delaySec));
 
@@ -690,17 +711,8 @@ namespace MasselGUARD.ViewModels
                         if (CapKillState(vm) != null)
                         {
                             abort = true;
-                            _log.Info($"[AutoReconnect] '{vm.Name}' is over its data cap — not reconnecting.");
+                            _log.Info($"[AutoReconnect] '{vm.Name}' is over its data cap - not reconnecting.");
                             return;
-                        }
-                        // Companion: the WireGuard client's deactivate stops the service first
-                        // and deletes the SCM entry a moment later, so the entry check at
-                        // drop time races the deletion. By now (≥5 s) the deletion is done —
-                        // a missing entry means a deliberate deactivate, not a crash.
-                        if (!vm.IsLocal && !TunnelService.WireGuardServiceExists("WireGuardTunnel$" + vm.Name))
-                        {
-                            abort = true;
-                            _log.Info($"[AutoReconnect] '{vm.Name}' was deactivated via the WireGuard app — not reconnecting.");
                         }
                     });
 
@@ -711,7 +723,7 @@ namespace MasselGUARD.ViewModels
                         return;
                     }
 
-                    // Run the connect on the UI thread and wait for it to actually finish —
+                    // Run the connect on the UI thread and wait for it to actually finish -
                     // firing ConnectCommand and reading IsActive immediately made every
                     // attempt report failure while the connect was still in flight.
                     await await dispatcher.InvokeAsync(() =>
@@ -727,10 +739,10 @@ namespace MasselGUARD.ViewModels
                         return;
                     }
 
-                    _log.Warn($"[AutoReconnect] '{vm.Name}' — attempt {attempt} failed.");
+                    _log.Warn($"[AutoReconnect] '{vm.Name}' - attempt {attempt} failed.");
                 }
 
-                _log.Warn($"[AutoReconnect] '{vm.Name}' — giving up after {AutoReconnectMaxAttempts} attempts.");
+                _log.Warn($"[AutoReconnect] '{vm.Name}' - giving up after {AutoReconnectMaxAttempts} attempts.");
             }
             finally
             {
@@ -754,6 +766,46 @@ namespace MasselGUARD.ViewModels
             ApplyRuleResult(result);
         }
 
+        // ── Toast coalescing ─────────────────────────────────────────────────
+        // During a single WiFi-state apply the tunnel action and the DNS action can each want a
+        // toast (e.g. on startup: "connected X" then "DNS Y"). While coalescing is on they buffer
+        // and FlushCoalescedToasts merges them into ONE notification instead of two stacked pop-ups.
+        private bool _coalesceToasts;
+        private readonly List<Views.ToastNotification> _toastBuffer = new();
+
+        private void EmitToast(Views.ToastNotification n)
+        {
+            if (_coalesceToasts) { _toastBuffer.Add(n); return; }
+            (Application.Current as App)?.ShowTrayNotification(n);
+        }
+
+        private void FlushCoalescedToasts()
+        {
+            if (_toastBuffer.Count == 0) return;
+            Views.ToastNotification n;
+            if (_toastBuffer.Count == 1)
+            {
+                n = _toastBuffer[0];
+            }
+            else
+            {
+                // Header = the first (tunnel) toast; append each other toast as a "Category: Primary"
+                // line so a startup connect + DNS apply reads as one message.
+                var first = _toastBuffer[0];
+                var extra = string.Join("\n", _toastBuffer.Skip(1).Select(t => $"{t.Category}: {t.Primary}"));
+                n = new Views.ToastNotification
+                {
+                    Category   = first.Category,
+                    Primary    = first.Primary,
+                    Secondary  = string.IsNullOrWhiteSpace(first.Secondary) ? extra : first.Secondary + "\n" + extra,
+                    StripColor = first.StripColor,
+                    DurationMs = first.DurationMs,
+                };
+            }
+            _toastBuffer.Clear();
+            (Application.Current as App)?.ShowTrayNotification(n);
+        }
+
         private void ApplyRuleResult(RuleEngine.RuleResult result)
         {
             if (result.Action == RuleEngine.ActionKind.None) return;
@@ -772,19 +824,19 @@ namespace MasselGUARD.ViewModels
                     bool isRule    = result.Reason.StartsWith("Rule:");
                     bool isOpen    = result.Reason.StartsWith("Open network");
                     bool isDefault = result.Reason.StartsWith("Default");
-                    string category  = isRule    ? "WiFi Rule Matched"
-                                     : isOpen    ? "Open Network Protection"
-                                     : isDefault ? "Default Action"
-                                     :             "Automation";
+                    string category  = isRule    ? Lang.T("ToastCatRule")
+                                     : isOpen    ? Lang.T("SettingsSectionOpenWifi")
+                                     : isDefault ? Lang.T("SettingsSectionDefaultAction")
+                                     :             Lang.T("SettingsTabAutomation");
                     string stripKey  = isOpen    ? "Success"
                                      : isDefault ? "Warning"
                                      :             "Accent";
-                    (Application.Current as App)?.ShowTrayNotification(
+                    EmitToast(
                         new Views.ToastNotification
                         {
                             Category   = category,
-                            Primary    = "Disconnected",
-                            Secondary  = result.Reason,
+                            Primary    = Lang.T("StatusDisconnected"),
+                            Secondary  = LocalizeReason(result.Reason),
                             StripColor = stripKey,
                             DurationMs = ms,
                         });
@@ -833,23 +885,342 @@ namespace MasselGUARD.ViewModels
                 bool isRule    = reason.StartsWith("Rule:");
                 bool isOpen    = reason.StartsWith("Open network");
                 bool isDefault = reason.StartsWith("Default");
-                string category = isRule    ? "WiFi Rule Matched"
-                                : isOpen    ? "Open Network Protection"
-                                : isDefault ? "Default Action"
-                                :             "Automation";
+                string category = isRule    ? Lang.T("ToastCatRule")
+                                : isOpen    ? Lang.T("SettingsSectionOpenWifi")
+                                : isDefault ? Lang.T("SettingsSectionDefaultAction")
+                                :             Lang.T("SettingsTabAutomation");
                 string stripKey = isOpen    ? "Success"
                                 : isDefault ? "Warning"
                                 :             "Accent";
-                (Application.Current as App)?.ShowTrayNotification(
+                EmitToast(
                     new Views.ToastNotification
                     {
                         Category   = category,
                         Primary    = target.Name,
-                        Secondary  = reason,
+                        Secondary  = LocalizeReason(reason),
                         StripColor = stripKey,
                         DurationMs = ms,
                     });
             }
+        }
+
+        // ── DNS automation (parallel axis) ────────────────────────────────────
+
+        /// <summary>
+        /// Startup crash/reboot recovery: netsh DNS writes persist across an app crash or a
+        /// reboot, so restore any override recorded in <c>dns_state.json</c> to its captured
+        /// original before we evaluate the current rules. No-op when nothing was left behind.
+        /// The matching exit-restore is <see cref="RestoreDnsOverrides"/> (called from App.OnExit).
+        /// </summary>
+        private void RecoverDnsFromPreviousRun()
+        {
+            try
+            {
+                int n = _dns.OverrideCount;
+                if (n > 0)
+                    _log.Warn($"DNS: restoring {n} interface(s) left overridden by a previous run.");
+                _dns.RestoreAll();
+            }
+            catch (Exception ex) { _log.Warn($"DNS: startup restore failed - {ex.Message}"); }
+        }
+
+        /// <summary>Restore every DNS override to its captured original. Called from App.OnExit
+        /// (the process can exit without <see cref="Dispose"/> running). Idempotent.</summary>
+        public void RestoreDnsOverrides()
+        {
+            try { _dns.RestoreAll(); } catch { }
+        }
+
+        // Runtime manual DNS override (DNS panel Enable / Disable / Revert-to-default):
+        //   null                      → follow automation (rules).
+        //   a profile Id              → force that profile (outranks the rule engine AND an active
+        //                               tunnel's own DNS - a manual profile wins while connected).
+        // (Revert-to-default is a one-shot action - see ManualRevertToDefault - that restores the
+        //  interface's pre-override snapshot and clears the override; it isn't a persistent state.)
+        // Survives network changes. Runtime-only (resets to automation on restart).
+        private string? _manualDnsProfileId;
+        /// <summary>The manually-forced DNS profile id, or null when following automation.
+        /// Used by the DNS panel to mark the active row.</summary>
+        public string? ManualDnsProfileId => _manualDnsProfileId;
+
+        /// <summary>Identity of the DNS resolver last applied by <em>automation</em> (a profile name,
+        /// or the "automatic"/"restored" sentinels). Used to fire a tray toast only when automation
+        /// actually changes the resolver - even with no tunnel active - and never on every poll.</summary>
+        private string? _lastDnsAutoToast;
+
+        // ── Active DNS profile (drives the tray pip + panel/tray "active" marker) ──
+        private string? _appliedDnsProfileId;
+        /// <summary>Id of the DNS <em>profile</em> currently applied to the active interface -
+        /// whether manually enabled OR applied by an automation rule. Null when no MasselGUARD
+        /// profile is applied (automatic/DHCP, tunnel-owned DNS, or nothing). The tray submenu and
+        /// the main-window DNS panel mark this profile as active.</summary>
+        public string? ActiveDnsProfileId => _appliedDnsProfileId;
+
+        /// <summary>True while any MasselGUARD DNS profile is applied. Drives the tray DNS shield.</summary>
+        public bool DnsActive => _appliedDnsProfileId != null;
+
+        /// <summary>Record which profile is applied and, on a real change, refresh the tray shield
+        /// and the main-window DNS panel so the "active" marker tracks automation, not just manual.</summary>
+        private void SetActiveDns(string? profileId)
+        {
+            if (string.Equals(_appliedDnsProfileId, profileId, StringComparison.Ordinal)) return;
+            _appliedDnsProfileId = profileId;
+            (Application.Current as App)?.OnDnsStateChanged();
+        }
+
+        /// <summary>Enable: manually force a DNS profile (sticky, overrides rules AND any active
+        /// tunnel's own DNS) until Disable / Revert-to-default.</summary>
+        public bool ManualApplyDns(DnsProfile profile)
+        {
+            _manualDnsProfileId = profile.Id;
+            _log.Ok($"DNS: manually enabled '{profile.Name}' (overrides tunnel).");
+            ApplyPendingDns();
+            return true;
+        }
+
+        /// <summary>Disable: clear the manual override so automation takes back over (or, when
+        /// automation is off, restores the network's own resolver).</summary>
+        public void ManualDisable()
+        {
+            _manualDnsProfileId = null;
+            _log.Ok("DNS: manual override cleared - following automation.");
+            // Undo what the manual override wrote to the physical NIC first - it forces a static
+            // resolver even while a tunnel owns DNS, and ApplyPendingDns alone can't clear it (it
+            // returns early when a tunnel owns resolution or when no rule result is pending, e.g.
+            // right after Revert-to-default). Clearing the marker here is what makes ONE click
+            // enough; automation then re-applies its own profile below if it has one.
+            var guid = _wifi.CurrentInterfaceGuid;
+            if (guid != Guid.Empty && _dns.HasOverride(guid)) _dns.Restore(guid);
+            RecordDnsDefaultResolver();
+            SetActiveDns(null);
+            _lastDnsAutoToast = null;   // let automation announce whatever it re-applies
+            ApplyPendingDns();
+        }
+
+        /// <summary>Revert to default: undo any DNS override and restore the interface to the exact
+        /// settings captured before MasselGUARD first touched it (so a NIC that was on "obtain DNS
+        /// automatically" goes back to DHCP, not a forced static server). Clears the manual override
+        /// and any pending rule action so nothing re-applies. Runs even while a tunnel is connected -
+        /// a manually-enabled profile may have written a static resolver to the physical NIC, and that
+        /// override must be undone regardless of tunnel ownership.</summary>
+        public void ManualRevertToDefault()
+        {
+            _manualDnsProfileId = null;   // stop forcing anything
+            _pendingDns = null;           // and don't let a stale rule result re-apply on the next poll
+            var guid = _wifi.CurrentInterfaceGuid;
+            if (guid != Guid.Empty) _dns.Restore(guid);   // put back exactly what was there before
+            RecordDnsDefaultResolver();
+            SetActiveDns(null);           // no MasselGUARD profile applied any more - clear the marker
+            _log.Ok("DNS: reverted to previous settings.");
+        }
+
+        /// <summary>Evaluate the DNS action for the current network and apply it (subject to
+        /// tunnel ownership). Runs alongside - never instead of - the tunnel rule.</summary>
+        private void ApplyDnsForCurrentNetwork(string? ssid, bool isOpen)
+        {
+            _pendingDns = _rules.EvaluateDns(_config.Config, ssid, isOpen);
+            ApplyPendingDns();
+        }
+
+        /// <summary>
+        /// Write the last-evaluated DNS action to the active WiFi interface - unless a tunnel
+        /// currently owns resolution (its own DNS/NRPT supersedes), in which case the action is
+        /// held and re-asserted from <see cref="RefreshTunnelStatus"/> when the tunnel drops.
+        /// "None" restores any prior override so an unmatched network gets its own DNS back.
+        /// </summary>
+        private void ApplyPendingDns()
+        {
+            var guid = _wifi.CurrentInterfaceGuid;
+            if (guid == Guid.Empty) return;   // no WiFi interface to target right now
+
+            string families = _config.Config.DnsAddressFamilies;
+
+            // A manually-forced PROFILE (Enable) outranks everything, including an active tunnel's
+            // own DNS - the user explicitly picked this resolver, so honour it even while connected.
+            if (_manualDnsProfileId != null && _manualDnsProfileId != DnsProfile.AutomaticId)
+            {
+                var mp = _config.Config.DnsProfiles.FirstOrDefault(p =>
+                    string.Equals(p.Id, _manualDnsProfileId, StringComparison.Ordinal));
+                if (mp != null)
+                {
+                    _dns.ApplyProfile(guid, mp, families);
+                    RecordDnsHistory(mp.Name);
+                    _lastDnsAutoToast = null;   // manual override in force - re-announce when automation resumes
+                    SetActiveDns(mp.Id);
+                    return;
+                }
+                _manualDnsProfileId = null;   // referenced profile was deleted - drop it, fall through
+            }
+
+            // Otherwise an active tunnel owns resolution - its DNS/NRPT supersedes, so the rule action
+            // is held and re-asserted on the tunnel's falling edge. (A manual profile above already
+            // won; Revert-to-default is handled separately in ManualRevertToDefault, not here.)
+            if (_tunnelOwnsDns)
+            {
+                RecordDnsHistory(null);   // tunnel owns resolution - no profile band
+                _lastDnsAutoToast = null; // tunnel owns DNS - re-announce automation on its falling edge
+                SetActiveDns(null);       // the tunnel's own DNS isn't a MasselGUARD profile - no marker
+                return;                   // hold the rule action
+            }
+
+            // No tunnel: a forced system/DHCP default (legacy AutomaticId state) applies.
+            if (_manualDnsProfileId == DnsProfile.AutomaticId)
+            {
+                _dns.SetAutomatic(guid, families);   // forced system/DHCP default
+                RecordDnsDefaultResolver();          // show the actual server (e.g. 1.1.1.1)
+                _lastDnsAutoToast = null;            // manual default in force - re-announce on resume
+                SetActiveDns(null);                  // "automatic/DHCP" is not a profile - no marker
+                return;
+            }
+
+            var result = _pendingDns;
+            if (result == null) return;
+
+            switch (result.Action)
+            {
+                case DnsPolicy.DnsActionKind.Apply:
+                    var profile = _config.Config.DnsProfiles.FirstOrDefault(p =>
+                        string.Equals(p.Id, result.ProfileId, StringComparison.Ordinal));
+                    if (profile == null) { _log.Warn($"DNS: profile '{result.ProfileId}' not found."); return; }
+                    _log.Info($"DNS: {result.Reason}");
+                    _dns.ApplyProfile(guid, profile, families);
+                    RecordDnsHistory(profile.Name);
+                    MaybeToastDnsAuto($"prof:{profile.Name}", profile.Name, result.Reason);
+                    SetActiveDns(profile.Id);
+                    break;
+
+                case DnsPolicy.DnsActionKind.Automatic:
+                    _log.Info($"DNS: {result.Reason}");
+                    _dns.SetAutomatic(guid, families);
+                    RecordDnsDefaultResolver();   // show the actual server in use
+                    MaybeToastDnsAuto("auto", Lang.T("DnsSystemDefaultDhcp"), result.Reason);
+                    SetActiveDns(null);
+                    break;
+
+                default: // None - hand the network back its own resolver if we had overridden it.
+                    if (_dns.HasOverride(guid))
+                    {
+                        _log.Info("DNS: no matching rule - restoring the network's own resolver.");
+                        _dns.Restore(guid);
+                        MaybeToastDnsAuto("restored", Lang.T("DnsNetworkDefaultRestored"), result.Reason);
+                    }
+                    else
+                    {
+                        // Nothing was overridden - the network's own resolver already stands. Record
+                        // the state so a later automation change is what triggers the next toast.
+                        _lastDnsAutoToast = "none";
+                    }
+                    RecordDnsDefaultResolver();   // show the network's own DNS server (e.g. 1.1.1.1)
+                    SetActiveDns(null);
+                    break;
+            }
+        }
+
+        /// <summary>Translate a RuleEngine / DnsPolicy reason for display. Reasons are built in English
+        /// ("&lt;head&gt;[: subject][ → tail]") and stay English in the log and history; the known head
+        /// and tail phrases are swapped here, names (SSID, tunnel, profile) are kept as-is.</summary>
+        internal static string LocalizeReason(string reason)
+        {
+            if (string.IsNullOrEmpty(reason)) return reason;
+            string head = reason, tail = null!;
+            int arrow = reason.LastIndexOf(" → ", StringComparison.Ordinal);
+            if (arrow >= 0) { head = reason[..arrow]; tail = reason[(arrow + 3)..]; }
+
+            head = head switch
+            {
+                "Default action: disconnect"        => Lang.T("ReasonDefaultDisconnect"),
+                "Default action on WiFi disconnect" => Lang.T("ReasonDefaultOnWifiLost"),
+                "Schedule window ended"             => Lang.T("ReasonScheduleEnded"),
+                "Open network protection"           => Lang.T("BehaviourOpenProtection"),
+                "Open network"                      => Lang.T("ReasonOpenNetwork"),
+                "Default DNS"                       => Lang.T("ReasonDefaultDns"),
+                "No matching rule"                  => Lang.T("ReasonNoMatch"),
+                _ => head.StartsWith("Default action: activate ", StringComparison.Ordinal)
+                        ? Lang.T("ReasonDefaultActivate", head["Default action: activate ".Length..])
+                   : head.StartsWith("Rule: ", StringComparison.Ordinal)
+                        ? Lang.T("ReasonRule") + ": " + head["Rule: ".Length..]
+                   : head.StartsWith("Schedule: ", StringComparison.Ordinal)
+                        ? Lang.T("ReasonSchedule") + ": " + head["Schedule: ".Length..]
+                   : head.StartsWith("Untrusted network: ", StringComparison.Ordinal)
+                        ? Lang.T("ReasonUntrusted") + ": " + head["Untrusted network: ".Length..]
+                   : head.StartsWith("Trusted network: ", StringComparison.Ordinal)
+                        ? Lang.T("ReasonTrusted") + ": " + head["Trusted network: ".Length..]
+                   : head,
+            };
+            if (tail == null) return head;
+            tail = tail switch
+            {
+                "disconnect"       => Lang.T("ReasonTailDisconnect"),
+                "no DNS change"    => Lang.T("ReasonTailNoDnsChange"),
+                "automatic (DHCP)" => Lang.T("DnsSystemDefaultDhcp"),
+                _                  => tail,
+            };
+            return head + " → " + tail;
+        }
+
+        /// <summary>Fire a tray toast when <em>automation</em> changes the active DNS resolver - even
+        /// with no tunnel active. Deduped on <paramref name="identity"/> so it announces a change once,
+        /// not on every network poll, and gated by the same "notify on switch" setting as tunnel toasts.</summary>
+        private void MaybeToastDnsAuto(string identity, string primary, string reason)
+        {
+            if (_lastDnsAutoToast == identity) return;   // no change since the last automation apply
+            _lastDnsAutoToast = identity;
+
+            if (!_config.Config.ShowTrayPopupOnSwitch) return;
+
+            bool isOpen    = reason.StartsWith("Open network");
+            bool isDefault = reason.StartsWith("Default");
+            string category = reason.StartsWith("Rule:")            ? Lang.T("ToastCatDnsRule")
+                            : isOpen                                 ? "DNS · " + Lang.T("ReasonOpenNetwork")
+                            : reason.StartsWith("Schedule:")         ? Lang.T("ToastCatDnsSchedule")
+                            : reason.StartsWith("Trusted network")   ? "DNS · " + Lang.T("ReasonTrusted")
+                            : reason.StartsWith("Untrusted network") ? "DNS · " + Lang.T("ReasonUntrusted")
+                            : isDefault                              ? Lang.T("ToastCatDnsDefault")
+                            :                                          Lang.T("WizSumDnsAutomation");
+            string stripKey = isOpen ? "Success" : isDefault ? "Warning" : "Accent";
+
+            EmitToast(
+                new Views.ToastNotification
+                {
+                    Category   = category,
+                    Primary    = primary,
+                    Secondary  = LocalizeReason(reason),
+                    StripColor = stripKey,
+                    DurationMs = _config.Config.NotificationDurationSeconds * 1000,
+                });
+        }
+
+        /// <summary>Record which DNS profile is active (or none) for the in-chart history band,
+        /// when <see cref="AppConfig.StoreDnsHistory"/> is on.</summary>
+        private void RecordDnsHistory(string? name)
+        {
+            if (!_config.Config.StoreDnsHistory) return;
+            if (string.IsNullOrEmpty(name)) _history.RecordDnsDeactivate();
+            else                            _history.RecordDnsActivate(name);
+        }
+
+        /// <summary>Record the interface's *actual* resolver (e.g. "1.1.1.1") for the band when no
+        /// MasselGUARD profile is active - so the DNS layer always shows the real server in use.
+        /// Falls back to deactivate if the resolver can't be read.</summary>
+        private void RecordDnsDefaultResolver()
+        {
+            if (!_config.Config.StoreDnsHistory) return;
+            var ip = CurrentInterfaceResolver();
+            if (string.IsNullOrEmpty(ip)) _history.RecordDnsDeactivate();
+            else                          _history.RecordDnsActivate(ip);
+        }
+
+        /// <summary>The current WiFi interface's primary DNS server address, or null.</summary>
+        private string? CurrentInterfaceResolver()
+        {
+            try
+            {
+                var id = _wifi.CurrentInterfaceGuid.ToString("B");
+                var ni = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                    .FirstOrDefault(n => string.Equals(n.Id, id, StringComparison.OrdinalIgnoreCase));
+                return ni?.GetIPProperties().DnsAddresses.FirstOrDefault()?.ToString();
+            }
+            catch { return null; }
         }
 
         // ── Schedule (time-based rules) ───────────────────────────────────────
@@ -889,7 +1260,7 @@ namespace MasselGUARD.ViewModels
                     ApplyRuleResult(r);
                     break;
 
-                default: // None — no schedule window currently open
+                default: // None - no schedule window currently open
                     if (_scheduleActiveTunnel != null)
                     {
                         _scheduleActiveTunnel = null;
@@ -935,8 +1306,8 @@ namespace MasselGUARD.ViewModels
         {
             var dlg = new Microsoft.Win32.SaveFileDialog
             {
-                Title      = "Export Activity Log",
-                Filter     = "Text files (*.txt)|*.txt",
+                Title      = Lang.T("ExportLogDialogTitle"),
+                Filter     = Lang.T("TextFilesFilter") + " (*.txt)|*.txt",
                 FileName   = $"MasselGUARD-log-{DateTime.Now:yyyyMMdd}",
                 DefaultExt = ".txt",
             };
@@ -950,7 +1321,7 @@ namespace MasselGUARD.ViewModels
         public event Action<StoredTunnel>?   DeleteTunnelRequested;
         public event Action?                 QuickConnectRequested;
         public event Action?                 OpenSettingsRequested;
-        /// <summary>Fires every second on the UI thread — MainWindow uses this to update status bar labels.</summary>
+        /// <summary>Fires every second on the UI thread - MainWindow uses this to update status bar labels.</summary>
         public event Action?                 StatusTick;
 
         // ── IDisposable ───────────────────────────────────────────────────────
@@ -958,6 +1329,8 @@ namespace MasselGUARD.ViewModels
         {
             _timer.Stop();
             _disconnectDebounce?.Dispose();
+            // Never leave a DNS override stranded on an interface after we exit.
+            try { _dns.RestoreAll(); } catch { }
             _log.EntryAdded -= OnLogEntry;
         }
     }

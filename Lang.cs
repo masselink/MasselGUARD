@@ -65,7 +65,7 @@ namespace MasselGUARD
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs("Item[]"));
                 LanguageChanged?.Invoke(this, EventArgs.Empty);
             }
-            catch { /* corrupt file — keep current strings */ }
+            catch { /* corrupt file - keep current strings */ }
         }
 
         /// <summary>Returns all available language codes found in the lang folder.</summary>
@@ -92,7 +92,7 @@ namespace MasselGUARD
             return result.Count > 0 ? result : new List<(string, string, string)> { ("en", "English", "us") };
         }
 
-        // ── Indexer — used by WPF bindings ───────────────────────────────────
+        // ── Indexer - used by WPF bindings ───────────────────────────────────
         public string this[string key] =>
             _strings.TryGetValue(key, out var v) ? v : $"[{key}]";
 
@@ -104,6 +104,39 @@ namespace MasselGUARD
             if (args.Length == 0) return s;
             try { return string.Format(s, args); }
             catch { return s; }
+        }
+
+        private static Dictionary<string, string>? _english;
+
+        /// <summary>English text for a key whatever the UI language - for support-facing output
+        /// that stays English (e.g. the diagnostics "Copy all" report). Falls back to <see cref="T"/>.</summary>
+        public static string En(string key, params object[] args)
+        {
+            if (_english == null)
+            {
+                try
+                {
+                    _english = JsonSerializer.Deserialize<Dictionary<string, string>>(
+                        File.ReadAllText(LangFilePath("en"), System.Text.Encoding.UTF8));
+                }
+                catch { /* missing / corrupt en.json - fall back to the UI language */ }
+                _english ??= new Dictionary<string, string>();
+            }
+            var s = _english.TryGetValue(key, out var v) ? v : Instance[key];
+            if (args.Length == 0) return s;
+            try { return string.Format(s, args); }
+            catch { return s; }
+        }
+
+        /// <summary>Culture of the UI language, for day/month names in charts and lists (so they
+        /// match the app language, not the Windows locale). Falls back to the Windows culture.</summary>
+        public static System.Globalization.CultureInfo Culture
+        {
+            get
+            {
+                try   { return System.Globalization.CultureInfo.GetCultureInfo(Instance.CurrentCode); }
+                catch { return System.Globalization.CultureInfo.CurrentCulture; }
+            }
         }
 
         // ── Paths ────────────────────────────────────────────────────────────

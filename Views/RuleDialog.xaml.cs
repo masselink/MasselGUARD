@@ -13,13 +13,15 @@ namespace MasselGUARD.Views
         public string ResultName   { get; private set; } = "";
         public string ResultSsid   { get; private set; } = "";
         public string ResultTunnel { get; private set; } = "";
-        /// <summary>"wifi" | "schedule" | "trusted" — which trigger type the user chose.</summary>
+        /// <summary>"wifi" | "schedule" | "trusted" - which trigger type the user chose.</summary>
         public string ResultKind      { get; private set; } = "wifi";
         /// <summary>For a trusted rule: "untrusted" (activate off-list) or "trusted" (activate on-list).</summary>
         public string ResultTrustedWhen { get; private set; } = "untrusted";
         public string ResultStartTime { get; private set; } = "09:00";
         public string ResultEndTime   { get; private set; } = "17:00";
         public List<int> ResultDays   { get; private set; } = new();
+        /// <summary>DNS profile id to apply on this rule ("" = none, <see cref="MasselGUARD.Models.DnsProfile.AutomaticId"/> = DHCP).</summary>
+        public string ResultDnsProfileId { get; private set; } = "";
         /// <summary>
         /// New counter value to persist. -1 = no change; 0 = cleared; any positive = new value.
         /// </summary>
@@ -39,9 +41,19 @@ namespace MasselGUARD.Views
                           string existingStart  = "09:00",
                           string existingEnd    = "17:00",
                           List<int>? existingDays = null,
-                          string existingTrustedWhen = "untrusted")
+                          string existingTrustedWhen = "untrusted",
+                          List<(string id, string name)>? dnsProfiles = null,
+                          string existingDnsProfileId = "",
+                          bool dnsEnabled = true,
+                          bool tunnelsEnabled = true)
         {
             InitializeComponent();
+            LocalizeDayButtons();
+
+            // Hide the DNS picker when the DNS module is off (tunnels-only); hide the tunnel
+            // picker when the tunnel module is off (DNS-only → the rule is trigger → DNS).
+            if (!dnsEnabled)     DnsPickerPanel.Visibility    = Visibility.Collapsed;
+            if (!tunnelsEnabled) TunnelPickerPanel.Visibility = Visibility.Collapsed;
             _currentSsid  = currentSsid;
             _displayCount = executionCount;
 
@@ -50,6 +62,17 @@ namespace MasselGUARD.Views
             TunnelBox.Items.Add("");   // blank = disconnect
             if (tunnels != null)
                 foreach (var t in tunnels) TunnelBox.Items.Add(t);
+
+            // Populate DNS profile dropdown (none / automatic / each profile). Tag carries the id.
+            DnsProfileBox.Items.Clear();
+            DnsProfileBox.Items.Add(new ComboBoxItem { Content = Lang.T("DnsProfileNone"),      Tag = MasselGUARD.Models.DnsProfile.NoneId });
+            DnsProfileBox.Items.Add(new ComboBoxItem { Content = Lang.T("DnsProfileAutomatic"), Tag = MasselGUARD.Models.DnsProfile.AutomaticId });
+            if (dnsProfiles != null)
+                foreach (var (id, name) in dnsProfiles)
+                    DnsProfileBox.Items.Add(new ComboBoxItem { Content = name, Tag = id });
+            DnsProfileBox.SelectedIndex = 0;
+            foreach (ComboBoxItem it in DnsProfileBox.Items)
+                if ((it.Tag as string) == existingDnsProfileId) { DnsProfileBox.SelectedItem = it; break; }
 
             bool editMode = existingKind == "schedule" || existingKind == "trusted"
                             || !string.IsNullOrEmpty(existingSsid);
@@ -173,7 +196,7 @@ namespace MasselGUARD.Views
                 Margin       = new Thickness(0, 0, 0, 12),
             });
 
-            // TextBox — pre-filled with current count, digits only
+            // TextBox - pre-filled with current count, digits only
             var input = new TextBox
             {
                 Text              = currentValue.ToString(),
@@ -238,7 +261,7 @@ namespace MasselGUARD.Views
         /// <param name="tunnelOverride">
         /// Tunnel value to use instead of <c>TunnelBox.Text</c>. Needed when called from the
         /// ComboBox's SelectionChanged handler, where <c>TunnelBox.Text</c> still holds the
-        /// previous value (editable ComboBoxes update Text only after the event completes) —
+        /// previous value (editable ComboBoxes update Text only after the event completes) -
         /// passing the freshly-selected item avoids regenerating a stale "→ disconnect" name.
         /// </param>
         private void AutoGenerateName(string? tunnelOverride = null)
@@ -295,6 +318,14 @@ namespace MasselGUARD.Views
                     MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
+        /// <summary>Weekday buttons show the UI language's abbreviated day names (Tag = DayOfWeek).</summary>
+        private void LocalizeDayButtons()
+        {
+            var names = Lang.Culture.DateTimeFormat.AbbreviatedDayNames;
+            foreach (var b in new[] { DayMon, DayTue, DayWed, DayThu, DayFri, DaySat, DaySun })
+                if (int.TryParse(b.Tag as string, out var d) && d is >= 0 and < 7) b.Content = names[d];
+        }
+
         private void RuleType_Changed(object sender, RoutedEventArgs e)
         {
             bool schedule = TypeScheduleRadio?.IsChecked == true;
@@ -327,6 +358,7 @@ namespace MasselGUARD.Views
             bool trusted  = TypeTrustedRadio?.IsChecked  == true;
             ResultKind   = schedule ? "schedule" : trusted ? "trusted" : "wifi";
             ResultTunnel = TunnelBox.Text.Trim();
+            ResultDnsProfileId = (DnsProfileBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
 
             if (trusted)
             {

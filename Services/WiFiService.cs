@@ -50,7 +50,7 @@ namespace MasselGUARD.Services
         // +4  NotificationCode   (DWORD)
         // +8  InterfaceGuid      (GUID, 16 bytes)
         // +24 dwDataSize         (DWORD)
-        // +28 pData              (POINTER — points to WLAN_MSM_NOTIFICATION_DATA or similar)
+        // +28 pData              (POINTER - points to WLAN_MSM_NOTIFICATION_DATA or similar)
         // For ACM_CONNECTED the pData pointer holds WLAN_CONNECTION_NOTIFICATION_DATA:
         //   +0  wlanConnectionMode (DWORD)
         //   +4  strProfileName[256] (512 bytes of WCHARs)
@@ -64,11 +64,14 @@ namespace MasselGUARD.Services
 
         // ── State ─────────────────────────────────────────────────────────────
         private IntPtr _handle = IntPtr.Zero;
-        private WlanNotifCallback? _cb; // must be field — GC must not collect it
+        private WlanNotifCallback? _cb; // must be field - GC must not collect it
         private string? _lastFiredSsid = "##INIT##"; // sentinel so first event always fires
 
         public string? CurrentSsid   { get; private set; }
         public bool    IsOpenNetwork { get; private set; }
+        /// <summary>GUID of the currently connected WLAN adapter (Guid.Empty when none).
+        /// Used by DNS automation to target this exact interface.</summary>
+        public Guid    CurrentInterfaceGuid { get; private set; }
 
         /// <summary>Fired on a thread-pool thread. Handlers must marshal to UI if needed.</summary>
         public event Action<string?, bool>? SsidChanged;
@@ -128,7 +131,7 @@ namespace MasselGUARD.Services
             // Normalise null and empty to null
             if (string.IsNullOrEmpty(ssid)) ssid = null;
 
-            // Same SSID as last fired — swallow the duplicate
+            // Same SSID as last fired - swallow the duplicate
             if (ssid == _lastFiredSsid) return;
 
             _lastFiredSsid = ssid;
@@ -188,7 +191,14 @@ namespace MasselGUARD.Services
                         bool   isOpen = Marshal.ReadInt32(data, 576) == 0;
                         WlanFreeMemory(data);
 
-                        if (!string.IsNullOrEmpty(ssid)) return (ssid, isOpen);
+                        if (!string.IsNullOrEmpty(ssid))
+                        {
+                            // Remember the connected adapter's GUID so DNS automation can target
+                            // this exact interface (see DnsService). Stable across SSID changes
+                            // on the same radio.
+                            CurrentInterfaceGuid = guid;
+                            return (ssid, isOpen);
+                        }
                     }
                     catch { WlanFreeMemory(data); }
                 }

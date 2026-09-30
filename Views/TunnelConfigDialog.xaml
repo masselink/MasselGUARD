@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:MasselGUARD"
         Title="{Binding [TunnelDialogAddTitle], Source={x:Static local:Lang.Instance}}"
-        Width="640" Height="640"
+        Width="720" Height="640"
         WindowStyle="None" AllowsTransparency="True"
         Background="Transparent" ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="CenterOwner">
@@ -35,7 +35,7 @@
                 </Grid>
             </Border>
 
-            <!-- Tunnel name — above tabs, always visible -->
+            <!-- Tunnel name - above tabs, always visible -->
             <Border Grid.Row="1"
                     Background="{DynamicResource WindowBg}"
                     BorderBrush="{DynamicResource BorderColor}" BorderThickness="0,0,0,1"
@@ -378,7 +378,7 @@
                     </ScrollViewer>
                 </TabItem>
 
-                <!-- Options tab — behaviour toggles + data cap (moved out of the footer) -->
+                <!-- Options tab - behaviour toggles + data cap (moved out of the footer) -->
                 <TabItem x:Name="TabOptions"
                          Header="{Binding [TunnelDialogTabOptions], Source={x:Static local:Lang.Instance}}">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="20,16">
@@ -388,7 +388,7 @@
                                 <ToggleButton x:Name="IsDefaultToggle"
                                               Style="{StaticResource ToggleSwitch}"
                                               Margin="0,0,10,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="⚡ Default action"
+                                <TextBlock x:Name="DefaultActionToggleLabel"
                                            FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12"
                                            Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                             </StackPanel>
@@ -398,7 +398,7 @@
                                 <ToggleButton x:Name="IsOpenProtectionToggle"
                                               Style="{StaticResource ToggleSwitch}"
                                               Margin="0,0,10,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="🔓 Open network protection"
+                                <TextBlock x:Name="OpenProtectionToggleLabel"
                                            FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12"
                                            Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                             </StackPanel>
@@ -408,7 +408,7 @@
                                 <ToggleButton x:Name="KillSwitchToggle"
                                               Style="{StaticResource ToggleSwitch}"
                                               Margin="0,0,10,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="KillSwitchToggleLabel" Text="🔒 Kill switch"
+                                <TextBlock x:Name="KillSwitchToggleLabel"
                                            FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12"
                                            Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                             </StackPanel>
@@ -418,7 +418,7 @@
                                 <ToggleButton x:Name="AutoReconnectToggle"
                                               Style="{StaticResource ToggleSwitch}"
                                               Margin="0,0,10,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="AutoReconnectToggleLabel" Text="🔄 Auto-reconnect"
+                                <TextBlock x:Name="AutoReconnectToggleLabel"
                                            FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12"
                                            Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                             </StackPanel>
@@ -432,11 +432,15 @@
                                        Margin="0,0,0,8"/>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                 <TextBlock Text="{Binding [TunnelDialogCapDaily], Source={x:Static local:Lang.Instance}}"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12" Width="150"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12" Width="120"
                                            Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                                 <TextBox x:Name="DailyCapBox" Width="80" FontSize="11" Text="0" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="DailyUsedLabel" Width="120" FontSize="10" Foreground="{DynamicResource TextMuted}"
                                            VerticalAlignment="Center" Margin="8,0,0,0" TextTrimming="CharacterEllipsis"/>
+                                <CheckBox x:Name="DailyUseHistoryChk" Margin="12,0,0,0"
+                                          FontSize="11" VerticalAlignment="Center"
+                                          ToolTip="{Binding [TunnelDialogUseHistoryTip], Source={x:Static local:Lang.Instance}}"
+                                          Content="{Binding [TunnelDialogUseHistory], Source={x:Static local:Lang.Instance}}"/>
                                 <CheckBox x:Name="DailyHideRingChk" Margin="12,0,0,0"
                                           FontSize="11" VerticalAlignment="Center"
                                           Content="{Binding [TunnelDialogHideRing], Source={x:Static local:Lang.Instance}}"/>
@@ -446,11 +450,15 @@
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                 <TextBlock Text="{Binding [TunnelDialogCapWeekly], Source={x:Static local:Lang.Instance}}"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12" Width="150"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12" Width="120"
                                            Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                                 <TextBox x:Name="WeeklyCapBox" Width="80" FontSize="11" Text="0" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="WeeklyUsedLabel" Width="120" FontSize="10" Foreground="{DynamicResource TextMuted}"
                                            VerticalAlignment="Center" Margin="8,0,0,0" TextTrimming="CharacterEllipsis"/>
+                                <CheckBox x:Name="WeeklyUseHistoryChk" Margin="12,0,0,0"
+                                          FontSize="11" VerticalAlignment="Center"
+                                          ToolTip="{Binding [TunnelDialogUseHistoryTip], Source={x:Static local:Lang.Instance}}"
+                                          Content="{Binding [TunnelDialogUseHistory], Source={x:Static local:Lang.Instance}}"/>
                                 <CheckBox x:Name="WeeklyHideRingChk" Margin="12,0,0,0"
                                           FontSize="11" VerticalAlignment="Center"
                                           Content="{Binding [TunnelDialogHideRing], Source={x:Static local:Lang.Instance}}"/>
@@ -460,11 +468,15 @@
                             </StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{Binding [TunnelDialogCapMonthly], Source={x:Static local:Lang.Instance}}"
-                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12" Width="150"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12" Width="120"
                                            Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
                                 <TextBox x:Name="MonthlyCapBox" Width="80" FontSize="11" Text="0" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="MonthlyUsedLabel" Width="120" FontSize="10" Foreground="{DynamicResource TextMuted}"
                                            VerticalAlignment="Center" Margin="8,0,0,0" TextTrimming="CharacterEllipsis"/>
+                                <CheckBox x:Name="MonthlyUseHistoryChk" Margin="12,0,0,0"
+                                          FontSize="11" VerticalAlignment="Center"
+                                          ToolTip="{Binding [TunnelDialogUseHistoryTip], Source={x:Static local:Lang.Instance}}"
+                                          Content="{Binding [TunnelDialogUseHistory], Source={x:Static local:Lang.Instance}}"/>
                                 <CheckBox x:Name="MonthlyHideRingChk" Margin="12,0,0,0"
                                           FontSize="11" VerticalAlignment="Center"
                                           Content="{Binding [TunnelDialogHideRing], Source={x:Static local:Lang.Instance}}"/>
@@ -492,7 +504,7 @@
                 </TabItem>
             </TabControl>
 
-            <!-- Button bar — toggles now live on the Options tab -->
+            <!-- Button bar - toggles now live on the Options tab -->
             <Border Grid.Row="3" Background="{DynamicResource Surface}" CornerRadius="{DynamicResource Theme.CornerRadiusBottom}">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                             VerticalAlignment="Center" Margin="16,10">

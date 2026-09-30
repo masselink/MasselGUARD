@@ -11,13 +11,13 @@ namespace MasselGUARD.Views
     /// <summary>Structured data for a toast notification.</summary>
     public sealed class ToastNotification
     {
-        /// <summary>Category line in the header — e.g. "WiFi Rule Matched".</summary>
+        /// <summary>Category line in the header - e.g. "WiFi Rule Matched".</summary>
         public string Category    { get; init; } = "";
 
-        /// <summary>Primary line — rule name / tunnel name.</summary>
+        /// <summary>Primary line - rule name / tunnel name.</summary>
         public string Primary     { get; init; } = "";
 
-        /// <summary>Secondary line — e.g. "MasselNET → disconnect". Optional.</summary>
+        /// <summary>Secondary line - e.g. "MasselNET → disconnect". Optional.</summary>
         public string? Secondary  { get; init; }
 
         /// <summary>Strip colour. Null = Accent.</summary>
@@ -50,7 +50,7 @@ namespace MasselGUARD.Views
         private bool _closing = false;
         private bool _answered = false;
 
-        /// <summary>True while an interactive toast is still waiting for Confirm/Cancel —
+        /// <summary>True while an interactive toast is still waiting for Confirm/Cancel -
         /// used so routine toasts don't dismiss a decision the user hasn't made yet.</summary>
         public bool AwaitingDecision => _n.Interactive && !_answered;
 
@@ -91,7 +91,7 @@ namespace MasselGUARD.Views
             var textMuted = Res("TextMuted",   Color.FromRgb(139, 148, 158));
             var surface   = Res("Surface",     Color.FromRgb(22, 27, 34));
 
-            // Strip colour — resource key or hex, fallback to Accent
+            // Strip colour - resource key or hex, fallback to Accent
             Brush stripBr = accentBr;
             if (!string.IsNullOrEmpty(n.StripColor))
             {
@@ -287,7 +287,7 @@ namespace MasselGUARD.Views
             // A body click dismisses a normal toast; interactive ones must be answered.
             MouseLeftButtonDown += (_, _) => { if (!n.Interactive) DismissNow(); };
 
-            // Interactive toasts don't auto-dismiss on the normal duration — a long
+            // Interactive toasts don't auto-dismiss on the normal duration - a long
             // safety timeout counts as Cancel so they can't linger forever.
             Loaded += (_, _) => { PositionWindow(); SlideIn(); };
 

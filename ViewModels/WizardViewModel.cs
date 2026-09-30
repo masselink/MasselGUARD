@@ -30,7 +30,6 @@ namespace MasselGUARD.ViewModels
                 OnPropertyChanged(nameof(IsFirstStep));
                 OnPropertyChanged(nameof(IsLastStep));
                 OnPropertyChanged(nameof(CanGoBack));
-                OnPropertyChanged(nameof(NextLabel));
                 BackCommand.RaiseCanExecuteChanged();
                 NextCommand.RaiseCanExecuteChanged();
             }
@@ -39,7 +38,6 @@ namespace MasselGUARD.ViewModels
         public bool IsFirstStep => _step == 0;
         public bool IsLastStep  => _step == TotalSteps - 1;
         public bool CanGoBack   => _step > 0;
-        public string NextLabel => IsLastStep ? "Finish" : "Next";
 
         // ── Step 1: Language ──────────────────────────────────────────────────
         public ObservableCollection<MasselGUARD.LangItem> AvailableLanguages { get; } = new();
@@ -59,25 +57,24 @@ namespace MasselGUARD.ViewModels
             }
         }
 
-        // ── Step 2: Choose your view — was "Custom" picked? ─────────────────────
-        // Drives whether Step 3 (Custom view details) is reachable at all; Simple/
-        // Manual/Expert apply their fixed bundle directly and skip past it.
-        private bool _customView;
-        public bool CustomView
+        // ── Step 1: Feature modules (VPN / DNS / Both) ────────────────────────
+        // Drives which later steps are shown: WireGuard Behaviour needs tunnels,
+        // DNS Profiles Behaviour needs DNS. Committed on finish.
+        private bool _enableTunnels;
+        public bool EnableTunnels
         {
-            get => _customView;
-            set => SetField(ref _customView, value);
+            get => _enableTunnels;
+            set => SetField(ref _enableTunnels, value);
         }
 
-        // ── Step 4: Mode ──────────────────────────────────────────────────────
-        private AppMode _mode = AppMode.Standalone;
-        public AppMode Mode
+        private bool _enableDns;
+        public bool EnableDns
         {
-            get => _mode;
-            set => SetField(ref _mode, value);
+            get => _enableDns;
+            set => SetField(ref _enableDns, value);
         }
 
-        // ── Step 6: Disable WiFi rules ────────────────────────────────────────
+        // ── Step 4: Disable WiFi rules (manual mode) ──────────────────────────
         private bool _disableWifiRules;
         public bool DisableWifiRules
         {
@@ -86,15 +83,12 @@ namespace MasselGUARD.ViewModels
         }
 
         // ── Step 8: About card ────────────────────────────────────────────────
-        public string AppVersion         => UpdateChecker.CurrentVersionString;
-        public string PreviousAppVersion => _config.Config.LastRunVersion ?? "unknown";
-        public string UpdateStatus { get; private set; } = "Not checked";
+        public string PreviousAppVersion => _config.Config.LastRunVersion ?? Lang.T("VersionUnknown");
 
         // ── Commands ──────────────────────────────────────────────────────────
         public RelayCommand      BackCommand         { get; }
         public RelayCommand      NextCommand         { get; }
         public RelayCommand      SkipCommand         { get; }
-        public AsyncRelayCommand CheckUpdateCommand  { get; }
 
         // ── Events ────────────────────────────────────────────────────────────
         public event Action? Finished;
@@ -110,13 +104,13 @@ namespace MasselGUARD.ViewModels
             _log                = log;
             _pendingLangChanged = onLangChanged;
 
-            _mode             = config.Config.Mode;
             _disableWifiRules = config.Config.ManualMode;
+            _enableTunnels    = config.Config.EnableTunnels;
+            _enableDns        = config.Config.EnableDns;
 
             BackCommand        = new RelayCommand(GoBack,  () => CanGoBack);
             NextCommand        = new RelayCommand(GoNext);
             SkipCommand        = new RelayCommand(() => Skipped?.Invoke());
-            CheckUpdateCommand = new AsyncRelayCommand(CheckUpdate);
 
             PopulateLanguages();
         }
@@ -124,10 +118,12 @@ namespace MasselGUARD.ViewModels
         /// <summary>Re-sync VM state from config after an import.</summary>
         public void LoadFromConfig()
         {
-            _mode             = _config.Config.Mode;
             _disableWifiRules = _config.Config.ManualMode;
-            OnPropertyChanged(nameof(Mode));
+            _enableTunnels    = _config.Config.EnableTunnels;
+            _enableDns        = _config.Config.EnableDns;
             OnPropertyChanged(nameof(DisableWifiRules));
+            OnPropertyChanged(nameof(EnableTunnels));
+            OnPropertyChanged(nameof(EnableDns));
             // Re-select the imported language
             var match = AvailableLanguages.FirstOrDefault(
                 l => l.Code == _config.Config.Language);
@@ -136,19 +132,18 @@ namespace MasselGUARD.ViewModels
 
         // ── Navigation ────────────────────────────────────────────────────────
 
-        // Step 3 (Custom view details) is only reachable via the Step 2 "Custom" card —
-        // Simple/Manual/Expert apply their fixed bundle directly, nothing to configure there.
-        private const int CustomViewStep = 3;
-        // Step 6 (WiFi Automation) has nothing left to configure once WiFi rules are
-        // disabled (from the Step 2 "Manual" preset or the step's own toggle) — skip
-        // over it too rather than showing an empty/redundant step.
-        private const int WifiAutomationStep = 6;
+        // New flow (0-8):
+        //   0 Welcome + import + language   1 Feature choice (VPN/DNS/Both)   2 Appearance
+        //   3 Startup                       4 WiFi settings                    5 WireGuard Behaviour
+        //   6 DNS Profiles Behaviour        7 Notifications                    8 Done
+        private const int WireGuardBehaviourStep = 5;   // needs tunnels
+        private const int DnsBehaviourStep       = 6;   // needs DNS
 
         private bool IsStepSkipped(int step) => step switch
         {
-            CustomViewStep     => !_customView,
-            WifiAutomationStep => _disableWifiRules,
-            _                  => false,
+            WireGuardBehaviourStep => !_enableTunnels,
+            DnsBehaviourStep       => !_enableDns,
+            _                      => false,
         };
 
         private void GoBack()
@@ -173,9 +168,10 @@ namespace MasselGUARD.ViewModels
 
         private void ApplyAndFinish()
         {
-            var cfg        = _config.Config;
-            cfg.Mode       = _mode;
-            cfg.ManualMode = _disableWifiRules;
+            var cfg           = _config.Config;
+            cfg.ManualMode    = _disableWifiRules;
+            cfg.EnableTunnels = _enableTunnels;
+            cfg.EnableDns     = _enableDns;
             _config.Save();
             _log.Ok("Wizard completed");
             Finished?.Invoke();
@@ -195,28 +191,6 @@ namespace MasselGUARD.ViewModels
                     _selectedLanguage = item;
             }
             OnPropertyChanged(nameof(SelectedLanguage));
-        }
-
-        // ── Update check ──────────────────────────────────────────────────────
-
-        private async System.Threading.Tasks.Task CheckUpdate(object? _)
-        {
-            UpdateStatus = "Checking…";
-            OnPropertyChanged(nameof(UpdateStatus));
-            await UpdateChecker.CheckAsync(_config.Config, _config.Save);
-            UpdateStatus = GetUpdateStatusText();
-            OnPropertyChanged(nameof(UpdateStatus));
-        }
-
-        private string GetUpdateStatusText()
-        {
-            var current = UpdateChecker.CurrentVersionString;
-            var latest  = _config.Config.LatestKnownVersion;
-            if (string.IsNullOrEmpty(latest)) return "Not checked";
-            return string.Compare(current, latest,
-                StringComparison.OrdinalIgnoreCase) >= 0
-                ? $"Up to date (v{current})"
-                : $"Update available: v{latest}";
         }
     }
 }

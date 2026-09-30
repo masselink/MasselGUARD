@@ -23,6 +23,9 @@ namespace MasselGUARD
         private WinForms.NotifyIcon?       _trayIcon;
         private WinForms.ContextMenuStrip? _trayMenu;
         private WinForms.ToolStripMenuItem? _tunnelMenuHeader;
+        private WinForms.ToolStripMenuItem? _dnsMenuHeader;
+        private WinForms.ToolStripSeparator? _dnsMenuSeparator;
+        private WinForms.ToolStripMenuItem? _traySysDiagItem;
         private WinForms.ToolStripMenuItem? _trayShowItem;
         private WinForms.ToolStripMenuItem? _trayExitItem;
         private MainWindow? _mainWindow;
@@ -53,7 +56,7 @@ namespace MasselGUARD
                 ThemeManager.Instance.Load(target, isDark);
         }
 
-        /// <summary>Polling fallback — detects dark/light changes if the event fires late or is missed.</summary>
+        /// <summary>Polling fallback - detects dark/light changes if the event fires late or is missed.</summary>
         private void PollSystemTheme()
         {
             bool isDark = ThemeManager.GetSystemIsDark();
@@ -62,13 +65,49 @@ namespace MasselGUARD
             OnSystemThemeChanged(isDark);
         }
 
+        /// <summary>Append an exception (full stack) to %APPDATA%\MasselGUARD\crash.log. Best-effort,
+        /// never throws; the file is capped so it can't grow without bound.</summary>
+        internal static void WriteCrashLog(Exception? ex, string source)
+        {
+            if (ex == null) return;
+            try
+            {
+                var dir  = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MasselGUARD");
+                var path = System.IO.Path.Combine(dir, "crash.log");
+                System.IO.Directory.CreateDirectory(dir);
+                if (System.IO.File.Exists(path) && new System.IO.FileInfo(path).Length > 512 * 1024)
+                    System.IO.File.Delete(path);
+                System.IO.File.AppendAllText(path,
+                    $"==== {DateTime.Now:yyyy-MM-dd HH:mm:ss}  {source}  v{UpdateChecker.CurrentVersionString}{Environment.NewLine}" +
+                    ex + Environment.NewLine + Environment.NewLine);
+            }
+            catch { /* diagnostics only */ }
+        }
+
+        private static void OnWindowEscape(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key != System.Windows.Input.Key.Escape || e.Handled) return;
+            if (sender is not Window w) return;
+            if (w is MasselGUARD.MainWindow or Views.WizardWindow or Views.ToastWindow or Views.TrayToast) return;
+            e.Handled = true;
+            w.Close();   // same path as the window's ✕ / Cancel (unsaved-change prompts still apply)
+        }
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
 
-            // Global exception handler — show error instead of silent crash
+            // Global exception handler - show error instead of silent crash
+            AppDomain.CurrentDomain.UnhandledException += (_, ex) =>
+                WriteCrashLog(ex.ExceptionObject as Exception, "AppDomain (fatal)");
+
             DispatcherUnhandledException += (_, ex) =>
             {
+                // Always record it - including the ones swallowed below - so a startup that
+                // silently stops half-way can be diagnosed from %APPDATA%\MasselGUARD\crash.log.
+                WriteCrashLog(ex.Exception, IsShuttingDown ? "Dispatcher (shutdown)" : "Dispatcher");
+
                 // During shutdown, suppress all dispatcher exceptions.
                 // WPF's teardown fires FindResource / DynamicResource lookups against
                 // already-unloaded ResourceDictionaries, producing InvalidCastException
@@ -82,14 +121,21 @@ namespace MasselGUARD
                 }
 
                 System.Windows.MessageBox.Show(
-                    $"Unhandled error:\n\n{ex.Exception.GetType().Name}: {ex.Exception.Message}\n\n{ex.Exception.StackTrace?.Split('\n').FirstOrDefault()}",
-                    "MasselGUARD — Unexpected Error",
+                    $"{Lang.T("UnhandledErrorMsg")}\n\n{ex.Exception.GetType().Name}: {ex.Exception.Message}\n\n{ex.Exception.StackTrace?.Split('\n').FirstOrDefault()}",
+                    Lang.T("UnhandledErrorTitle"),
                     System.Windows.MessageBoxButton.OK,
                     System.Windows.MessageBoxImage.Error);
                 ex.Handled = true;
             };
 
-            // ── 1. Load language immediately — needed by all dialogs below ───
+            // Esc closes (= cancels) any dialog / secondary window, like the ✕ button does. Bubbling
+            // KeyDown, not Preview: a control that uses Esc itself (open dropdown, the Theme Builder's
+            // image zoom) marks it handled first and keeps it. Not for the main window (would hide the
+            // app to the tray), the setup wizard (a stray Esc must not abandon it) or notifications.
+            EventManager.RegisterClassHandler(typeof(Window), UIElement.KeyDownEvent,
+                new System.Windows.Input.KeyEventHandler(OnWindowEscape));
+
+            // ── 1. Load language immediately - needed by all dialogs below ───
             // ── 1. Load language and theme from persisted config ──────────────
             {
                 var bootCfg = new Services.ConfigService();
@@ -164,7 +210,7 @@ namespace MasselGUARD
                     if (shiftThemeReset) parts.Add("• Custom theme reverted to Windows system colours (auto mode)");
                     if (shiftLangReset)  parts.Add("• Interface language reset to the default (English)");
                     ShowThemedInfo(
-                        "MasselGUARD — Emergency Reset",
+                        "MasselGUARD - Emergency Reset",
                         string.Join("\n", parts) + "\n\nThis was triggered by holding Shift at startup.");
                 }
             }
@@ -177,7 +223,7 @@ namespace MasselGUARD
 
             // React immediately when Windows flips dark ↔ light mode.
             // UserPreferenceChanged fires (on a thread-pool thread) when the shell
-            // broadcasts WM_SETTINGCHANGE / WM_SYSCOLORCHANGE — marshal to Dispatcher.
+            // broadcasts WM_SETTINGCHANGE / WM_SYSCOLORCHANGE - marshal to Dispatcher.
             Microsoft.Win32.SystemEvents.UserPreferenceChanged += (_, e) =>
             {
                 if (e.Category != Microsoft.Win32.UserPreferenceCategory.General) return;
@@ -214,8 +260,8 @@ namespace MasselGUARD
             {
                 // Retry acquiring the mutex for up to 3 s regardless of whether a
                 // real process is visible.  This covers two scenarios:
-                //   (1) Orphaned mutex — old process crashed without releasing it.
-                //   (2) Update-installer — the installer closes the running instance
+                //   (1) Orphaned mutex - old process crashed without releasing it.
+                //   (2) Update-installer - the installer closes the running instance
                 //       and immediately launches the new one before the old process
                 //       has fully exited and released the mutex.
                 for (int i = 0; i < 6 && !isNewInstance; i++)
@@ -258,7 +304,7 @@ namespace MasselGUARD
                     }
                     else
                     {
-                        // User chose to keep the running copy — restore it and exit. Prefer the
+                        // User chose to keep the running copy - restore it and exit. Prefer the
                         // in-process signal (works even when it's hidden in the tray); fall back to
                         // window-handle activation for older instances without the listener.
                         if (!SignalExistingInstance())
@@ -267,31 +313,45 @@ namespace MasselGUARD
                         return;
                     }
                 }
-                // Acquired after wait (orphaned mutex or update scenario) — continue normally
+                // Acquired after wait (orphaned mutex or update scenario) - continue normally
             }
 
 
             // ── 3. Launch main window ────────────────────────────────────────
             _mainWindow = new MainWindow();
 
-            // Show() then Activate() ensures the window comes to foreground
-            // even when launched via UAC elevation from a non-elevated parent.
+            bool startMinimized = _mainWindow.ConfigSvc.Config.StartMinimized;
+
+            // Show() lets the window initialise (Loaded fires, services spin up) even when we then
+            // hide it - needed so tray, polling and auto-connect all work in minimized mode.
             _mainWindow.Show();
-            _mainWindow.Activate();
-            _mainWindow.Dispatcher.BeginInvoke(new Action(() =>
+            if (startMinimized)
             {
-                _mainWindow.Topmost = true;
-                _mainWindow.Topmost = false;
-                _mainWindow.Focus();
-            }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                // Straight to the tray - no visible window on launch.
+                _mainWindow.Hide();
+            }
+            else
+            {
+                // Show() then Activate() ensures the window comes to foreground
+                // even when launched via UAC elevation from a non-elevated parent.
+                _mainWindow.Activate();
+                _mainWindow.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    _mainWindow.Topmost = true;
+                    _mainWindow.Topmost = false;
+                    _mainWindow.Focus();
+                }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            }
 
             SetupTrayIcon();
             StartShowRequestListener();
+            // Note: the "connect on start" tunnel is connected by MainWindow AFTER the initial WiFi
+            // rule / default-action evaluation has settled, so it isn't immediately overridden.
         }
 
         // ── Cross-instance "show me" signal ──────────────────────────────────
         // A second instance the user chooses to dismiss ("Open running app") sets this named
-        // event so THIS (running) instance restores its own window — necessary because when
+        // event so THIS (running) instance restores its own window - necessary because when
         // MasselGUARD is minimised to the tray the window is hidden and has no MainWindowHandle
         // for the second process to restore from the outside.
         private const string ShowEventName = "Global\\MasselGUARD_ShowWindow";
@@ -303,7 +363,7 @@ namespace MasselGUARD
             {
                 _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName, out _);
             }
-            catch { return; }   // event unavailable — falls back to BringExistingToFront elsewhere
+            catch { return; }   // event unavailable - falls back to BringExistingToFront elsewhere
 
             var t = new Thread(() =>
             {
@@ -345,7 +405,7 @@ namespace MasselGUARD
             {
                 Text    = ThemeManager.Instance.Current.AppName,
                 Visible = true,
-                Icon    = GetTrayIcon(0)
+                Icon    = GetTrayIcon(0, false)
             };
 
             _trayMenu = new WinForms.ContextMenuStrip();
@@ -361,11 +421,29 @@ namespace MasselGUARD
             _trayMenu.Items.Add(_trayShowItem);
             _trayMenu.Items.Add(new WinForms.ToolStripSeparator());
 
-            // Tunnel submenu placeholder — rebuilt lazily by RebuildTrayTunnelMenu on Opening
+            // Tunnel submenu placeholder - rebuilt lazily by RebuildTrayTunnelMenu on Opening
             _tunnelMenuHeader = new WinForms.ToolStripMenuItem(Lang.T("TrayTunnels"));
             _tunnelMenuHeader.Font  = GetTrayFont(bold: true);
             _tunnelMenuHeader.Image = DrawMenuIcon(MenuIconKind.ShieldOff);
             _trayMenu.Items.Add(_tunnelMenuHeader);
+            _trayMenu.Items.Add(new WinForms.ToolStripSeparator());
+
+            // DNS-profiles submenu placeholder - rebuilt lazily by RebuildTrayDnsMenu on Opening.
+            // Hidden (along with its trailing separator) when no DNS profiles are configured.
+            _dnsMenuHeader = new WinForms.ToolStripMenuItem(Lang.T("TrayDns"));
+            _dnsMenuHeader.Font  = GetTrayFont(bold: true);
+            _dnsMenuHeader.Image = DrawMenuIcon(MenuIconKind.Dns);
+            _trayMenu.Items.Add(_dnsMenuHeader);
+            _dnsMenuSeparator = new WinForms.ToolStripSeparator();
+            _trayMenu.Items.Add(_dnsMenuSeparator);
+
+            // System diagnostics - read-only network / tunnel / DNS snapshot
+            _traySysDiagItem = new WinForms.ToolStripMenuItem(Lang.T("SysDiagOpen"));
+            _traySysDiagItem.Font  = GetTrayFont();
+            _traySysDiagItem.Image = DrawMenuIcon(MenuIconKind.Diag);
+            _traySysDiagItem.Click += (_, _) =>
+                _mainWindow?.Dispatcher.Invoke(() => _mainWindow.OpenSystemDiagnostics());
+            _trayMenu.Items.Add(_traySysDiagItem);
             _trayMenu.Items.Add(new WinForms.ToolStripSeparator());
 
             _trayExitItem = new WinForms.ToolStripMenuItem(Lang.T("TrayExit"));
@@ -383,8 +461,8 @@ namespace MasselGUARD
             _trayIcon.ContextMenuStrip = _trayMenu;
             _trayIcon.DoubleClick += (_, _) => ShowMainWindow();
 
-            // Rebuild the grouped tunnel list lazily whenever the menu opens
-            _trayMenu.Opening += (_, _) => RebuildTrayTunnelMenu();
+            // Rebuild the grouped tunnel list + DNS-profile list lazily whenever the menu opens
+            _trayMenu.Opening += (_, _) => { RebuildTrayTunnelMenu(); RebuildTrayDnsMenu(); };
 
             // Keep static menu item labels in sync with the active language
             Lang.Instance.LanguageChanged += (_, _) => UpdateTrayMenuLanguage();
@@ -394,10 +472,12 @@ namespace MasselGUARD
         {
             if (_trayShowItem    != null) _trayShowItem.Text    = Lang.T("TrayShowWindow");
             if (_tunnelMenuHeader != null) _tunnelMenuHeader.Text = Lang.T("TrayTunnels");
+            if (_dnsMenuHeader   != null) _dnsMenuHeader.Text    = Lang.T("TrayDns");
+            if (_traySysDiagItem != null) _traySysDiagItem.Text  = Lang.T("SysDiagOpen");
             if (_trayExitItem    != null) _trayExitItem.Text    = Lang.T("TrayExit");
         }
 
-        private enum MenuIconKind { ShieldOff, ShieldOn, Window, Exit }
+        private enum MenuIconKind { ShieldOff, ShieldOn, Window, Exit, Dns, Diag }
 
         private static System.Drawing.Bitmap DrawMenuIcon(MenuIconKind kind)
         {
@@ -486,6 +566,35 @@ namespace MasselGUARD
                     g.DrawLine(pen, X(11.5f), Y(10.5f), X(14), Y(8));
                     break;
                 }
+                case MenuIconKind.Dns:
+                {
+                    // A globe: outline circle with a couple of "meridian/parallel" arcs.
+                    var col = Res("Accent", System.Drawing.Color.FromArgb(96,165,250));
+                    using var pen = new System.Drawing.Pen(col, 1.3f);
+                    g.DrawEllipse(pen, X(2), Y(2), X(12), Y(12));       // globe outline
+                    g.DrawEllipse(pen, X(5.5f), Y(2), X(5), Y(12));    // vertical meridian
+                    g.DrawLine(pen, X(2), Y(8), X(14), Y(8));           // equator
+                    g.DrawLine(pen, X(3), Y(5), X(13), Y(5));           // upper parallel
+                    g.DrawLine(pen, X(3), Y(11), X(13), Y(11));         // lower parallel
+                    break;
+                }
+                case MenuIconKind.Diag:
+                {
+                    // Activity / pulse line - the "diagnostics" motif.
+                    var col = Res("Accent", System.Drawing.Color.FromArgb(96,165,250));
+                    using var pen = new System.Drawing.Pen(col, 1.6f)
+                        { StartCap = System.Drawing.Drawing2D.LineCap.Round,
+                          EndCap   = System.Drawing.Drawing2D.LineCap.Round,
+                          LineJoin = System.Drawing.Drawing2D.LineJoin.Round };
+                    g.DrawLines(pen, new[] {
+                        new System.Drawing.PointF(X(1.5f), Y(9)),
+                        new System.Drawing.PointF(X(5),    Y(9)),
+                        new System.Drawing.PointF(X(7),    Y(4)),
+                        new System.Drawing.PointF(X(9.5f), Y(13)),
+                        new System.Drawing.PointF(X(11.5f),Y(9)),
+                        new System.Drawing.PointF(X(14.5f),Y(9)) });
+                    break;
+                }
             }
             return bmp;
         }
@@ -494,13 +603,14 @@ namespace MasselGUARD
         {
             IsShuttingDown     = true;
             _trayIcon!.Visible = false;
-            // Close any open SSID entry so the end-time is recorded correctly
+            // Close any open SSID / DNS entry so the end-time is recorded correctly
             _mainWindow?.HistorySvc.RecordSsidDisconnect();
+            _mainWindow?.HistorySvc.RecordDnsDeactivate();
             Shutdown();
         }
 
         /// <summary>
-        /// Clean exit — identical behaviour to the tray "Exit" item:
+        /// Clean exit - identical behaviour to the tray "Exit" item:
         /// disconnects active tunnels (with optional confirm when ConfirmOnClose is set)
         /// then shuts down. Safe to call from any UI thread context.
         /// </summary>
@@ -511,20 +621,19 @@ namespace MasselGUARD
             var activeTunnels = _mainWindow._vm.TunnelList
                 .Where(t => t.IsActive).ToList();
 
-            // No active tunnels — exit immediately
+            // No active tunnels - exit immediately
             if (activeTunnels.Count == 0)
             {
                 ShutdownApp();
                 return;
             }
 
-            // Active tunnels — confirm only when ConfirmOnClose is set
+            // Active tunnels - confirm only when ConfirmOnClose is set
             if (_mainWindow.ConfigSvc.Config.ConfirmOnClose)
             {
-                string plural = activeTunnels.Count == 1 ? "" : "s";
                 bool doExit = _mainWindow.ShowThemedYesNo(
-                    $"There {(activeTunnels.Count == 1 ? "is" : "are")} {activeTunnels.Count} active tunnel{plural}.\n\nDisconnect and exit MasselGUARD?",
-                    "Exit MasselGUARD");
+                    activeTunnels.Count == 1 ? Lang.T("ExitConfirmOne") : Lang.T("ExitConfirmMany", activeTunnels.Count),
+                    Lang.T("ExitConfirmTitle"));
                 if (!doExit) return;
             }
 
@@ -548,6 +657,7 @@ namespace MasselGUARD
         private string _lastToastKey    = "";
         private int    _lastActiveCount = 0;  // preserved across theme changes
         private string _lastActiveTunnelName = "";  // preserved across theme changes, for the tray tooltip
+        private bool   _lastDnsActive = false;  // DNS pip state, preserved across theme/menu redraws
 
         public void ShowTrayNotification(Views.ToastNotification n)
         {
@@ -570,7 +680,7 @@ namespace MasselGUARD
                 {
                     if (_activeToast != null)
                     {
-                        // A decision toast the user hasn't answered stays put — drop ANY new
+                        // A decision toast the user hasn't answered stays put - drop ANY new
                         // toast (routine or another decision) so it isn't swept away by a
                         // follow-up automation event. The 120 s safety timeout still frees it.
                         if (_activeToast.AwaitingDecision) return;
@@ -603,11 +713,12 @@ namespace MasselGUARD
             if (_trayIcon == null) return;
             _lastActiveCount      = activeCount;   // remember for theme-change redraws
             _lastActiveTunnelName = tunnelName;
+            _lastDnsActive        = _mainWindow?._vm.DnsActive ?? _lastDnsActive;
             var appName = ThemeManager.Instance.Current.AppName;
             _trayIcon.Text = activeCount > 0
                 ? $"{appName} - {Lang.T("TrayActive", tunnelName)}"
                 : $"{appName} - {Lang.T("TrayIdleSubtitle")}";
-            _trayIcon.Icon = GetTrayIcon(activeCount);
+            _trayIcon.Icon = GetTrayIcon(activeCount, _lastDnsActive);
 
             // Update tunnel header shield to reflect active state
             if (_tunnelMenuHeader != null)
@@ -615,26 +726,46 @@ namespace MasselGUARD
                     activeCount > 0 ? MenuIconKind.ShieldOn : MenuIconKind.ShieldOff);
         }
 
-        private static System.Drawing.Icon GetTrayIcon(int activeCount)
+        /// <summary>Redraw the tray icon when only the DNS state changed (tunnel count unchanged),
+        /// so the DNS shield appears/disappears immediately. Called from the view-model.</summary>
+        public void UpdateTrayDnsIndicator()
+        {
+            if (_trayIcon == null) return;
+            _lastDnsActive = _mainWindow?._vm.DnsActive ?? false;
+            try { _trayIcon.Icon = GetTrayIcon(_lastActiveCount, _lastDnsActive); } catch { }
+        }
+
+        /// <summary>The active DNS profile changed (manual OR automation) - refresh both the tray
+        /// shield and the main-window DNS panel so the "active" marker tracks it live.</summary>
+        public void OnDnsStateChanged()
+        {
+            UpdateTrayDnsIndicator();
+            try { _mainWindow?.RebuildDnsPanel(); } catch { }
+        }
+
+        private static System.Drawing.Icon GetTrayIcon(int activeCount, bool dnsActive)
         {
             var res = Application.Current.Resources;
             // State-specific theme icons (connected/disconnected, resolved per
             // dark/light variant by ThemeManager) take precedence, then the single
             // custom AppIcon, then the built-in shield with badge.
+            System.Drawing.Icon? baseIcon = null;
             var stateKey = activeCount > 0 ? "Theme.TrayIconConnected" : "Theme.TrayIconDisconnected";
-            if (res[stateKey] is System.Drawing.Icon stateIcon)
-                return stateIcon;
-            if (res["Theme.TrayIcon"] is System.Drawing.Icon custom)
-                return custom;
-            return TrayIconHelper.CreateIcon(activeCount);
+            if (res[stateKey] is System.Drawing.Icon stateIcon)       baseIcon = stateIcon;
+            else if (res["Theme.TrayIcon"] is System.Drawing.Icon cu) baseIcon = cu;
+            baseIcon ??= TrayIconHelper.CreateIcon(activeCount);
+
+            // A MasselGUARD DNS profile is applied → composite a small corner pip over whatever
+            // base icon is in use (built-in or a theme's own connected/disconnected icon).
+            return dnsActive ? TrayIconHelper.OverlayDnsPip(baseIcon) : baseIcon;
         }
 
         private void OnThemeChanged(object? sender, EventArgs e)
         {
             if (_trayIcon == null) return;
-            // Redraw icon and menu with current active-count so state is preserved
-            _trayIcon.Icon = GetTrayIcon(_lastActiveCount);
-            // Tooltip text includes the theme's app name too — keep it in step with the
+            // Redraw icon and menu with current active-count + DNS state so both are preserved
+            _trayIcon.Icon = GetTrayIcon(_lastActiveCount, _lastDnsActive);
+            // Tooltip text includes the theme's app name too - keep it in step with the
             // icon instead of leaving the previous theme's name showing until the next
             // tunnel status change.
             var appName = ThemeManager.Instance.Current.AppName;
@@ -682,6 +813,8 @@ namespace MasselGUARD
         {
             if (_trayShowItem     != null) _trayShowItem.Font     = GetTrayFont(bold: true);
             if (_tunnelMenuHeader != null) _tunnelMenuHeader.Font = GetTrayFont(bold: true);
+            if (_dnsMenuHeader    != null) _dnsMenuHeader.Font    = GetTrayFont(bold: true);
+            if (_traySysDiagItem  != null) _traySysDiagItem.Font  = GetTrayFont();
             if (_trayExitItem     != null) _trayExitItem.Font     = GetTrayFont();
         }
 
@@ -714,7 +847,7 @@ namespace MasselGUARD
                 groups     = _mainWindow.ConfigSvc.Config.TunnelGroups.ToList();
             });
 
-            // Read theme colours — handles Drawing.Color (Tray* keys), Media.Color (C.* keys),
+            // Read theme colours - handles Drawing.Color (Tray* keys), Media.Color (C.* keys),
             // and SolidColorBrush (named brush keys like Accent, TextMuted).
             System.Drawing.Color GetColor(string key, System.Drawing.Color fb)
             {
@@ -739,7 +872,7 @@ namespace MasselGUARD
 
             var activeTunnels = allTunnels.Where(t => t.IsActive).ToList();
 
-            // ── "Disconnect All" — visible only when at least one tunnel is active ──
+            // ── "Disconnect All" - visible only when at least one tunnel is active ──
             if (activeTunnels.Count > 0)
             {
                 var disconnectAll = new WinForms.ToolStripMenuItem(Lang.T("TrayDisconnectAll"));
@@ -781,13 +914,13 @@ namespace MasselGUARD
 
                 bool groupHasActive = tunnelsInGroup.Any(t => t.IsActive);
 
-                // Group item — opens a submenu listing its tunnels
+                // Group item - opens a submenu listing its tunnels
                 var groupItem = new WinForms.ToolStripMenuItem(grp.Name);
                 groupItem.Font      = GetTrayFont(bold: true);
                 groupItem.ForeColor = groupHasActive ? accentColor : txtColor;
                 groupItem.Image     = MakeStatusDot(groupHasActive ? accentColor : mutedColor);
 
-                // Apply dark renderer + correct bg to the fly-out — without this the
+                // Apply dark renderer + correct bg to the fly-out - without this the
                 // submenu uses the Windows system renderer and looks completely different.
                 ApplyDropDownStyle(groupItem, bgColor);
 
@@ -827,7 +960,7 @@ namespace MasselGUARD
                 }
                 else
                 {
-                    // No groups at all — show tunnels as a flat list
+                    // No groups at all - show tunnels as a flat list
                     foreach (var tunnel in ungrouped)
                         AddTunnelItem(_tunnelMenuHeader.DropDownItems, tunnel, accentColor, mutedColor);
                 }
@@ -835,7 +968,111 @@ namespace MasselGUARD
 
             // Keep tray icon badge in sync
             if (_trayIcon != null)
-                _trayIcon.Icon = GetTrayIcon(activeTunnels.Count);
+                _trayIcon.Icon = GetTrayIcon(activeTunnels.Count, _lastDnsActive);
+        }
+
+        /// <summary>
+        /// Rebuilds the DNS-profiles submenu: one item per configured profile (click toggles the
+        /// manual override on/off - the active profile is marked), plus "Revert to default".
+        /// The whole submenu (and its trailing separator) is hidden when no profiles are configured,
+        /// so tunnel-only users never see it. Mirrors the main-window DNS panel's Enable/Disable.
+        /// </summary>
+        private void RebuildTrayDnsMenu()
+        {
+            if (_dnsMenuHeader == null || _mainWindow == null) return;
+            _dnsMenuHeader.DropDownItems.Clear();
+
+            // Gather profile + active-override data on the WPF UI thread.
+            List<Models.DnsProfile> profiles = new();
+            string? activeId = null;   // profile currently applied (manual OR automation)
+            string? manualId = null;   // only the manual override
+            _mainWindow.Dispatcher.Invoke(() =>
+            {
+                profiles = _mainWindow.ConfigSvc.Config.DnsProfiles.ToList();
+                activeId = _mainWindow._vm.ActiveDnsProfileId;
+                manualId = _mainWindow._vm.ManualDnsProfileId;
+            });
+
+            // Is there actually a DNS override to revert? If nothing is applied, hide "Revert to default".
+            bool canRevert = activeId != null || _mainWindow._vm.DnsActive;
+
+            // Hide the whole DNS section when there's nothing to manage.
+            bool anyProfiles = profiles.Count > 0;
+            _dnsMenuHeader.Visible = anyProfiles;
+            if (_dnsMenuSeparator != null) _dnsMenuSeparator.Visible = anyProfiles;
+            if (!anyProfiles) return;
+
+            System.Drawing.Color GetColor(string key, System.Drawing.Color fb)
+            {
+                try
+                {
+                    var v = System.Windows.Application.Current?.Resources[key];
+                    if (v is System.Drawing.Color dc)                        return dc;
+                    if (v is System.Windows.Media.Color mc)
+                        return System.Drawing.Color.FromArgb(mc.A, mc.R, mc.G, mc.B);
+                    if (v is System.Windows.Media.SolidColorBrush scb)
+                        return System.Drawing.Color.FromArgb(
+                            scb.Color.A, scb.Color.R, scb.Color.G, scb.Color.B);
+                }
+                catch { }
+                return fb;
+            }
+
+            var accentColor = GetColor("Accent",             System.Drawing.Color.FromArgb( 88, 166, 255));
+            var mutedColor  = GetColor("TextMuted",          System.Drawing.Color.FromArgb(110, 118, 129));
+            var bgColor     = GetColor("Theme.TrayBgColor",  System.Drawing.Color.FromArgb( 22,  27,  34));
+
+            // Dark-theme the fly-out so it matches the rest of the tray menu.
+            ApplyDropDownStyle(_dnsMenuHeader, bgColor);
+
+            // ── Revert to default - on top, accent-coloured (mirrors "Disconnect All"). Shown only
+            //    when there's actually an active DNS override to revert. ──
+            if (canRevert)
+            {
+                var revert = new WinForms.ToolStripMenuItem(Lang.T("BtnDnsRevertDefault"));
+                revert.Font      = GetTrayFont(bold: true);
+                revert.ForeColor = accentColor;
+                revert.Click += (_, _) =>
+                {
+                    _mainWindow?.Dispatcher.Invoke(() =>
+                    {
+                        _mainWindow._vm.ManualRevertToDefault();
+                        _mainWindow.RebuildDnsPanel();
+                    });
+                };
+                _dnsMenuHeader.DropDownItems.Add(revert);
+                _dnsMenuHeader.DropDownItems.Add(new WinForms.ToolStripSeparator());
+            }
+
+            foreach (var profile in profiles)
+            {
+                bool on   = string.Equals(profile.Id, activeId, StringComparison.Ordinal);
+                var item  = new WinForms.ToolStripMenuItem(profile.Name);
+                item.Font      = on ? GetTrayFont(bold: true) : GetTrayFont();
+                item.ForeColor = on ? accentColor : mutedColor;
+                item.Image     = MakeStatusDot(on ? accentColor : mutedColor);
+
+                var capture   = profile;
+                bool wasOn    = on;
+                bool wasManual = string.Equals(profile.Id, manualId, StringComparison.Ordinal);
+                item.Click += (_, _) =>
+                {
+                    _mainWindow?.Dispatcher.Invoke(() =>
+                    {
+                        // Toggle. Clicking the active one turns it off: clear the manual override if it
+                        // was manual, otherwise revert (it was applied by automation). Clicking another
+                        // enables it (replaces any current override).
+                        if (wasOn)
+                        {
+                            if (wasManual) _mainWindow._vm.ManualDisable();
+                            else           _mainWindow._vm.ManualRevertToDefault();
+                        }
+                        else _mainWindow._vm.ManualApplyDns(capture);
+                        _mainWindow.RebuildDnsPanel();   // keep the main-window panel in sync
+                    });
+                };
+                _dnsMenuHeader.DropDownItems.Add(item);
+            }
         }
 
         /// <summary>
@@ -909,6 +1146,9 @@ namespace MasselGUARD
 
         protected override void OnExit(ExitEventArgs e)
         {
+            // Restore any per-interface DNS override so we never strand a resolver after exit.
+            try { _mainWindow?._vm.RestoreDnsOverrides(); } catch { }
+
             // Restore Windows Firewall policy before disconnecting tunnels.
             try { _mainWindow?.KillSwitchSvc?.DisableAll(); } catch { }
 
@@ -960,7 +1200,7 @@ namespace MasselGUARD
         }
 
         /// <summary>
-        /// Closes every other MasselGUARD instance — asks politely first
+        /// Closes every other MasselGUARD instance - asks politely first
         /// (CloseMainWindow), then force-kills any that don't exit in time.
         /// </summary>
         private static void KillOtherInstances()
@@ -1048,10 +1288,10 @@ namespace MasselGUARD
                 Margin       = new Thickness(0, 0, 0, 20),
             };
 
-            // OK button (themed Border + TextBlock — avoids default Button chrome)
+            // OK button (themed Border + TextBlock - avoids default Button chrome)
             var okTb = new System.Windows.Controls.TextBlock
             {
-                Text                = "OK",
+                Text                = Lang.T("BtnOk"),
                 FontFamily          = ff,
                 FontSize            = 11,
                 FontWeight          = FontWeights.SemiBold,
@@ -1142,7 +1382,7 @@ namespace MasselGUARD
             System.Windows.Media.Brush Br(System.Windows.Media.Color c) =>
                 new System.Windows.Media.SolidColorBrush(c);
 
-            // Use Border+TextBlock — WPF Button ignores Foreground via default chrome
+            // Use Border+TextBlock - WPF Button ignores Foreground via default chrome
             System.Windows.Controls.Border MakeBtn(string label,
                 System.Windows.Media.Color fg, System.Windows.Media.Color bgCol,
                 System.Windows.Media.Color hoverCol)
@@ -1196,10 +1436,10 @@ namespace MasselGUARD
             var bgExit  = Clr("CardBg",    System.Windows.Media.Color.FromRgb(36, 41, 51));
             var hovExit = Clr("Highlight", System.Windows.Media.Color.FromRgb(55, 62, 76));
 
-            // "Open the running app" — keep the existing instance, close this one (default).
+            // "Open the running app" - keep the existing instance, close this one (default).
             var openBtn = MakeBtn(Lang.T("AlreadyRunningBtnOpenExisting"), textC, bgExit, hovExit);
 
-            // "Close it & start here" — terminate the running instance and continue.
+            // "Close it & start here" - terminate the running instance and continue.
             var hovWarn = System.Windows.Media.Color.FromArgb(40, warn.R, warn.G, warn.B);
             var replaceBtn = MakeBtn(Lang.T("AlreadyRunningBtnReplace"), warn, bgExit, hovWarn);
 
@@ -1248,7 +1488,7 @@ namespace MasselGUARD
 
             var win = new Window
             {
-                Title                 = "MasselGUARD — Already running",
+                Title                 = "MasselGUARD - " + Lang.T("AlreadyRunningTitle"),
                 Width                 = 520,
                 SizeToContent         = SizeToContent.Height,
                 WindowStyle           = WindowStyle.None,
@@ -1283,6 +1523,10 @@ namespace MasselGUARD
         private static readonly System.Drawing.Color ColGreen   = C(63, 185,  80);        // connected green
         private static readonly System.Drawing.Color ColShield  = C(28,  33,  40);        // shield fill (dark card)
         private static readonly System.Drawing.Color ColRim     = C(48,  54,  61);        // rim / border
+        private static readonly System.Drawing.Color ColDnsPip  = C(167, 139, 250);       // violet - default DNS badge colour
+        // Built-in DNS badge silhouette (24×24 grid) used when the theme supplies no SVG path.
+        private const string DefaultDnsBadgePath =
+            "M12 2 L20 5 L20 11 C20 16 16.4 19.6 12 21 C7.6 19.6 4 16 4 11 L4 5 Z";
 
         // ── Public entry point ───────────────────────────────────────────────
         public static System.Drawing.Icon CreateIcon(int activeCount = 0)
@@ -1297,6 +1541,100 @@ namespace MasselGUARD
             WriteMultiSizeIco(ms, src, sizes);
             ms.Position = 0;
             return new System.Drawing.Icon(ms);
+        }
+
+        /// <summary>
+        /// Return a NEW multi-size icon: the given base icon with a small violet DNS pip composited
+        /// in the bottom-right corner (dark rim so it reads on any base). Works over the built-in
+        /// icon or a theme's own connected/disconnected icon, so DNS indication is theme-agnostic.
+        /// </summary>
+        public static System.Drawing.Icon OverlayDnsPip(System.Drawing.Icon source)
+        {
+            const int S = 256;
+            using var canvas = new System.Drawing.Bitmap(S, S, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using (var g = System.Drawing.Graphics.FromImage(canvas))
+            {
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                g.SmoothingMode     = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                g.Clear(System.Drawing.Color.Transparent);
+
+                // Base icon scaled to the full canvas.
+                using (var big = new System.Drawing.Icon(source, S, S))
+                using (var baseBmp = big.ToBitmap())
+                    g.DrawImage(baseBmp, 0, 0, S, S);
+
+                // DNS badge: a SHIELD in the bottom-right, ~45% of the icon. Shape comes from the
+                // theme's SVG path (24×24 space) or the built-in default; colour + opacity come from
+                // the theme. Filled with the theme colour at the theme opacity (so the base icon shows
+                // through when it's < 1), with a dark rim for legibility on any background.
+                var themeColor = ColDnsPip;
+                double opacity = 1.0;
+                double sizeFrac = 0.45;
+                string? pathD  = null;
+                string location = "bottom-right";
+                try
+                {
+                    var res = System.Windows.Application.Current?.Resources;
+                    if (res != null)
+                    {
+                        if (res["Theme.DnsBadgeColor"]    is System.Drawing.Color dc) themeColor = dc;
+                        if (res["Theme.DnsBadgeOpacity"]  is double op)               opacity    = op;
+                        if (res["Theme.DnsBadgeSize"]     is double sz)               sizeFrac   = sz;
+                        if (res["Theme.DnsBadgeLocation"] is string loc && !string.IsNullOrWhiteSpace(loc)) location = loc;
+                        pathD = res["Theme.DnsBadgePath"] as string;
+                    }
+                }
+                catch { }
+                opacity  = Math.Clamp(opacity, 0.05, 1.0);
+                sizeFrac = Math.Clamp(sizeFrac, 0.1, 1.0);
+                int alpha = (int)Math.Round(255 * opacity);
+
+                float bs = S * (float)sizeFrac;       // badge box size
+                float sc = bs / 24f;                  // shape is authored on a 24-unit grid
+                float inset = S * 0.02f;
+                float free = S - bs;
+                // Location → badge box top-left. Vertical: top/middle/bottom; horizontal: left/center/right.
+                (float bx, float by) = LocateBadge(location, inset, free);
+
+                var shield = SvgPathParser.Parse(string.IsNullOrWhiteSpace(pathD) ? DefaultDnsBadgePath : pathD)
+                           ?? SvgPathParser.Parse(DefaultDnsBadgePath);
+                if (shield != null)
+                {
+                    using (shield)
+                    {
+                        shield.Transform(new System.Drawing.Drawing2D.Matrix(sc, 0, 0, sc, bx, by));
+                        int rimAlpha = (int)Math.Round(210 * opacity);
+                        using (var halo = new System.Drawing.Pen(
+                                   System.Drawing.Color.FromArgb(rimAlpha, ColBg.R, ColBg.G, ColBg.B), S * 0.05f)
+                            { LineJoin = System.Drawing.Drawing2D.LineJoin.Round })
+                            g.DrawPath(halo, shield);
+                        using (var fill = new System.Drawing.SolidBrush(
+                                   System.Drawing.Color.FromArgb(alpha, themeColor.R, themeColor.G, themeColor.B)))
+                            g.FillPath(fill, shield);
+                    }
+                }
+            }
+
+            int[] sizes = { 256, 48, 32, 16 };
+            using var ms = new System.IO.MemoryStream();
+            WriteMultiSizeIco(ms, canvas, sizes);
+            ms.Position = 0;
+            return new System.Drawing.Icon(ms);
+        }
+
+        /// <summary>Map a location keyword to the badge box's top-left, given the edge inset and the
+        /// free space (icon size − badge size). Horizontal: left/center/right; vertical: top/middle/bottom.
+        /// "center" (no side words) centres both axes.</summary>
+        private static (float bx, float by) LocateBadge(string location, float inset, float free)
+        {
+            location = (location ?? "").ToLowerInvariant();
+            float h = location.Contains("left")  ? inset
+                    : location.Contains("right") ? free - inset
+                    :                              free / 2f;
+            float v = location.Contains("top")    ? inset
+                    : location.Contains("bottom") ? free - inset
+                    :                               free / 2f;
+            return (h, v);
         }
 
         private static void WriteMultiSizeIco(System.IO.Stream s,
@@ -1348,7 +1686,7 @@ namespace MasselGUARD
                 w.Write(frame);
         }
 
-        // ── Renderer — shield + chevron + optional badge ──────────────────
+        // ── Renderer - shield + chevron + optional badge ──────────────────
         private static System.Drawing.Bitmap RenderIcon(int S, int activeCount)
         {
             var bmp = new System.Drawing.Bitmap(S, S, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
@@ -1361,7 +1699,7 @@ namespace MasselGUARD
             float X(float x) => x * sc;
             float Y(float y) => y * sc;
 
-            // Read theme colours — Accent (idle), Success (active), TextMuted (idle rim)
+            // Read theme colours - Accent (idle), Success (active), TextMuted (idle rim)
             // WPF resources are Colors; convert to System.Drawing.Color
             System.Drawing.Color ToDrawing(string key, System.Drawing.Color fallback)
             {
@@ -1380,7 +1718,7 @@ namespace MasselGUARD
 
             bool active = activeCount > 0;
 
-            // Always the same dark shield — chevron colour is the only thing that changes,
+            // Always the same dark shield - chevron colour is the only thing that changes,
             // mirroring the ShieldChevronBrush logic in the main window title bar.
             var colShieldFill = ToDrawing("CardBg",      System.Drawing.Color.FromArgb( 22,  27,  34));
             var colShieldRim  = ToDrawing("BorderColor", System.Drawing.Color.FromArgb( 48,  54,  61));
@@ -1423,7 +1761,7 @@ namespace MasselGUARD
         }
     }
 
-    // Flat dark renderer — no gradients, no bright highlights
+    // Flat dark renderer - no gradients, no bright highlights
     internal class DarkMenuRenderer : System.Windows.Forms.ToolStripRenderer
     {
         // All colours read from Application.Resources at render time so theme hot-swap works

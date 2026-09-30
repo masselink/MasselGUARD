@@ -11,7 +11,7 @@ namespace MasselGUARD.Cli
     /// <summary>
     /// CLI entry point. Invoked from Program.Main when command-line args are present.
     ///
-    /// Runs entirely without WPF — no App, no MainWindow.
+    /// Runs entirely without WPF - no App, no MainWindow.
     /// Coexists safely with a running GUI instance: both talk to the same WireGuard
     /// kernel driver; the GUI picks up state changes within ~1 second via its poll timer.
     ///
@@ -24,8 +24,8 @@ namespace MasselGUARD.Cli
     ///   disconnect &lt;name&gt;            Disconnect a tunnel by name
     ///   disconnect-all               Disconnect all active tunnels
     ///   info &lt;name&gt;                  Detailed status for one tunnel
-    ///   log [n]                      Recent activity log entries (default 20)
-    ///   tunnel-history [n]       Connection history (default 20)
+    ///   log [n]                      Recent connections (default 20)
+    ///   tunnel-history [n]           Connection history (default 20)
     ///   wifi-history [n]             WiFi SSID history (default 20)
     ///   import &lt;file&gt;               Import a .conf, .mgconf or .conf.dpapi tunnel
     ///   delete &lt;name&gt;               Remove a tunnel from config
@@ -36,7 +36,7 @@ namespace MasselGUARD.Cli
     ///
     /// Flags (any command)
     ///   --json                       Machine-readable JSON output
-    ///   --quiet / -q                 No output — exit code only
+    ///   --quiet / -q                 No output - exit code only
     ///   --group &lt;name&gt;               Scope list / connect --all / disconnect-all to one group
     ///   --active                     Filter list to connected tunnels only
     ///   --logtype normal|extended    Log detail level (default: normal)
@@ -101,6 +101,7 @@ namespace MasselGUARD.Cli
                     "disconnect"                        => CmdDisconnect(args, cfg, json, quiet),
                     "disconnect-all"                    => CmdDisconnectAll(cfg, json, quiet, group),
                     "info"                              => CmdInfo(args, cfg, json),
+                    "dns"                               => CmdDns(args, cfg, json),
                     "log"                               => CmdLog(args, json, logType),
                     "tunnel-history"                => CmdTunnelHistory(args, json),
                     "wifi-history"                      => CmdWifiHistory(args, json),
@@ -123,6 +124,69 @@ namespace MasselGUARD.Cli
             return exitCode;
         }
 
+        // ── dns (read-only status) ──────────────────────────────────────────────
+
+        /// <summary>`dns status` - shows the DNS-automation config (enabled, default/open
+        /// profiles, families, profiles) plus each active interface's current resolvers.
+        /// Read-only; needs no elevation. Applying DNS is GUI-only in this release.</summary>
+        private static int CmdDns(string[] args, AppConfig cfg, bool json)
+        {
+            string sub = args.Length > 1 ? args[1].ToLowerInvariant() : "status";
+            if (sub != "status")
+            {
+                CliOutput.Error($"Unknown dns subcommand: '{sub}'. Use: dns status");
+                return 1;
+            }
+
+            string ProfileName(string? id) =>
+                string.IsNullOrEmpty(id)                     ? "(none)"
+              : id == Models.DnsProfile.AutomaticId          ? "Automatic (DHCP)"
+              : cfg.DnsProfiles.FirstOrDefault(p => p.Id == id)?.Name ?? $"(unknown: {id})";
+
+            // Current per-interface resolvers - managed read, no admin required.
+            var live = new List<(string name, string dns)>();
+            foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (ni.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up) continue;
+                if (ni.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Loopback) continue;
+                var addrs = ni.GetIPProperties().DnsAddresses.Select(a => a.ToString()).ToList();
+                if (addrs.Count == 0) continue;
+                live.Add((ni.Name, string.Join(", ", addrs)));
+            }
+
+            if (json)
+            {
+                CliOutput.PrintJson(new
+                {
+                    automation_enabled   = cfg.DnsAutomationEnabled,
+                    default_profile      = ProfileName(cfg.DefaultDnsProfileId),
+                    open_network_profile = ProfileName(cfg.OpenWifiDnsProfileId),
+                    address_families     = cfg.DnsAddressFamilies,
+                    profiles   = cfg.DnsProfiles.Select(p => new { name = p.Name, servers = p.ServersDisplay, encryption = p.EncryptionDisplay }),
+                    interfaces = live.Select(l => new { name = l.name, dns = l.dns }),
+                });
+                return 0;
+            }
+
+            CliOutput.Info($"DNS automation: {(cfg.DnsAutomationEnabled ? "enabled" : "disabled")}");
+            CliOutput.Info($"Default DNS:     {ProfileName(cfg.DefaultDnsProfileId)}");
+            CliOutput.Info($"Open-network:    {ProfileName(cfg.OpenWifiDnsProfileId)}");
+            CliOutput.Info($"Families:        {cfg.DnsAddressFamilies}");
+            if (cfg.DnsProfiles.Count > 0)
+            {
+                CliOutput.Info("Profiles:");
+                foreach (var p in cfg.DnsProfiles)
+                    CliOutput.Info($"  • {p.Name} - {p.ServersDisplay} [{p.EncryptionDisplay}]");
+            }
+            if (live.Count > 0)
+            {
+                CliOutput.Info("Active interface resolvers:");
+                foreach (var l in live)
+                    CliOutput.Info($"  • {l.name}: {l.dns}");
+            }
+            return 0;
+        }
+
         // ── selftest (hidden) ───────────────────────────────────────────────────
 
         /// <summary>Runs built-in self-tests. Currently the CIDR split-tunnel math
@@ -132,14 +196,17 @@ namespace MasselGUARD.Cli
             var (cidrPass, cidrFail, cidrFailures) = Services.CidrMath.RunSelfTest();
             var (backPass, backFail, backFailures) = Services.RouteBasedBackend.SelfTest();
             var (expPass,  expFail,  expFailures)  = Services.TunnelExportService.SelfTest();
+            var (dnsPass,  dnsFail,  dnsFailures)  = Services.DnsPolicy.RunSelfTest();
 
             foreach (var f in cidrFailures) CliOutput.Error($"FAIL CidrMath {f}");
             foreach (var f in backFailures) CliOutput.Error($"FAIL Backend {f}");
             foreach (var f in expFailures)  CliOutput.Error($"FAIL Export {f}");
+            foreach (var f in dnsFailures)  CliOutput.Error($"FAIL DnsPolicy {f}");
 
-            int pass = cidrPass + backPass + expPass, fail = cidrFail + backFail + expFail;
-            if (fail == 0) CliOutput.Ok($"Split self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}).");
-            else           CliOutput.Error($"Split self-test: {pass} passed, {fail} failed.");
+            int pass = cidrPass + backPass + expPass + dnsPass;
+            int fail = cidrFail + backFail + expFail + dnsFail;
+            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}).");
+            else           CliOutput.Error($"Self-test: {pass} passed, {fail} failed.");
             return fail == 0 ? 0 : 1;
         }
 
@@ -256,7 +323,7 @@ namespace MasselGUARD.Cli
                 if (string.IsNullOrEmpty(plain))
                 {
                     PrintResult(quiet, json, "error",
-                        $"Cannot read config for '{tunnel.Name}' — override not possible.");
+                        $"Cannot read config for '{tunnel.Name}' - override not possible.");
                     return 1;
                 }
                 var patched = WireGuardConf.Patch(plain, overrides);
@@ -283,14 +350,6 @@ namespace MasselGUARD.Cli
                     $"Tunnel '{tunnel.Name}' is already connected.");
                 return 2;
             }
-
-            // For companion tunnels the service may need to be registered before
-            // starting, which involves SCM calls and WaitForStatus polling (up to 15 s).
-            // Print a progress line so the console stays visibly active.
-            bool isCompanion = !string.Equals(tunnel.Source, "local",
-                StringComparison.OrdinalIgnoreCase);
-            if (isCompanion && !quiet && !json)
-                CliOutput.Info($"Connecting '{tunnel.Name}' (WireGuard companion)…");
 
             bool ok = MakeTunnelService().Connect(tunnel, cfg, "CLI");
             if (ok)
@@ -442,15 +501,14 @@ namespace MasselGUARD.Cli
             else
             {
                 CliOutput.Info($"  Name:    {tunnel.Name}");
-                CliOutput.Info($"  Type:    {(tunnel.Source == "local" ? "Local (tunnel.dll)" : "WireGuard for Windows")}");
-                CliOutput.Info($"  Group:   {(string.IsNullOrEmpty(tunnel.Group) ? "—" : tunnel.Group)}");
+                CliOutput.Info($"  Group:   {(string.IsNullOrEmpty(tunnel.Group) ? "-" : tunnel.Group)}");
                 CliOutput.Info($"  Status:  {(isActive ? $"● Connected  {(uptime.HasValue ? FormatUptime(uptime.Value) : "unknown")}" : "○ Disconnected")}");
 
                 if (SplitModeActive(tunnel))
                 {
                     var verb = tunnel.SplitMode!.Equals("exclude", StringComparison.OrdinalIgnoreCase)
                         ? "exclude" : "include";
-                    CliOutput.Info($"  Split:   {verb} — {string.Join(", ", tunnel.SplitRanges)}");
+                    CliOutput.Info($"  Split:   {verb} - {string.Join(", ", tunnel.SplitRanges)}");
                 }
 
                 if (lastSession != null)
@@ -462,8 +520,8 @@ namespace MasselGUARD.Cli
                     else
                     {
                         var dur = lastSession.DisconnectedAt.HasValue
-                            ? FormatUptime(lastSession.DisconnectedAt.Value - lastSession.ConnectedAt) : "—";
-                        CliOutput.Info($"  Last:    {when}  —  {dur}  ({src})");
+                            ? FormatUptime(lastSession.DisconnectedAt.Value - lastSession.ConnectedAt) : "-";
+                        CliOutput.Info($"  Last:    {when}  -  {dur}  ({src})");
                     }
                 }
             }
@@ -704,7 +762,7 @@ namespace MasselGUARD.Cli
                     }
                     catch { }
 
-                    // Fall back to LocalMachine scope — WireGuard for Windows uses this.
+                    // Fall back to LocalMachine scope - WireGuard for Windows uses this.
                     if (plain == null)
                     {
                         try
@@ -854,11 +912,11 @@ namespace MasselGUARD.Cli
             var endpoint = ParseFlagValue(args, "--endpoint");
             var pubkey   = ParseFlagValue(args, "--pubkey");
 
-            // Private key — inline or file
+            // Private key - inline or file
             var privkeyRaw  = ParseFlagValue(args, "--privkey");
             var privkeyFile = ParseFlagValue(args, "--privkeyfile");
 
-            // PSK — inline or file
+            // PSK - inline or file
             var pskRaw  = ParseFlagValue(args, "--psk");
             var pskFile = ParseFlagValue(args, "--pskfile");
 
@@ -1012,7 +1070,7 @@ namespace MasselGUARD.Cli
             string statusMsg = updateAvail
                 ? $"Update available: v{latest.TagName}  (current: v{current})"
                 : ahead ? $"Running ahead of latest release ({latest.TagName})."
-                        : $"Up to date — v{current} is the latest release.";
+                        : $"Up to date - v{current} is the latest release.";
 
             if (json)
                 CliOutput.PrintJson(new { result = statusKey, current, latest = latest.TagName, message = statusMsg });
@@ -1032,8 +1090,8 @@ namespace MasselGUARD.Cli
 
             var    latestKnown = cfg.LatestKnownVersion;
             string updateStatus =
-                string.IsNullOrEmpty(latestKnown) ? $"unknown — run '{ExeName} check-update'" :
-                UpdateChecker.IsNewerVersion(latestKnown) ? $"update available — v{latestKnown}" :
+                string.IsNullOrEmpty(latestKnown) ? $"unknown - run '{ExeName} check-update'" :
+                UpdateChecker.IsNewerVersion(latestKnown) ? $"update available - v{latestKnown}" :
                 UpdateChecker.IsAheadOfLatest(latestKnown) ? $"ahead of latest ({latestKnown})" :
                 "up to date";
 
@@ -1067,7 +1125,7 @@ namespace MasselGUARD.Cli
 
         private static int CmdHelp()
         {
-            CliOutput.Info($"{ExeName} — MasselGUARD command-line interface");
+            CliOutput.Info($"{ExeName} - MasselGUARD command-line interface");
             CliOutput.Info("");
             CliOutput.Info("Usage:");
             CliOutput.Info($"  {ExeName} <command> [options]");
@@ -1081,8 +1139,9 @@ namespace MasselGUARD.Cli
             CliOutput.Info("  disconnect <name>          Disconnect a tunnel by name");
             CliOutput.Info("  disconnect-all             Disconnect all active tunnels");
             CliOutput.Info("  info <name>                Detailed status for one tunnel");
-            CliOutput.Info("  log [n]                    Last n activity log entries (default 20)");
-            CliOutput.Info("  tunnel-history [n]     Connection history with source and traffic (default 20)");
+            CliOutput.Info("  dns status                 Show DNS-automation config + live resolvers");
+            CliOutput.Info("  log [n]                    Recent connections (default 20)");
+            CliOutput.Info("  tunnel-history [n]         Connection history with source and traffic (default 20)");
             CliOutput.Info("  wifi-history [n]           WiFi SSID history with duration and security (default 20)");
             CliOutput.Info("  import <file>              Import a .conf, .mgconf or .conf.dpapi tunnel");
             CliOutput.Info("  delete <name>              Remove a tunnel from config");
@@ -1093,7 +1152,7 @@ namespace MasselGUARD.Cli
             CliOutput.Info("");
             CliOutput.Info("Options (any command):");
             CliOutput.Info("  --json                     Output in JSON format");
-            CliOutput.Info("  --quiet, -q                No output — exit code only");
+            CliOutput.Info("  --quiet, -q                No output - exit code only");
             CliOutput.Info("  --group <name>             Scope list / connect --all / disconnect-all");
             CliOutput.Info("  --active                   Filter list to connected tunnels only");
             CliOutput.Info("  --logtype normal|extended  Log detail level (default: normal)");
@@ -1142,13 +1201,7 @@ namespace MasselGUARD.Cli
 
         private static bool IsActive(StoredTunnel tunnel)
         {
-            if (string.Equals(tunnel.Source, "local", StringComparison.OrdinalIgnoreCase))
-                return TunnelDll.IsRunning(tunnel.Name);
-            try
-            {
-                using var sc = new ServiceController("WireGuardTunnel$" + tunnel.Name);
-                return sc.Status == ServiceControllerStatus.Running;
-            }
+            try { return TunnelDll.IsRunning(tunnel.Name); }
             catch { return false; }
         }
 

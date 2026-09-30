@@ -13,25 +13,25 @@ WireGuard LLC or Jason A. Donenfeld.
 
 MasselGUARD ships two native DLLs per architecture in `wireguard-deps/<arch>/`:
 
-### `tunnel.dll` — WireGuard embeddable tunnel service (userspace, Go)
+### `tunnel.dll` - WireGuard embeddable tunnel service (userspace, Go)
 - Upstream: <https://git.zx2c4.com/wireguard-windows> (built via its embeddable
   DLL service, which uses <https://git.zx2c4.com/wireguard-go>)
 - Copyright © WireGuard LLC and contributors
-- License: **MIT** — _verify against the wireguard-windows / wireguard-go
+- License: **MIT** - _verify against the wireguard-windows / wireguard-go
   `LICENSE` for the exact version bundled, and include its text._
 
-### `wireguard.dll` — wireguard-nt (kernel driver, WireGuard-NT)
+### `wireguard.dll` - wireguard-nt (kernel driver, WireGuard-NT)
 - Upstream: <https://git.zx2c4.com/wireguard-nt>
 - Copyright © WireGuard LLC and contributors
 - License: **VERIFY UPSTREAM.** wireguard-nt carries its own license/redistribution
-  terms for the prebuilt DLL — confirm the exact license, confirm redistribution of
+  terms for the prebuilt DLL - confirm the exact license, confirm redistribution of
   the prebuilt `wireguard.dll` is permitted, and reproduce its required notice text
   here. **Do not assume.** If its terms are copyleft, review whether they affect the
   combined distribution with legal counsel.
 
 ## Microsoft .NET
 
-MasselGUARD targets **.NET 10** and publishes **framework-dependent** — the .NET
+MasselGUARD targets **.NET 10** and publishes **framework-dependent** - the .NET
 runtime is **not** bundled (the end user supplies it). .NET is © Microsoft
 Corporation, MIT licensed. <https://github.com/dotnet/runtime>
 
@@ -39,7 +39,7 @@ Corporation, MIT licensed. <https://github.com/dotnet/runtime>
 
 ## Fonts
 
-Any bundled theme fonts (e.g. Orbitron, JetBrains Mono — SIL Open Font License)
+Any bundled theme fonts (e.g. Orbitron, JetBrains Mono - SIL Open Font License)
 live in the separate **MasselGUARD-themes** repository, not this one, and are
 attributed there. If a font is ever shipped in this repository, add its OFL notice
 here.

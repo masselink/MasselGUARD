@@ -21,7 +21,7 @@ namespace MasselGUARD.Services
         public List<string> Files { get; set; } = new(); // files relative to Path
         public string PreviewDark  { get; set; } = "";   // repo-root-relative image path
         public string PreviewLight { get; set; } = "";
-        /// <summary>ISO 8601 UTC timestamp — a change marker, not a semantic version.
+        /// <summary>ISO 8601 UTC timestamp - a change marker, not a semantic version.
         /// Bumped by the repo whenever the theme's files change. Compares correctly as a
         /// plain string (same fixed format, so lexicographic order == chronological order).</summary>
         public string Version { get; set; } = "";
@@ -37,7 +37,7 @@ namespace MasselGUARD.Services
     /// <summary>
     /// Fetches "shared" themes from a git repository. The preferred path reads the repo's
     /// <c>index.json</c> manifest and downloads each theme's files individually over raw
-    /// HTTPS (no zip) — used by the Theme Browser. A legacy whole-repo zip path remains for
+    /// HTTPS (no zip) - used by the Theme Browser. A legacy whole-repo zip path remains for
     /// arbitrary URLs the user types. Installs land in <c>%APPDATA%\MasselGUARD\shared-themes\</c>;
     /// same-named themes are overwritten, others are left untouched.
     /// </summary>
@@ -134,7 +134,7 @@ namespace MasselGUARD.Services
         }
 
         // ── Installed-version tracking (for update detection) ───────────────────
-        // A small sidecar file next to the theme folders — kept separate from each theme's
+        // A small sidecar file next to the theme folders - kept separate from each theme's
         // own .json so editing/saving a theme in the Theme Manager never touches it.
         private static string InstalledVersionsPath(string themesRoot) =>
             System.IO.Path.Combine(themesRoot, "installed-versions.json");
@@ -154,7 +154,7 @@ namespace MasselGUARD.Services
 
         private static void SaveInstalledVersion(string themesRoot, string id, string version)
         {
-            if (string.IsNullOrWhiteSpace(version)) return;   // repo entry didn't set one — nothing to compare later
+            if (string.IsNullOrWhiteSpace(version)) return;   // repo entry didn't set one - nothing to compare later
             try
             {
                 var dict = LoadInstalledVersions(themesRoot);
@@ -163,13 +163,13 @@ namespace MasselGUARD.Services
                 File.WriteAllText(InstalledVersionsPath(themesRoot),
                     JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true }));
             }
-            catch { /* best-effort — a missed record just means no update prompt next time */ }
+            catch { /* best-effort - a missed record just means no update prompt next time */ }
         }
 
         /// <summary>
         /// Checks every currently-installed theme against the repo manifest and returns the
         /// ids of any whose manifest "version" is newer than what was recorded at install time.
-        /// Silent on any failure (offline, bad repo URL, etc.) — returns an empty list.
+        /// Silent on any failure (offline, bad repo URL, etc.) - returns an empty list.
         /// </summary>
         public static async Task<List<string>> CheckForThemeUpdatesAsync(string repoUrl, string themesRoot)
         {
@@ -187,7 +187,7 @@ namespace MasselGUARD.Services
                         updated.Add(entry.Id);
                 }
             }
-            catch { /* offline / repo unreachable — treat as "no updates known" */ }
+            catch { /* offline / repo unreachable - treat as "no updates known" */ }
             return updated;
         }
 
@@ -243,7 +243,7 @@ namespace MasselGUARD.Services
 
                 Directory.CreateDirectory(targetDir);
 
-                // Any directory that directly holds a theme.json is a theme folder —
+                // Any directory that directly holds a theme.json is a theme folder -
                 // wherever it sits in the archive (repos usually nest under repo-branch/).
                 foreach (var json in Directory.EnumerateFiles(extract, "theme.json", SearchOption.AllDirectories))
                 {

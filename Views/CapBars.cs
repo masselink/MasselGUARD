@@ -5,7 +5,7 @@ using System.Windows.Media;
 namespace MasselGUARD.Views
 {
     /// <summary>
-    /// Thin horizontal progress-bar variant of <see cref="CapRings"/> — up to three slim stacked
+    /// Thin horizontal progress-bar variant of <see cref="CapRings"/> - up to three slim stacked
     /// bars (day · week · month), each shown only when its cap is set, filling 0→100% as usage → cap
     /// (accent, amber ≥85%, red ≥100%). No inline text: the day/week/month breakdown and exact
     /// figures live in the hover tooltip (<c>CapRingsTooltip</c>). Disconnected tunnels render greyed
@@ -52,6 +52,21 @@ namespace MasselGUARD.Views
         public bool   MonthSet      { get => (bool)GetValue(MonthSetProperty);        set => SetValue(MonthSetProperty, value); }
         public bool   Active        { get => (bool)GetValue(ActiveProperty);          set => SetValue(ActiveProperty, value); }
 
+        // True when that period measures against the tunnel's historical average instead of a
+        // user-set cap: drawn in the accent colour only (no amber/red - it is not a limit).
+        public static readonly DependencyProperty DayHistoryProperty =
+            DependencyProperty.Register(nameof(DayHistory), typeof(bool), typeof(CapBars),
+                new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+        public static readonly DependencyProperty WeekHistoryProperty =
+            DependencyProperty.Register(nameof(WeekHistory), typeof(bool), typeof(CapBars),
+                new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+        public static readonly DependencyProperty MonthHistoryProperty =
+            DependencyProperty.Register(nameof(MonthHistory), typeof(bool), typeof(CapBars),
+                new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+        public bool DayHistory   { get => (bool)GetValue(DayHistoryProperty);   set => SetValue(DayHistoryProperty, value); }
+        public bool WeekHistory  { get => (bool)GetValue(WeekHistoryProperty);  set => SetValue(WeekHistoryProperty, value); }
+        public bool MonthHistory { get => (bool)GetValue(MonthHistoryProperty); set => SetValue(MonthHistoryProperty, value); }
+
         protected override Size MeasureOverride(Size availableSize)
         {
             int n = (DaySet ? 1 : 0) + (WeekSet ? 1 : 0) + (MonthSet ? 1 : 0);
@@ -67,11 +82,11 @@ namespace MasselGUARD.Views
             // Transparent fill so the whole control is hit-testable (tooltip over the gaps too).
             dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, w, h));
 
-            var periods = new (bool Set, double Frac)[]
+            var periods = new (bool Set, double Frac, bool Hist)[]
             {
-                (DaySet,   DayFraction),
-                (WeekSet,  WeekFraction),
-                (MonthSet, MonthFraction),
+                (DaySet,   DayFraction,   DayHistory),
+                (WeekSet,  WeekFraction,  WeekHistory),
+                (MonthSet, MonthFraction, MonthHistory),
             };
 
             int n = 0;
@@ -86,12 +101,12 @@ namespace MasselGUARD.Views
             foreach (var p in periods)
             {
                 if (!p.Set) continue;
-                DrawBar(dc, new Rect(0, y, bw, BarHeight), p.Frac, trackBrush);
+                DrawBar(dc, new Rect(0, y, bw, BarHeight), p.Frac, p.Hist, trackBrush);
                 y += BarHeight + BarGap;
             }
         }
 
-        private void DrawBar(DrawingContext dc, Rect bar, double frac, Brush trackBrush)
+        private void DrawBar(DrawingContext dc, Rect bar, double frac, bool hist, Brush trackBrush)
         {
             var trackGeo = new RectangleGeometry(bar, Radius, Radius);
             trackGeo.Freeze();
@@ -105,15 +120,16 @@ namespace MasselGUARD.Views
             var fillGeo = new RectangleGeometry(new Rect(bar.X, bar.Y, fillW, bar.Height), Radius, Radius);
             fillGeo.Freeze();
 
-            var fill = new SolidColorBrush(Active ? StateColor(frac) : InactiveColor());
+            var fill = new SolidColorBrush(Active ? StateColor(frac, hist) : InactiveColor());
             fill.Freeze();
             dc.PushClip(trackGeo);
             dc.DrawGeometry(fill, null, fillGeo);
             dc.Pop();
         }
 
-        private Color StateColor(double f) =>
-            f >= 1.0    ? ThemeColor("Danger",       Color.FromRgb(0xE7, 0x4C, 0x3C))
+        private Color StateColor(double f, bool hist) =>
+            hist        ? ThemeColor("Accent",       Color.FromRgb(0x3D, 0x8B, 0xFD))
+          : f >= 1.0    ? ThemeColor("Danger",       Color.FromRgb(0xE7, 0x4C, 0x3C))
           : f >= WarnAt ? ThemeColor("WarningColor", Color.FromRgb(0xF0, 0xA0, 0x2E))
           :               ThemeColor("Accent",       Color.FromRgb(0x3D, 0x8B, 0xFD));
 

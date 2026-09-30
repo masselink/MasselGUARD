@@ -4,7 +4,7 @@
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
-        <!-- ── Colour palette — overwritten at runtime by ThemeManager.Load() ── -->
+        <!-- ── Colour palette - overwritten at runtime by ThemeManager.Load() ── -->
         <Color x:Key="C.WindowBg">#0E1117</Color>
         <Color x:Key="C.Surface">#161B22</Color>
         <Color x:Key="C.CardBg">#1C2128</Color>
@@ -26,14 +26,14 @@
         <SolidColorBrush x:Key="TextPrimary"    Color="{StaticResource C.TextPrimary}"/>
         <SolidColorBrush x:Key="TextMuted"      Color="{StaticResource C.TextMuted}"/>
         <SolidColorBrush x:Key="Highlight"      Color="{StaticResource C.Highlight}"/>
-        <!-- Extra semantic brushes — no C.* backing color, set directly by ThemeManager -->
+        <!-- Extra semantic brushes - no C.* backing color, set directly by ThemeManager -->
         <SolidColorBrush x:Key="ErrorColor"        Color="#F78166"/>
         <SolidColorBrush x:Key="ErrorBg"           Color="#3D1A1A"/>
         <SolidColorBrush x:Key="WarningColor"      Color="#D29922"/>
         <SolidColorBrush x:Key="WarningBg"         Color="#3D2A0A"/>
         <SolidColorBrush x:Key="ListHover"         Color="#141A22"/>
         <SolidColorBrush x:Key="ListSelected"      Color="#0D2748"/>
-        <!-- Shield chevron: grey=disconnected, Accent=connected — updated at runtime -->
+        <!-- Shield chevron: grey=disconnected, Accent=connected - updated at runtime -->
         <SolidColorBrush x:Key="ShieldChevronBrush" Color="{StaticResource C.TextMuted}"/>
 
         <!-- ── Base text ── -->
@@ -91,7 +91,7 @@
             <Setter Property="Foreground" Value="{DynamicResource Success}"/>
         </Style>
 
-        <!-- ── Chrome button — title-bar min / max / log / settings ── -->
+        <!-- ── Chrome button - title-bar min / max / log / settings ── -->
         <Style x:Key="ChromeBtn" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -126,7 +126,7 @@
             </Setter>
         </Style>
 
-        <!-- ── Chrome close button — red hover, Windows 11 style ── -->
+        <!-- ── Chrome close button - red hover, Windows 11 style ── -->
         <Style x:Key="ChromeCloseBtn" TargetType="Button">
             <Setter Property="Background"      Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -218,7 +218,7 @@
             </Style.Triggers>
         </Style>
 
-        <!-- ── ComboBox — full template, handles both editable and non-editable modes ── -->
+        <!-- ── ComboBox - full template, handles both editable and non-editable modes ── -->
         <Style TargetType="ComboBox">
             <Setter Property="FontFamily"      Value="{DynamicResource Theme.FontFamily}"/>
             <Setter Property="FontSize"        Value="{DynamicResource Theme.FontSize}"/>
@@ -276,7 +276,7 @@
                                     TextBlock.FontSize="{DynamicResource Theme.FontSize}"
                                     Visibility="Visible"/>
 
-                                <!-- Editable text input — dark themed -->
+                                <!-- Editable text input - dark themed -->
                                 <TextBox x:Name="PART_EditableTextBox"
                                     Grid.Column="0"
                                     Margin="4,0,0,0"
@@ -362,7 +362,7 @@
             </Setter>
         </Style>
 
-        <!-- ── RadioButton — explicit template so the dot is visible on dark backgrounds ── -->
+        <!-- ── RadioButton - explicit template so the dot is visible on dark backgrounds ── -->
         <Style TargetType="RadioButton">
             <Setter Property="FontFamily"  Value="{DynamicResource Theme.FontFamily}"/>
             <Setter Property="FontSize"    Value="{DynamicResource Theme.FontSize.Small}"/>
@@ -382,7 +382,7 @@
                                          Stroke="{DynamicResource TextMuted}"
                                          StrokeThickness="1.5"
                                          Fill="Transparent"/>
-                                <!-- Inner dot — only visible when checked -->
+                                <!-- Inner dot - only visible when checked -->
                                 <Ellipse x:Name="InnerDot"
                                          Width="7" Height="7"
                                          Fill="{DynamicResource Accent}"
@@ -404,7 +404,7 @@
             </Setter>
         </Style>
 
-        <!-- ── CheckBox — themed square + accent checkmark (matches RadioButton) ── -->
+        <!-- ── CheckBox - themed square + accent checkmark (matches RadioButton) ── -->
         <Style TargetType="CheckBox">
             <Setter Property="FontFamily"  Value="{DynamicResource Theme.FontFamily}"/>
             <Setter Property="FontSize"    Value="{DynamicResource Theme.FontSize.Small}"/>
@@ -422,7 +422,7 @@
                                         BorderBrush="{DynamicResource TextMuted}"
                                         BorderThickness="1.5"
                                         Background="Transparent"/>
-                                <!-- Checkmark — only visible when checked -->
+                                <!-- Checkmark - only visible when checked -->
                                 <Path x:Name="Check"
                                       Width="10" Height="10" Stretch="Uniform"
                                       Data="M 0,5 L 4,9 L 10,0"
@@ -449,7 +449,7 @@
             </Setter>
         </Style>
 
-        <!-- ── ScrollBar — slim dark themed track + thumb ── -->
+        <!-- ── ScrollBar - slim dark themed track + thumb ── -->
         <Style TargetType="ScrollBar">
             <Setter Property="Background"    Value="Transparent"/>
             <Setter Property="Width"         Value="6"/>
@@ -493,7 +493,7 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <!-- Horizontal scrollbar — same but rotated -->
+            <!-- Horizontal scrollbar - same but rotated -->
             <Style.Triggers>
                 <Trigger Property="Orientation" Value="Horizontal">
                     <Setter Property="Height"    Value="6"/>
@@ -933,7 +933,7 @@
             </Setter>
         </Style>
 
-        <!-- ── Segmented / day-of-week toggle — themed pill (checked = Accent) ── -->
+        <!-- ── Segmented / day-of-week toggle - themed pill (checked = Accent) ── -->
         <Style x:Key="DayToggleBtn" TargetType="ToggleButton">
             <Setter Property="FontFamily"      Value="{DynamicResource Theme.FontFamily}"/>
             <Setter Property="Foreground"      Value="{DynamicResource TextMuted}"/>
@@ -974,7 +974,7 @@
         </Style>
 
 
-        <!-- ── Theme seeds — overwritten at runtime by ThemeManager ───────── -->
+        <!-- ── Theme seeds - overwritten at runtime by ThemeManager ───────── -->
         <!-- FontFamily / FontSize / CornerRadius -->
         <FontFamily x:Key="Theme.FontFamily">Segoe UI</FontFamily>
         <sys:Double  x:Key="Theme.FontSize">12</sys:Double>
@@ -1002,7 +1002,7 @@
         <GridLength  x:Key="Theme.StatusBarHeight">38</GridLength>
         <Visibility  x:Key="Theme.ShowStatusWifi">Visible</Visibility>
         <Visibility  x:Key="Theme.ShowStatusTunnel">Visible</Visibility>
-        <!-- Tray menu brushes (WPF side — WinForms side uses Drawing.Color via code) -->
+        <!-- Tray menu brushes (WPF side - WinForms side uses Drawing.Color via code) -->
         <SolidColorBrush x:Key="TrayBg"          Color="#161B22"/>
         <SolidColorBrush x:Key="TrayHover"       Color="#21262D"/>
         <SolidColorBrush x:Key="TrayText"        Color="#E6EDF3"/>

@@ -10,7 +10,7 @@ namespace MasselGUARD.Views
 {
     /// <summary>
     /// Displays a QR code encoding a tunnel's WireGuard configuration so it can be
-    /// scanned into the WireGuard mobile app. Code-only (no XAML) — mirrors the
+    /// scanned into the WireGuard mobile app. Code-only (no XAML) - mirrors the
     /// inline-window pattern used elsewhere. The QR is drawn on a white background
     /// with black modules regardless of theme so it always scans.
     /// </summary>

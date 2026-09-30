@@ -6,8 +6,6 @@ using System.Text.Json.Serialization;
 
 namespace MasselGUARD.Models
 {
-    public enum AppMode { Standalone, Companion, Mixed }
-
     /// <summary>
     /// Controls the info/statistics section displayed above the footer.
     /// </summary>
@@ -23,7 +21,7 @@ namespace MasselGUARD.Models
 
     /// <summary>
     /// Root configuration object serialised to %APPDATA%\MasselGUARD\config.json.
-    /// Pure data — no UI, no logic.
+    /// Pure data - no UI, no logic.
     /// </summary>
     public class AppConfig
     {
@@ -54,7 +52,7 @@ namespace MasselGUARD.Models
         {
             new("Work"), new("Personal"), new("Travel")
         };
-        /// <summary>Tab names that are hidden — includes "All", "Uncategorized", and custom group names.</summary>
+        /// <summary>Tab names that are hidden - includes "All", "Uncategorized", and custom group names.</summary>
         public System.Collections.Generic.HashSet<string> HiddenTabs { get; set; } = new();
         /// <summary>Which group tab is selected on startup. Empty = show All.</summary>
         public string  DefaultGroup          { get; set; } = "";
@@ -64,10 +62,21 @@ namespace MasselGUARD.Models
         public bool    ShowTunnelRulesColumn        { get; set; } = true;
         public bool    ShowActivityLog              { get; set; } = true;
         public bool    StartWithWindows             { get; set; } = false;
+        /// <summary>Start with the main window hidden in the tray (no window shown on launch).</summary>
+        public bool    StartMinimized               { get; set; } = false;
+        /// <summary>Name of the tunnel to connect automatically on startup ("" = none). A per-tunnel
+        /// behaviour, like <see cref="OpenWifiTunnel"/>.</summary>
+        public string  ConnectOnStartTunnel         { get; set; } = "";
 
         // ── App settings ─────────────────────────────────────────────────────
-        public AppMode Mode               { get; set; } = AppMode.Standalone;        public string  Language           { get; set; } = "en";
+        public string  Language           { get; set; } = "en";
         public string  LogLevelSetting    { get; set; } = "normal";
+        /// <summary>Clear the activity log on each start. Default true (the classic behaviour).
+        /// When false, the log persists to a file across restarts (trimmed to <see cref="MaxLogSizeKB"/>).</summary>
+        public bool    ClearLogOnStart    { get; set; } = true;
+        /// <summary>Max size of the persisted log file in KB; oldest lines are dropped past it.
+        /// 0 = unlimited.</summary>
+        public int     MaxLogSizeKB       { get; set; } = 512;
         public bool    ShowTrayPopupOnSwitch { get; set; } = true;
         public int     NotificationDurationSeconds { get; set; } = 5;
         public bool    SuppressPortableUpdatePrompt { get; set; } = false;
@@ -75,6 +84,62 @@ namespace MasselGUARD.Models
         public string  UpdateCheckFrequency { get; set; } = "weekly";
         /// <summary>Version string of the last run that completed the wizard. Used to detect upgrades.</summary>
         public string? LastRunVersion { get; set; } = null;
+
+        // ── Feature modules ───────────────────────────────────────────────────
+        // MasselGUARD's two top-level features can each be turned on/off (wizard + Settings),
+        // so it can run as a full tunnel manager, a DNS-only resolver switcher, or both.
+        // Both may be off (the main window then shows only whatever other sections are enabled).
+        // Both default true → upgraders keep tunnels AND see the DNS section (DnsAutomationEnabled
+        // still gates whether DNS automation actually runs). See docs/FeatureModules-Design.md.
+
+        /// <summary>Show/run the WireGuard tunnel feature (tunnel list, connect, kill switch,
+        /// auto-reconnect, split, caps, Mode, tunnel rules/timeline).</summary>
+        public bool EnableTunnels { get; set; } = true;
+
+        /// <summary>Show the DNS-automation feature (Settings section, rule DNS pickers, engine).
+        /// <see cref="DnsAutomationEnabled"/> remains the runtime on/off within it.</summary>
+        public bool EnableDns { get; set; } = true;
+
+        /// <summary>Activity-log feature master. When false the app stops writing to the activity log
+        /// (and the panel is hidden). When true the panel can still be individually hidden via
+        /// <see cref="ShowActivityLog"/>. Set false by the top-bar toggle only when
+        /// <see cref="LogToggleDisables"/> is on.</summary>
+        public bool ActivityLogEnabled { get; set; } = true;
+
+        /// <summary>Charts/history feature master. When false the app stops recording connection,
+        /// WiFi and DNS history (and the charts panel is hidden). When true the panel can still be
+        /// individually hidden via <see cref="ChartsSectionVisible"/>. Set false by the top-bar
+        /// toggle only when <see cref="ChartsToggleDisables"/> is on.</summary>
+        public bool ChartsEnabled { get; set; } = true;
+
+        // ── Top-bar section toggles (Tunnels / DNS / Charts show-hide buttons) ──
+        /// <summary>Current show/hide state of each main-window section, driven by the top-bar toggle
+        /// buttons. Persisted so the layout is remembered across restarts.</summary>
+        public bool TunnelsSectionVisible { get; set; } = true;
+        public bool DnsSectionVisible     { get; set; } = true;
+        public bool ChartsSectionVisible  { get; set; } = true;
+
+        /// <summary>Top-bar toggle behaviour. false = hide only (the module keeps running, just the UI
+        /// hides); true = hide AND disable the module (EnableTunnels/EnableDns) when toggled off.</summary>
+        public bool TunnelToggleDisables { get; set; } = false;
+        public bool DnsToggleDisables    { get; set; } = false;
+
+        /// <summary>WiFi-rules top-bar toggle behaviour. false = hide only; true = also enable
+        /// Manual mode (disable WiFi automation) when toggled off.</summary>
+        public bool WifiToggleDisables { get; set; } = false;
+
+        /// <summary>Activity-log / charts top-bar toggle behaviour. false = hide only (feature keeps
+        /// working, panel hidden); true = disable the feature (stop writing the log / recording
+        /// history) when toggled off.</summary>
+        public bool LogToggleDisables    { get; set; } = false;
+        public bool ChartsToggleDisables { get; set; } = false;
+
+        /// <summary>Whether each top-bar toggle button is shown at all.</summary>
+        public bool ShowTunnelToggleButton { get; set; } = true;
+        public bool ShowDnsToggleButton    { get; set; } = true;
+        public bool ShowWifiToggleButton   { get; set; } = true;
+        public bool ShowChartsToggleButton { get; set; } = true;
+        public bool ShowLogToggleButton    { get; set; } = true;
 
         // ── Font override ────────────────────────────────────────────────────
         /// <summary>When true the user-chosen font replaces the theme's own font.</summary>
@@ -89,7 +154,7 @@ namespace MasselGUARD.Models
         public string ActiveTheme { get; set; } = "__system__";
         /// <summary>"auto" (follow Windows) | "light" | "dark"</summary>
         public string SystemThemeMode  { get; set; } = "auto";
-        /// <summary>The official shared-themes repository — the default value and the
+        /// <summary>The official shared-themes repository - the default value and the
         /// target of the Settings "Default" button.</summary>
         public const string DefaultSharedThemesRepoUrl = "https://github.com/masselink/MasselGUARD-themes";
 
@@ -99,16 +164,14 @@ namespace MasselGUARD.Models
         /// <summary>When true (default) clicking ✕ shows a confirm dialog before closing.</summary>
         public bool   ConfirmOnClose   { get; set; } = true;
 
-        // ── WireGuard install ────────────────────────────────────────────────
-        public string  WireGuardInstallDirectory { get; set; } = @"C:\Program Files\WireGuard";
         public string? InstalledPath    { get; set; } = null;
 
         // ── Auto-reconnect ────────────────────────────────────────────────────
         /// <summary>
         /// Controls when auto-reconnect is active.
-        /// "off"        — disabled globally.
-        /// "per-tunnel" — each tunnel controls its own toggle.
-        /// "always"     — every tunnel reconnects regardless of the per-tunnel toggle.
+        /// "off"        - disabled globally.
+        /// "per-tunnel" - each tunnel controls its own toggle.
+        /// "always"     - every tunnel reconnects regardless of the per-tunnel toggle.
         /// </summary>
         public string AutoReconnectMode { get; set; } = "always";
 
@@ -123,7 +186,7 @@ namespace MasselGUARD.Models
         // Three independent delivery channels for "this active tunnel may be leaking
         // DNS". The icon (ShowDnsIndicator above) is an always-on status badge; the
         // log + toast warnings are edge-triggered (once per leak episode) and only
-        // fire while the leak is UNMITIGATED — i.e. smart name resolution is still
+        // fire while the leak is UNMITIGATED - i.e. smart name resolution is still
         // enabled. Turn all three off to disable DNS-leak surfacing entirely.
 
         /// <summary>Write a warning line to the activity log on a possible (unmitigated) DNS leak.</summary>
@@ -131,6 +194,31 @@ namespace MasselGUARD.Models
 
         /// <summary>Show a tray toast on a possible (unmitigated) DNS leak.</summary>
         public bool DnsLeakWarnToast { get; set; } = true;
+
+        // ── DNS automation ────────────────────────────────────────────────────
+        // Rule-driven resolver policy, independent of tunnels (see
+        // docs/DnsAutomation-Design.md, Model C). All defaults keep existing behaviour:
+        // the engine is off and no profiles exist until the user opts in.
+
+        /// <summary>Master switch for the DNS rule engine (also gated by <see cref="ManualMode"/>).
+        /// Off by default so upgrades change nothing.</summary>
+        public bool DnsAutomationEnabled { get; set; } = false;
+
+        /// <summary>Named resolver profiles; rules/config reference these by <see cref="DnsProfile.Id"/>.</summary>
+        public List<DnsProfile> DnsProfiles { get; set; } = new();
+
+        /// <summary>DNS profile id applied when no DNS rule matches. "" = leave alone;
+        /// <see cref="DnsProfile.AutomaticId"/> = force DHCP on unmatched networks.</summary>
+        public string DefaultDnsProfileId { get; set; } = "";
+
+        /// <summary>DNS profile applied on an OPEN/unsecured network (parallels
+        /// <see cref="OpenWifiTunnel"/>). Lets "any open Wi-Fi → encrypted DoH" work with no
+        /// per-SSID rule.</summary>
+        public string OpenWifiDnsProfileId { get; set; } = "";
+
+        /// <summary>Which address families a DNS profile touches: "both" | "v4" | "v6".
+        /// Default both (setting only v4 leaves v6 resolving via the network resolver).</summary>
+        public string DnsAddressFamilies { get; set; } = "both";
 
         // ── Info / statistics section ─────────────────────────────────────────
         /// <summary>Show the timeline/statistics panel above the footer.</summary>
@@ -141,16 +229,28 @@ namespace MasselGUARD.Models
         public bool StoreWifiHistory         { get; set; } = true;
         /// <summary>Draw the WiFi SSID rows in the activity chart (requires StoreWifiHistory).</summary>
         public bool ShowWifiInChart          { get; set; } = true;
+        /// <summary>Record which DNS profile is active over time to dns_history.json.</summary>
+        public bool StoreDnsHistory          { get; set; } = true;
+        /// <summary>Draw the active-DNS-profile band in the charts (requires StoreDnsHistory).</summary>
+        public bool ShowDnsInChart           { get; set; } = true;
         /// <summary>1 = last 24 h, 7 = last 7 days, 31 = last 31 days.</summary>
         public int  InfoTimeRangeDays        { get; set; } = 1;
-        /// <summary>Which view the bottom info panel shows: "timeline" or "usage".</summary>
+        /// <summary>Legacy single-view selector ("timeline"/"usage"); superseded by the two
+        /// independent pane toggles below. Kept for one-time migration on load.</summary>
         public string InfoPanelMode          { get; set; } = "timeline";
+        /// <summary>Info panel: show the Timeline pane. Timeline + Data-usage are independent -
+        /// both on = the layered (stacked) view; both off = the panel is hidden.</summary>
+        public bool ShowTimelinePane         { get; set; } = true;
+        /// <summary>Info panel: show the Data-usage pane (see <see cref="ShowTimelinePane"/>).</summary>
+        public bool ShowUsagePane            { get; set; } = false;
+        /// <summary>Info panel: show the DNS pane (active DNS profile / server over time).</summary>
+        public bool ShowDnsPane              { get; set; } = false;
         /// <summary>How per-tunnel data-cap usage is shown on the tunnel row:
-        /// "bars" (slim horizontal progress bars, breakdown on hover — the default) or
+        /// "bars" (slim horizontal progress bars, breakdown on hover - the default) or
         /// "rings" (compact concentric-style arcs).</summary>
         public string CapIndicatorStyle      { get; set; } = "bars";
 
-        // Legacy — kept for JSON backwards-compat deserialization only; not used by code.
+        // Legacy - kept for JSON backwards-compat deserialization only; not used by code.
         // The setter migrates old configs to the two new bools.
         [System.Text.Json.Serialization.JsonInclude]
         public InfoSectionMode InfoSection
@@ -175,11 +275,20 @@ namespace MasselGUARD.Models
         public double WifiColActionW { get; set; } = 0;
         public double WifiColCountW  { get; set; } = 0;
         public double WifiColTunnelW { get; set; } = 0;
+        public double WifiColDnsW    { get; set; } = 0;
+        public double DnsColNameW    { get; set; } = 0;
+        public double DnsColTypeW    { get; set; } = 0;
+        public double DnsColServerW  { get; set; } = 0;
+        public double DnsColRulesW   { get; set; } = 0;
+        public double DnsColEnableW  { get; set; } = 0;
+        /// <summary>Bumped when the default tunnel/DNS column layout changes; a lower saved value
+        /// discards those saved widths once so the new defaults apply (1 = 4.5.0 layout).</summary>
+        public int    ColumnLayoutVersion { get; set; } = 0;
 
         // ── Kill switch ───────────────────────────────────────────────────────
         /// <summary>
-        /// "per-tunnel" — each tunnel controls its own kill switch toggle (default).
-        /// "always"     — kill switch is always active for every tunnel regardless of
+        /// "per-tunnel" - each tunnel controls its own kill switch toggle (default).
+        /// "always"     - kill switch is always active for every tunnel regardless of
         ///                the per-tunnel setting.
         /// </summary>
         public string KillSwitchMode { get; set; } = "per-tunnel";
@@ -189,7 +298,7 @@ namespace MasselGUARD.Models
         /// Bypass switch for pre-flight WireGuard config validation.
         /// <para>
         /// Default <c>false</c> = validation is ACTIVE. Setting it true bypasses
-        /// validation for all tunnels — a last-resort escape hatch for a valid-but-unusual
+        /// validation for all tunnels - a last-resort escape hatch for a valid-but-unusual
         /// config the validator rejects. There is deliberately no per-tunnel equivalent.
         /// </para>
         /// </summary>
@@ -206,30 +315,8 @@ namespace MasselGUARD.Models
 
         /// <summary>Ids of installed themes whose repo "version" was newer than the installed
         /// one, as of the last check. Checked at the same time as the app update (same
-        /// frequency setting) — see MainWindow.CheckForUpdatesAsync.</summary>
+        /// frequency setting) - see MainWindow.CheckForUpdatesAsync.</summary>
         public List<string> ThemeUpdatesAvailable { get; set; } = new();
 
-        // ── Computed (not serialised) ────────────────────────────────────────
-        [JsonIgnore]
-        public string ConfDirectory => string.IsNullOrWhiteSpace(WireGuardInstallDirectory)
-            ? ""
-            : Path.Combine(WireGuardInstallDirectory, @"Data\Configurations");
-
-        [JsonIgnore]
-        public string WgExePath => string.IsNullOrWhiteSpace(WireGuardInstallDirectory)
-            ? "wireguard"
-            : Path.Combine(WireGuardInstallDirectory, "wireguard.exe");
-
-        // ── Backward-compat shim ─────────────────────────────────────────────
-        [JsonIgnore] private bool _legacyLocalTunnels = true;
-        public bool EnableLocalTunnels
-        {
-            get => Mode != AppMode.Companion;
-            set
-            {
-                _legacyLocalTunnels = value;
-                if (!value && Mode == AppMode.Mixed) Mode = AppMode.Companion;
-            }
-        }
     }
 }

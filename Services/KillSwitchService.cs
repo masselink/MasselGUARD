@@ -8,7 +8,7 @@ namespace MasselGUARD.Services
     /// Manages a kill-switch via Windows Firewall: when active, all outbound traffic
     /// is blocked except through the WireGuard tunnel interface and the endpoint IP.
     /// Uses the Windows Firewall COM API (HNetCfg.FwPolicy2 / HNetCfg.FwRule) via
-    /// late binding — no COM reference needed in the project.
+    /// late binding - no COM reference needed in the project.
     ///
     /// Reference-counted: the global block policy is applied on the first Enable()
     /// and restored on the last Disable() / DisableAll().
@@ -101,7 +101,7 @@ namespace MasselGUARD.Services
                     _active.Add(tunnelName);
                 }
                 AddTunnelRules(tunnelName, endpointIp, bypassRanges);
-                _log.Ok($"[KillSwitch] Enabled — {tunnelName}");
+                _log.Ok($"[KillSwitch] Enabled - {tunnelName}");
             }
             catch (Exception ex)
             {
@@ -129,7 +129,7 @@ namespace MasselGUARD.Services
                     shouldRestore = _active.Count == 0;
                 }
                 if (shouldRestore) RestoreGlobalPolicy();
-                _log.Ok($"[KillSwitch] Disabled — {tunnelName}");
+                _log.Ok($"[KillSwitch] Disabled - {tunnelName}");
             }
             catch (Exception ex)
             {
@@ -219,7 +219,7 @@ namespace MasselGUARD.Services
                 if (names.Count > 0)
                 {
                     lock (_lock) { _splitRuleNames[tunnelName] = names; }
-                    _log.Debug($"[KillSwitch] {names.Count} split-bypass allow(s) — {tunnelName}");
+                    _log.Debug($"[KillSwitch] {names.Count} split-bypass allow(s) - {tunnelName}");
                 }
             }
         }
@@ -271,7 +271,7 @@ namespace MasselGUARD.Services
                 if (iface      != null) rule.Interfaces      = new string[] { iface };
                 rulesCollection.Add(rule);
             }
-            catch { /* firewall COM unavailable — silently skip */ }
+            catch { /* firewall COM unavailable - silently skip */ }
         }
 
         // ── Utility ───────────────────────────────────────────────────────────

@@ -28,7 +28,7 @@ namespace MasselGUARD.Views
         private bool                  _shiftPeek   = false;  // hold-Shift Windows-colours preview active
         private bool                  _loading      = false;
         private bool                  _dirty        = false; // unsaved edits exist
-        private bool                  _livePaused   = false; // "● LIVE" clicked — auto-preview suspended
+        private bool                  _livePaused   = false; // "● LIVE" clicked - auto-preview suspended
         // Debounces live apply so slider drags / hex typing don't restyle per keystroke
         private readonly System.Windows.Threading.DispatcherTimer _applyTimer;
 
@@ -41,15 +41,30 @@ namespace MasselGUARD.Views
         private Dictionary<string, string> ActiveVals => _editingDark ? _darkVals : _lightVals;
 
         // ── Per-variant assets ────────────────────────────────────────────────
-        // Every image asset is always dark/light sensitive — each has its own Light
+        // Every image asset is always dark/light sensitive - each has its own Light
         // and Dark box in the editor, stored in the variant sections on save. A
         // legacy theme with only a shared root-level asset seeds both sides on load
         // (see LoadTheme/FirstNonEmpty); saving migrates it to the dual format.
         private string _darkLogo    = "", _lightLogo    = "", _darkBgImg = "", _lightBgImg = "";
         private string _darkTrayC   = "", _lightTrayC   = "", _darkTrayD = "", _lightTrayD = "";
         private string _darkAppIcon = "", _lightAppIcon = "";
+        private string _darkDnsBadgePath = "", _lightDnsBadgePath = "";   // per-variant DNS badge SVG path
 
-        // Color-picker controls built in BuildColorRows() — both variants shown side by side.
+        // Section icons (Theme.Icon.*): root-level path data on a 24x24 grid, shared by both variants.
+        // (property suffix, label lang key or brand literal, built-in default path for the preview)
+        private static readonly (string Key, string Label, string Default)[] IconFields =
+        {
+            ("Tunnels",    "WireGuard",             "M12 2 L20 5 L20 11 C20 16 16.4 19.6 12 21 C7.6 19.6 4 16 4 11 L4 5 Z"),
+            ("Dns",        "SettingsTabDns",        "F0 M12 2 A10 10 0 1 0 12 22 A10 10 0 1 0 12 2 Z M12 3.6 A8.4 8.4 0 1 1 12 20.4 A8.4 8.4 0 1 1 12 3.6 Z"),
+            ("Automation", "SettingsTabAutomation", "F0 M6,6.5 h12 a3,3 0 0 1 3,3 v6.5 a3,3 0 0 1 -3,3 h-12 a3,3 0 0 1 -3,-3 v-6.5 a3,3 0 0 1 3,-3 z M7.9,11 a1.5,1.5 0 1 0 3,0 a1.5,1.5 0 1 0 -3,0 z M13.1,11 a1.5,1.5 0 1 0 3,0 a1.5,1.5 0 1 0 -3,0 z M9,15.1 h6 v1.7 h-6 z"),
+            ("Log",        "FeatLogTitle",          "M4 5.1 H20 V6.9 H4 Z M4 11.1 H20 V12.9 H4 Z M4 17.1 H20 V18.9 H4 Z"),
+            ("Charts",     "WizHistoryTitle",       "M3 13 H7 V21 H3 Z M10 8 H14 V21 H10 Z M17 3 H21 V21 H17 Z"),
+        };
+        private readonly Dictionary<string, string>  _icons     = new();
+        private readonly Dictionary<string, TextBox> _iconBoxes = new();
+        private readonly Dictionary<string, System.Windows.Shapes.Path> _iconPreviews = new();
+
+        // Color-picker controls built in BuildColorRows() - both variants shown side by side.
         private readonly Dictionary<string, TextBox> _lightBoxes    = new();
         private readonly Dictionary<string, TextBox> _darkBoxes     = new();
         private readonly Dictionary<string, Border>  _lightSwatches = new();
@@ -69,30 +84,15 @@ namespace MasselGUARD.Views
         private readonly Stack<ThemeSnapshot> _redo = new();
         private ThemeSnapshot? _baseline;
 
-        // Color keys + friendly labels in display order
-        private static readonly (string key, string label)[] ColorFields =
+        // Colour keys in display order (row labels come from the TBCol<name> lang keys)
+        private static readonly string[] ColorFields =
         {
-            ("ColorWindowBg",    "Window background"),
-            ("ColorSurface",     "Surface (title/footer)"),
-            ("ColorCard",        "Card / list panel"),
-            ("ColorBorder",      "Border / divider"),
-            ("ColorAccent",      "Accent"),
-            ("ColorTextPrimary", "Text — primary"),
-            ("ColorTextMuted",   "Text — muted"),
-            ("ColorSuccess",     "Success (green)"),
-            ("ColorDanger",      "Danger (red)"),
-            ("ColorHighlight",   "Highlight"),
-            ("ColorError",       "Error text"),
-            ("ColorErrorBg",     "Error background"),
-            ("ColorWarning",     "Warning text"),
-            ("ColorWarningBg",   "Warning background"),
-            ("ColorListHover",   "List row — hover"),
-            ("ColorListSelected","List row — selected"),
-            ("ColorLogTimestamp","Log timestamp"),
-            ("ColorTrayBg",      "Tray menu background"),
-            ("ColorTrayHover",   "Tray menu hover"),
-            ("ColorTrayText",    "Tray menu text"),
-            ("ColorTrayBorder",  "Tray menu border"),
+            "ColorWindowBg", "ColorSurface", "ColorCard", "ColorBorder",
+            "ColorAccent", "ColorTextPrimary", "ColorTextMuted", "ColorSuccess",
+            "ColorDanger", "ColorHighlight", "ColorError", "ColorErrorBg",
+            "ColorWarning", "ColorWarningBg", "ColorListHover", "ColorListSelected",
+            "ColorLogTimestamp", "ColorTrayBg", "ColorTrayHover", "ColorTrayText",
+            "ColorTrayBorder", "ColorDnsBadge",
         };
 
         // ── Constructor ───────────────────────────────────────────────────────
@@ -104,9 +104,11 @@ namespace MasselGUARD.Views
             // Shift while starting the app to revert to the Windows default theme.
             InitializeComponent();
             BuildColorRows();
+            BuildIconRows();
+            UpdateLiveIndicator();
             PopulateThemeList();
 
-            // Font dropdown — every installed family, rendered in its own typeface.
+            // Font dropdown - every installed family, rendered in its own typeface.
             // Exclude Windows 11 variable-font *collections* (e.g. "Sans Serif Collection"):
             // they aren't real renderable families and WPF mis-measures them, which blows
             // up control/line heights (e.g. the tunnel list then shows only one row).
@@ -169,9 +171,9 @@ namespace MasselGUARD.Views
         }
 
         /// <summary>Applies the current draft to the running app (live preview). Runs even
-        /// for read-only themes so the Dark/Light pill can preview both variants — edits
+        /// for read-only themes so the Dark/Light pill can preview both variants - edits
         /// are blocked upstream (OnEditorChanged), so this only fires here via the pill.
-        /// No-ops while paused (see LiveIndicator_Click) — Save/Apply commit through their
+        /// No-ops while paused (see LiveIndicator_Click) - Save/Apply commit through their
         /// own explicit ThemeManager.Instance.Load() call regardless, so pausing never blocks
         /// those, only the auto-preview-while-browsing/editing behaviour.</summary>
         private void ApplyDraftLive()
@@ -181,6 +183,7 @@ namespace MasselGUARD.Views
             var draft  = CollectDraft();
             var folder = ThemeManager.ThemeFolder(_editingName);
             ThemeManager.Instance.ApplyPreview(draft, folder);
+            _main.RefreshThemeIcons();   // preview doesn't raise ThemeChanged - swap custom/built-in icons now
         }
 
         /// <summary>Toggles whether switching themes / editing previews live. Resuming
@@ -196,13 +199,13 @@ namespace MasselGUARD.Views
         {
             if (_livePaused)
             {
-                LiveIndicator.Text    = "⏸ PAUSED";
+                LiveIndicator.Text    = "⏸ " + Lang.T("TBPausedLabel");
                 LiveIndicator.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
                 LiveIndicator.ToolTip = Lang.T("TBLivePausedTip");
             }
             else
             {
-                LiveIndicator.Text    = "● LIVE";
+                LiveIndicator.Text    = "● " + Lang.T("TBLiveLabel");
                 LiveIndicator.SetResourceReference(TextBlock.ForegroundProperty, "Accent");
                 LiveIndicator.ToolTip = Lang.T("TBLiveTip");
             }
@@ -301,7 +304,7 @@ namespace MasselGUARD.Views
                 else if (e.Key == System.Windows.Input.Key.Y) { Redo_Click(this, new RoutedEventArgs()); e.Handled = true; }
             }
 
-            // Hold Shift (when not typing in a box) to preview the window in Windows colours —
+            // Hold Shift (when not typing in a box) to preview the window in Windows colours -
             // a readable escape hatch while editing a theme live.
             if ((e.Key is Key.LeftShift or Key.RightShift) && !_shiftPeek && !inTextBox)
             {
@@ -365,7 +368,7 @@ namespace MasselGUARD.Views
         private static void FillVariantVals(Dictionary<string, string> target, ThemeDefinition? src)
         {
             if (src == null) return;
-            foreach (var (key, _) in ColorFields)
+            foreach (var key in ColorFields)
             {
                 var val = typeof(ThemeDefinition).GetProperty(key)?.GetValue(src) as string ?? "";
                 if (!string.IsNullOrWhiteSpace(val)) target[key] = val;
@@ -379,7 +382,7 @@ namespace MasselGUARD.Views
             _loading = true;
             try
             {
-                foreach (var (key, _) in ColorFields)
+                foreach (var key in ColorFields)
                 {
                     var lv = _lightVals.TryGetValue(key, out var l) ? l : "";
                     var dv = _darkVals.TryGetValue(key,  out var d) ? d : "";
@@ -395,7 +398,7 @@ namespace MasselGUARD.Views
         }
 
         // ── Per-variant assets ────────────────────────────────────────────────
-        // Both boxes (Light + Dark) are always visible and independently editable —
+        // Both boxes (Light + Dark) are always visible and independently editable -
         // no pill dependency. "Active*" is only used to pick which side feeds the
         // flat CollectDraft() result (the variant currently being live-previewed).
 
@@ -451,9 +454,9 @@ namespace MasselGUARD.Views
             // Asset boxes don't move with the pill (both variants are always shown),
             // only the live-previewed variant (via CollectDraft's Active* reads) changes.
 
-            // Restyle the app to the newly selected variant right away — this is the
+            // Restyle the app to the newly selected variant right away - this is the
             // Dark/Light preview, so it works for read-only (shared/System) themes too.
-            // Switching alone is not an edit — the dirty flag is untouched.
+            // Switching alone is not an edit - the dirty flag is untouched.
             if (!string.IsNullOrEmpty(_editingName))
                 ApplyDraftLive();
         }
@@ -479,7 +482,7 @@ namespace MasselGUARD.Views
             bool invert    = InvertCopyCheck?.IsChecked == true;
             bool emptyOnly = EmptySlotsOnlyCheck?.IsChecked == true;
             if (!emptyOnly) target.Clear();
-            foreach (var (key, _) in ColorFields)
+            foreach (var key in ColorFields)
             {
                 // Tray slots resolve their fallback so the tray menu is copied too.
                 var v = SourceColor(source, key);
@@ -491,10 +494,10 @@ namespace MasselGUARD.Views
             OnEditorChanged();
         }
 
-        // ── Color rows (built programmatically) — Light + Dark side by side ───────
+        // ── Color rows (built programmatically) - Light + Dark side by side ───────
         private void BuildColorRows()
         {
-            // SetResourceReference throughout this method, not FindResource — these labels
+            // SetResourceReference throughout this method, not FindResource - these labels
             // are built once, here, in the constructor, and never touched again. A
             // FindResource snapshot freezes whatever theme was active at that moment,
             // going stale (and unreadable) the instant the user previews a different
@@ -516,7 +519,7 @@ namespace MasselGUARD.Views
             header.Children.Add(hLight); header.Children.Add(hDark);
             ColorsPanel.Children.Add(header);
 
-            foreach (var (key, label) in ColorFields)
+            foreach (var key in ColorFields)
             {
                 if (key == "ColorTrayBg")
                 {
@@ -674,8 +677,8 @@ namespace MasselGUARD.Views
             ["ColorTrayBorder"] = "ColorBorder",
         };
 
-        /// <summary>The effective source value for a key: its own value, or — for tray
-        /// keys — the semantic fallback from the same variant when its own slot is blank.</summary>
+        /// <summary>The effective source value for a key: its own value, or - for tray
+        /// keys - the semantic fallback from the same variant when its own slot is blank.</summary>
         private static string SourceColor(Dictionary<string, string> src, string key)
         {
             if (src.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v)) return v;
@@ -703,7 +706,7 @@ namespace MasselGUARD.Views
         /// Builds a small rendered facsimile of the tray menu beneath the
         /// ColorTray* rows. It restyles live from the draft colours (with the same
         /// semantic fallbacks the real tray uses) so the user can judge tray
-        /// colours without opening the actual menu — which only restyles on Save.
+        /// colours without opening the actual menu - which only restyles on Save.
         /// </summary>
         private void BuildTrayPreview()
         {
@@ -790,12 +793,12 @@ namespace MasselGUARD.Views
 
             var active = ThemeManager.Instance.CurrentThemeName;
 
-            // BUILT-IN — only the virtual System theme, embedded in code and read-only
+            // BUILT-IN - only the virtual System theme, embedded in code and read-only
             // (locked). Duplicable so the live Windows palette can seed an editable copy.
             BuiltinList.Items.Add(BuildListItem("__system__", Lang.T("TBSystemName"),
                 isBuiltin: true, isActive: active is "__system__" or "system"));
 
-            // THEMES — every theme in %APPDATA%\MasselGUARD\themes\ (downloaded + user-made),
+            // THEMES - every theme in %APPDATA%\MasselGUARD\themes\ (downloaded + user-made),
             // all editable. Anything using "<name>-theme.json" instead of the app's own
             // "theme.json" (the community repo's distribution filename, or copied in by
             // hand) goes in CUSTOM THEMES instead, so it doesn't look like it belongs
@@ -816,7 +819,7 @@ namespace MasselGUARD.Views
 
         private ListBoxItem BuildListItem(string name, string display, bool isBuiltin, bool isActive)
         {
-            // SetResourceReference, not FindResource — ThemeManager replaces the brush
+            // SetResourceReference, not FindResource - ThemeManager replaces the brush
             // resource with a brand-new SolidColorBrush on every theme change rather than
             // mutating it in place, so a FindResource snapshot taken when the list was
             // last built goes stale (and unreadable) the moment the user previews a
@@ -870,7 +873,7 @@ namespace MasselGUARD.Views
 
         private void ThemeList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // Single selection across the three lists — clear the other two
+            // Single selection across the three lists - clear the other two
             if ((sender as ListBox)?.SelectedItem != null)
             {
                 if (sender != BuiltinList)     BuiltinList.SelectedItem     = null;
@@ -895,8 +898,8 @@ namespace MasselGUARD.Views
             lbi.IsSelected = true;   // routes through ThemeList_SelectionChanged → LoadTheme
             if (string.IsNullOrEmpty(_editingName)) return;
 
-            // A code-created ContextMenu/MenuItem — never assigned via a FrameworkElement's
-            // ContextMenu property — doesn't reliably pick up App.xaml's implicit
+            // A code-created ContextMenu/MenuItem - never assigned via a FrameworkElement's
+            // ContextMenu property - doesn't reliably pick up App.xaml's implicit
             // TargetType styles, so they're assigned explicitly here instead.
             var menu = new ContextMenu();
             if (Application.Current.Resources[typeof(ContextMenu)] is Style cmStyle)
@@ -924,7 +927,7 @@ namespace MasselGUARD.Views
                 Item(Lang.T("TBMenuDelete"), DeleteTheme_Click);
             }
 
-            // Anchor to the clicked row itself rather than the default MousePoint placement —
+            // Anchor to the clicked row itself rather than the default MousePoint placement -
             // MousePoint resolves the cursor position through the wrong window's transform
             // when the click lands in this (AllowsTransparency) child window, making the menu
             // pop up shifted toward the main window instead of under the theme it was for.
@@ -948,7 +951,7 @@ namespace MasselGUARD.Views
             ThemeDefinition? def;
             if (name == "__system__")
             {
-                // Virtual theme — expose the live Windows palette so it can be
+                // Virtual theme - expose the live Windows palette so it can be
                 // inspected in the editor and duplicated into an editable copy.
                 def = new ThemeDefinition
                 {
@@ -977,7 +980,7 @@ namespace MasselGUARD.Views
             else
             {
                 // Legacy flat theme: root colours belong to its Type variant.
-                // Saving rewrites it in the unified format — that is the migration.
+                // Saving rewrites it in the unified format - that is the migration.
                 bool legacyDark = !_draft.Type.Equals("light", StringComparison.OrdinalIgnoreCase);
                 FillVariantVals(legacyDark ? _darkVals : _lightVals, _draft);
                 _editingDark = legacyDark;
@@ -996,6 +999,11 @@ namespace MasselGUARD.Views
             _lightTrayC  = FirstNonEmpty(_draft.Light?.TrayIconConnected,    _draft.TrayIconConnected);
             _darkTrayD   = FirstNonEmpty(_draft.Dark?.TrayIconDisconnected,  _draft.TrayIconDisconnected);
             _lightTrayD  = FirstNonEmpty(_draft.Light?.TrayIconDisconnected, _draft.TrayIconDisconnected);
+            _darkDnsBadgePath  = FirstNonEmpty(_draft.Dark?.DnsBadgePath,  _draft.DnsBadgePath);
+            _lightDnsBadgePath = FirstNonEmpty(_draft.Light?.DnsBadgePath, _draft.DnsBadgePath);
+            // Icons are root-level in the builder; a hand-authored per-variant icon seeds it (saving moves it to root).
+            foreach (var (key, _, _) in IconFields)
+                _icons[key] = FirstNonEmpty(GetIcon(_draft, key), FirstNonEmpty(GetIcon(_draft.Dark, key), GetIcon(_draft.Light, key)));
 
             _loading = true;
             try { PopulateEditor(); }
@@ -1023,7 +1031,7 @@ namespace MasselGUARD.Views
             UpdateUndoRedoButtons();
             if (CancelBtn != null) CancelBtn.IsEnabled = false;
 
-            // Preview the newly selected theme immediately — just clicking through the
+            // Preview the newly selected theme immediately - just clicking through the
             // list used to do nothing until you edited a value or hit Apply.
             ApplyDraftLive();
         }
@@ -1052,6 +1060,23 @@ namespace MasselGUARD.Views
             // Window
             OpacitySlider.Value         = d.WindowOpacity;
             PanelOpacitySlider.Value    = d.PanelOpacity;
+            DnsBadgeOpacitySlider.Value = d.DnsBadgeOpacity <= 0 ? 1.0 : d.DnsBadgeOpacity;
+            DnsBadgeSizeSlider.Value    = d.DnsBadgeSize    <= 0 ? 45  : d.DnsBadgeSize;
+            SelectDnsBadgePosition(string.IsNullOrWhiteSpace(d.DnsBadgeLocation) ? "bottom-right" : d.DnsBadgeLocation);
+            bool wl = _loading; _loading = true;
+            if (DnsBadgePathDarkBox  != null) DnsBadgePathDarkBox.Text  = _darkDnsBadgePath;
+            if (DnsBadgePathLightBox != null) DnsBadgePathLightBox.Text = _lightDnsBadgePath;
+            _loading = wl;
+            UpdateDnsBadgePreview(DnsBadgePreviewDark,  _darkDnsBadgePath,  dark: true);
+            UpdateDnsBadgePreview(DnsBadgePreviewLight, _lightDnsBadgePath, dark: false);
+            wl = _loading; _loading = true;
+            foreach (var (key, _, _) in IconFields)
+            {
+                var v = IconValue(key);
+                _iconBoxes[key].Text = v;
+                UpdateIconPreview(key, v);
+            }
+            _loading = wl;
             TitleBarHeightSlider.Value  = d.TitleBarHeight;
             ShowTitleBarIconCheck.IsChecked    = d.ShowTitleBarIcon;
             ShowTitleBarAppNameCheck.IsChecked = d.ShowTitleBarAppName;
@@ -1062,7 +1087,7 @@ namespace MasselGUARD.Views
             ShowStatusWifiCheck.IsChecked   = d.ShowStatusWifi;
             ShowStatusTunnelCheck.IsChecked = d.ShowStatusTunnel;
 
-            // Assets — always dark/light sensitive; both boxes are shown at once
+            // Assets - always dark/light sensitive; both boxes are shown at once
             LogoLightPathBox.Text     = _lightLogo;
             LogoDarkPathBox.Text      = _darkLogo;
             LogoWidthBox.Text         = d.LogoWidth.ToString();
@@ -1097,7 +1122,7 @@ namespace MasselGUARD.Views
             AppNameBox.IsReadOnly   = readOnly;
             CreatorBox.IsReadOnly   = readOnly;
             DescriptionBox.IsReadOnly = readOnly;
-            // Variant pills stay enabled — switching is useful even for read-only
+            // Variant pills stay enabled - switching is useful even for read-only
             // built-ins; only the mutating helpers are locked.
             CopyAllLightBtn.IsEnabled = !readOnly;
             CopyAllDarkBtn.IsEnabled  = !readOnly;
@@ -1117,6 +1142,12 @@ namespace MasselGUARD.Views
             CornerRadiusSlider.IsEnabled = !readOnly;
             OpacitySlider.IsEnabled  = !readOnly;
             PanelOpacitySlider.IsEnabled = !readOnly;
+            DnsBadgeOpacitySlider.IsEnabled = !readOnly;
+            DnsBadgeSizeSlider.IsEnabled = !readOnly;
+            foreach (var rb in DnsBadgePosGrid.Children.OfType<RadioButton>()) rb.IsEnabled = !readOnly;
+            if (DnsBadgePathDarkBox  != null) DnsBadgePathDarkBox.IsReadOnly  = readOnly;
+            if (DnsBadgePathLightBox != null) DnsBadgePathLightBox.IsReadOnly = readOnly;
+            foreach (var box in _iconBoxes.Values) box.IsReadOnly = readOnly;
             ListHoverAlphaSlider.IsEnabled = !readOnly;
             TrayHoverAlphaSlider.IsEnabled = !readOnly;
             HighlightAlphaSlider.IsEnabled = !readOnly;
@@ -1207,11 +1238,11 @@ namespace MasselGUARD.Views
                 box2.Text = hex;   // triggers ColorBox_TextChanged → live apply + swatch
         }
 
-        // ── Field change handlers — every edit feeds the debounced live apply ──
+        // ── Field change handlers - every edit feeds the debounced live apply ──
         private void Field_Changed(object sender, TextChangedEventArgs e)
         {
             if (_loading) return;
-            // Each asset box writes straight into its own dark/light field — always
+            // Each asset box writes straight into its own dark/light field - always
             // dual, no pill dependency.
             if      (sender == LogoLightPathBox)     _lightLogo    = LogoLightPathBox.Text.Trim();
             else if (sender == LogoDarkPathBox)      _darkLogo     = LogoDarkPathBox.Text.Trim();
@@ -1256,7 +1287,7 @@ namespace MasselGUARD.Views
         }
 
         // Sliders with an initial Value in XAML fire ValueChanged DURING
-        // InitializeComponent, before their label elements exist — the
+        // InitializeComponent, before their label elements exist - the
         // IsInitialized guard skips those; UpdateSliderLabels() sets the
         // labels once the editor is populated.
         private void FontSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -1286,6 +1317,153 @@ namespace MasselGUARD.Views
             PanelOpacityLabel.Text = $"{PanelOpacitySlider.Value:P0}";
             OnEditorChanged();
         }
+
+        private void DnsBadgeOpacity_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!IsInitialized) return;
+            DnsBadgeOpacityLabel.Text = $"{DnsBadgeOpacitySlider.Value:P0}";
+            OnEditorChanged();
+        }
+
+        private void DnsBadgeSize_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!IsInitialized) return;
+            DnsBadgeSizeLabel.Text = $"{(int)DnsBadgeSizeSlider.Value}%";
+            OnEditorChanged();
+        }
+
+        private void DnsBadgePos_Checked(object sender, RoutedEventArgs e)
+        {
+            if (!IsInitialized || _loading) return;
+            OnEditorChanged();
+        }
+
+        // ── Section icons ─────────────────────────────────────────────────────
+        private static string? GetIcon(ThemeDefinition? d, string key) => d == null ? null : key switch
+        {
+            "Tunnels"    => d.IconTunnels,
+            "Dns"        => d.IconDns,
+            "Automation" => d.IconAutomation,
+            "Log"        => d.IconLog,
+            "Charts"     => d.IconCharts,
+            _            => null,
+        };
+
+        private string IconValue(string key) => _icons.TryGetValue(key, out var v) ? v : "";
+
+        /// <summary>One row per section icon: label, path-data box and a 24x24-grid preview
+        /// (the built-in glyph is shown dimmed while the box is empty).</summary>
+        private void BuildIconRows()
+        {
+            foreach (var (key, label, _) in IconFields)
+            {
+                var g = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(84) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var lbl = new TextBlock { FontSize = 10, VerticalAlignment = VerticalAlignment.Center };
+                if (label == "WireGuard") lbl.Text = label;   // brand literal
+                else lbl.SetBinding(TextBlock.TextProperty,
+                         new System.Windows.Data.Binding($"[{label}]") { Source = Lang.Instance });
+                lbl.SetResourceReference(TextBlock.FontFamilyProperty, "Theme.FontFamily");
+                lbl.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
+
+                var box = new TextBox
+                {
+                    FontFamily = new FontFamily("Consolas"), FontSize = 10,
+                    Padding = new Thickness(6, 4, 6, 4), VerticalAlignment = VerticalAlignment.Center,
+                };
+                var k = key;
+                box.TextChanged += (_, _) =>
+                {
+                    if (_loading) return;
+                    _icons[k] = box.Text.Trim();
+                    UpdateIconPreview(k, _icons[k]);
+                    OnEditorChanged();
+                };
+
+                var path = new System.Windows.Shapes.Path();
+                path.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "TextPrimary");
+                var canvas = new Canvas { Width = 24, Height = 24 };
+                canvas.Children.Add(path);
+                var preview = new Border
+                {
+                    Width = 28, Height = 28, Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(4),
+                    CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(1),
+                    Child = new Viewbox { Child = canvas },
+                };
+                preview.SetResourceReference(Border.BorderBrushProperty, "BorderColor");
+
+                Grid.SetColumn(lbl, 0); Grid.SetColumn(box, 1); Grid.SetColumn(preview, 2);
+                g.Children.Add(lbl); g.Children.Add(box); g.Children.Add(preview);
+                SectionIconsPanel.Children.Add(g);
+                _iconBoxes[key]    = box;
+                _iconPreviews[key] = path;
+            }
+        }
+
+        /// <summary>Preview the custom path, or the built-in glyph (dimmed) when empty. An invalid
+        /// path previews as nothing - the app then falls back to the built-in icon too.</summary>
+        private void UpdateIconPreview(string key, string? pathText)
+        {
+            if (!_iconPreviews.TryGetValue(key, out var path)) return;
+            bool custom = !string.IsNullOrWhiteSpace(pathText);
+            string d = custom ? pathText! : IconFields.First(f => f.Key == key).Default;
+            try   { path.Data = Geometry.Parse(d); }
+            catch { path.Data = null; }
+            path.Opacity = custom ? 1.0 : 0.4;
+        }
+
+        // Built-in DNS badge silhouette (24×24), mirrors App's default - used for the preview when
+        // the theme supplies no custom path.
+        private const string DefaultBadgePath =
+            "M12 2 L20 5 L20 11 C20 16 16.4 19.6 12 21 C7.6 19.6 4 16 4 11 L4 5 Z";
+
+        private void DnsBadgePathDark_Changed(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        {
+            if (_loading) return;
+            _darkDnsBadgePath = DnsBadgePathDarkBox.Text.Trim();
+            UpdateDnsBadgePreview(DnsBadgePreviewDark, _darkDnsBadgePath, dark: true);
+            OnEditorChanged();
+        }
+
+        private void DnsBadgePathLight_Changed(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        {
+            if (_loading) return;
+            _lightDnsBadgePath = DnsBadgePathLightBox.Text.Trim();
+            UpdateDnsBadgePreview(DnsBadgePreviewLight, _lightDnsBadgePath, dark: false);
+            OnEditorChanged();
+        }
+
+        /// <summary>Render the SVG path (or the built-in default when empty) into the preview swatch,
+        /// filled with that variant's DNS badge colour. Invalid path → empty preview.</summary>
+        private void UpdateDnsBadgePreview(System.Windows.Shapes.Path? preview, string? pathText, bool dark)
+        {
+            if (preview == null) return;
+            string d = string.IsNullOrWhiteSpace(pathText) ? DefaultBadgePath : pathText;
+            try   { preview.Data = System.Windows.Media.Geometry.Parse(d); }
+            catch { preview.Data = null; }
+
+            var vals = dark ? _darkVals : _lightVals;
+            string hex = vals.TryGetValue("ColorDnsBadge", out var c) && !string.IsNullOrWhiteSpace(c) ? c : "#A78BFA";
+            try { preview.Fill = new System.Windows.Media.SolidColorBrush(
+                      (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex)); }
+            catch { preview.Fill = new System.Windows.Media.SolidColorBrush(
+                      System.Windows.Media.Color.FromRgb(0xA7, 0x8B, 0xFA)); }
+        }
+
+        /// <summary>Check the position radio whose Tag matches <paramref name="location"/>.</summary>
+        private void SelectDnsBadgePosition(string location)
+        {
+            foreach (var rb in DnsBadgePosGrid.Children.OfType<RadioButton>())
+                rb.IsChecked = string.Equals(rb.Tag as string, location, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>The currently-selected badge position (radio Tag), or "bottom-right".</summary>
+        private string SelectedDnsBadgePosition()
+            => DnsBadgePosGrid.Children.OfType<RadioButton>()
+                   .FirstOrDefault(r => r.IsChecked == true)?.Tag as string ?? "bottom-right";
 
         private void TitleBarHeight_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
@@ -1373,6 +1551,8 @@ namespace MasselGUARD.Views
             CornerRadiusLabel.Text    = $"{(int)CornerRadiusSlider.Value} px";
             OpacityLabel.Text         = $"{OpacitySlider.Value:P0}";
             PanelOpacityLabel.Text    = $"{PanelOpacitySlider.Value:P0}";
+            DnsBadgeOpacityLabel.Text = $"{DnsBadgeOpacitySlider.Value:P0}";
+            DnsBadgeSizeLabel.Text    = $"{(int)DnsBadgeSizeSlider.Value}%";
             TitleBarHeightLabel.Text  = $"{(int)TitleBarHeightSlider.Value} px";
             StatusBarHeightLabel.Text = $"{(int)StatusBarHeightSlider.Value} px";
             BgOpacityLabel.Text       = $"{BgOpacitySlider.Value:P0}";
@@ -1381,7 +1561,7 @@ namespace MasselGUARD.Views
             HighlightAlphaLabel.Text  = $"{HighlightAlphaSlider.Value:P0}";
         }
 
-        // ── Asset browsers — one Browse/Clear pair per variant per asset ───────
+        // ── Asset browsers - one Browse/Clear pair per variant per asset ───────
         private const string LogoFilter = "Logo image|*.png;*.jpg;*.jpeg;*.bmp;*.svg";
         private const string IconFilter = "Icon image|*.ico;*.png;*.bmp;*.jpg;*.jpeg";
         private const string BgFilter   = "Background image|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tiff";
@@ -1423,7 +1603,7 @@ namespace MasselGUARD.Views
             return dlg.ShowDialog() == true ? dlg.FileName : null;
         }
 
-        /// <summary>Folder of the theme currently being edited, at its real location —
+        /// <summary>Folder of the theme currently being edited, at its real location -
         /// the unified <c>themes\</c> folder. Edits/saves/deletes target this folder.</summary>
         private string EditingThemeDir => ThemeManager.ThemeFolder(_editingName);
 
@@ -1493,6 +1673,13 @@ namespace MasselGUARD.Views
 
                 WindowOpacity      = Math.Round(OpacitySlider.Value, 2),
                 PanelOpacity       = Math.Round(PanelOpacitySlider.Value, 2),
+                DnsBadgeOpacity    = Math.Round(DnsBadgeOpacitySlider.Value, 2),
+                DnsBadgeSize       = Math.Round(DnsBadgeSizeSlider.Value),
+                DnsBadgeLocation   = SelectedDnsBadgePosition(),
+                // DNS badge SVG is per-variant now - the flat live-preview draft uses the side the
+                // dark/light pill is showing. On save it's written into the dark/light sections
+                // (see VariantAssetMap), not the root. (Colour is a normal ColorField, below.)
+                DnsBadgePath       = _editingDark ? _darkDnsBadgePath : _lightDnsBadgePath,
                 TitleBarHeight     = (int)TitleBarHeightSlider.Value,
                 ShowTitleBarIcon   = ShowTitleBarIconCheck.IsChecked == true,
                 ShowTitleBarAppName= ShowTitleBarAppNameCheck.IsChecked == true,
@@ -1502,7 +1689,7 @@ namespace MasselGUARD.Views
                 ShowStatusWifi    = ShowStatusWifiCheck.IsChecked == true,
                 ShowStatusTunnel  = ShowStatusTunnelCheck.IsChecked == true,
 
-                // Assets are always dual — the flat draft (used for live preview) takes
+                // Assets are always dual - the flat draft (used for live preview) takes
                 // whichever side the Dark/Light pill (_editingDark) is currently showing.
                 Logo         = ActiveLogo,
                 LogoWidth    = int.TryParse(LogoWidthBox.Text,  out var lw) ? lw : 28,
@@ -1514,10 +1701,16 @@ namespace MasselGUARD.Views
                 BackgroundImage   = ActiveBgImg,
                 BackgroundStretch = GetCheckedTag(StretchFill, StretchCenter, StretchTile, StretchTopLeft),
                 BackgroundOpacity = Math.Round(BgOpacitySlider.Value, 2),
+
+                IconTunnels    = IconValue("Tunnels"),
+                IconDns        = IconValue("Dns"),
+                IconAutomation = IconValue("Automation"),
+                IconLog        = IconValue("Log"),
+                IconCharts     = IconValue("Charts"),
             };
 
-            // Colors via reflection — the live preview uses the variant the pill selects.
-            foreach (var (key, _) in ColorFields)
+            // Colors via reflection - the live preview uses the variant the pill selects.
+            foreach (var key in ColorFields)
             {
                 if (!ActiveVals.TryGetValue(key, out var v)) continue;
                 typeof(ThemeDefinition).GetProperty(key)?.SetValue(d, v);
@@ -1569,7 +1762,7 @@ namespace MasselGUARD.Views
                 }
                 catch (Exception ex)
                 {
-                    ThemedMessageDialog.Info(this, $"Could not build a palette from the image:\n{ex.Message}",
+                    ThemedMessageDialog.Info(this, Lang.T("TBPaletteError", ex.Message),
                         Lang.T("TBTitle"));
                     return;
                 }
@@ -1586,7 +1779,7 @@ namespace MasselGUARD.Views
             }
             else
             {
-                // Current theme — clone the active definition (serialize round-trip) so we
+                // Current theme - clone the active definition (serialize round-trip) so we
                 // don't mutate the live ThemeManager.Instance.Current.
                 var current = ThemeManager.Instance.Current ?? ThemeDefinition.Default;
                 seed = JsonSerializer.Deserialize<ThemeDefinition>(JsonSerializer.Serialize(current)) ?? new ThemeDefinition();
@@ -1648,7 +1841,7 @@ namespace MasselGUARD.Views
             else
             {
                 // Prefer the on-disk definition so a dual-variant theme keeps BOTH
-                // colour sections in the copy (CollectDraft is flat — active variant
+                // colour sections in the copy (CollectDraft is flat - active variant
                 // only). Unsaved edits are not part of the duplicate.
                 seed = ThemeManager.GetThemeMetadata(_editingName) ?? CollectDraft();
                 seed.Name = ThemeManager.GetThemeDisplayName(_editingName) + " (copy)";
@@ -1656,7 +1849,7 @@ namespace MasselGUARD.Views
 
             CreateAndEditTheme(folderName, seed);
 
-            // Copy the image assets too — theme.json alone would leave the copy
+            // Copy the image assets too - theme.json alone would leave the copy
             // without its logo / background / icon files.
             if (!isSystem)
             {
@@ -1739,7 +1932,7 @@ namespace MasselGUARD.Views
             // ApplyPreview), which can leave Theme.FontFamily pointing at a private font file
             // (e.g. a bundled .ttf) inside the folder we're about to delete. WPF's font cache
             // doesn't release that file until something else is applied, so Directory.Delete
-            // can fail with "file in use" — switch resources away from this folder first: to
+            // can fail with "file in use" - switch resources away from this folder first: to
             // System if it's also the committed active theme (nothing to restore it to), or
             // back to whatever actually is committed otherwise. GC + one retry as a fallback
             // for WPF's font cache being slow to let go.
@@ -1866,7 +2059,7 @@ namespace MasselGUARD.Views
         /// <summary>
         /// Writes the unified dual-variant format: structural settings at root,
         /// colour fields in "dark"/"light" sections (only non-empty values, and a
-        /// section is omitted entirely when its variant has no colours — the app
+        /// section is omitted entirely when its variant has no colours - the app
         /// auto-generates the missing side at load time).
         /// </summary>
         /// <summary>Per-variant asset filenames keyed by their theme.json field name.</summary>
@@ -1877,9 +2070,10 @@ namespace MasselGUARD.Views
             ["backgroundImage"]      = dark ? _darkBgImg   : _lightBgImg,
             ["trayIconConnected"]    = dark ? _darkTrayC   : _lightTrayC,
             ["trayIconDisconnected"] = dark ? _darkTrayD   : _lightTrayD,
+            ["dnsBadgePath"]         = dark ? _darkDnsBadgePath : _lightDnsBadgePath,
         };
 
-        /// <summary>Writes to <paramref name="jsonPath"/> directly — the caller resolves it via
+        /// <summary>Writes to <paramref name="jsonPath"/> directly - the caller resolves it via
         /// <see cref="ThemeManager.ThemeJsonPath"/> so saving an existing "&lt;name&gt;-theme.json"
         /// theme (community-repo distribution, or copied in by hand) doesn't leave a stray
         /// duplicate "theme.json" behind.</summary>
@@ -1895,19 +2089,27 @@ namespace MasselGUARD.Views
             var node = JsonSerializer.SerializeToNode(root, opts)!.AsObject();
 
             // Root carries structural settings only
-            foreach (var (key, _) in ColorFields)
+            foreach (var key in ColorFields)
                 node.Remove(JsonNamingPolicy.CamelCase.ConvertName(key));
             node.Remove("type");   // obsolete in the unified format
             node.Remove("dark");
             node.Remove("light");
 
-            // Image assets are always dual now — they live in the variant sections;
+
+            // Image assets are always dual now - they live in the variant sections;
             // the root copies (active variant, via CollectDraft) would shadow them.
             node.Remove("logo");
             node.Remove("appIcon");
             node.Remove("backgroundImage");
             node.Remove("trayIconConnected");
             node.Remove("trayIconDisconnected");
+            node.Remove("dnsBadgePath");   // per-variant now - lives in the dark/light sections
+            // Section icons stay at root; drop the empty ones so an icon-less theme.json stays clean.
+            foreach (var (key, _, _) in IconFields)
+            {
+                var k = "icon" + key;
+                if (node[k] is JsonValue jv && string.IsNullOrWhiteSpace(jv.ToString())) node.Remove(k);
+            }
 
             static JsonObject? Section(Dictionary<string, string> vals, Dictionary<string, string> assets)
             {
@@ -1944,7 +2146,7 @@ namespace MasselGUARD.Views
             {
                 var themeDir = ThemeManager.ThemeFolder(_editingName);
                 // Bundle the theme font so the importing machine renders correctly
-                // even without the font installed — the app loads *.ttf/*.otf from
+                // even without the font installed - the app loads *.ttf/*.otf from
                 // the theme folder as WPF private fonts.
                 TryEmbedThemeFont(themeDir);
                 if (File.Exists(dlg.FileName)) File.Delete(dlg.FileName);
@@ -1957,7 +2159,7 @@ namespace MasselGUARD.Views
             }
         }
 
-        /// <summary>Fonts shipped with every Windows installation — no point bundling.</summary>
+        /// <summary>Fonts shipped with every Windows installation - no point bundling.</summary>
         private static readonly string[] UniversalFonts =
         {
             "Segoe UI", "Arial", "Calibri", "Cambria", "Consolas", "Courier New",
@@ -1989,7 +2191,7 @@ namespace MasselGUARD.Views
                     if (key == null) return;
                     foreach (var valName in key.GetValueNames())
                     {
-                        // Entries look like "Comic Sans MS Bold (TrueType)" — the
+                        // Entries look like "Comic Sans MS Bold (TrueType)" - the
                         // family-prefix match also picks up the bold/italic faces.
                         if (!valName.StartsWith(family, StringComparison.OrdinalIgnoreCase)) continue;
                         if (key.GetValue(valName) is not string file || file.Length == 0) continue;
@@ -2032,7 +2234,7 @@ namespace MasselGUARD.Views
             try
             {
                 ZipFile.ExtractToDirectory(dlg.FileName, dir);
-                // Accepts "theme.json" or "<name>-theme.json" at the root — the latter is how
+                // Accepts "theme.json" or "<name>-theme.json" at the root - the latter is how
                 // the community repo (and Export, for a theme loaded that way) names it.
                 bool hasThemeFile = Directory.GetFiles(dir)
                     .Any(f => Path.GetFileName(f).EndsWith("theme.json", StringComparison.OrdinalIgnoreCase));
@@ -2079,7 +2281,7 @@ namespace MasselGUARD.Views
         {
             _applyTimer.Stop();
             ResolveDirtyDraft(Lang.T("TBSaveBeforeClose", ThemeName.Text));
-            // Restore the committed theme — a no-op when a save just applied it,
+            // Restore the committed theme - a no-op when a save just applied it,
             // a revert when live edits were discarded.
             _main.ApplyThemeFromConfig();
             base.OnClosing(e);
@@ -2091,7 +2293,7 @@ namespace MasselGUARD.Views
     // outer border, a Surface title bar with ✕ + DragMove. Colours come from the ACTIVE theme
     // (FindResource → application resources) like every other window. Subclasses build a body
     // element and call SetThemedContent; results are reported via properties, never
-    // DialogResult — that throws on AllowsTransparency windows.
+    // DialogResult - that throws on AllowsTransparency windows.
     internal abstract class ThemedDialog : Window
     {
         protected ThemedDialog()
@@ -2364,7 +2566,7 @@ namespace MasselGUARD.Views
     // reads the pixel under the cursor straight from that frozen bitmap (pixel-exact, and
     // the overlay can't tint what it samples) into a small swatch + hex readout beside the
     // pointer. Left-click captures, right-click / Escape cancels. The window is OPAQUE (it
-    // displays the frozen screen) so it reliably receives mouse input — a fully transparent
+    // displays the frozen screen) so it reliably receives mouse input - a fully transparent
     // AllowsTransparency overlay is click-through at the OS level and gets no events.
     // Result is reported via the Picked property (NOT DialogResult).
     internal sealed class EyedropperWindow : Window
@@ -2479,7 +2681,7 @@ namespace MasselGUARD.Views
     // ── Custom HSV colour picker ─────────────────────────────────────────────────
     // A WPF replacement for the WinForms ColorDialog: saturation/value square + hue strip
     // + live preview + editable hex. Themed from the active theme (ThemedDialog chrome).
-    // Result is reported via Selected (NOT DialogResult — that throws on AllowsTransparency
+    // Result is reported via Selected (NOT DialogResult - that throws on AllowsTransparency
     // windows).
     internal sealed class ColorPickerDialog : ThemedDialog
     {
@@ -2489,7 +2691,7 @@ namespace MasselGUARD.Views
         public event Action<Color>? PreviewChanged;
 
         // Remembered across dialog opens within the session (matches the builder's other
-        // session-only toggles — no AppConfig needed for a picker preference).
+        // session-only toggles - no AppConfig needed for a picker preference).
         private static bool _livePreviewOn = true;
 
         private const double SvW = 210, SvH = 160, HueW = 22;
@@ -2719,7 +2921,7 @@ namespace MasselGUARD.Views
     // ── Themed message / confirm dialog ──────────────────────────────────────────
     // Replaces native MessageBox inside the manager so confirmations/errors match the active
     // theme (ThemedDialog chrome) instead of the always-light native dialog. Result via
-    // Confirmed (no DialogResult — that throws on AllowsTransparency windows).
+    // Confirmed (no DialogResult - that throws on AllowsTransparency windows).
     internal sealed class ThemedMessageDialog : ThemedDialog
     {
         public bool Confirmed { get; private set; }

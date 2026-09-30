@@ -43,7 +43,7 @@ namespace MasselGUARD
                     FlagImage = bmp;
                 }
             }
-            catch { /* flag image is optional — degrade gracefully */ }
+            catch { /* flag image is optional - degrade gracefully */ }
         }
 
         public override string ToString() => $"[{Code}] {Name}";
