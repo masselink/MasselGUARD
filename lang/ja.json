@@ -1161,5 +1161,12 @@
   "TunnelDialogNoHistoryTip": "このトンネルの使用履歴はまだありません。",
   "CapTipUser": "{0} (設定した上限): {2} 中 {1} ({3}%)",
   "CapTipHistory": "{0} (履歴と比較): 通常 {2} 中 {1} ({3}%)、{4} 日分に基づく",
-  "CapTipNoHistory": "{0}: {1} - 使用履歴はまだありません"
+  "CapTipNoHistory": "{0}: {1} - 使用履歴はまだありません",
+  "AboutBtnWebsite": "Web サイト",
+  "AboutBtnReportIssue": "問題を報告",
+  "AboutReportIssueTip": "バージョン情報が入力済みの新しい GitHub Issue を開きます。",
+  "AboutBtnCopyInfo": "バージョン情報をコピー",
+  "AboutCopyInfoTip": "バージョン、ビルド、アーキテクチャ、Windows と .NET のバージョン、言語、テーマをコピーします。不具合の報告に便利です。",
+  "AboutCopied": "コピーしました",
+  "AboutCreditsHeader": "クレジットとライセンス"
 }

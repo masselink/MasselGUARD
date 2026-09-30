@@ -1161,5 +1161,12 @@
   "TunnelDialogNoHistoryTip": "Nog geen gebruiksgeschiedenis voor deze tunnel.",
   "CapTipUser": "{0} (eigen limiet): {1} van {2} ({3}%)",
   "CapTipHistory": "{0} (t.o.v. geschiedenis): {1} van gebruikelijk {2} ({3}%), op basis van {4} dagen",
-  "CapTipNoHistory": "{0}: {1} - nog geen gebruiksgeschiedenis"
+  "CapTipNoHistory": "{0}: {1} - nog geen gebruiksgeschiedenis",
+  "AboutBtnWebsite": "Website",
+  "AboutBtnReportIssue": "Probleem melden",
+  "AboutReportIssueTip": "Opent een nieuwe GitHub-issue waarin je versiegegevens al zijn ingevuld.",
+  "AboutBtnCopyInfo": "Versie-info kopiëren",
+  "AboutCopyInfoTip": "Kopieert versie, build, architectuur, Windows- en .NET-versie, taal en thema - handig voor foutmeldingen.",
+  "AboutCopied": "Gekopieerd",
+  "AboutCreditsHeader": "CREDITS & LICENTIE"
 }

@@ -1161,5 +1161,12 @@
   "TunnelDialogNoHistoryTip": "此隧道尚无用量历史。",
   "CapTipUser": "{0} (您设置的上限): {1} / {2} ({3}%)",
   "CapTipHistory": "{0} (与历史对比): {1} / 典型 {2} ({3}%)，基于 {4} 天",
-  "CapTipNoHistory": "{0}: {1} - 尚无用量历史"
+  "CapTipNoHistory": "{0}: {1} - 尚无用量历史",
+  "AboutBtnWebsite": "网站",
+  "AboutBtnReportIssue": "报告问题",
+  "AboutReportIssueTip": "打开一个新的 GitHub Issue，并预先填入您的版本信息。",
+  "AboutBtnCopyInfo": "复制版本信息",
+  "AboutCopyInfoTip": "复制版本、版本号、架构、Windows 和 .NET 版本、语言及主题，便于报告错误。",
+  "AboutCopied": "已复制",
+  "AboutCreditsHeader": "致谢与许可"
 }

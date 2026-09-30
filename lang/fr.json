@@ -1161,5 +1161,12 @@
   "TunnelDialogNoHistoryTip": "Pas encore d'historique d'utilisation pour ce tunnel.",
   "CapTipUser": "{0} (limite définie par vous) : {1} sur {2} ({3} %)",
   "CapTipHistory": "{0} (par rapport à l'historique) : {1} sur {2} habituels ({3} %), sur {4} jours",
-  "CapTipNoHistory": "{0} : {1} - pas encore d'historique d'utilisation"
+  "CapTipNoHistory": "{0} : {1} - pas encore d'historique d'utilisation",
+  "AboutBtnWebsite": "Site web",
+  "AboutBtnReportIssue": "Signaler un problème",
+  "AboutReportIssueTip": "Ouvre un nouveau ticket GitHub avec les détails de votre version déjà renseignés.",
+  "AboutBtnCopyInfo": "Copier les infos de version",
+  "AboutCopyInfoTip": "Copie la version, la build, l'architecture, les versions de Windows et .NET, la langue et le thème - pratique pour les rapports de bug.",
+  "AboutCopied": "Copié",
+  "AboutCreditsHeader": "CRÉDITS ET LICENCE"
 }

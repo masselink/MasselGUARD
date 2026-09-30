@@ -2158,53 +2158,86 @@
                         <!-- ══ ABOUT PAGE ══════════════════════════════════════ -->
                         <StackPanel x:Name="PageAbout" Visibility="Collapsed">
 
-                            <!-- Updates -->
-                            <TextBlock Text="{Binding [SettingsSectionUpdate], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SettingsSectionHeader}"/>
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                            <!-- ── Hero: logo, name, version + codename, build, update status ─────────── -->
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,4,0,10">
                                 <StackPanel>
-
-                                    <!-- Version, build stamp, status badge, last-checked -->
-                                    <Grid Margin="0,0,0,8">
+                                    <Grid>
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="Auto"/>
-                                        </Grid.RowDefinitions>
-                                        <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
-                                                   x:Name="VersionLabel"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}"
-                                                   FontSize="15" FontWeight="Bold"
-                                                   Foreground="{DynamicResource TextPrimary}"/>
-                                        <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
-                                                   x:Name="BuildLabel"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}"
-                                                   FontSize="10" Foreground="{DynamicResource TextMuted}"
-                                                   Margin="0,1,0,0"/>
-                                        <!-- Status badge pill - its own row, right-aligned -->
-                                        <Border Grid.Row="2" Grid.Column="1" x:Name="UpdateStatusBadge"
-                                                CornerRadius="10" Padding="10,4"
-                                                HorizontalAlignment="Right" Margin="0,4,0,4">
-                                            <TextBlock x:Name="UpdateStatusLabel"
+
+                                        <!-- Theme logo (same resource as the title bar), else the built-in shield -->
+                                        <Grid Grid.Column="0" Width="64" Height="64" Margin="0,0,16,0" VerticalAlignment="Top">
+                                            <Image Source="{DynamicResource Theme.Logo}"
+                                                   Visibility="{DynamicResource Theme.HasLogo}"
+                                                   Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            <Viewbox Stretch="Uniform" Visibility="{DynamicResource Theme.HasBuiltinIcon}">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Fill="{DynamicResource CardBg}" Stroke="{DynamicResource Accent}" StrokeThickness="1.2">
+                                                        <Path.Data>M12,1 L22,5 L22,13 C22,18.5 17.5,22.5 12,24 C6.5,22.5 2,18.5 2,13 L2,5 Z</Path.Data>
+                                                    </Path>
+                                                    <Polyline Points="7,9 12,15 17,9" Stroke="{DynamicResource Accent}" StrokeThickness="2.2"
+                                                              StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                              Fill="Transparent"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Grid>
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <!-- Always the product name, exactly as written - not the theme's appName, and not
+                                                 the header font (e.g. Cinzel renders lower case as small capitals). -->
+                                            <TextBlock Text="MasselGUARD"
                                                        FontFamily="{DynamicResource Theme.FontFamily}"
-                                                       FontSize="10" FontWeight="SemiBold"/>
-                                        </Border>
-                                        <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2"
-                                                   x:Name="LastCheckedLabel"
-                                                   FontFamily="{DynamicResource Theme.FontFamily}"
-                                                   FontSize="10" Foreground="{DynamicResource TextMuted}"/>
+                                                       FontSize="22" FontWeight="Bold"
+                                                       Foreground="{DynamicResource Accent}"/>
+                                            <TextBlock x:Name="VersionLabel"
+                                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                                       FontSize="15" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimary}" Margin="0,2,0,0"/>
+                                            <TextBlock x:Name="BuildLabel"
+                                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                                       FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,3,0,0"/>
+                                            <TextBlock x:Name="LastCheckedLabel"
+                                                       FontFamily="{DynamicResource Theme.FontFamily}"
+                                                       FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,1,0,0"/>
+                                        </StackPanel>
+
+                                        <!-- Status pill + Check now / Download -->
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="12,0,0,0">
+                                            <Border x:Name="UpdateStatusBadge"
+                                                    CornerRadius="10" Padding="10,4" HorizontalAlignment="Right">
+                                                <TextBlock x:Name="UpdateStatusLabel"
+                                                           FontFamily="{DynamicResource Theme.FontFamily}"
+                                                           FontSize="10" FontWeight="SemiBold"/>
+                                            </Border>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                                <Button x:Name="DoUpdateBtn"
+                                                        Style="{StaticResource SuccessBtn}"
+                                                        FontSize="10" Padding="12,6" Margin="0,0,8,0"
+                                                        Visibility="Collapsed"
+                                                        Click="DoUpdate_Click"/>
+                                                <Button x:Name="CheckUpdateBtn"
+                                                        Style="{StaticResource FlatBtn}"
+                                                        FontSize="10" Padding="12,6"
+                                                        Click="CheckUpdate_Click"/>
+                                            </StackPanel>
+                                        </StackPanel>
                                     </Grid>
+
+                                    <!-- Download / extract / apply progress -->
+                                    <TextBlock x:Name="UpdateProgressLabel"
+                                               FontFamily="{DynamicResource Theme.FontFamily}"
+                                               FontSize="10" Foreground="{DynamicResource Accent}"
+                                               Margin="80,8,0,0" Visibility="Collapsed"
+                                               TextWrapping="Wrap"/>
 
                                     <!-- Theme update indicator - passive result of the last check; click opens Community themes -->
                                     <Border x:Name="AboutThemeUpdatesRow"
                                             Background="{DynamicResource Surface}"
                                             BorderBrush="{DynamicResource Accent}" BorderThickness="1"
-                                            CornerRadius="4" Padding="10,6" Margin="0,0,0,10"
+                                            CornerRadius="4" Padding="10,6" Margin="0,12,0,0"
                                             Cursor="Hand" Visibility="Collapsed"
                                             MouseLeftButtonUp="DownloadThemes_Click"
                                             ToolTip="{Binding [AboutThemeUpdatesTooltip], Source={x:Static local:Lang.Instance}}">
@@ -2215,79 +2248,58 @@
                                                    TextWrapping="Wrap"/>
                                     </Border>
 
-                                    <!-- Separator -->
-                                    <Border Height="1" Background="{DynamicResource BorderColor}" Margin="0,0,0,10"/>
-
-                                    <!-- Frequency pills row -->
-                                    <TextBlock Text="{Binding [UpdateCheckFrequencyLabel], Source={x:Static local:Lang.Instance}}"
-                                               FontFamily="{DynamicResource Theme.FontFamily}"
-                                               FontSize="10" Foreground="{DynamicResource TextMuted}"
-                                               Margin="0,0,0,6"/>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                        <RadioButton x:Name="FreqOnStart" GroupName="UpdateFreq"
-                                                     Content="{Binding [UpdateCheckOnStart], Source={x:Static local:Lang.Instance}}"
-                                                     Style="{StaticResource PillRadio}"
-                                                     Checked="UpdateFreq_Changed" Tag="onstart"/>
-                                        <RadioButton x:Name="FreqDaily" GroupName="UpdateFreq"
-                                                     Content="{Binding [UpdateCheckDaily], Source={x:Static local:Lang.Instance}}"
-                                                     Style="{StaticResource PillRadio}" Margin="6,0,0,0"
-                                                     Checked="UpdateFreq_Changed" Tag="daily"/>
-                                        <RadioButton x:Name="FreqWeekly" GroupName="UpdateFreq"
-                                                     Content="{Binding [UpdateCheckWeekly], Source={x:Static local:Lang.Instance}}"
-                                                     Style="{StaticResource PillRadio}" Margin="6,0,0,0"
-                                                     Checked="UpdateFreq_Changed" Tag="weekly"/>
-                                        <RadioButton x:Name="FreqManual" GroupName="UpdateFreq"
-                                                     Content="{Binding [UpdateCheckManual], Source={x:Static local:Lang.Instance}}"
-                                                     Style="{StaticResource PillRadio}" Margin="6,0,0,0"
-                                                     Checked="UpdateFreq_Changed" Tag="manual"/>
-                                    </StackPanel>
-
-                                    <!-- Action buttons row -->
-                                    <StackPanel Orientation="Horizontal">
-                                        <Button x:Name="CheckUpdateBtn"
-                                                Style="{StaticResource FlatBtn}"
-                                                FontSize="10" Padding="12,6"
-                                                Click="CheckUpdate_Click"/>
-                                        <Button x:Name="DoUpdateBtn"
-                                                Style="{StaticResource SuccessBtn}"
-                                                FontSize="10" Padding="12,6" Margin="8,0,0,0"
-                                                Visibility="Collapsed"
-                                                Click="DoUpdate_Click"/>
-                                    </StackPanel>
-
-                                    <!-- Download / extract / apply progress -->
-                                    <TextBlock x:Name="UpdateProgressLabel"
-                                               FontFamily="{DynamicResource Theme.FontFamily}"
-                                               FontSize="10" Foreground="{DynamicResource Accent}"
-                                               Margin="0,8,0,0" Visibility="Collapsed"
-                                               TextWrapping="Wrap"/>
-
+                                    <!-- Update-check frequency (compact) -->
+                                    <Border Height="1" Background="{DynamicResource BorderColor}" Margin="0,12,0,10"/>
+                                    <DockPanel LastChildFill="False">
+                                        <TextBlock Text="{Binding [UpdateCheckFrequencyLabel], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="10" Foreground="{DynamicResource TextMuted}"
+                                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <RadioButton x:Name="FreqOnStart" GroupName="UpdateFreq"
+                                                         Content="{Binding [UpdateCheckOnStart], Source={x:Static local:Lang.Instance}}"
+                                                         Style="{StaticResource PillRadio}"
+                                                         Checked="UpdateFreq_Changed" Tag="onstart"/>
+                                            <RadioButton x:Name="FreqDaily" GroupName="UpdateFreq"
+                                                         Content="{Binding [UpdateCheckDaily], Source={x:Static local:Lang.Instance}}"
+                                                         Style="{StaticResource PillRadio}" Margin="6,0,0,0"
+                                                         Checked="UpdateFreq_Changed" Tag="daily"/>
+                                            <RadioButton x:Name="FreqWeekly" GroupName="UpdateFreq"
+                                                         Content="{Binding [UpdateCheckWeekly], Source={x:Static local:Lang.Instance}}"
+                                                         Style="{StaticResource PillRadio}" Margin="6,0,0,0"
+                                                         Checked="UpdateFreq_Changed" Tag="weekly"/>
+                                            <RadioButton x:Name="FreqManual" GroupName="UpdateFreq"
+                                                         Content="{Binding [UpdateCheckManual], Source={x:Static local:Lang.Instance}}"
+                                                         Style="{StaticResource PillRadio}" Margin="6,0,0,0"
+                                                         Checked="UpdateFreq_Changed" Tag="manual"/>
+                                        </StackPanel>
+                                    </DockPanel>
                                 </StackPanel>
                             </Border>
 
-                            <!-- MasselGUARD -->
-                            <TextBlock Text="MasselGUARD"
+                            <!-- ── Quick actions ───────────────────────────────────────────────────── -->
+                            <WrapPanel Margin="0,0,0,16">
+                                <Button Style="{StaticResource FlatBtn}" FontSize="10" Padding="12,6" Margin="0,0,8,0"
+                                        Content="GitHub" Click="AboutGithub_Click"
+                                        ToolTip="github.com/masselink/MasselGUARD"/>
+                                <Button Style="{StaticResource FlatBtn}" FontSize="10" Padding="12,6" Margin="0,0,8,0"
+                                        Content="{Binding [AboutBtnWebsite], Source={x:Static local:Lang.Instance}}"
+                                        Click="AboutWebsite_Click" ToolTip="masselink.net"/>
+                                <Button Style="{StaticResource FlatBtn}" FontSize="10" Padding="12,6" Margin="0,0,8,0"
+                                        Content="{Binding [AboutBtnReportIssue], Source={x:Static local:Lang.Instance}}"
+                                        Click="AboutReportIssue_Click"
+                                        ToolTip="{Binding [AboutReportIssueTip], Source={x:Static local:Lang.Instance}}"/>
+                                <Button x:Name="AboutCopyInfoBtn" Style="{StaticResource FlatBtn}" FontSize="10" Padding="12,6"
+                                        Content="{Binding [AboutBtnCopyInfo], Source={x:Static local:Lang.Instance}}"
+                                        Click="AboutCopyInfo_Click"
+                                        ToolTip="{Binding [AboutCopyInfoTip], Source={x:Static local:Lang.Instance}}"/>
+                            </WrapPanel>
+
+                            <!-- ── Credits & license ───────────────────────────────────────────────── -->
+                            <TextBlock Text="{Binding [AboutCreditsHeader], Source={x:Static local:Lang.Instance}}"
                                        Style="{StaticResource SettingsSectionHeader}"/>
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
                                 <StackPanel>
-                                    <TextBlock FontFamily="{DynamicResource Theme.FontFamily}"
-                                               FontSize="10" Foreground="{DynamicResource TextMuted}">
-                                        <Run Text="{Binding [AboutBy], Source={x:Static local:Lang.Instance}, Mode=OneWay}"/><Run Text=" Harold Masselink"/>
-                                    </TextBlock>
-                                    <TextBlock x:Name="GithubLink"
-                                               Text="github.com/masselink/MasselGUARD"
-                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
-                                               Foreground="{DynamicResource Accent}"
-                                               Cursor="Hand" TextDecorations="Underline"
-                                               Margin="0,4,0,0"
-                                               MouseLeftButtonUp="GithubLink_Click"/>
-
-                                    <!-- Credits -->
-                                    <Border Height="1" Background="{DynamicResource BorderColor}" Margin="0,10,0,10"/>
-                                    <TextBlock Text="{Binding [AboutCredits], Source={x:Static local:Lang.Instance}}"
-                                               FontFamily="{DynamicResource Theme.FontFamily}"
-                                               FontSize="10" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,4"/>
                                     <TextBlock FontFamily="{DynamicResource Theme.FontFamily}"
                                                FontSize="10" Foreground="{DynamicResource TextMuted}"
                                                TextWrapping="Wrap">
@@ -2299,15 +2311,12 @@
                                                FontFamily="{DynamicResource Theme.FontFamily}"
                                                FontSize="9" Foreground="{DynamicResource TextMuted}"
                                                TextWrapping="Wrap" Margin="0,4,0,0"/>
-
-                                    <!-- License -->
                                     <Border Height="1" Background="{DynamicResource BorderColor}" Margin="0,10,0,10"/>
-                                    <TextBlock Text="{Binding [AboutLicensedMit], Source={x:Static local:Lang.Instance}}"
-                                               FontFamily="{DynamicResource Theme.FontFamily}"
-                                               FontSize="10" Foreground="{DynamicResource TextMuted}"/>
-                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                        <TextBlock x:Name="LicenseLink"
-                                                   Text="{Binding [AboutViewLicense], Source={x:Static local:Lang.Instance}}"
+                                    <WrapPanel>
+                                        <TextBlock Text="{Binding [AboutLicensedMit], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}"
+                                                   FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,0,12,0"/>
+                                        <TextBlock Text="{Binding [AboutViewLicense], Source={x:Static local:Lang.Instance}}"
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                    Foreground="{DynamicResource Accent}"
                                                    Cursor="Hand" TextDecorations="Underline"
@@ -2315,13 +2324,12 @@
                                         <TextBlock Text="   ·   "
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                    Foreground="{DynamicResource TextMuted}"/>
-                                        <TextBlock x:Name="NoticesLink"
-                                                   Text="{Binding [AboutThirdPartyNotices], Source={x:Static local:Lang.Instance}}"
+                                        <TextBlock Text="{Binding [AboutThirdPartyNotices], Source={x:Static local:Lang.Instance}}"
                                                    FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
                                                    Foreground="{DynamicResource Accent}"
                                                    Cursor="Hand" TextDecorations="Underline"
                                                    MouseLeftButtonUp="NoticesLink_Click"/>
-                                    </StackPanel>
+                                    </WrapPanel>
                                 </StackPanel>
                             </Border>
 

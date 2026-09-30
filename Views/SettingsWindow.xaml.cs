@@ -2058,9 +2058,10 @@ namespace MasselGUARD.Views
             if (VersionLabel != null)
             {
                 var codename = UpdateChecker.Codename;
+                // The hero card shows the app name above this line, so only version + codename here.
                 VersionLabel.Text = string.IsNullOrEmpty(codename)
-                    ? $"MasselGUARD v{current}"
-                    : $"MasselGUARD v{current}  |  {codename}";
+                    ? $"v{current}"
+                    : $"v{current}  ·  {codename}";
             }
 
             // Build stamp + architecture - small muted line below the version
@@ -2533,11 +2534,55 @@ namespace MasselGUARD.Views
                 await StartUpdateAsync(_latestRelease);
         }
 
-        private void GithubLink_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        // ── About: quick actions ─────────────────────────────────────────────────
+        private static void OpenUrl(string url)
         {
-            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
-                "https://github.com/masselink/MasselGUARD") { UseShellExecute = true }); }
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
             catch { }
+        }
+
+        private void AboutGithub_Click(object sender, RoutedEventArgs e)  => OpenUrl("https://github.com/masselink/MasselGUARD");
+        private void AboutWebsite_Click(object sender, RoutedEventArgs e) => OpenUrl("https://masselink.net/");
+
+        /// <summary>Version details for bug reports - English on purpose (support text, like the
+        /// diagnostics "Copy all" report).</summary>
+        private static string VersionInfoText()
+        {
+            var codename = UpdateChecker.Codename;
+            var stamp    = UpdateChecker.BuildStamp;
+            return
+                $"MasselGUARD {UpdateChecker.CurrentVersionString}{(string.IsNullOrEmpty(codename) ? "" : $" ({codename})")}\n" +
+                $"Build: {(string.IsNullOrEmpty(stamp) ? "dev" : stamp)} · {UpdateChecker.ArchMoniker}\n" +
+                $"Windows: {System.Runtime.InteropServices.RuntimeInformation.OSDescription} ({Environment.OSVersion.Version})\n" +
+                $".NET: {Environment.Version}\n" +
+                $"Language: {Lang.Instance.CurrentCode}\n" +
+                $"Theme: {ThemeManager.Instance.Current.Name}";
+        }
+
+        /// <summary>Opens a new GitHub issue with the version details already in the body.</summary>
+        private void AboutReportIssue_Click(object sender, RoutedEventArgs e)
+        {
+            var body = "\n\n\n---\n" + VersionInfoText();
+            OpenUrl("https://github.com/masselink/MasselGUARD/issues/new?body=" + Uri.EscapeDataString(body));
+        }
+
+        private System.Windows.Threading.DispatcherTimer? _copiedTimer;
+
+        private void AboutCopyInfo_Click(object sender, RoutedEventArgs e)
+        {
+            try { Clipboard.SetText(VersionInfoText().Replace("\n", Environment.NewLine)); }
+            catch { return; }   // clipboard briefly locked by another app - nothing to confirm
+            if (AboutCopyInfoBtn == null) return;
+            AboutCopyInfoBtn.Content = "✓  " + Lang.T("AboutCopied");
+            _copiedTimer?.Stop();
+            _copiedTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            _copiedTimer.Tick += (_, _) =>
+            {
+                _copiedTimer?.Stop();
+                AboutCopyInfoBtn.SetBinding(ContentControl.ContentProperty,
+                    new System.Windows.Data.Binding("[AboutBtnCopyInfo]") { Source = Lang.Instance });
+            };
+            _copiedTimer.Start();
         }
 
         private void WhatsNewLink_GitHub_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)

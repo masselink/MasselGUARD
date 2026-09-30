@@ -1161,5 +1161,12 @@
   "TunnelDialogNoHistoryTip": "No usage history yet for this tunnel.",
   "CapTipUser": "{0} (cap set by you): {1} of {2} ({3}%)",
   "CapTipHistory": "{0} (vs. history): {1} of typical {2} ({3}%), based on {4} days",
-  "CapTipNoHistory": "{0}: {1} - no usage history yet"
+  "CapTipNoHistory": "{0}: {1} - no usage history yet",
+  "AboutBtnWebsite": "Website",
+  "AboutBtnReportIssue": "Report an issue",
+  "AboutReportIssueTip": "Opens a new GitHub issue with your version details already filled in.",
+  "AboutBtnCopyInfo": "Copy version info",
+  "AboutCopyInfoTip": "Copies version, build, architecture, Windows and .NET versions, language and theme - handy for bug reports.",
+  "AboutCopied": "Copied",
+  "AboutCreditsHeader": "CREDITS & LICENSE"
 }

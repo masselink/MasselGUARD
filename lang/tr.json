@@ -1161,5 +1161,12 @@
   "TunnelDialogNoHistoryTip": "Bu tünel için henüz kullanım geçmişi yok.",
   "CapTipUser": "{0} (sizin sınırınız): {2} içinden {1} (%{3})",
   "CapTipHistory": "{0} (geçmişe göre): olağan {2} içinden {1} (%{3}), {4} güne göre",
-  "CapTipNoHistory": "{0}: {1} - henüz kullanım geçmişi yok"
+  "CapTipNoHistory": "{0}: {1} - henüz kullanım geçmişi yok",
+  "AboutBtnWebsite": "Web sitesi",
+  "AboutBtnReportIssue": "Sorun bildir",
+  "AboutReportIssueTip": "Sürüm bilgileriniz önceden doldurulmuş yeni bir GitHub sorunu açar.",
+  "AboutBtnCopyInfo": "Sürüm bilgisini kopyala",
+  "AboutCopyInfoTip": "Sürümü, derlemeyi, mimariyi, Windows ve .NET sürümlerini, dili ve temayı kopyalar - hata bildirimleri için kullanışlıdır.",
+  "AboutCopied": "Kopyalandı",
+  "AboutCreditsHeader": "KATKIDA BULUNANLAR VE LİSANS"
 }
