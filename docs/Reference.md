@@ -1036,7 +1036,7 @@ MasselGUARD's own source is **MIT** (`LICENSE`, repo root). Bundled third-party 
 - `tunnel.dll` - WireGuard embeddable tunnel service (wireguard-windows / wireguard-go): **MIT** (verify the exact bundled version).
 - `wireguard.dll` - wireguard-nt: **verify its exact license and prebuilt-DLL redistribution terms upstream** ([git.zx2c4.com/wireguard-nt](https://git.zx2c4.com/wireguard-nt)) before a public release - its terms could affect the combined distribution. Do not assume.
 - .NET 10 - framework-dependent (runtime not bundled), © Microsoft, MIT.
-- **WinDivert** - reserved for future per-app split tunneling (a later 4.x; **not yet bundled**); dual **LGPLv3 / GPLv3**, intended via the **LGPLv3** dynamic-link path. Compliance checklist in `HANDOVER-4.0.0.md` §6.
+- **WinDivert** - reserved for future per-app split tunneling (a later 4.x; **not yet bundled**); dual **LGPLv3 / GPLv3**, intended via the **LGPLv3** dynamic-link path. Compliance checklist in `HANDOVER.md` §3C.
 
 **WireGuard** is a registered trademark of Jason A. Donenfeld; MasselGUARD is an independent project, not affiliated with or endorsed by WireGuard LLC. When adding, removing, or updating a bundled component, update `THIRD-PARTY-NOTICES.md` in the same change.
 

@@ -65,13 +65,49 @@ namespace MasselGUARD
             OnSystemThemeChanged(isDark);
         }
 
+        /// <summary>Append an exception (full stack) to %APPDATA%\MasselGUARD\crash.log. Best-effort,
+        /// never throws; the file is capped so it can't grow without bound.</summary>
+        internal static void WriteCrashLog(Exception? ex, string source)
+        {
+            if (ex == null) return;
+            try
+            {
+                var dir  = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MasselGUARD");
+                var path = System.IO.Path.Combine(dir, "crash.log");
+                System.IO.Directory.CreateDirectory(dir);
+                if (System.IO.File.Exists(path) && new System.IO.FileInfo(path).Length > 512 * 1024)
+                    System.IO.File.Delete(path);
+                System.IO.File.AppendAllText(path,
+                    $"==== {DateTime.Now:yyyy-MM-dd HH:mm:ss}  {source}  v{UpdateChecker.CurrentVersionString}{Environment.NewLine}" +
+                    ex + Environment.NewLine + Environment.NewLine);
+            }
+            catch { /* diagnostics only */ }
+        }
+
+        private static void OnWindowEscape(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key != System.Windows.Input.Key.Escape || e.Handled) return;
+            if (sender is not Window w) return;
+            if (w is MasselGUARD.MainWindow or Views.WizardWindow or Views.ToastWindow or Views.TrayToast) return;
+            e.Handled = true;
+            w.Close();   // same path as the window's ✕ / Cancel (unsaved-change prompts still apply)
+        }
+
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
 
             // Global exception handler - show error instead of silent crash
+            AppDomain.CurrentDomain.UnhandledException += (_, ex) =>
+                WriteCrashLog(ex.ExceptionObject as Exception, "AppDomain (fatal)");
+
             DispatcherUnhandledException += (_, ex) =>
             {
+                // Always record it - including the ones swallowed below - so a startup that
+                // silently stops half-way can be diagnosed from %APPDATA%\MasselGUARD\crash.log.
+                WriteCrashLog(ex.Exception, IsShuttingDown ? "Dispatcher (shutdown)" : "Dispatcher");
+
                 // During shutdown, suppress all dispatcher exceptions.
                 // WPF's teardown fires FindResource / DynamicResource lookups against
                 // already-unloaded ResourceDictionaries, producing InvalidCastException
@@ -85,12 +121,19 @@ namespace MasselGUARD
                 }
 
                 System.Windows.MessageBox.Show(
-                    $"Unhandled error:\n\n{ex.Exception.GetType().Name}: {ex.Exception.Message}\n\n{ex.Exception.StackTrace?.Split('\n').FirstOrDefault()}",
-                    "MasselGUARD - Unexpected Error",
+                    $"{Lang.T("UnhandledErrorMsg")}\n\n{ex.Exception.GetType().Name}: {ex.Exception.Message}\n\n{ex.Exception.StackTrace?.Split('\n').FirstOrDefault()}",
+                    Lang.T("UnhandledErrorTitle"),
                     System.Windows.MessageBoxButton.OK,
                     System.Windows.MessageBoxImage.Error);
                 ex.Handled = true;
             };
+
+            // Esc closes (= cancels) any dialog / secondary window, like the ✕ button does. Bubbling
+            // KeyDown, not Preview: a control that uses Esc itself (open dropdown, the Theme Builder's
+            // image zoom) marks it handled first and keeps it. Not for the main window (would hide the
+            // app to the tray), the setup wizard (a stray Esc must not abandon it) or notifications.
+            EventManager.RegisterClassHandler(typeof(Window), UIElement.KeyDownEvent,
+                new System.Windows.Input.KeyEventHandler(OnWindowEscape));
 
             // ── 1. Load language immediately - needed by all dialogs below ───
             // ── 1. Load language and theme from persisted config ──────────────
@@ -588,10 +631,9 @@ namespace MasselGUARD
             // Active tunnels - confirm only when ConfirmOnClose is set
             if (_mainWindow.ConfigSvc.Config.ConfirmOnClose)
             {
-                string plural = activeTunnels.Count == 1 ? "" : "s";
                 bool doExit = _mainWindow.ShowThemedYesNo(
-                    $"There {(activeTunnels.Count == 1 ? "is" : "are")} {activeTunnels.Count} active tunnel{plural}.\n\nDisconnect and exit MasselGUARD?",
-                    "Exit MasselGUARD");
+                    activeTunnels.Count == 1 ? Lang.T("ExitConfirmOne") : Lang.T("ExitConfirmMany", activeTunnels.Count),
+                    Lang.T("ExitConfirmTitle"));
                 if (!doExit) return;
             }
 
@@ -1249,7 +1291,7 @@ namespace MasselGUARD
             // OK button (themed Border + TextBlock - avoids default Button chrome)
             var okTb = new System.Windows.Controls.TextBlock
             {
-                Text                = "OK",
+                Text                = Lang.T("BtnOk"),
                 FontFamily          = ff,
                 FontSize            = 11,
                 FontWeight          = FontWeights.SemiBold,
@@ -1446,7 +1488,7 @@ namespace MasselGUARD
 
             var win = new Window
             {
-                Title                 = "MasselGUARD - Already running",
+                Title                 = "MasselGUARD - " + Lang.T("AlreadyRunningTitle"),
                 Width                 = 520,
                 SizeToContent         = SizeToContent.Height,
                 WindowStyle           = WindowStyle.None,

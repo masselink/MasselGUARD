@@ -2,7 +2,7 @@
 
 **Status:** design + step 1 done. Branch: `feature-dns-automation` (ships with DNS automation, 4.2.0 "Resolving Raven"). This document is authoritative; mark steps ✅ as they land.
 
-**Headline:** make **WireGuard tunnels** and **DNS automation** two independent modules the user turns on/off - in the setup wizard and in Settings - so MasselGUARD can run as a full tunnel manager, a **DNS-only** resolver switcher, or both. Decisions taken: **full modular both ways** (DNS-only hides *all* tunnel UI; tunnels-only hides the DNS section); **≥1 module always on**; **upgraders get both on** (nothing disappears; DNS automation itself stays off until enabled).
+**Headline:** make **WireGuard tunnels** and **DNS automation** two independent modules the user turns on/off - in the setup wizard and in Settings - so MasselGUARD can run as a full tunnel manager, a **DNS-only** resolver switcher, or both. Decisions taken: **full modular both ways** (DNS-only hides *all* tunnel UI; tunnels-only hides the DNS section); **both may be off** (4.5.0; originally ≥1 module always on); **upgraders get both on** (nothing disappears; DNS automation itself stays off until enabled).
 
 ---
 
@@ -28,7 +28,7 @@ public bool EnableTunnels { get; set; } = true;
 public bool EnableDns { get; set; } = true;
 ```
 
-- **Invariant - at least one on.** A single guard `EnsureAtLeastOneModule()` (called by the setter path / on load): if both end up false, force `EnableTunnels = true`. The wizard + settings UI also refuse to uncheck the last-enabled module.
+- **No invariant (since 4.5.0).** Originally at least one module had to stay on (`EnsureAtLeastOneModule()`); that guard and the wizard/Settings refusal to uncheck the last module were removed. With both off the rule engines simply do nothing and the main window shows whichever other sections are enabled (or the empty state).
 - **Upgrade default = both true** - the property defaults are `true`, and a config deserialized from an older version (no keys) gets both true automatically. No migration code needed; existing users keep tunnels and gain the (still-off) DNS section.
 - **Relationship to `AppMode`** - `AppMode` (Standalone/Companion/Mixed) is only meaningful when `EnableTunnels`. In DNS-only mode it's ignored (and its wizard sub-step is skipped). Leave `AppMode` as-is; just gate its UI.
 - **Relationship to `DnsAutomationEnabled`** - unchanged. `EnableDns` = "is the DNS feature part of my app"; `DnsAutomationEnabled` = "is DNS automation currently running". DNS never runs when `!EnableDns`.

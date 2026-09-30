@@ -8,12 +8,16 @@ A big interface and settings overhaul: one place to turn features on or off, a c
 - Disabling a feature actually stops its work: turning off **Activity log** stops writing to the log; turning off **History** stops recording history (and, since charts need history, hides the charts with it).
 - The per-feature Settings tabs (WireGuard, DNS, Automation, Activity log, History) are grouped under a **Feature settings** heading and dim when their feature is off.
 - When every panel is hidden, the main window shows a friendly empty state instead of a blank screen.
+- **WireGuard and DNS can both be turned off.** Previously one of the two always had to stay on; now you can run MasselGUARD with any combination of features.
 
 ### Settings, reorganised
 
 - Application settings (General, Startup, Appearance, Notifications, Diagnostics, About) are now separate from per-feature settings.
 - The old combined "Notifications & history" tab is split three ways: **Notifications** keeps the tray/toast options, a new **History** tab holds the capture toggles + chart range + connection list, and a new **Activity log** tab holds the log level, clear-on-start and max size.
-- The old "Advanced" tab is gone; its contents moved to the fitting tabs.
+- The old "Advanced" tab is gone; its contents moved to the fitting tabs. The **orphaned tunnel services** scan (leftover `WireGuardTunnel$` services after a crash) now lives in **Diagnostics**, with per-item and Remove All buttons.
+- The "Show activity log" option under Appearance is gone; the log is controlled from Feature settings and its title-bar button like every other panel.
+- Settings opens larger (wider and taller) so the pages fit without scrolling; the feature tabs in the sidebar show the same section icons as the main window. The tunnel editors are wider too.
+- The log level "Debug" is now called **Enhanced**.
 
 ### Main window
 
@@ -22,10 +26,22 @@ A big interface and settings overhaul: one place to turn features on or off, a c
 - **Consistent panel layout** - WireGuard and DNS on top, Automation and Activity log below; whichever panels you show fill the space the same way every time, and a lone panel stretches to full width.
 - **Dim section icons** now sit before each panel header (shield, globe, robot, hamburger), matching the title-bar buttons.
 - **Expand the activity log** into its own resizable window with the new Expand button; it stays live and shares Clear/Export with the main log.
+- **Activity log in Time | Event columns** - wrapped and multi-line entries stay neatly under the Event column, whatever font the theme uses. Times are easier to read: a theme's timestamp colour that is too faint falls back to its normal muted text colour.
+- **Clearer lists** - the first column is now "WireGuard tunnel" / "DNS profile name" and gets the most space, the DNS Server column is gone, and the action buttons are right-aligned. Saved column widths are reset once so the new layout applies.
+- **Drag to reorder DNS profiles**, like tunnels and Automation rules. All three lists show a drop line and the item lands exactly where the line is.
+- The chart mode label now reads **WireGuard timeline**.
+
+### Usage bars and rings for every tunnel
+
+- **Always shown** - every tunnel row now shows its usage for today, this week and this month (as bars or rings), not only tunnels with a cap.
+- **Use history** - new per-period option in the tunnel editor (**Options > DATA USAGE**), on by default: the bar measures against the tunnel's **typical usage**, its average over the last 365 days (or over all of its history when that is shorter). This is informational only: no warnings and no *Kill at cap*. The MB box is greyed and shows that typical value.
+- **Set a cap from history** - untick *Use history* and the box starts from the typical value, so a cap based on your real usage is one click. Existing caps keep working as before.
+- **Clear tooltips** - hovering a bar or ring shows, per period, whether it compares against **your cap** or **history** (with the typical value and how many days it is based on).
+- **Hide ring** is now **Hide usage**, since it applies to bars as well.
 
 ### Themeable section icons
 
-The built-in shield / globe / robot / bar-chart / hamburger are the default icon set. A theme can now replace any of them with its own artwork (`IconTunnels`, `IconDns`, `IconAutomation`, `IconCharts`, `IconLog` in `theme.json`, path data on a 24x24 grid), applied to both the title-bar toggle and the panel header.
+The built-in shield / globe / robot / bar-chart / hamburger are the default icon set. A theme can now replace any of them with its own artwork (`IconTunnels`, `IconDns`, `IconAutomation`, `IconCharts`, `IconLog` in `theme.json`, path data on a 24x24 grid), applied to the title-bar toggle, the panel header and the Settings sidebar. Icons sit on a fixed 24x24 frame, so custom and built-in icons line up at the same size. The Theme Builder has a new **Section icons** editor with a live preview, and switching themes swaps the icons immediately. The new **Resolving Raven** theme in the Theme Browser shows them off.
 
 ### Also in this release
 
@@ -33,9 +49,25 @@ The built-in shield / globe / robot / bar-chart / hamburger are the default icon
 - **DNS badge on the tray icon** - when a DNS profile is active, a small shield is drawn over the tray icon; themes control its colour, shape, size, position and transparency.
 - **System diagnostics** (Settings > Diagnostics, or the tray) - a one-screen report of your network adapters, active tunnels, DNS in use, plus an optional "check public IP" button. Copy it all with one click.
 - **Activity-log file** - optionally keep the log across restarts with a maximum size (older lines roll off), or keep clearing it on start. The Clear button clears the whole log.
-- **Rebuilt setup wizard** - the first-run wizard now asks per feature (WireGuard, DNS, Automation, Activity log, History) with the same options you get in General, and everything it sets is also in Settings.
+- **Rebuilt setup wizard** - the first-run wizard now asks per feature (WireGuard, DNS, Automation, Activity log, History) with the same options you get in General, and everything it sets is also in Settings. The old WiFi step is now the **Automation** step with clearer wording, and the wizard window is larger.
+- **Fully translated interface** - the remaining English text (main-window tooltips, chart hover text, the tunnel right-click menu, notifications, the tunnel editors, weekday buttons, the preset export list, the System diagnostics window and several prompts) is now translated in all 12 languages. The activity log and the diagnostics "Copy all" report stay in English so they are easy to share for support.
+- **Standard window behaviour** - double-click the main window's title bar to maximize / restore, drag a maximized window to restore it, and press **Esc** to close Settings and other dialogs (the same as their close / Cancel button). ([#56](https://github.com/masselink/MasselGUARD/issues/56))
+- **One startup notification** - the Wi-Fi and DNS notifications raised together at startup (or on a network change) are combined into a single toast.
 - **Sturdier history files** - connection and Wi-Fi history are written atomically with a cross-process lock, so two copies of the app can't corrupt them.
 - **Text cleanup** - em dashes removed from the interface text in favour of plain punctuation.
+
+### Fixes
+
+- Fixed a crash (`IndexOutOfRangeException` in the layout engine) when switching to some themes.
+- Disabling a manually enabled DNS profile now works with one click and hands DNS back to automation.
+- Dragging an Automation rule could move a different rule with the same network name; it now always moves the rule you dragged.
+- The window height now shrinks back when a chart is turned off, and no empty band is left above Automation / Activity log when the top panels are hidden.
+- Section icons now update right after changing theme (previously they kept the old theme's icons until clicked).
+- The DNS profile editor showed raw label keys for the IPv4/IPv6 server fields.
+- Saving a theme in the Theme Builder no longer drops its custom section icons.
+- A tunnel that is both the default-action tunnel and the connect-on-start tunnel no longer connects twice at startup (it logged "Connected" twice).
+- No empty band above the history panel when the Automation panel is hidden.
+- The WireGuard / DNS feature switches (setup wizard and Settings) could snap back or be drawn in the wrong state, because one of them had to stay on. Both can now be off, and the wizard cards are simply called **WireGuard VPN** and **DNS automation** (no more "...only"). ([#55](https://github.com/masselink/MasselGUARD/issues/55))
 
 ## v4.2.0 - Resolving Raven
 

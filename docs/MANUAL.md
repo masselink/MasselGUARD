@@ -859,12 +859,20 @@ The kill switch firewall rules were not cleaned up. Restart MasselGUARD - it rem
 Settings → Tunnels → Kill switch mode is set to **Always**, which forces the kill switch on for all tunnels. Set it to **Off** to re-enable the per-tunnel toggle.
 
 **Where do I see bandwidth usage?**
-In the activity log (Extended mode). After each disconnect a grey continuation line shows the session duration and bandwidth: `↳ 2h 14m  ·  ↑ 142 MB  ↓ 1.2 GB`. Switch to Extended in Settings → Advanced → Log level.
+In the activity log (Enhanced mode). After each disconnect a grey continuation line shows the session duration and bandwidth: `↳ 2h 14m  ·  ↑ 142 MB  ↓ 1.2 GB`. Switch to Enhanced in Settings → Activity log → Log level.
+
+**How do the usage bars / rings on a tunnel's row work?**
+Every tunnel row shows its usage for **today**, **this week** and **this month** as bars or rings (pick the style in Settings → Appearance), also while disconnected. Each period measures against one of two references, set per period in the tunnel editor → **Options** → **DATA USAGE**:
+
+- **Use history** (the default) - the tunnel's **typical usage**: its average over the last 365 days (or over all of its history when that is shorter), scaled to a day, a week or a month. This is informational only: the bar is drawn in the accent colour, and there are no warnings and no *Kill at cap*. While it's ticked the MB box is greyed and shows that typical value. A tunnel with no history yet shows an empty track.
+- **Your own cap** - untick *Use history* and type a limit in MB. The box starts from the typical value, so setting a cap based on history is one click. The bar turns amber near the limit and red once over.
+
+Hover a bar or ring to see, per period, whether it compares against **your cap** or **history** (with the typical value and how many days of history it is based on). Tick **Hide usage** to hide one period's bar/ring.
 
 **Can I get warned about - or cut off at - data usage?**
-Yes. Edit a tunnel → **Options** → **DATA-USAGE WARNINGS** and set a **daily**, **weekly**, and/or **monthly** threshold in MB (0 = off). When usage for a period crosses its threshold you get a one-time log entry, a tray toast, and the row is highlighted in amber. A cap you set also draws a **usage ring** on the connected tunnel's row (day inner · week middle · month outer, filling 0→360°, amber near the limit and red once over) - hover for the exact breakdown.
+Yes. In the tunnel editor → **Options** → **DATA USAGE**, untick **Use history** for a period and set a **daily**, **weekly**, and/or **monthly** cap in MB (0 = no cap). When usage for a period crosses your cap you get a one-time log entry, a tray toast, and the row is highlighted in amber.
 
-Ticking **Kill at cap** next to a threshold turns the warning into **enforcement**: the tunnel is disconnected the moment that period's usage is reached (with a sticky *Ignore & reconnect* toast and a 🛑 row marker), and connecting over the limit asks first. Trying to reconnect an over-cap tunnel via a rule shows an interactive Connect / Cancel toast. Editing the caps re-arms enforcement. Leave *Kill at cap* off for warning-only behaviour.
+Ticking **Kill at cap** next to a cap turns the warning into **enforcement**: the tunnel is disconnected the moment that period's usage is reached (with a sticky *Ignore & reconnect* toast and a 🛑 row marker), and connecting over the limit asks first. Trying to reconnect an over-cap tunnel via a rule shows an interactive Connect / Cancel toast. Editing the caps re-arms enforcement. Leave *Kill at cap* off for warning-only behaviour.
 
 The bottom info panel has a **Timeline ⇄ Data usage** switch that charts per-tunnel usage over the selected range, with a red marker where a cap was reached. Usage is drawn from the connection history, so keep **Settings → History → Capture → Connections** on for accurate totals. Estimates are not exact - MasselGUARD isn't responsible for inaccurate reporting or for tunnels being disconnected (or not) as a result.
 
