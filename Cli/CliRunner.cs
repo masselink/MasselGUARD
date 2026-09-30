@@ -102,6 +102,7 @@ namespace MasselGUARD.Cli
                     "disconnect-all"                    => CmdDisconnectAll(cfg, json, quiet, group),
                     "info"                              => CmdInfo(args, cfg, json),
                     "dns"                               => CmdDns(args, cfg, json),
+                    "network"                           => CmdNetwork(args, cfg, json),
                     "log"                               => CmdLog(args, json, logType),
                     "tunnel-history"                => CmdTunnelHistory(args, json),
                     "wifi-history"                      => CmdWifiHistory(args, json),
@@ -183,6 +184,100 @@ namespace MasselGUARD.Cli
                 CliOutput.Info("Active interface resolvers:");
                 foreach (var l in live)
                     CliOutput.Info($"  • {l.name}: {l.dns}");
+            }
+            return 0;
+        }
+
+        // ── network (read-only status) ──────────────────────────────────────────
+
+        /// <summary>`network status` - the connected networks (Wi-Fi + wired) with their identity
+        /// (SSID, DNS suffix, gateway MAC, subnets, route metric), which one is primary, and what the
+        /// current rules would do for the tunnel and per adapter for DNS, plus each rule's requirement.
+        /// Read-only; needs no elevation and changes nothing (execution counters are in-memory only).</summary>
+        private static int CmdNetwork(string[] args, AppConfig cfg, bool json)
+        {
+            string sub = args.Length > 1 ? args[1].ToLowerInvariant() : "status";
+            if (sub != "status")
+            {
+                CliOutput.Error($"Unknown network subcommand: '{sub}'. Use: network status");
+                return 1;
+            }
+
+            // SSID comes from the WLAN service; without a handle (no Wi-Fi hardware) Wi-Fi shows no name.
+            using var wifi = new Services.WiFiService();
+            wifi.Start();
+            wifi.QueryCurrentSsid();
+            var snap = Services.NetworkMonitor.Capture(cfg.PrimaryNetworkMode,
+                guid => guid == wifi.CurrentInterfaceGuid ? (wifi.CurrentSsid, wifi.IsOpenNetwork) : (null, false));
+
+            var now    = DateTime.Now;
+            var engine = new Services.RuleEngine();
+            var prio   = Services.NetworkMatcher.RepairPriority(cfg.NetworkMatchPriority);
+            var tunnel = engine.EvaluateNetwork(cfg, snap.Primary);
+            var dns    = snap.Adapters.Select(a => (a, r: Services.DnsPolicy.Evaluate(cfg, a, now))).ToList();
+            var rules  = cfg.Rules.Select(r => (r, t: Services.RuleTester.Test(r, cfg, snap, now))).ToList();
+
+            string DnsName(Services.DnsPolicy.DnsResult r) => r.Action switch
+            {
+                Services.DnsPolicy.DnsActionKind.Apply     => cfg.DnsProfiles.FirstOrDefault(p => p.Id == r.ProfileId)?.Name ?? r.ProfileId ?? "?",
+                Services.DnsPolicy.DnsActionKind.Automatic => "Automatic (DHCP)",
+                _                                          => "no change",
+            };
+
+            if (json)
+            {
+                CliOutput.PrintJson(new
+                {
+                    primary_mode   = cfg.PrimaryNetworkMode,
+                    match_priority = prio,
+                    networks = snap.Adapters.Select(a => new
+                    {
+                        adapter = a.AdapterName, kind = a.Kind, primary = a.IsPrimary, ssid = a.Ssid, open = a.IsOpen,
+                        dns_suffix = a.DnsSuffix, gateway = a.Gateway, gateway_mac = a.GatewayMac,
+                        subnets = a.Subnets, dhcp_server = a.DhcpServer,
+                        route_metric = a.RouteMetric == int.MaxValue ? (int?)null : a.RouteMetric,
+                    }),
+                    tunnel_decision = new { action = tunnel.Action.ToString(), tunnel = tunnel.TunnelName, reason = tunnel.Reason, details = tunnel.Details },
+                    dns_decisions   = dns.Select(d => new { adapter = d.a.AdapterName, action = d.r.Action.ToString(), profile = DnsName(d.r), reason = d.r.Reason }),
+                    rules = rules.Select(x => new { rule = x.r.RuleName, kind = x.r.Kind, enabled = x.r.Enabled, met = x.t.Met, detail = x.t.Summary, notes = x.t.Notes }),
+                });
+                return 0;
+            }
+
+            string By(string b) => b switch
+            {
+                Models.NetworkMatchBy.GatewayMac => "gateway MAC", Models.NetworkMatchBy.DnsSuffix => "DNS suffix",
+                Models.NetworkMatchBy.Subnet => "subnet", _ => "SSID",
+            };
+            CliOutput.Info($"Primary mode:   {cfg.PrimaryNetworkMode}");
+            CliOutput.Info($"Match priority: {string.Join(" > ", prio.Select(By))}");
+            if (snap.IsEmpty) CliOutput.Info("Networks:       none connected");
+            else
+            {
+                CliOutput.Info("Networks:");
+                foreach (var a in snap.Adapters.OrderByDescending(x => x.IsPrimary))
+                {
+                    CliOutput.Info($"  {(a.IsPrimary ? "*" : "-")} {a.AdapterName} ({a.Kind}{(a.IsPrimary ? ", primary" : "")})");
+                    if (a.IsWifi)          CliOutput.Info($"      SSID:         {a.Ssid ?? "(unknown)"}{(a.IsOpen ? " (open)" : "")}");
+                    CliOutput.Info($"      DNS suffix:   {a.DnsSuffix ?? "-"}");
+                    CliOutput.Info($"      Gateway:      {a.Gateway ?? "-"}{(a.GatewayMac != null ? $"  ({a.GatewayMac})" : "")}");
+                    CliOutput.Info($"      Subnets:      {(a.Subnets.Count == 0 ? "-" : string.Join(", ", a.Subnets))}");
+                    CliOutput.Info($"      Route metric: {(a.RouteMetric == int.MaxValue ? "no default route" : a.RouteMetric.ToString())}");
+                }
+            }
+
+            CliOutput.Info($"Tunnel (primary network): {tunnel.Action}{(tunnel.TunnelName != null ? " " + tunnel.TunnelName : "")} - {tunnel.Reason}");
+            if (tunnel.Details != null) foreach (var d in tunnel.Details) CliOutput.Info($"      {d}");
+            if (dns.Count > 0)
+            {
+                CliOutput.Info("DNS (per adapter):");
+                foreach (var d in dns) CliOutput.Info($"  {d.a.AdapterName}: {DnsName(d.r)} - {d.r.Reason}");
+            }
+            if (rules.Count > 0)
+            {
+                CliOutput.Info("Rules (requirement now):");
+                foreach (var x in rules)
+                    CliOutput.Info($"  [{(x.t.Met ? "met    " : "not met")}] {x.r.RuleName}{(x.r.Enabled ? "" : " (disabled)")} - {x.t.Summary}");
             }
             return 0;
         }
@@ -1146,6 +1241,7 @@ namespace MasselGUARD.Cli
             CliOutput.Info("  disconnect-all             Disconnect all active tunnels");
             CliOutput.Info("  info <name>                Detailed status for one tunnel");
             CliOutput.Info("  dns status                 Show DNS-automation config + live resolvers");
+            CliOutput.Info("  network status             Show connected networks (Wi-Fi + wired), the primary one, and what the rules would do");
             CliOutput.Info("  log [n]                    Recent connections (default 20)");
             CliOutput.Info("  tunnel-history [n]         Connection history with source and traffic (default 20)");
             CliOutput.Info("  wifi-history [n]           WiFi SSID history with duration and security (default 20)");

@@ -71,6 +71,8 @@ namespace MasselGUARD
             // `dns` is read-only (status) in this release - no driver/service access.
             // If a write subcommand (e.g. `dns set`) is added later, gate it inside the command.
             "dns"                                  => true,
+            // `network status` is read-only too: adapter properties + a what-would-the-rules-do report.
+            "network"                              => true,
             _                                      => false,
         };
 

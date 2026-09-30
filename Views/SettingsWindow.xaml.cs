@@ -238,6 +238,9 @@ namespace MasselGUARD.Views
             L(DefaultTunnelBox, "DefaultTunnel");
             L(OpenWifiTunnelBox, "OpenWifiTunnel");
             L(TrustedNetworksBox, "TrustedNetworks"); D(AddCurrentTrustedBtn, "TrustedNetworks");
+            L(PrimaryNetworkBox, "PrimaryNetworkMode");
+            L(MatchPriorityList, "NetworkMatchPriority"); D(MatchPriorityUpBtn, "NetworkMatchPriority");
+            D(MatchPriorityDownBtn, "NetworkMatchPriority"); D(MatchPriorityResetBtn, "NetworkMatchPriority");
             // (WiFi rules list moved to the main window - no rule buttons to gate here.)
 
             // Tunnels
@@ -1206,7 +1209,85 @@ namespace MasselGUARD.Views
             if (TrustedNetworksBox != null)
                 TrustedNetworksBox.Text = string.Join(Environment.NewLine, cfg.TrustedNetworks);
 
+            PopulateNetworkMatching();
+
             _loading = false;
+        }
+
+        // ── Network matching: primary network + match-type priority ───────────────────────
+
+        private static string MatchTypeLabel(string by) => Lang.T(by switch
+        {
+            Models.NetworkMatchBy.GatewayMac => "DiagGatewayMac",
+            Models.NetworkMatchBy.DnsSuffix  => "DiagDnsSuffix",
+            Models.NetworkMatchBy.Subnet     => "DiagSubnet",
+            _                                => "DiagSsid",
+        });
+
+        private void PopulateNetworkMatching()
+        {
+            if (PrimaryNetworkBox != null)
+            {
+                PrimaryNetworkBox.Items.Clear();
+                foreach (var (mode, key) in new[]
+                {
+                    (Models.PrimaryNetworkModes.Windows, "DiagPrimaryModeWindows"),
+                    (Models.PrimaryNetworkModes.Wired,   "DiagPrimaryModeWired"),
+                    (Models.PrimaryNetworkModes.Wifi,    "DiagPrimaryModeWifi"),
+                })
+                {
+                    var item = new ComboBoxItem { Content = Lang.T(key), Tag = mode };
+                    PrimaryNetworkBox.Items.Add(item);
+                    if (mode == _draft.PrimaryNetworkMode) PrimaryNetworkBox.SelectedItem = item;
+                }
+                if (PrimaryNetworkBox.SelectedItem == null) PrimaryNetworkBox.SelectedIndex = 0;
+            }
+            RebuildMatchPriorityList(Services.NetworkMatcher.RepairPriority(_draft.NetworkMatchPriority), null);
+        }
+
+        private void RebuildMatchPriorityList(IEnumerable<string> order, string? select)
+        {
+            if (MatchPriorityList == null) return;
+            MatchPriorityList.Items.Clear();
+            int n = 1;
+            foreach (var by in order)
+            {
+                var item = new ListBoxItem { Content = $"{n++}.  {MatchTypeLabel(by)}", Tag = by };
+                MatchPriorityList.Items.Add(item);
+                if (by == select) MatchPriorityList.SelectedItem = item;
+            }
+        }
+
+        private List<string> CurrentMatchPriority() =>
+            MatchPriorityList.Items.Cast<ListBoxItem>().Select(i => (string)i.Tag).ToList();
+
+        private void CommitMatchPriority() => _draft.NetworkMatchPriority = CurrentMatchPriority();
+
+        private void PrimaryNetwork_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_loading) return;
+            if ((PrimaryNetworkBox?.SelectedItem as ComboBoxItem)?.Tag is string mode)
+                _draft.PrimaryNetworkMode = mode;
+        }
+
+        private void MoveMatchPriority(int delta)
+        {
+            if (MatchPriorityList?.SelectedItem is not ListBoxItem sel) return;
+            var order = CurrentMatchPriority();
+            int i = order.IndexOf((string)sel.Tag), j = i + delta;
+            if (i < 0 || j < 0 || j >= order.Count) return;
+            (order[i], order[j]) = (order[j], order[i]);
+            RebuildMatchPriorityList(order, (string)sel.Tag);
+            CommitMatchPriority();
+        }
+
+        private void MatchPriorityUp_Click(object sender, RoutedEventArgs e)   => MoveMatchPriority(-1);
+        private void MatchPriorityDown_Click(object sender, RoutedEventArgs e) => MoveMatchPriority(+1);
+
+        private void MatchPriorityReset_Click(object sender, RoutedEventArgs e)
+        {
+            RebuildMatchPriorityList(Services.NetworkMatcher.DefaultPriority, null);
+            CommitMatchPriority();
         }
 
         private void DefaultAction_Changed(object sender, RoutedEventArgs e)
@@ -1270,15 +1351,53 @@ namespace MasselGUARD.Views
                 .ToList();
         }
 
-        private void AddCurrentTrusted_Click(object sender, RoutedEventArgs e)
+        /// <summary>Fetch a connected network into the trusted list. Offers every value the connected
+        /// networks have (Wi-Fi name, DNS suffix, gateway MAC, subnet), one menu row each, and writes
+        /// the entry in list syntax (bare SSID, or suffix: / mac: / subnet:).</summary>
+        private async void AddCurrentTrusted_Click(object sender, RoutedEventArgs e)
         {
-            var ssid = _main.WifiSvc.CurrentSsid;
-            if (string.IsNullOrWhiteSpace(ssid))
+            if (sender is Button btn) btn.IsEnabled = false;
+            Models.NetworkSnapshot snap;
+            try { snap = await System.Threading.Tasks.Task.Run(_main.CaptureNetworkSnapshot); }
+            catch { snap = Models.NetworkSnapshot.Empty; }
+            finally { if (sender is Button b2) b2.IsEnabled = true; }
+
+            var options = new List<(string label, string entry)>();
+            foreach (var a in snap.Adapters.OrderByDescending(x => x.IsPrimary))
             {
-                _main.LogInfoPublic("No current WiFi network to add to the trusted list.");
+                string who = a.IsPrimary ? $"{a.AdapterName} ({Lang.T("DiagPrimaryTag")})" : a.AdapterName;
+                foreach (var by in new[] { Models.NetworkMatchBy.Ssid, Models.NetworkMatchBy.DnsSuffix,
+                                           Models.NetworkMatchBy.GatewayMac, Models.NetworkMatchBy.Subnet })
+                {
+                    var values = Services.NetworkMatcher.ValuesFor(a, by);
+                    if (by == Models.NetworkMatchBy.Subnet) values = values.Take(1).ToList();   // the main subnet is enough
+                    foreach (var v in values)
+                        options.Add(($"{who}: {MatchTypeLabel(by)}  {v}", Services.NetworkMatcher.FormatTrustedEntry(by, v)));
+                }
+            }
+            var ssid = _main.WifiSvc.CurrentSsid;
+            if (options.Count == 0 && !string.IsNullOrWhiteSpace(ssid))
+                options.Add((ssid!, ssid!));
+
+            if (options.Count == 0)
+            {
+                _main.LogInfoPublic("No connected network to add to the trusted list.");
                 return;
             }
+            if (options.Count == 1) { AddTrustedEntry(options[0].entry); return; }
 
+            var menu = new ContextMenu { PlacementTarget = AddCurrentTrustedBtn, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom };
+            foreach (var (label, entry) in options)
+            {
+                var item = new MenuItem { Header = label };
+                item.Click += (_, _) => AddTrustedEntry(entry);
+                menu.Items.Add(item);
+            }
+            menu.IsOpen = true;
+        }
+
+        private void AddTrustedEntry(string entry)
+        {
             var lines = (TrustedNetworksBox?.Text ?? "")
                 .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(s => s.Trim())
@@ -1286,10 +1405,10 @@ namespace MasselGUARD.Views
                 .ToList();
 
             // Don't add a duplicate (case-insensitive).
-            if (lines.Any(l => l.Equals(ssid, StringComparison.OrdinalIgnoreCase)))
+            if (lines.Any(l => l.Equals(entry, StringComparison.OrdinalIgnoreCase)))
                 return;
 
-            lines.Add(ssid);
+            lines.Add(entry);
             _loading = true;
             if (TrustedNetworksBox != null)
                 TrustedNetworksBox.Text = string.Join(Environment.NewLine, lines);
@@ -2736,6 +2855,8 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.SkipTunnelValidation = _draft.SkipTunnelValidation;
             _main.ConfigSvc.Config.CapIndicatorStyle   = _draft.CapIndicatorStyle;
             _main.ConfigSvc.Config.TrustedNetworks     = _draft.TrustedNetworks;
+            _main.ConfigSvc.Config.PrimaryNetworkMode  = _draft.PrimaryNetworkMode;
+            _main.ConfigSvc.Config.NetworkMatchPriority = _draft.NetworkMatchPriority;
             _main.ConfigSvc.Config.FontOverrideEnabled    = _draft.FontOverrideEnabled;
             _main.ConfigSvc.Config.FontOverrideFamily    = _draft.FontOverrideFamily;
             _main.ConfigSvc.Config.FontOverrideSize      = _draft.FontOverrideSize;
@@ -2750,6 +2871,10 @@ namespace MasselGUARD.Views
                 LogChangedSettings(before, _main.ConfigSvc.Config);
 
             _vm.DoSave();
+
+            // A different primary-network mode can change which network decides the tunnel right now.
+            if (before.PrimaryNetworkMode != _draft.PrimaryNetworkMode)
+                _main._vm.EvaluateNetworkNow();
 
             // Apply side effects immediately
             Lang.Instance.Load(_vm.Language);

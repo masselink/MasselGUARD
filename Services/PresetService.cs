@@ -35,6 +35,7 @@ namespace MasselGUARD.Services
             "Language", "StartWithWindows", "ConfirmOnClose",
             "Rules", "TunnelGroups", "DefaultGroup",
             "DefaultAction", "DefaultTunnel", "OpenWifiTunnel", "TrustedNetworks", "ManualMode",
+            "PrimaryNetworkMode", "NetworkMatchPriority",
             "AutoReconnectMode", "KillSwitchMode", "SkipTunnelValidation",
             "ShowDnsIndicator", "DnsLeakWarnLog", "DnsLeakWarnToast",
             "UpdateCheckFrequency",
@@ -51,7 +52,8 @@ namespace MasselGUARD.Services
         {
             ("language",      new[] { "Language" }),
             ("startup",       new[] { "StartWithWindows", "ConfirmOnClose" }),
-            ("automation",    new[] { "Rules", "DefaultAction", "DefaultTunnel", "OpenWifiTunnel", "TrustedNetworks", "ManualMode" }),
+            ("automation",    new[] { "Rules", "DefaultAction", "DefaultTunnel", "OpenWifiTunnel", "TrustedNetworks", "ManualMode",
+                                      "PrimaryNetworkMode", "NetworkMatchPriority" }),
             ("autoReconnect", new[] { "AutoReconnectMode" }),
             ("killSwitch",    new[] { "KillSwitchMode" }),
             ("validation",    new[] { "SkipTunnelValidation" }),
