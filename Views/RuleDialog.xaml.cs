@@ -14,12 +14,9 @@ namespace MasselGUARD.Views
     public partial class RuleDialog : Window
     {
         public string ResultName   { get; private set; } = "";
-        /// <summary>The SSID when matching by SSID (kept for compatibility); empty for the other match types.</summary>
-        public string ResultSsid   { get; private set; } = "";
-        /// <summary>"ssid" | "dnssuffix" | "gatewaymac" | "subnet" (<see cref="NetworkMatchBy"/>).</summary>
-        public string ResultMatchBy    { get; private set; } = NetworkMatchBy.Ssid;
-        /// <summary>The normalised value for the non-SSID match types; empty when matching by SSID.</summary>
-        public string ResultMatchValue { get; private set; } = "";
+        /// <summary>The conditions of a network rule (all must hold), values in canonical form. Empty for
+        /// schedule / trusted rules. Apply with <see cref="TunnelRule.SetConditions"/>.</summary>
+        public List<RuleCondition> ResultConditions { get; private set; } = new();
         public string ResultTunnel { get; private set; } = "";
         /// <summary>"network" | "schedule" | "trusted" - which trigger type the user chose.</summary>
         public string ResultKind      { get; private set; } = "network";
@@ -54,23 +51,20 @@ namespace MasselGUARD.Views
                           string existingDnsProfileId = "",
                           bool dnsEnabled = true,
                           bool tunnelsEnabled = true,
-                          string existingMatchBy = NetworkMatchBy.Ssid,
-                          string existingMatchValue = "",
+                          IReadOnlyList<RuleCondition>? existingConditions = null,
                           Func<NetworkSnapshot>? captureNetwork = null)
         {
             InitializeComponent();
             LocalizeDayButtons();
             _captureNetwork = captureNetwork;
 
-            // Match-by choices (Tag = NetworkMatchBy value); labels are the shared network-field names.
-            foreach (var (by, key) in new[]
-            {
-                (NetworkMatchBy.Ssid, "DiagSsid"), (NetworkMatchBy.DnsSuffix, "DiagDnsSuffix"),
-                (NetworkMatchBy.GatewayMac, "DiagGatewayMac"), (NetworkMatchBy.Subnet, "DiagSubnet"),
-            })
-                MatchByBox.Items.Add(new ComboBoxItem { Content = Lang.T(key), Tag = by });
-            string startBy = NetworkMatchBy.IsKnown(existingMatchBy) ? existingMatchBy : NetworkMatchBy.Ssid;
-            MatchByBox.SelectedIndex = MatchByIndex(startBy);
+            // Condition rows: the rule's own (edit), or one empty row (add).
+            _loadingConditions = true;
+            if (existingConditions != null && existingConditions.Count > 0)
+                foreach (var c in existingConditions) AddConditionRow(c);
+            else
+                AddConditionRow(null);
+            _loadingConditions = false;
 
             // Hide the DNS picker when the DNS module is off (tunnels-only); hide the tunnel
             // picker when the tunnel module is off (DNS-only → the rule is trigger → DNS).
@@ -96,13 +90,11 @@ namespace MasselGUARD.Views
             foreach (ComboBoxItem it in DnsProfileBox.Items)
                 if ((it.Tag as string) == existingDnsProfileId) { DnsProfileBox.SelectedItem = it; break; }
 
-            string existingValue = startBy == NetworkMatchBy.Ssid ? existingSsid : existingMatchValue;
-            bool editMode = existingKind == "schedule" || existingKind == "trusted"
-                            || !string.IsNullOrEmpty(existingValue);
+            bool hasConditions = existingConditions is { Count: > 0 };
+            bool editMode = existingKind == "schedule" || existingKind == "trusted" || hasConditions;
 
-            if (!string.IsNullOrEmpty(existingValue))
+            if (hasConditions)
             {
-                SsidBox.Text        = existingValue;
                 _nameManuallyEdited = !string.IsNullOrEmpty(existingName);
                 NameBox.Text        = existingName;
             }
@@ -291,11 +283,11 @@ namespace MasselGUARD.Views
         {
             if (_nameManuallyEdited) return;
             // Controls may not exist yet if an initial IsChecked fires during InitializeComponent.
-            if (SsidBox == null || TunnelBox == null || NameBox == null) return;
+            if (_rows == null || TunnelBox == null || NameBox == null) return;
             // Schedule and trusted rules derive their name from the rule, not an SSID.
             if (TypeScheduleRadio?.IsChecked == true) return;
             if (TypeTrustedRadio?.IsChecked  == true) return;
-            var ssid   = SsidBox.Text.Trim();
+            var ssid   = ConditionNamePart();
             var tunnel = (tunnelOverride ?? TunnelBox.Text).Trim();
             string generated;
             if (string.IsNullOrEmpty(ssid))
@@ -314,10 +306,6 @@ namespace MasselGUARD.Views
             System.Windows.Controls.TextChangedEventArgs e)
             => _nameManuallyEdited = !string.IsNullOrEmpty(NameBox.Text);
 
-        private void SsidBox_TextChanged(object sender,
-            System.Windows.Controls.TextChangedEventArgs e)
-            => AutoGenerateName();
-
         private void TunnelBox_Changed(object sender,
             System.Windows.Controls.SelectionChangedEventArgs e)
         {
@@ -330,75 +318,175 @@ namespace MasselGUARD.Views
             AutoGenerateName(tunnel);
         }
 
-        // ── Network match (SSID / DNS suffix / gateway MAC / subnet) ───────────────────────
+        // ── Network conditions: rows of [is / is not] [SSID / DNS suffix / gateway MAC / subnet] [value] ───
 
         private readonly Func<NetworkSnapshot>? _captureNetwork;
+        private readonly List<CondRow> _rows = new();
+        private bool _loadingConditions;
 
-        private static int MatchByIndex(string by) => by switch
+        /// <summary>One editable condition row.</summary>
+        private sealed class CondRow
         {
-            NetworkMatchBy.DnsSuffix  => 1,
-            NetworkMatchBy.GatewayMac => 2,
-            NetworkMatchBy.Subnet     => 3,
-            _                         => 0,
+            public Grid Root = null!;
+            public ComboBox OpBox = null!, ByBox = null!;
+            public TextBox ValueBox = null!;
+            public Button FetchBtn = null!, RemoveBtn = null!;
+            public string By => (ByBox.SelectedItem as ComboBoxItem)?.Tag as string ?? NetworkMatchBy.Ssid;
+            public bool Not   => (OpBox.SelectedItem as ComboBoxItem)?.Tag is true;
+        }
+
+        private static string HintKey(string by) => by switch
+        {
+            NetworkMatchBy.DnsSuffix  => "RuleMatchHintSuffix",
+            NetworkMatchBy.GatewayMac => "RuleMatchHintMac",
+            NetworkMatchBy.Subnet     => "RuleMatchHintSubnet",
+            _                         => "RuleMatchHintSsid",
         };
 
-        private string SelectedMatchBy() =>
-            (MatchByBox.SelectedItem as ComboBoxItem)?.Tag as string ?? NetworkMatchBy.Ssid;
-
-        /// <summary>Label + hint follow the chosen match type; the typed value is kept.</summary>
-        private void MatchBy_Changed(object sender, SelectionChangedEventArgs e)
+        private static string PlaceholderKey(string by) => by switch
         {
-            if (MatchValueLabel == null || MatchHint == null) return;
-            var (label, hint) = SelectedMatchBy() switch
+            NetworkMatchBy.DnsSuffix  => "RuleMatchValueSuffix",
+            NetworkMatchBy.GatewayMac => "RuleMatchValueMac",
+            NetworkMatchBy.Subnet     => "RuleMatchValueSubnet",
+            _                         => "RuleDialogSsidLabel",
+        };
+
+        private void AddConditionRow(RuleCondition? init)
+        {
+            var row = new CondRow();
+            row.Root = new Grid { Margin = new Thickness(0, 0, 0, 6) };
+            row.Root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(74) });
+            row.Root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+            row.Root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.Root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.Root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            row.OpBox = new ComboBox { Margin = new Thickness(0, 0, 6, 0) };
+            row.OpBox.Items.Add(new ComboBoxItem { Content = Lang.T("RuleCondIs"),    Tag = false });
+            row.OpBox.Items.Add(new ComboBoxItem { Content = Lang.T("RuleCondIsNot"), Tag = true  });
+            row.OpBox.SelectedIndex = init?.Not == true ? 1 : 0;
+
+            row.ByBox = new ComboBox { Margin = new Thickness(0, 0, 6, 0) };
+            foreach (var (by, key) in new[]
             {
-                NetworkMatchBy.DnsSuffix  => ("RuleMatchValueSuffix", "RuleMatchHintSuffix"),
-                NetworkMatchBy.GatewayMac => ("RuleMatchValueMac",    "RuleMatchHintMac"),
-                NetworkMatchBy.Subnet     => ("RuleMatchValueSubnet", "RuleMatchHintSubnet"),
-                _                         => ("RuleDialogSsidLabel",  "RuleMatchHintSsid"),
+                (NetworkMatchBy.Ssid, "DiagSsid"), (NetworkMatchBy.DnsSuffix, "DiagDnsSuffix"),
+                (NetworkMatchBy.GatewayMac, "DiagGatewayMac"), (NetworkMatchBy.Subnet, "DiagSubnet"),
+            })
+                row.ByBox.Items.Add(new ComboBoxItem { Content = Lang.T(key), Tag = by });
+            string startBy = init != null && NetworkMatchBy.IsKnown(init.By) ? init.By : NetworkMatchBy.Ssid;
+            row.ByBox.SelectedIndex = startBy switch
+            {
+                NetworkMatchBy.DnsSuffix => 1, NetworkMatchBy.GatewayMac => 2, NetworkMatchBy.Subnet => 3, _ => 0,
             };
-            MatchValueLabel.Text = Lang.T(label);
-            MatchHint.Text       = Lang.T(hint);
+
+            row.ValueBox = new TextBox { Margin = new Thickness(0, 0, 6, 0), Text = init?.Value ?? "" };
+            row.ValueBox.ToolTip = Lang.T(PlaceholderKey(startBy));
+
+            row.FetchBtn = new Button
+            {
+                Content = Lang.T("BtnFetchNetwork"), ToolTip = Lang.T("RuleFetchTip"),
+                Style = (Style)Application.Current.Resources["FlatBtn"], FontSize = 10, Padding = new Thickness(10, 6, 10, 6),
+                Margin = new Thickness(0, 0, 4, 0),
+            };
+            row.RemoveBtn = new Button
+            {
+                Content = "✕", ToolTip = Lang.T("RuleCondRemoveTip"),
+                Style = (Style)Application.Current.Resources["FlatBtn"], FontSize = 10, Padding = new Thickness(8, 6, 8, 6),
+            };
+
+            Grid.SetColumn(row.OpBox, 0); Grid.SetColumn(row.ByBox, 1); Grid.SetColumn(row.ValueBox, 2);
+            Grid.SetColumn(row.FetchBtn, 3); Grid.SetColumn(row.RemoveBtn, 4);
+            foreach (UIElement el in new UIElement[] { row.OpBox, row.ByBox, row.ValueBox, row.FetchBtn, row.RemoveBtn })
+                row.Root.Children.Add(el);
+
+            row.ByBox.SelectionChanged += (_, _) =>
+            {
+                row.ValueBox.ToolTip = Lang.T(PlaceholderKey(row.By));
+                if (MatchHint != null) MatchHint.Text = Lang.T(HintKey(row.By));
+                if (!_loadingConditions) AutoGenerateName();
+            };
+            row.OpBox.SelectionChanged += (_, _) => { if (!_loadingConditions) AutoGenerateName(); };
+            row.ValueBox.TextChanged   += (_, _) => { if (!_loadingConditions) AutoGenerateName(); };
+            row.ValueBox.GotKeyboardFocus += (_, _) => { if (MatchHint != null) MatchHint.Text = Lang.T(HintKey(row.By)); };
+            row.FetchBtn.Click  += (_, _) => Fetch(row);
+            row.RemoveBtn.Click += (_, _) =>
+            {
+                if (_rows.Count <= 1) return;
+                _rows.Remove(row); ConditionsHost.Children.Remove(row.Root);
+                UpdateRemoveButtons(); AutoGenerateName();
+            };
+
+            _rows.Add(row);
+            ConditionsHost.Children.Add(row.Root);
+            UpdateRemoveButtons();
+            if (MatchHint != null && string.IsNullOrEmpty(MatchHint.Text)) MatchHint.Text = Lang.T(HintKey(row.By));
+        }
+
+        private void UpdateRemoveButtons()
+        {
+            foreach (var r in _rows)
+                r.RemoveBtn.Visibility = _rows.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void AddCondition_Click(object sender, RoutedEventArgs e)
+        {
+            AddConditionRow(null);
+            _rows[^1].ValueBox.Focus();
             AutoGenerateName();
         }
 
-        /// <summary>Fetch: read the value of the chosen match type from a connected network. One hit fills
-        /// the box; several (Wi-Fi + wired, or several subnets) open a small menu to pick from.</summary>
-        private async void Fetch_Click(object sender, RoutedEventArgs e)
+        /// <summary>The values of the conditions joined for the automatic rule name ("Home + NOT 10.0.0.0/8").</summary>
+        private string ConditionNamePart() =>
+            string.Join(" + ", _rows.Select(r => (r.Not ? "NOT " : "") + r.ValueBox.Text.Trim())
+                                    .Where(s => s.Length > 0 && s != "NOT "));
+
+        /// <summary>A themed one-button notice owned by this dialog (the system MessageBox ignores the theme).</summary>
+        private void Notice(string message, string title)
         {
-            string by = SelectedMatchBy();
+            if (Owner is MainWindow main) main.ShowThemedInfo(message, title, this);
+            else MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>Fetch: read the value of this row's match type from a connected network. One hit fills
+        /// the box; several (Wi-Fi + wired, or several subnets) open a small menu to pick from.</summary>
+        private async void Fetch(CondRow row)
+        {
+            string by = row.By;
             NetworkSnapshot? snap = null;
             if (_captureNetwork != null)
             {
-                FetchBtn.IsEnabled = false;
+                row.FetchBtn.IsEnabled = false;
                 try { snap = await System.Threading.Tasks.Task.Run(_captureNetwork); }
                 catch { /* fall back to the SSID the window already knows */ }
-                finally { FetchBtn.IsEnabled = true; }
+                finally { row.FetchBtn.IsEnabled = true; }
             }
 
-            var options = new List<(string label, string value)>();
+            // One group per connected network: its name as a header, then what it offers for this match type.
+            var entries = new List<FetchEntry>();
             if (snap != null)
                 foreach (var a in snap.Adapters.OrderByDescending(x => x.IsPrimary))
-                    foreach (var v in NetworkMatcher.ValuesFor(a, by))
-                        options.Add(($"{a.AdapterName}{(a.IsPrimary ? $" ({Lang.T("DiagPrimaryTag")})" : "")}: {v}", v));
-            if (options.Count == 0 && by == NetworkMatchBy.Ssid && !string.IsNullOrEmpty(_currentSsid))
-                options.Add((_currentSsid!, _currentSsid!));
+                {
+                    var values = NetworkMatcher.ValuesFor(a, by);
+                    if (values.Count == 0) continue;
+                    if (entries.Count > 0) entries.Add(FetchEntry.Separator());
+                    entries.Add(FetchEntry.Header($"{a.AdapterName}{(a.IsPrimary ? $" ({Lang.T("DiagPrimaryTag")})" : "")}"));
+                    if (by == NetworkMatchBy.Subnet)
+                        entries.AddRange(FetchMenu.SubnetEntries(values));
+                    else
+                        foreach (var v in values) entries.Add(FetchEntry.Item(v, v));
+                }
+            if (!entries.Any(e => e.Kind == FetchEntryKind.Item) && by == NetworkMatchBy.Ssid && !string.IsNullOrEmpty(_currentSsid))
+                entries = new() { FetchEntry.Item(_currentSsid!, _currentSsid!) };
 
-            if (options.Count == 0)
+            var items = entries.Where(e => e.Kind == FetchEntryKind.Item).ToList();
+            if (items.Count == 0)
             {
-                MessageBox.Show(Lang.T("RuleFetchNone"), Lang.T("RuleDialogNoWifiTitle"),
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                Notice(Lang.T("RuleFetchNone"), Lang.T("BtnFetchNetwork"));
                 return;
             }
-            if (options.Count == 1) { SsidBox.Text = options[0].value; return; }
+            if (items.Count == 1) { row.ValueBox.Text = items[0].Value; return; }
 
-            var menu = new ContextMenu { PlacementTarget = FetchBtn, Placement = PlacementMode.Bottom };
-            foreach (var (label, value) in options)
-            {
-                var item = new MenuItem { Header = label };
-                item.Click += (_, _) => SsidBox.Text = value;
-                menu.Items.Add(item);
-            }
-            menu.IsOpen = true;
+            FetchMenu.Show(row.FetchBtn, entries, v => row.ValueBox.Text = v);
         }
 
         /// <summary>Weekday buttons show the UI language's abbreviated day names (Tag = DayOfWeek).</summary>
@@ -449,7 +537,7 @@ namespace MasselGUARD.Views
                 // direction (on-list vs off-list) and the tunnel to bring up on its side
                 // (an empty tunnel = disconnect, consistent with the other rule kinds).
                 ResultTrustedWhen = TrustedWhenTrustedRadio?.IsChecked == true ? "trusted" : "untrusted";
-                ResultSsid   = "";
+                ResultConditions = new();
                 ResultName   = NameBox.Text.Trim();   // empty → RuleName auto-summarises
                 DialogResult = true;
                 return;
@@ -460,68 +548,65 @@ namespace MasselGUARD.Views
                 if (!System.TimeSpan.TryParse(StartTimeBox.Text.Trim(), out _) ||
                     !System.TimeSpan.TryParse(EndTimeBox.Text.Trim(), out _))
                 {
-                    MessageBox.Show(
-                        Lang.T("RuleDialogTimeInvalid"),
-                        Lang.T("RuleDialogValidationTitle"),
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Notice(Lang.T("RuleDialogTimeInvalid"), Lang.T("RuleDialogValidationTitle"));
                     return;
                 }
                 var days = GatherDays();
                 if (days.Count == 0)
                 {
-                    MessageBox.Show(
-                        Lang.T("RuleDialogDaysRequired"),
-                        Lang.T("RuleDialogValidationTitle"),
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Notice(Lang.T("RuleDialogDaysRequired"), Lang.T("RuleDialogValidationTitle"));
                     return;
                 }
                 ResultStartTime = StartTimeBox.Text.Trim();
                 ResultEndTime   = EndTimeBox.Text.Trim();
                 ResultDays      = days;
-                ResultSsid      = "";
+                ResultConditions = new();
                 ResultName      = NameBox.Text.Trim();   // empty → RuleName auto-summarises
                 DialogResult    = true;
                 return;
             }
 
-            var by  = SelectedMatchBy();
-            var ssid = SsidBox.Text.Trim();          // the match value, whatever the type
-            if (string.IsNullOrEmpty(ssid))
+            // Network rule: every non-empty row becomes a condition, stored in canonical form so matching and
+            // the rule list are consistent (a subnet row may list several CIDRs, IPv4 and IPv6).
+            var conditions = new List<RuleCondition>();
+            foreach (var r in _rows)
             {
-                MessageBox.Show(
-                    Lang.T(by == NetworkMatchBy.Ssid ? "RuleDialogSsidRequired" : "RuleValueRequired"),
-                    Lang.T("RuleDialogValidationTitle"),
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                SsidBox.Focus();
+                string by  = r.By;
+                string raw = r.ValueBox.Text.Trim();
+                if (raw.Length == 0) continue;                      // an empty row is ignored
+
+                string? canonical = by switch
+                {
+                    NetworkMatchBy.GatewayMac => NetworkMatcher.NormalizeMac(raw),
+                    NetworkMatchBy.Subnet     => NetworkMatcher.NormalizeCidrList(raw),
+                    NetworkMatchBy.DnsSuffix  => NetworkMatcher.NormalizeSuffix(raw),
+                    _                         => raw,
+                };
+                if (canonical == null)
+                {
+                    Notice(Lang.T(by == NetworkMatchBy.GatewayMac ? "RuleMacInvalid"
+                                : by == NetworkMatchBy.Subnet     ? "RuleSubnetInvalid" : "RuleValueRequired"),
+                           Lang.T("RuleDialogValidationTitle"));
+                    r.ValueBox.Focus();
+                    return;
+                }
+                conditions.Add(new RuleCondition { By = by, Value = canonical, Not = r.Not });
+            }
+            if (conditions.Count == 0)
+            {
+                Notice(Lang.T(_rows.Count == 1 && _rows[0].By == NetworkMatchBy.Ssid ? "RuleDialogSsidRequired" : "RuleValueRequired"),
+                       Lang.T("RuleDialogValidationTitle"));
+                _rows[0].ValueBox.Focus();
                 return;
             }
 
-            // Store the value in its canonical form so matching and the rule list are consistent.
-            string? canonical = by switch
-            {
-                NetworkMatchBy.GatewayMac => NetworkMatcher.NormalizeMac(ssid),
-                NetworkMatchBy.Subnet     => CidrMath.NormalizeCidr(ssid),
-                NetworkMatchBy.DnsSuffix  => NetworkMatcher.NormalizeSuffix(ssid),
-                _                         => ssid,
-            };
-            if (canonical == null)
-            {
-                MessageBox.Show(
-                    Lang.T(by == NetworkMatchBy.GatewayMac ? "RuleMacInvalid" : "RuleSubnetInvalid"),
-                    Lang.T("RuleDialogValidationTitle"),
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                SsidBox.Focus();
-                return;
-            }
-            ssid = canonical;
-            ResultMatchBy    = by;
-            ResultMatchValue = by == NetworkMatchBy.Ssid ? "" : canonical;
-            ResultSsid       = by == NetworkMatchBy.Ssid ? canonical : "";
+            ResultConditions = conditions;
             var name = NameBox.Text.Trim();
             if (string.IsNullOrEmpty(name))
-                name = string.IsNullOrEmpty(ResultTunnel)
-                    ? $"{ssid} → disconnect"
-                    : $"{ssid} → {ResultTunnel}";
+            {
+                string part = string.Join(" + ", conditions.Select(c => (c.Not ? "NOT " : "") + c.Value));
+                name = string.IsNullOrEmpty(ResultTunnel) ? $"{part} → disconnect" : $"{part} → {ResultTunnel}";
+            }
             ResultName   = name;
             DialogResult = true;
         }

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Serialization;
 using MasselGUARD.Infrastructure;
 
@@ -119,13 +120,79 @@ namespace MasselGUARD.Models
         public string EffectiveMatchValue => EffectiveMatchBy == NetworkMatchBy.Ssid ? _ssid : _matchValue;
 
         /// <summary>English label for the match type ("SSID", "DNS suffix", "gateway MAC", "subnet").</summary>
-        public static string MatchByLabel(string matchBy) => matchBy switch
+        public static string MatchByLabel(string matchBy) => RuleCondition.ByLabel(matchBy);
+
+        // ── Conditions (AND, with NOT) ─────────────────────────────────────────────────────────
+        // A network rule can hold several conditions; ALL must hold on the same network. A rule saved
+        // before conditions existed has none and is read as ONE condition built from MatchBy/Ssid/MatchValue,
+        // so old configs keep working untouched. OR = add another row to the rules table.
+
+        private List<RuleCondition>? _conditions;
+
+        /// <summary>The rule's conditions, or null/empty for a rule that only has the legacy single match.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<RuleCondition>? Conditions
         {
-            NetworkMatchBy.DnsSuffix  => "DNS suffix",
-            NetworkMatchBy.GatewayMac => "gateway MAC",
-            NetworkMatchBy.Subnet     => "subnet",
-            _                         => "SSID",
-        };
+            get => _conditions;
+            set { SetField(ref _conditions, value); OnPropertyChanged(nameof(SsidDisplay)); OnPropertyChanged(nameof(RuleName)); OnPropertyChanged(nameof(ConditionsPlain)); }
+        }
+
+        /// <summary>The conditions in force: <see cref="Conditions"/> when set, else the legacy single match
+        /// (none when that has no value).</summary>
+        [JsonIgnore]
+        public IReadOnlyList<RuleCondition> EffectiveConditions
+        {
+            get
+            {
+                if (_conditions is { Count: > 0 }) return _conditions;
+                var v = EffectiveMatchValue;
+                return string.IsNullOrWhiteSpace(v)
+                    ? System.Array.Empty<RuleCondition>()
+                    : new[] { new RuleCondition { By = EffectiveMatchBy, Value = v } };
+            }
+        }
+
+        /// <summary>Replaces the conditions. A single positive condition is also mirrored into the legacy
+        /// fields (<see cref="Ssid"/>/<see cref="MatchBy"/>/<see cref="MatchValue"/>) so older code and builds
+        /// that only know the single match still see it; anything richer clears them.</summary>
+        public void SetConditions(IEnumerable<RuleCondition> conditions)
+        {
+            var list = conditions.Select(c => c.Clone()).ToList();
+            if (list.Count == 1 && !list[0].Not)
+            {
+                _conditions = null;                                   // the legacy single match carries it
+                MatchBy = list[0].By;
+                if (list[0].By == NetworkMatchBy.Ssid) { Ssid = list[0].Value; MatchValue = ""; }
+                else                                   { Ssid = "";            MatchValue = list[0].Value; }
+                OnPropertyChanged(nameof(Conditions));
+            }
+            else
+            {
+                MatchBy = NetworkMatchBy.Ssid; Ssid = ""; MatchValue = "";
+                Conditions = list.Count == 0 ? null : list;
+            }
+            OnPropertyChanged(nameof(SsidDisplay));
+            OnPropertyChanged(nameof(RuleName));
+            OnPropertyChanged(nameof(ConditionsPlain));
+        }
+
+        /// <summary>English one-line form of the conditions, e.g. "SSID Home AND NOT subnet 10.0.0.0/8".</summary>
+        [JsonIgnore]
+        public string ConditionsPlain => string.Join(" AND ", EffectiveConditions.Select(c => c.ToPlain()));
+
+        /// <summary>List-cell form: 📶 for SSIDs, 🔎 for the others, "NOT " for negated, joined by AND.</summary>
+        private string ConditionsDisplay()
+        {
+            var conds = EffectiveConditions;
+            if (conds.Count == 0) return "-";
+            return string.Join("  AND  ", conds.Select(c =>
+            {
+                string not = c.Not ? "NOT " : "";
+                return c.By == NetworkMatchBy.Ssid
+                    ? $"📶 {not}{c.Value}"                          // 📶 matches the footer's current-SSID icon
+                    : $"🔎 {not}{RuleCondition.ByLabel(c.By)}: {c.Value}";
+            }));
+        }
 
         public string Tunnel
         {
@@ -179,9 +246,7 @@ namespace MasselGUARD.Models
         public string SsidDisplay =>
             _kind == "schedule" ? $"⏰ {ScheduleSummary}"
           : _kind == "trusted"  ? (TrustedWhenOnList ? "🛡 Trusted networks" : "🛡 Untrusted networks")
-          : EffectiveMatchBy != NetworkMatchBy.Ssid
-              ? (string.IsNullOrEmpty(_matchValue) ? "-" : $"🔎 {MatchByLabel(EffectiveMatchBy)}: {_matchValue}")
-          : (string.IsNullOrEmpty(_ssid) ? "-" : $"📶 {_ssid}");   // 📶 matches the footer's current-SSID icon
+          : ConditionsDisplay();
 
         [JsonIgnore]
         public string TunnelDisplay =>
@@ -201,7 +266,8 @@ namespace MasselGUARD.Models
                     var side = TrustedWhenOnList ? "Trusted network" : "Untrusted network";
                     return $"{side} \u2192 {(string.IsNullOrEmpty(_tunnel) ? "disconnect" : _tunnel)}";
                 }
-                var shown  = EffectiveMatchValue;
+                // Name from the condition values: "Home", or "Home + 10.20.0.0/16" with several conditions.
+                var shown  = string.Join(" + ", EffectiveConditions.Select(c => (c.Not ? "NOT " : "") + c.Value));
                 var ssid   = string.IsNullOrEmpty(shown)   ? "\u2014"          : shown;
                 var target = string.IsNullOrEmpty(_tunnel) ? "disconnect" : _tunnel;
                 return $"{ssid} \u2192 {target}";

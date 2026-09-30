@@ -212,7 +212,6 @@ namespace MasselGUARD.Cli
 
             var now    = DateTime.Now;
             var engine = new Services.RuleEngine();
-            var prio   = Services.NetworkMatcher.RepairPriority(cfg.NetworkMatchPriority);
             var tunnel = engine.EvaluateNetwork(cfg, snap.Primary);
             var dns    = snap.Adapters.Select(a => (a, r: Services.DnsPolicy.Evaluate(cfg, a, now))).ToList();
             var rules  = cfg.Rules.Select(r => (r, t: Services.RuleTester.Test(r, cfg, snap, now))).ToList();
@@ -229,7 +228,6 @@ namespace MasselGUARD.Cli
                 CliOutput.PrintJson(new
                 {
                     primary_mode   = cfg.PrimaryNetworkMode,
-                    match_priority = prio,
                     networks = snap.Adapters.Select(a => new
                     {
                         adapter = a.AdapterName, kind = a.Kind, primary = a.IsPrimary, ssid = a.Ssid, open = a.IsOpen,
@@ -244,13 +242,8 @@ namespace MasselGUARD.Cli
                 return 0;
             }
 
-            string By(string b) => b switch
-            {
-                Models.NetworkMatchBy.GatewayMac => "gateway MAC", Models.NetworkMatchBy.DnsSuffix => "DNS suffix",
-                Models.NetworkMatchBy.Subnet => "subnet", _ => "SSID",
-            };
             CliOutput.Info($"Primary mode:   {cfg.PrimaryNetworkMode}");
-            CliOutput.Info($"Match priority: {string.Join(" > ", prio.Select(By))}");
+            CliOutput.Info("Rule order:     first matching rule in the rules table, top-down");
             if (snap.IsEmpty) CliOutput.Info("Networks:       none connected");
             else
             {
@@ -295,6 +288,7 @@ namespace MasselGUARD.Cli
             var (netPass,  netFail,  netFailures)  = Services.NetworkMatcher.RunSelfTest();
             var (rtPass,   rtFail,   rtFailures)   = Services.RuleTester.RunSelfTest();
             var (rePass,   reFail,   reFailures)   = Services.RuleEngine.RunSelfTest();
+            var (smPass,   smFail,   smFailures)   = Services.RuleSimulator.RunSelfTest();
 
             foreach (var f in cidrFailures) CliOutput.Error($"FAIL CidrMath {f}");
             foreach (var f in backFailures) CliOutput.Error($"FAIL Backend {f}");
@@ -303,10 +297,11 @@ namespace MasselGUARD.Cli
             foreach (var f in netFailures)  CliOutput.Error($"FAIL NetworkMatcher {f}");
             foreach (var f in rtFailures)   CliOutput.Error($"FAIL RuleTester {f}");
             foreach (var f in reFailures)   CliOutput.Error($"FAIL RuleEngine {f}");
+            foreach (var f in smFailures)   CliOutput.Error($"FAIL RuleSimulator {f}");
 
-            int pass = cidrPass + backPass + expPass + dnsPass + netPass + rtPass + rePass;
-            int fail = cidrFail + backFail + expFail + dnsFail + netFail + rtFail + reFail;
-            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}, NetworkMatcher {netPass}, RuleTester {rtPass}, RuleEngine {rePass}).");
+            int pass = cidrPass + backPass + expPass + dnsPass + netPass + rtPass + rePass + smPass;
+            int fail = cidrFail + backFail + expFail + dnsFail + netFail + rtFail + reFail + smFail;
+            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}, NetworkMatcher {netPass}, RuleTester {rtPass}, RuleEngine {rePass}, RuleSimulator {smPass}).");
             else           CliOutput.Error($"Self-test: {pass} passed, {fail} failed.");
             return fail == 0 ? 0 : 1;
         }

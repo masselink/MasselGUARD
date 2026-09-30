@@ -45,8 +45,34 @@ namespace MasselGUARD.Services
 
         private static (bool, string) TestNetwork(TunnelRule rule, NetworkSnapshot net)
         {
-            string by    = rule.EffectiveMatchBy;
-            string value = rule.EffectiveMatchValue;
+            var conds = rule.EffectiveConditions;
+            if (conds.Count == 0)
+                return (false, "the rule has no conditions set");
+
+            // One plain condition keeps the detailed single-match messages.
+            if (conds.Count == 1 && !conds[0].Not)
+                return TestSingle(conds[0].By, conds[0].Value, net);
+
+            // Several conditions and/or a NOT: all must hold on the SAME network.
+            var hit = net.Adapters.OrderByDescending(a => a.IsPrimary)
+                .FirstOrDefault(a => NetworkMatcher.RuleMatches(rule, a));
+            if (hit != null)
+            {
+                string where = hit.IsPrimary
+                    ? "the primary network"
+                    : $"not the primary network ({Label(net.Primary)} is primary, so this rule would not drive the tunnel)";
+                return (true, $"{(conds.Count == 1 ? "the condition holds" : $"all {conds.Count} conditions hold")} on {Label(hit)}: {where}");
+            }
+
+            // Not met: say which conditions hold or fail on the network that matters (the primary one).
+            var basis = net.Primary ?? net.Adapters.FirstOrDefault();
+            if (basis == null) return (false, "no connected network to judge");
+            var parts = conds.Select(c => $"{c.ToPlain()}: {(NetworkMatcher.ConditionHolds(c, basis) ? "holds" : "fails")}");
+            return (false, $"not all conditions hold on {Label(basis)} ({string.Join("; ", parts)})");
+        }
+
+        private static (bool, string) TestSingle(string by, string value, NetworkSnapshot net)
+        {
             string label = TunnelRule.MatchByLabel(by);
             if (string.IsNullOrWhiteSpace(value))
                 return (false, $"the rule has no {label} set");
@@ -167,6 +193,20 @@ namespace MasselGUARD.Services
             Check("net-suffix-not-met-says-have", Test(bySuffix, cfg, Snap(Wired("hotel.example", true)), monday).Summary.Contains("hotel.example"));
             Check("net-mac-none",     Test(byMac, cfg, Snap(Wifi("Home", true)), monday).Summary.Contains("no connected network has a gateway MAC"));
             Check("net-empty-value",  !Test(new TunnelRule { Kind = "network", MatchBy = "subnet", MatchValue = "" }, cfg, Snap(office), monday).Met);
+
+            // Conditions: AND + NOT
+            TunnelRule Conds(params RuleCondition[] cs) { var r = new TunnelRule { Kind = "network" }; r.SetConditions(cs); return r; }
+            RuleCondition C(string by, string v, bool not = false) => new() { By = by, Value = v, Not = not };
+            var andRule = Conds(C("dnssuffix", "corp.example.com"), C("subnet", "10.0.0.0/8"));
+            var notRule = Conds(C("dnssuffix", "corp.example.com"), C("subnet", "10.0.0.0/8", true));
+            var r1c = Test(andRule, cfg, Snap(office), monday);
+            Check("cond-tester-and-met",     r1c.Met && r1c.Summary.Contains("all 2 conditions hold"));
+            var r2c = Test(notRule, cfg, Snap(office), monday);
+            Check("cond-tester-not-fails",   !r2c.Met && r2c.Summary.Contains("NOT subnet 10.0.0.0/8: fails") && r2c.Summary.Contains("DNS suffix corp.example.com: holds"));
+            Check("cond-tester-only-not",    Test(Conds(C("ssid", "Guest", true)), cfg, Snap(Wifi("Home", true)), monday).Met);
+            Check("cond-tester-same-network", !Test(Conds(C("ssid", "Home"), C("dnssuffix", "corp.example.com")),
+                                                   cfg, Snap(Wifi("Home", true), Wired("corp.example.com", false)), monday).Met);   // conditions split over two adapters
+            Check("cond-tester-none",        !Test(new TunnelRule { Kind = "network" }, cfg, Snap(office), monday).Met);
 
             // Trusted rule (uses the primary network)
             var cfgT = new AppConfig { EnableTunnels = true };

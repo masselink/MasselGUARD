@@ -116,15 +116,6 @@ namespace MasselGUARD.Views
         }
 
         // ── Network identity + rule requirements (docs/NetworkIdentity-Design.md) ────
-        private static Txt MatchLabel(string by) => by switch
-        {
-            NetworkMatchBy.GatewayMac => L("DiagGatewayMac"),
-            NetworkMatchBy.Ssid       => L("DiagSsid"),
-            NetworkMatchBy.DnsSuffix  => L("DiagDnsSuffix"),
-            NetworkMatchBy.Subnet     => L("DiagSubnet"),
-            _                         => by,
-        };
-
         private void BuildNetworkIdentity()
         {
             var cfg  = _main.ConfigSvc.Config;
@@ -137,10 +128,6 @@ namespace MasselGUARD.Views
                 PrimaryNetworkModes.Wifi  => L("DiagPrimaryModeWifi"),
                 _                         => L("DiagPrimaryModeWindows"),
             });
-
-            var prio = NetworkMatcher.RepairPriority(cfg.NetworkMatchPriority).Select(MatchLabel).ToList();
-            AddKv(head, L("DiagMatchPriority"),
-                new Txt(string.Join("  >  ", prio.Select(p => p.Ui)), string.Join("  >  ", prio.Select(p => p.En))));
 
             AddKv(head, L("DiagTrustedList"),
                 cfg.TrustedNetworks.Count == 0 ? L("DiagNone") : string.Join(", ", cfg.TrustedNetworks));

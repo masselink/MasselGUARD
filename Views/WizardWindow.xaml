@@ -412,6 +412,20 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Wired + Wi-Fi networks: what a rule can match and which network decides -->
+                    <Border Background="{DynamicResource Surface}"
+                            BorderBrush="{DynamicResource Accent}" BorderThickness="2,0,0,0"
+                            Padding="12,10" Margin="0,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="{Binding [WizardNetworkTitle], Source={x:Static local:Lang.Instance}}"
+                                       FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                       FontWeight="Bold" Foreground="{DynamicResource Accent}"/>
+                            <TextBlock Text="{Binding [WizardNetworkBody], Source={x:Static local:Lang.Instance}}"
+                                       FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                       Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Disable WiFi automation -->
                     <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderColor}"
                             BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,6">

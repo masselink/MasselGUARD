@@ -1,3 +1,48 @@
+## Next version (number and codename to be decided)
+
+Automation now understands **wired networks**, not just Wi-Fi. Rules can match a network by more than its name, several conditions can be combined, and you can see exactly why a rule did (or did not) fire.
+
+### Wired networks and Wi-Fi, side by side
+
+- **Rules work on cable too** - an Ethernet connection now triggers rules, trusted-network checks and DNS profiles, the same as Wi-Fi. A PC that only has a cable no longer looks like "no network".
+- **Match a network by more than its name** - a rule can match the **Wi-Fi name (SSID)**, the **DNS suffix** the network hands out (for example `corp.example.com`), the **gateway (router) MAC address**, or a **subnet**. DNS suffix, MAC and subnet also work on Wi-Fi, so one rule can cover an office whether you are on cable or radio. A subnet rule can list several subnets (an IPv4 and an IPv6 one), and any of them matches.
+- **Fetch instead of typing** - every value has a **Fetch** button that reads it from a network you are connected to right now. Each network is a group with its own header; for subnets, the bold **All subnets together** row fills in every subnet at once and single IPv4 / IPv6 subnets are listed below it.
+- **Trusted networks accept more than SSIDs** - the list can hold `suffix:corp.example.com`, `mac:aa:bb:cc:00:11:22` and `subnet:10.20.0.0/16` entries next to plain Wi-Fi names, and has a Fetch button too.
+- **Wi-Fi and cable at the same time** - when both are connected, one network is the **primary network** and it decides which tunnel is used. By default it follows Windows (whichever connection Windows actually uses); in **Settings > Automation > Network matching** you can prefer wired or prefer Wi-Fi. DNS rules are applied to every connected adapter, so nothing is left unprotected when Windows switches between them.
+- **Quiet and stable** - bursts of network events (plugging in a dock, a DHCP renewal) are combined into one check, and a change that does not affect your rules does nothing. A Wi-Fi that is connected but still waiting for an address is not treated as a disconnect. The gateway MAC is only looked up when you actually use a MAC rule.
+
+### More than one condition
+
+- **Combine conditions (AND)** - a rule can have several conditions that must all hold on the same network, for example "subnet is 10.20.0.0/16 **and** gateway MAC is aa:bb:..." Add them with **+ Add condition** in the rule dialog.
+- **Exclude with "is not"** - each condition can be negated, for example "SSID is Guest **and** gateway MAC is not the hotel's router". A "not" on the gateway MAC is treated as not met until the MAC is known, so it never fires too early.
+- **Need OR?** Add another rule. Rules are checked top to bottom and the first match wins.
+- Existing rules keep working exactly as before.
+
+### Rule order you can see and change
+
+- **First match wins, top-down** - when several network rules match, the first one in the Automation list wins. Drag rows to change the order. There is no hidden priority setting.
+- **New `#` column** - the first column shows each rule's position, updates when you drag, and stays the same when you sort the list by another column. The lowest number wins.
+- The decision log says which rule won, at which position, and lists any other rules that also matched.
+
+### Test your rules
+
+- **Test rule** (the old Test button, now enabled only when a rule is selected) checks whether the selected rule's requirements are met right now. The activity log shows `Test: <rule>` followed by the result, including when the requirement is not met, and notes such as "rule is disabled" or "manual mode is on".
+- **Advanced test** - describe a network (Wi-Fi or wired, SSID, open or not, DNS suffix, gateway MAC, subnets), or fetch the current one, and see **which rule would be triggered and why**. The reasoning panel walks through the real order: automation switches, open-network protection, each network rule with every condition marked as holding or failing, trusted-network rules, and the default action, ending in the tunnel and DNS result. Nothing is connected or changed.
+
+### Wired networks in the rest of the app
+
+- **Activity timeline and history** follow the primary network, so wired connections appear as their own segments (named after the DNS suffix, or the adapter), with a plug icon and "Wired" in the hover tooltip. Wi-Fi and wired never overlap in the chart.
+- **Footer** shows the primary network: `Wired: corp.example.com` on a cable, `WiFi: <name>` on Wi-Fi.
+- **System diagnostics** has two new sections, **Network identity** (every connected network with its SSID, DNS suffix, gateway and gateway MAC, subnets and route metric, and which one is primary) and **Automation rules**, which marks each rule's requirement as met or not met right now.
+- **Command line** - new `network status` shows the same picture (read-only, no administrator rights needed) plus what the rules would do, and `wifi-history` also answers to `network-history` and now has a Type column. Add `--json` for scripts.
+- The **setup wizard** has a short card about wired and Wi-Fi matching.
+
+### Also in this release
+
+- **Themed Fetch menu and dialogs** - the Fetch drop-downs and the validation messages in the rule dialog now follow the theme instead of using plain Windows boxes.
+- **Managed presets** can lock the primary-network setting together with the other Automation settings.
+- Translated in all 12 languages (the activity-log lines and the Advanced test reasoning stay in English so they are easy to share for support).
+
 ## v4.5.0 - Resolving Raven
 
 A big interface and settings overhaul: one place to turn features on or off, a consistent main-window layout, a pop-out activity log, and section icons you can theme.

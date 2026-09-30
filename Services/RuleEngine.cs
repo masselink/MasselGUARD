@@ -40,8 +40,8 @@ namespace MasselGUARD.Services
         ///   1. Manual mode / tunnels off → do nothing (all automation off).
         ///   2. Open-network protection (open/passwordless Wi-Fi + OpenWifiTunnel set).
         ///   3. Network rules - enabled "network" (or legacy "wifi") rules whose match (SSID, DNS suffix,
-        ///      gateway MAC, subnet) fits the network. Several may fit: the user-orderable match-type
-        ///      priority (AppConfig.NetworkMatchPriority) decides, then list order.
+        ///      gateway MAC, subnet) fits the network. Several may fit: the FIRST one in the rules table
+        ///      (top-down, arranged by drag and drop) wins.
         ///   4. Trusted-network rules - enabled "trusted" rules, each firing only on its
         ///      side of the trusted list (TrustedWhen "trusted" = on the list, "untrusted"
         ///      = not on it); first match activates its tunnel / disconnects. Non-matching
@@ -71,26 +71,27 @@ namespace MasselGUARD.Services
             //    policy in step 3 below.) The Tunnel field alone decides the tunnel action: an empty
             //    Tunnel disconnects, even when the rule also carries a DNS profile (DNS applies in
             //    parallel via DnsPolicy).
-            var prio    = NetworkMatcher.RepairPriority(cfg.NetworkMatchPriority);
-            var matches = NetworkMatcher.MatchingRules(cfg.Rules, primary, prio);
+            var matches = NetworkMatcher.MatchingRules(cfg.Rules, primary);   // table order: first hit wins
 
             if (matches.Count > 0)
             {
                 var match = matches[0];
                 match.ExecutionCount++;
 
-                string what = match.EffectiveMatchBy == NetworkMatchBy.Ssid
-                    ? net
-                    : $"{TunnelRule.MatchByLabel(match.EffectiveMatchBy)} {match.EffectiveMatchValue}";
+                var mc = match.EffectiveConditions;
+                string what = mc.Count == 1 && !mc[0].Not && mc[0].By == NetworkMatchBy.Ssid
+                    ? net                                   // the classic "Rule: <SSID> → <tunnel>"
+                    : match.ConditionsPlain;                // e.g. "DNS suffix corp.example.com AND NOT subnet 10.0.0.0/8"
 
+                // The rules table is the only ordering: the first matching rule, top-down, wins.
                 var details = new List<string>
                 {
-                    $"Matched rule \"{match.RuleName}\" ({TunnelRule.MatchByLabel(match.EffectiveMatchBy)}, " +
-                    $"priority {NetworkMatcher.PriorityOf(match.EffectiveMatchBy, prio) + 1})",
+                    $"Matched rule \"{match.RuleName}\" ({match.ConditionsPlain}): " +
+                    $"first match in the rules table (position {cfg.Rules.IndexOf(match) + 1})",
                 };
                 foreach (var other in matches.Skip(1))
-                    details.Add($"Rule \"{other.RuleName}\" ({TunnelRule.MatchByLabel(other.EffectiveMatchBy)}, " +
-                                $"priority {NetworkMatcher.PriorityOf(other.EffectiveMatchBy, prio) + 1}) also matched");
+                    details.Add($"Rule \"{other.RuleName}\" ({other.ConditionsPlain}) also " +
+                                $"matched but is lower in the table (position {cfg.Rules.IndexOf(other) + 1})");
 
                 if (string.IsNullOrEmpty(match.Tunnel))
                     return new(ActionKind.Disconnect, null, $"Rule: {what} → disconnect", details);
@@ -191,7 +192,7 @@ namespace MasselGUARD.Services
         // ── Self-test (run via `MasselGUARDcli selftest`) ─────────────────────
 
         /// <summary>Table-driven checks for the network-identity precedence (tunnel from the primary
-        /// network, DNS per adapter, match-type priority). Pure: throwaway configs, no I/O.</summary>
+        /// network, DNS per adapter, first match in the rules table wins). Pure: throwaway configs, no I/O.</summary>
         public static (int passed, int failed, List<string> failures) RunSelfTest()
         {
             int pass = 0, fail = 0;
@@ -233,39 +234,41 @@ namespace MasselGUARD.Services
             Check("kind-network-alias", new TunnelRule { Kind = "network" }.IsNetworkKind && new TunnelRule { Kind = "wifi" }.IsNetworkKind
                                         && !new TunnelRule { Kind = "trusted" }.IsNetworkKind);
 
-            // 2. Office example: DNS suffix beats subnet (priority 3 vs 4), the loser is reported, only the winner counts.
+            // 2. Office example: the rules TABLE decides - the first matching rule, top-down, wins; the
+            //    other matches are reported with their position; only the winner's counter moves.
             var office = Cfg();
-            var rSuffix = new TunnelRule { Kind = "network", MatchBy = "dnssuffix", MatchValue = "corp.example.com", Tunnel = "", DnsProfileId = "corp" };
-            var rSub    = new TunnelRule { Kind = "network", MatchBy = "subnet",    MatchValue = "10.0.0.0/8",        Tunnel = "Split-Corp" };
-            office.Rules.Add(rSub);        // list order deliberately puts the broader rule first
+            var rSuffix = new TunnelRule { Kind = "network", MatchBy = "dnssuffix", MatchValue = "corp.example.com", Tunnel = "", DnsProfileId = "corp", Name = "Suffix" };
+            var rSub    = new TunnelRule { Kind = "network", MatchBy = "subnet",    MatchValue = "10.0.0.0/8",        Tunnel = "Split-Corp", Name = "Subnet" };
+            office.Rules.Add(rSub);        // broader rule first: it wins
             office.Rules.Add(rSuffix);
             var eth = Id("wired", "eth", suffix: "corp.example.com", mac: Mac, subnets: new[] { "10.20.4.0/24" });
             var rOffice = engine.EvaluateNetwork(office, eth);
-            Check("office-suffix-wins", rOffice.Action == ActionKind.Disconnect);
-            Check("office-details-winner", rOffice.Details is { Count: 2 } && rOffice.Details[0].Contains("DNS suffix, priority 3"));
-            Check("office-details-loser", rOffice.Details![1].Contains("also matched") && rOffice.Details[1].Contains("subnet, priority 4"));
-            Check("office-counts-winner-only", rSuffix.ExecutionCount == 1 && rSub.ExecutionCount == 0);
+            Check("office-first-row-wins", rOffice.Action == ActionKind.Activate && rOffice.TunnelName == "Split-Corp");
+            Check("office-details-winner", rOffice.Details is { Count: 2 } && rOffice.Details[0].Contains("first match in the rules table (position 1)"));
+            Check("office-details-loser", rOffice.Details![1].Contains("also matched") && rOffice.Details[1].Contains("position 2"));
+            Check("office-counts-winner-only", rSub.ExecutionCount == 1 && rSuffix.ExecutionCount == 0);
+            office.Rules.Reverse();        // the user drags the suffix row to the top
+            Check("office-reordered-suffix-wins", engine.EvaluateNetwork(office, eth).Action == ActionKind.Disconnect);
 
-            // 3. Gateway MAC vs SSID: default puts MAC first, the user can flip it.
+            // 3. Gateway MAC vs SSID: no match-type ranking - whichever row is higher wins.
             var prio = Cfg();
             var ruleSsid = new TunnelRule { Kind = "network", Ssid = "Guest", Tunnel = "Full-VPN" };
             var ruleMac  = new TunnelRule { Kind = "network", MatchBy = "gatewaymac", MatchValue = "AA-BB-CC-00-11-22", Tunnel = "" };
-            prio.Rules.Add(ruleSsid); prio.Rules.Add(ruleMac);          // SSID rule listed first
+            prio.Rules.Add(ruleSsid); prio.Rules.Add(ruleMac);          // SSID row first
             var guest = Id("wifi", "wlan", ssid: "Guest", mac: Mac);
-            Check("prio-default-mac-wins", engine.EvaluateNetwork(prio, guest).Action == ActionKind.Disconnect);
-            prio.NetworkMatchPriority = new() { "ssid", "gatewaymac", "dnssuffix", "subnet" };
-            Check("prio-flipped-ssid-wins", engine.EvaluateNetwork(prio, guest).TunnelName == "Full-VPN");
-            prio.NetworkMatchPriority = new() { "bogus" };              // damaged config repaired to the default order
-            Check("prio-damaged-repaired", engine.EvaluateNetwork(prio, guest).Action == ActionKind.Disconnect);
+            Check("order-ssid-row-first-wins", engine.EvaluateNetwork(prio, guest).TunnelName == "Full-VPN");
+            prio.Rules.Reverse();                                        // MAC row first
+            Check("order-mac-row-first-wins", engine.EvaluateNetwork(prio, guest).Action == ActionKind.Disconnect);
             var guestNoMac = Id("wifi", "wlan", ssid: "Guest");
-            var noMac = Cfg(); noMac.Rules.Add(ruleSsid); noMac.Rules.Add(ruleMac);
-            Check("prio-mac-unresolved-falls-to-ssid", engine.EvaluateNetwork(noMac, guestNoMac).TunnelName == "Full-VPN");
+            Check("order-mac-unresolved-falls-to-ssid", engine.EvaluateNetwork(prio, guestNoMac).TunnelName == "Full-VPN");
 
-            // 4. Same type: subnet longest prefix first, SSID ties by list order.
+            // 4. Same match type follows the table too (no longest-prefix rule any more).
             var tie = Cfg();
             tie.Rules.Add(new TunnelRule { Kind = "network", MatchBy = "subnet", MatchValue = "10.0.0.0/8",  Tunnel = "Wide" });
             tie.Rules.Add(new TunnelRule { Kind = "network", MatchBy = "subnet", MatchValue = "10.20.4.0/24", Tunnel = "Narrow" });
-            Eq("tie-longest-prefix", engine.EvaluateNetwork(tie, eth).TunnelName, "Narrow");
+            Eq("tie-table-order-wide-first", engine.EvaluateNetwork(tie, eth).TunnelName, "Wide");
+            tie.Rules.Reverse();
+            Eq("tie-table-order-narrow-first", engine.EvaluateNetwork(tie, eth).TunnelName, "Narrow");
             var tie2 = Cfg();
             tie2.Rules.Add(new TunnelRule { Kind = "network", Ssid = "Home", Tunnel = "First" });
             tie2.Rules.Add(new TunnelRule { Kind = "network", Ssid = "Home", Tunnel = "Second" });
@@ -298,11 +301,11 @@ namespace MasselGUARD.Services
             dns.Rules.Add(new TunnelRule { Kind = "network", MatchBy = "gatewaymac", MatchValue = Mac, DnsProfileId = "quad9" });
             var wifiGuest = Id("wifi", "wlan", ssid: "Guest", primary: false);
             var dEth = DnsPolicy.Evaluate(dns, eth, now);
-            Check("dns-eth-mac-first", dEth.Action == DnsPolicy.DnsActionKind.Apply && dEth.ProfileId == "quad9");   // MAC outranks suffix
+            Check("dns-eth-first-row-wins", dEth.Action == DnsPolicy.DnsActionKind.Apply && dEth.ProfileId == "corp");   // suffix row is first
             var dWifi = DnsPolicy.Evaluate(dns, wifiGuest, now);
             Check("dns-wifi-guest-none", dWifi.Action == DnsPolicy.DnsActionKind.None);
-            dns.NetworkMatchPriority = new() { "dnssuffix", "gatewaymac", "ssid", "subnet" };
-            Eq("dns-flipped-suffix-first", DnsPolicy.Evaluate(dns, eth, now).ProfileId, "corp");
+            dns.Rules.Reverse();
+            Eq("dns-reordered-mac-first", DnsPolicy.Evaluate(dns, eth, now).ProfileId, "quad9");
             var dnsSkip = Cfg();
             dnsSkip.Rules.Add(new TunnelRule { Kind = "network", MatchBy = "gatewaymac", MatchValue = Mac, Tunnel = "T" });                 // no DNS profile
             dnsSkip.Rules.Add(new TunnelRule { Kind = "network", MatchBy = "dnssuffix", MatchValue = "corp.example.com", DnsProfileId = "corp" });

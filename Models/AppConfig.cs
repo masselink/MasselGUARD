@@ -228,11 +228,8 @@ namespace MasselGUARD.Models
         /// <summary>Debounce window (ms) for bursts of network-change events (dock plug-in, DHCP renew).</summary>
         public int NetworkSettleMs { get; set; } = 2000;
 
-        /// <summary>Priority of the network match types, highest first: a permutation of gatewaymac /
-        /// ssid / dnssuffix / subnet. Always read through <c>NetworkMatcher.RepairPriority</c> so a
-        /// hand-edited value can never disable a match type.</summary>
-        public List<string> NetworkMatchPriority { get; set; } = new()
-            { NetworkMatchBy.GatewayMac, NetworkMatchBy.Ssid, NetworkMatchBy.DnsSuffix, NetworkMatchBy.Subnet };
+        // (No match-type priority setting: when several network rules match, the FIRST one in the rules
+        //  table, top-down, wins. The user arranges the table by drag and drop.)
 
         // ── Info / statistics section ─────────────────────────────────────────
         /// <summary>Show the timeline/statistics panel above the footer.</summary>

@@ -1944,9 +1944,27 @@ namespace MasselGUARD
             ApplyWifiState(ssid, isOpen);
         }
 
+        /// <summary>The network the footer shows: the PRIMARY network (a wired network shows its DNS suffix
+        /// or adapter name), else the associated Wi-Fi SSID. Null when neither exists.</summary>
+        private (bool wired, string label)? FooterNetwork()
+        {
+            var primary = _vm.CurrentNetwork.Primary;
+            if (primary is { IsWired: true })
+                return (true, NetworkMatcher.HistoryLabel(primary));
+            var ssid = WifiSvc.CurrentSsid;
+            return string.IsNullOrEmpty(ssid) ? null : (false, ssid);
+        }
+
         private void UpdateWifiLabel(string? ssid)
         {
-            WifiLabel.Text = string.IsNullOrEmpty(ssid) ? Lang.T("StatusNoWifi") : ssid;
+            var net = FooterNetwork();
+            WifiLabel.Text = net?.label ?? Lang.T("StatusNoWifi");
+            if (WifiLabelPrefix != null)
+            {
+                bool wired = net?.wired == true;
+                WifiLabelPrefix.Text    = Lang.T(wired ? "StatusWired" : "StatusWifi");
+                WifiLabelPrefix.ToolTip = Lang.T(wired ? "MainWiredTip" : "MainWifiTip");
+            }
             UpdateStatusBarCentre(); // keeps footer WiFi label in sync
         }
 
@@ -2268,7 +2286,8 @@ namespace MasselGUARD
             var dlg = new Views.RuleDialog(GetCurrentSsid(), tunnels: GetAvailableTunnels())
                 { Owner = this };
             if (dlg.ShowDialog() != true) return;
-            var rule = new TunnelRule { Ssid = dlg.ResultSsid, Tunnel = dlg.ResultTunnel };
+            var rule = new TunnelRule { Tunnel = dlg.ResultTunnel };
+            rule.SetConditions(dlg.ResultConditions);
             ConfigSvc.Config.Rules.Add(rule);
             OnRulesChanged();
         }
@@ -2280,10 +2299,11 @@ namespace MasselGUARD
                 existingSsid:   rule.Ssid,
                 existingTunnel: rule.Tunnel,
                 executionCount: rule.ExecutionCount,
-                tunnels:        GetAvailableTunnels()) { Owner = this };
+                tunnels:        GetAvailableTunnels(),
+                existingConditions: rule.EffectiveConditions.Select(c => c.Clone()).ToList()) { Owner = this };
             if (dlg.ShowDialog() != true) return;
             rule.Name   = dlg.ResultName;
-            rule.Ssid   = dlg.ResultSsid;
+            rule.SetConditions(dlg.ResultConditions);
             rule.Tunnel = dlg.ResultTunnel;
             if (dlg.ResultNewCounterValue >= 0) rule.ExecutionCount = dlg.ResultNewCounterValue;
             if (dlg.ResultNewCounterValue >= 0)
@@ -3117,9 +3137,6 @@ namespace MasselGUARD
             {
                 Kind         = dlg.ResultKind,
                 Name         = dlg.ResultName,
-                Ssid         = dlg.ResultSsid,
-                MatchBy      = dlg.ResultMatchBy,
-                MatchValue   = dlg.ResultMatchValue,
                 Tunnel       = dlg.ResultTunnel,
                 StartTime    = dlg.ResultStartTime,
                 EndTime      = dlg.ResultEndTime,
@@ -3127,6 +3144,7 @@ namespace MasselGUARD
                 TrustedWhen  = dlg.ResultTrustedWhen,
                 DnsProfileId = dlg.ResultDnsProfileId,
             };
+            rule.SetConditions(dlg.ResultConditions);   // network rules: the AND-ed conditions (empty for other kinds)
             ConfigSvc.Config.Rules.Add(rule);
             LogSvc.Ok($"Rule added: {rule.RuleName}");
             OnRulesChanged();
@@ -3156,16 +3174,13 @@ namespace MasselGUARD
                 existingDnsProfileId: rule.DnsProfileId,
                 dnsEnabled:     ConfigSvc.Config.EnableDns,
                 tunnelsEnabled: ConfigSvc.Config.EnableTunnels,
-                existingMatchBy:    rule.EffectiveMatchBy,
-                existingMatchValue: rule.MatchValue,
+                existingConditions: rule.EffectiveConditions.Select(c => c.Clone()).ToList(),
                 captureNetwork: CaptureNetworkSnapshot)
                 { Owner = this };
             if (dlg.ShowDialog() != true) return;
             rule.Kind        = dlg.ResultKind;
             rule.Name        = dlg.ResultName;
-            rule.Ssid        = dlg.ResultSsid;
-            rule.MatchBy     = dlg.ResultMatchBy;
-            rule.MatchValue  = dlg.ResultMatchValue;
+            rule.SetConditions(dlg.ResultConditions);
             rule.Tunnel      = dlg.ResultTunnel;
             rule.StartTime   = dlg.ResultStartTime;
             rule.EndTime     = dlg.ResultEndTime;
@@ -3208,6 +3223,11 @@ namespace MasselGUARD
         /// May block ~1.5 s per adapter on the gateway ARP lookup - call off the UI thread.</summary>
         internal NetworkSnapshot CaptureNetworkSnapshot() => _vm.CaptureNetwork(forceMac: true);
 
+        /// <summary>Advanced test: describe (or fetch) a network and see which rule the automation would pick,
+        /// with the reasoning. Read-only and independent of the selected row, so it is always available.</summary>
+        private void WifiRuleTestAdv_Click(object sender, RoutedEventArgs e)
+            => new Views.RuleSimulatorWindow(this).Show();
+
         /// <summary>Tests whether the selected rule's requirements are met right now and writes the
         /// result to the activity log. Read-only: nothing is connected, changed or counted.</summary>
         private async void WifiRuleTest_Click(object sender, RoutedEventArgs e)
@@ -3224,17 +3244,15 @@ namespace MasselGUARD
             }
 
             var r = RuleTester.Test(rule, ConfigSvc.Config, net, DateTime.Now);
-            string kind = rule.Kind switch
-            {
-                "schedule" => "schedule rule",
-                "trusted"  => "trusted-network rule",
-                _          => "network rule",
-            };
-            LogSvc.Info($"Rule test: {rule.RuleName} ({kind})");
-            LogSvc.Write(r.Met ? LogLevel.Ok : LogLevel.Info,
+            // The default (Normal) log level hides Info, so every line here is Ok or Warn: the header and the
+            // result must always be visible, including when the requirement is not met.
+            // The activity log lists the NEWEST entry on top, so the lines are written bottom-up (notes,
+            // then the result, then the header last) to read top-down as: Test, result, notes.
+            foreach (var note in Enumerable.Reverse(r.Notes))
+                LogSvc.Write(LogLevel.Warn, "Note: " + note, isContinuation: true);
+            LogSvc.Write(r.Met ? LogLevel.Ok : LogLevel.Warn,
                 (r.Met ? "Requirement met: " : "Requirement not met: ") + r.Summary, isContinuation: true);
-            foreach (var note in r.Notes)
-                LogSvc.Write(LogLevel.Info, "Note: " + note, isContinuation: true);
+            LogSvc.Ok($"Test: {rule.RuleName}");
         }
 
         // ── Defaults popup ────────────────────────────────────────────────────
@@ -3470,9 +3488,9 @@ namespace MasselGUARD
             bool showOpen = !string.IsNullOrEmpty(open);
 
             // WiFi footer indicator - hidden when no network is connected
-            string? ssid  = WifiSvc.CurrentSsid;
-            bool showWifi = !string.IsNullOrEmpty(ssid);
-            WifiFooterLabel.Text       = showWifi ? $"📶 {ssid}" : "";
+            var footerNet = FooterNetwork();
+            bool showWifi = footerNet != null;
+            WifiFooterLabel.Text       = showWifi ? $"{(footerNet!.Value.wired ? "🔌" : "📶")} {footerNet.Value.label}" : "";
             WifiFooterLabel.Visibility = showWifi ? Visibility.Visible : Visibility.Collapsed;
             // Separator between WiFi and the other items - only when something follows
             WifiFooterSep.Visibility   = showWifi && (showDef || showOpen)
@@ -3592,6 +3610,10 @@ namespace MasselGUARD
             public string DnsProfileName { get; private set; } = "";
             public bool   IsHighlighted { get; }
 
+            /// <summary>Position of the rule in the rules table (1-based), i.e. the evaluation order when several
+            /// rules match: the lowest number wins. It follows drag and drop, not the display sorting.</summary>
+            public int    OrderNumber { get; }
+
             // Separate columns: Tunnel (🔒) and DNS profile (🌐). Each hides when its value is empty.
             public Visibility TunnelVisibility =>
                 string.IsNullOrEmpty(TunnelName) ? Visibility.Collapsed : Visibility.Visible;
@@ -3646,6 +3668,7 @@ namespace MasselGUARD
             {
                 _main          = main;
                 Rule           = r;
+                OrderNumber    = main.ConfigSvc.Config.Rules.IndexOf(r) + 1;
                 // Kind-aware display comes straight from the rule (handles wifi / schedule / trusted).
                 RuleName       = r.RuleName;
                 Ssid           = r.SsidDisplay;
@@ -3851,7 +3874,7 @@ namespace MasselGUARD
         }
 
         /// <summary>Single-button (OK) themed info dialog - same style as ShowThemedYesNo.</summary>
-        public void ShowThemedInfo(string message, string title)
+        public void ShowThemedInfo(string message, string title, Window? owner = null)
         {
             var win = new Window
             {
@@ -3861,7 +3884,7 @@ namespace MasselGUARD
                 Width                 = 400,
                 SizeToContent         = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Owner                 = this,
+                Owner                 = owner ?? this,
                 ResizeMode            = ResizeMode.NoResize,
             };
 

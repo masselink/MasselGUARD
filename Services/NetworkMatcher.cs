@@ -8,18 +8,13 @@ namespace MasselGUARD.Services
 {
     /// <summary>
     /// PURE network-identity logic (docs/NetworkIdentity-Design.md): matching a rule value against a
-    /// <see cref="NetworkIdentity"/>, interpreting the trusted-networks list, the user-orderable match
-    /// priority, and primary-network selection. No WPF, no network access, so it is shared with the CLI
-    /// and exercised headlessly by <c>MasselGUARDcli selftest</c> (<see cref="RunSelfTest"/>).
+    /// <see cref="NetworkIdentity"/>, interpreting the trusted-networks list, rule selection (first match
+    /// in the rules table, top-down) and primary-network selection. No WPF, no network access, so it is
+    /// shared with the CLI and exercised headlessly by <c>MasselGUARDcli selftest</c>
+    /// (<see cref="RunSelfTest"/>).
     /// </summary>
     public static class NetworkMatcher
     {
-        /// <summary>Default match-type priority, highest first (design 4.3).</summary>
-        public static readonly string[] DefaultPriority =
-        {
-            NetworkMatchBy.GatewayMac, NetworkMatchBy.Ssid, NetworkMatchBy.DnsSuffix, NetworkMatchBy.Subnet,
-        };
-
         // ── Normalisation ─────────────────────────────────────────────────────
 
         /// <summary>Any common MAC spelling (aa:bb.., aa-bb.., aabb.ccdd.eeff, aabbccddeeff) to
@@ -37,6 +32,28 @@ namespace MasselGUARD.Services
             if (hex.Length != 12) return null;
             var h = hex.ToString();
             return string.Join(":", Enumerable.Range(0, 6).Select(i => h.Substring(i * 2, 2)));
+        }
+
+        /// <summary>The individual subnets of a rule value: one or several CIDRs separated by comma,
+        /// semicolon or whitespace ("10.20.0.0/16, fd00:1::/64").</summary>
+        public static List<string> SplitCidrs(string? value) =>
+            (value ?? "").Split(new[] { ',', ';', ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                         .Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+
+        /// <summary>Canonical form of a subnet list: every entry in network form, joined with ", ".
+        /// Null when the list is empty or any entry is not a valid CIDR.</summary>
+        public static string? NormalizeCidrList(string? value)
+        {
+            var parts = SplitCidrs(value);
+            if (parts.Count == 0) return null;
+            var norm = new List<string>(parts.Count);
+            foreach (var p in parts)
+            {
+                var n = CidrMath.NormalizeCidr(p);
+                if (n == null) return null;
+                if (!norm.Contains(n)) norm.Add(n);
+            }
+            return string.Join(", ", norm);
         }
 
         /// <summary>Lower-cased, no leading/trailing dots or spaces. Null when empty.</summary>
@@ -76,11 +93,36 @@ namespace MasselGUARD.Services
                 }
 
                 case NetworkMatchBy.Subnet:
-                    return id.Subnets.Any(s => CidrMath.ContainsCidr(value.Trim(), s));
+                    // The rule may list several subnets (e.g. an IPv4 and an IPv6 one): any of them fits.
+                    return SplitCidrs(value).Any(rule => id.Subnets.Any(s => CidrMath.ContainsCidr(rule, s)));
 
                 default:
                     return false;
             }
+        }
+
+        // ── Conditions (AND, with NOT) ────────────────────────────────────────
+
+        /// <summary>Does one condition hold on this network? "is not" is the negation of the positive
+        /// match, EXCEPT when the fact it needs is not known yet: a negated gateway-MAC condition while the
+        /// MAC is still unresolved is false (we cannot assert "not this router" without knowing the router).</summary>
+        public static bool ConditionHolds(RuleCondition c, NetworkIdentity? id)
+        {
+            if (id == null) return false;
+            bool positive = Matches(c.By, c.Value, id);
+            if (!c.Not) return positive;
+            if (c.By == NetworkMatchBy.GatewayMac && string.IsNullOrEmpty(id.GatewayMac)) return false;
+            return !positive;
+        }
+
+        /// <summary>A rule's conditions ALL hold on this network (AND). A rule with no conditions never matches.</summary>
+        public static bool RuleMatches(TunnelRule rule, NetworkIdentity? id)
+        {
+            var conds = rule.EffectiveConditions;
+            if (conds.Count == 0 || id == null) return false;
+            foreach (var c in conds)
+                if (!ConditionHolds(c, id)) return false;
+            return true;
         }
 
         // ── Trusted-networks list ─────────────────────────────────────────────
@@ -101,7 +143,7 @@ namespace MasselGUARD.Services
         {
             NetworkMatchBy.DnsSuffix  => "suffix:" + value.Trim(),
             NetworkMatchBy.GatewayMac => "mac:"    + (NormalizeMac(value) ?? value.Trim()),
-            NetworkMatchBy.Subnet     => "subnet:" + (CidrMath.NormalizeCidr(value) ?? value.Trim()),
+            NetworkMatchBy.Subnet     => "subnet:" + (NormalizeCidrList(value) ?? value.Trim()),
             _                         => value.Trim(),
         };
 
@@ -116,38 +158,6 @@ namespace MasselGUARD.Services
             }
             return false;
         }
-
-        // ── Match-type priority (user setting) ────────────────────────────────
-
-        /// <summary>Repairs a saved priority list to a valid permutation of the four match types:
-        /// unknown and duplicate entries are dropped, missing ones are appended in default order.
-        /// A hand-edited config can therefore never disable a match type.</summary>
-        public static string[] RepairPriority(IEnumerable<string>? saved)
-        {
-            var result = new List<string>(4);
-            if (saved != null)
-                foreach (var raw in saved)
-                {
-                    var v = (raw ?? "").Trim().ToLowerInvariant();
-                    if (NetworkMatchBy.IsKnown(v) && !result.Contains(v)) result.Add(v);
-                }
-            foreach (var d in DefaultPriority)
-                if (!result.Contains(d)) result.Add(d);
-            return result.ToArray();
-        }
-
-        /// <summary>0 = highest priority. Unknown match types sort last.</summary>
-        public static int PriorityOf(string? matchBy, IReadOnlyList<string>? priority)
-        {
-            var p = priority ?? DefaultPriority;
-            for (int i = 0; i < p.Count; i++)
-                if (string.Equals(p[i], matchBy, StringComparison.OrdinalIgnoreCase)) return i;
-            return int.MaxValue;
-        }
-
-        /// <summary>Tie-break inside the subnet type: a longer (more specific) prefix first.
-        /// Returns a value where LOWER = more specific (so it can be an ascending sort key).</summary>
-        public static int SubnetSpecificity(string? cidr) => 128 - (CidrMath.PrefixLength(cidr) ?? 0);
 
         // ── Fetch (read a match value from a connected network) ───────────────
 
@@ -169,23 +179,17 @@ namespace MasselGUARD.Services
         // ── Rule selection ────────────────────────────────────────────────────
 
         /// <summary>Enabled network rules (<see cref="TunnelRule.IsNetworkKind"/>) that match this network,
-        /// best first: match-type priority, then (for subnets) the longer prefix, then list order.
+        /// in the order of the rules table (top-down): the FIRST entry is the one that wins. There is no
+        /// second ordering: the user arranges the table (drag and drop) and that order decides.
         /// <paramref name="filter"/> narrows the candidates (e.g. "has a DNS profile").
         /// Pure: does not touch execution counters.</summary>
         public static List<TunnelRule> MatchingRules(
-            IEnumerable<TunnelRule> rules, NetworkIdentity? id,
-            IReadOnlyList<string>? priority, Func<TunnelRule, bool>? filter = null)
+            IEnumerable<TunnelRule> rules, NetworkIdentity? id, Func<TunnelRule, bool>? filter = null)
         {
             if (id == null) return new List<TunnelRule>();
-            var prio = priority ?? DefaultPriority;
             return rules
-                .Select((r, i) => (r, i))
-                .Where(x => x.r.Enabled && x.r.IsNetworkKind && (filter == null || filter(x.r))
-                            && Matches(x.r.EffectiveMatchBy, x.r.EffectiveMatchValue, id))
-                .OrderBy(x => PriorityOf(x.r.EffectiveMatchBy, prio))
-                .ThenBy(x => x.r.EffectiveMatchBy == NetworkMatchBy.Subnet ? SubnetSpecificity(x.r.EffectiveMatchValue) : 0)
-                .ThenBy(x => x.i)
-                .Select(x => x.r)
+                .Where(r => r.Enabled && r.IsNetworkKind && (filter == null || filter(r))
+                            && RuleMatches(r, id))
                 .ToList();
         }
 
@@ -305,6 +309,18 @@ namespace MasselGUARD.Services
             Check("empty-value",       !Matches(NetworkMatchBy.Ssid, "  ", cafe));
             Check("null-identity",     !Matches(NetworkMatchBy.Ssid, "Cafe-Free", null));
 
+            // 2b. Several subnets in one rule (IPv4 + IPv6): any of them fits.
+            var dual = Id("wired", "eth", subnets: new[] { "10.20.4.0/24", "fd00:1::/64" });
+            Check("subnet-list-v4",      Matches(NetworkMatchBy.Subnet, "192.168.0.0/16, 10.20.0.0/16", dual));
+            Check("subnet-list-v6",      Matches(NetworkMatchBy.Subnet, "192.168.0.0/16; fd00::/16", dual));
+            Check("subnet-list-none",    !Matches(NetworkMatchBy.Subnet, "192.168.0.0/16, fd01::/16", dual));
+            Check("subnet-list-spaces",  Matches(NetworkMatchBy.Subnet, "192.168.0.0/16 10.0.0.0/8", dual));
+            Eq("subnet-normalize-list",  NormalizeCidrList("10.20.4.17/24,fd00:1::5/64 ; 10.20.4.0/24"), "10.20.4.0/24, fd00:1::/64");
+            Eq("subnet-normalize-bad",   NormalizeCidrList("10.20.4.0/24, nope"), (string?)null);
+            Eq("subnet-normalize-empty", NormalizeCidrList("  "), (string?)null);
+            Check("trusted-subnet-list", IsTrusted(new[] { "subnet:192.168.0.0/16, fd00::/16" }, dual));
+            Eq("trusted-format-list",    FormatTrustedEntry(NetworkMatchBy.Subnet, "10.20.4.9/24,fd00:1::9/64"), "subnet:10.20.4.0/24, fd00:1::/64");
+
             // 3. Trusted list: bare SSID + prefixed identities + mixed.
             Check("trusted-bare-ssid", IsTrusted(new[] { "Cafe-Free" }, cafe));
             Check("trusted-suffix",    IsTrusted(new[] { "suffix:corp.example.com" }, office));
@@ -320,17 +336,59 @@ namespace MasselGUARD.Services
             Eq("trusted-format-ssid",  FormatTrustedEntry(NetworkMatchBy.Ssid, " Home "), "Home");
             Eq("trusted-format-cidr",  FormatTrustedEntry(NetworkMatchBy.Subnet, "10.20.4.17/16"), "subnet:10.20.0.0/16");
 
-            // 4. Priority: default order, custom order honoured, damaged value repaired.
-            var def = RepairPriority(null);
-            Eq("prio-default", string.Join(",", def), "gatewaymac,ssid,dnssuffix,subnet");
-            Check("prio-mac-above-ssid", PriorityOf(NetworkMatchBy.GatewayMac, def) < PriorityOf(NetworkMatchBy.Ssid, def));
-            var flipped = RepairPriority(new[] { "ssid", "gatewaymac", "dnssuffix", "subnet" });
-            Check("prio-flipped", PriorityOf(NetworkMatchBy.Ssid, flipped) < PriorityOf(NetworkMatchBy.GatewayMac, flipped));
-            Eq("prio-repair-missing", string.Join(",", RepairPriority(new[] { "subnet" })), "subnet,gatewaymac,ssid,dnssuffix");
-            Eq("prio-repair-dup-unknown", string.Join(",", RepairPriority(new[] { "ssid", "SSID", "bogus", "subnet" })), "ssid,subnet,gatewaymac,dnssuffix");
-            Eq("prio-repair-empty", string.Join(",", RepairPriority(Array.Empty<string>())), "gatewaymac,ssid,dnssuffix,subnet");
-            Eq("prio-unknown-last", PriorityOf("bogus", def), int.MaxValue);
-            Check("subnet-longer-first", SubnetSpecificity("10.20.4.0/24") < SubnetSpecificity("10.0.0.0/8"));
+            // 3b. Conditions: AND, NOT, unresolved-MAC negation, legacy single match.
+            RuleCondition Cnd(string by, string v, bool not = false) => new() { By = by, Value = v, Not = not };
+            TunnelRule Multi(params RuleCondition[] cs) { var r = new TunnelRule { Kind = "network" }; r.SetConditions(cs); return r; }
+            var officeMacLess = office with { GatewayMac = null };
+            Check("cond-and-both",        RuleMatches(Multi(Cnd("dnssuffix", "corp.example.com"), Cnd("subnet", "10.0.0.0/8")), office));
+            Check("cond-and-one-fails",   !RuleMatches(Multi(Cnd("dnssuffix", "corp.example.com"), Cnd("subnet", "172.16.0.0/12")), office));
+            Check("cond-not-true",        RuleMatches(Multi(Cnd("dnssuffix", "corp.example.com"), Cnd("subnet", "172.16.0.0/12", true)), office));
+            Check("cond-not-false",       !RuleMatches(Multi(Cnd("dnssuffix", "corp.example.com"), Cnd("subnet", "10.0.0.0/8", true)), office));
+            Check("cond-only-not",        RuleMatches(Multi(Cnd("ssid", "Guest", true)), cafe));
+            Check("cond-not-mac-known",   RuleMatches(Multi(Cnd("gatewaymac", "aa:bb:cc:99:99:99", true)), office));
+            Check("cond-not-mac-own",     !RuleMatches(Multi(Cnd("gatewaymac", "aa:bb:cc:00:11:22", true)), office));
+            Check("cond-not-mac-unresolved-false", !RuleMatches(Multi(Cnd("gatewaymac", "aa:bb:cc:99:99:99", true)), officeMacLess));
+            Check("cond-not-ssid-on-wired", RuleMatches(Multi(Cnd("ssid", "Home", true)), office));
+            Check("cond-none-never",      !RuleMatches(new TunnelRule { Kind = "network" }, office));
+            Check("cond-null-identity",   !RuleMatches(Multi(Cnd("ssid", "x")), null));
+            // legacy single match still works (rule saved before conditions existed)
+            Check("cond-legacy-ssid",     RuleMatches(new TunnelRule { Kind = "wifi", Ssid = "Cafe-Free" }, cafe));
+            Check("cond-legacy-suffix",   RuleMatches(new TunnelRule { Kind = "network", MatchBy = "dnssuffix", MatchValue = "corp.example.com" }, office));
+            // SetConditions mirrors a single positive condition into the legacy fields, anything richer clears them
+            var one = Multi(Cnd("ssid", "Home"));
+            Check("cond-set-single-mirrors", one.Conditions == null && one.Ssid == "Home" && one.EffectiveConditions.Count == 1);
+            var oneSuf = Multi(Cnd("dnssuffix", "corp.example.com"));
+            Check("cond-set-single-suffix", oneSuf.MatchBy == "dnssuffix" && oneSuf.MatchValue == "corp.example.com" && oneSuf.Ssid == "");
+            var two = Multi(Cnd("ssid", "Home"), Cnd("subnet", "10.0.0.0/8", true));
+            Check("cond-set-multi-clears-legacy", two.Conditions is { Count: 2 } && two.Ssid == "" && two.MatchValue == "");
+            var oneNot = Multi(Cnd("ssid", "Home", true));
+            Check("cond-set-single-not-keeps-list", oneNot.Conditions is { Count: 1 } && oneNot.Ssid == "");
+            Eq("cond-plain", two.ConditionsPlain, "SSID Home AND NOT subnet 10.0.0.0/8");
+            Eq("cond-name", two.RuleName, "Home + NOT 10.0.0.0/8 → disconnect");
+            Check("cond-display-not", two.SsidDisplay.Contains("NOT") && two.SsidDisplay.Contains("AND"));
+            Eq("cond-display-single-ssid", one.SsidDisplay, "📶 Home");
+            // JSON round trip keeps conditions (config.json / presets)
+            var cfgRt = new AppConfig(); cfgRt.Rules.Add(two); cfgRt.Rules.Add(one);
+            var back = cfgRt.DeepClone();
+            Check("cond-json-roundtrip", back.Rules[0].Conditions is { Count: 2 } && back.Rules[0].Conditions![1].Not
+                                         && back.Rules[1].Conditions == null && back.Rules[1].Ssid == "Home");
+
+            // 4. Rule selection: the order of the rules table decides (first match wins), whatever the match type.
+            TunnelRule R(string by, string value, string name, bool enabled = true) =>
+                new() { Kind = "network", MatchBy = by, MatchValue = value, Ssid = by == NetworkMatchBy.Ssid ? value : "", Name = name, Enabled = enabled };
+            var rBroad = R(NetworkMatchBy.Subnet, "10.0.0.0/8", "broad");
+            var rMac   = R(NetworkMatchBy.GatewayMac, "aa:bb:cc:00:11:22", "mac");
+            var rSuf   = R(NetworkMatchBy.DnsSuffix, "corp.example.com", "suffix");
+            string Order(params TunnelRule[] rules) =>
+                string.Join(",", MatchingRules(rules, office).Select(r => r.Name));
+            Eq("order-table-first",    Order(rBroad, rMac, rSuf), "broad,mac,suffix");
+            Eq("order-follows-table",  Order(rMac, rSuf, rBroad), "mac,suffix,broad");
+            Eq("order-reversed",       Order(rSuf, rBroad, rMac), "suffix,broad,mac");
+            Eq("order-skips-disabled", MatchingRules(new[] { R(NetworkMatchBy.Subnet, "10.0.0.0/8", "off", false), rMac }, office).First().Name, "mac");
+            Eq("order-skips-nonmatch", Order(R(NetworkMatchBy.Ssid, "Home", "home"), rMac), "mac");
+            Eq("order-skips-trusted-kind", MatchingRules(new[] { new TunnelRule { Kind = "trusted", Name = "t" }, rMac }, office).First().Name, "mac");
+            Eq("order-filter", string.Join(",", MatchingRules(new[] { rBroad, rMac }, office, r => r.Name == "mac").Select(r => r.Name)), "mac");
+            Eq("order-null-identity", MatchingRules(new[] { rMac }, null).Count, 0);
 
             // 5. Primary selection.
             var eth  = Id("wired", "eth",  metric: 25);

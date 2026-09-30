@@ -319,7 +319,7 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Grid.Column="0"
+                        <TextBlock Grid.Column="0" x:Name="WifiLabelPrefix"
                                    Text="{Binding [StatusWifi], Source={x:Static local:Lang.Instance}}"
                                    Foreground="{DynamicResource TextMuted}" FontSize="11" VerticalAlignment="Center"
                                    Visibility="{DynamicResource Theme.ShowStatusWifi}"
@@ -820,7 +820,18 @@
                                         BorderBrush="{DynamicResource BorderColor}"
                                         BorderThickness="0,0,0,1"
                                         CornerRadius="{DynamicResource Theme.CornerRadiusTop}">
-                                    <Grid x:Name="WifiColGrid" Margin="8,5"
+                                    <!-- "#" = rule order (fixed column outside the resizable grid): the lowest number wins -->
+                                    <Grid Margin="8,5">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="30"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="#"
+                                               FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                               Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"
+                                               ToolTip="{Binding [RuleColOrderTip], Source={x:Static local:Lang.Instance}}"
+                                               ToolTipService.InitialShowDelay="300"/>
+                                    <Grid Grid.Column="1" x:Name="WifiColGrid"
                                           LayoutUpdated="WifiColGrid_LayoutUpdated"
                                           SizeChanged="WifiColGrid_SizeChanged">
                                         <Grid.ColumnDefinitions>
@@ -885,6 +896,7 @@
                                             </StackPanel>
                                         </Button>
                                     </Grid>
+                                    </Grid>
                                 </Border>
 
                                 <!-- Rule rows -->
@@ -922,6 +934,15 @@
                                                     BorderBrush="{Binding BorderBrush}"
                                                     BorderThickness="{Binding BorderThick}">
                                                 <Grid Margin="8,3" Opacity="{Binding Rule.RowOpacity}">
+                                                  <Grid.ColumnDefinitions>
+                                                      <ColumnDefinition Width="30"/>
+                                                      <ColumnDefinition Width="*"/>
+                                                  </Grid.ColumnDefinitions>
+                                                  <TextBlock Grid.Column="0" Text="{Binding OrderNumber}"
+                                                             Foreground="{DynamicResource TextMuted}"
+                                                             FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                             VerticalAlignment="Center"/>
+                                                  <Grid Grid.Column="1">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="{Binding Data.WifCol0W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="60"/>
                                                         <ColumnDefinition Width="{Binding Data.WifCol1W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="50"/>
@@ -983,6 +1004,7 @@
                                                                    VerticalAlignment="Center"
                                                                    TextTrimming="CharacterEllipsis"/>
                                                     </StackPanel>
+                                                  </Grid>
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
@@ -1020,6 +1042,12 @@
                                     Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
                                     Margin="6,0,0,0" IsEnabled="False"
                                     Click="WifiRuleTest_Click"/>
+                            <Button x:Name="WifiRuleTestAdvBtn"
+                                    Content="{Binding [BtnTestAdvanced], Source={x:Static local:Lang.Instance}}"
+                                    ToolTip="{Binding [TestAdvTip], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Margin="6,0,0,0"
+                                    Click="WifiRuleTestAdv_Click"/>
                         </StackPanel>
 
                     <!-- RIGHT: Activity Log - self-contained, spans all left rows -->

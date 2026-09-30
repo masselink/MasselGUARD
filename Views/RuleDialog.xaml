@@ -89,31 +89,21 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Network rules: match by SSID / DNS suffix / gateway MAC / subnet -->
+                <!-- Network rules: one or more conditions (AND), each "is" / "is not" on SSID / DNS suffix / gateway MAC / subnet -->
                 <StackPanel x:Name="SsidPanel">
-                    <TextBlock Text="{Binding [RuleDialogMatchByLabel], Source={x:Static local:Lang.Instance}}"
+                    <TextBlock Text="{Binding [RuleDialogConditionsLabel], Source={x:Static local:Lang.Instance}}"
                                FontFamily="{DynamicResource Theme.FontFamily}"
                                FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4"/>
-                    <ComboBox x:Name="MatchByBox" Margin="0,0,0,10"
-                              SelectionChanged="MatchBy_Changed"/>
-                    <TextBlock x:Name="MatchValueLabel"
-                               Text="{Binding [RuleDialogSsidLabel], Source={x:Static local:Lang.Instance}}"
-                               FontFamily="{DynamicResource Theme.FontFamily}"
-                               FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4"/>
-                    <Grid Margin="0,0,0,4">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBox Grid.Column="0" x:Name="SsidBox" Margin="0,0,8,0"
-                                 TextChanged="SsidBox_TextChanged"/>
-                        <Button Grid.Column="1" x:Name="FetchBtn"
-                                Content="{Binding [BtnFetchNetwork], Source={x:Static local:Lang.Instance}}"
-                                ToolTip="{Binding [RuleFetchTip], Source={x:Static local:Lang.Instance}}"
-                                Style="{StaticResource FlatBtn}"
-                                FontSize="10" Padding="10,6" Click="Fetch_Click"/>
-                    </Grid>
+                    <StackPanel x:Name="ConditionsHost"/>
+                    <Button x:Name="AddConditionBtn"
+                            Content="{Binding [RuleCondAdd], Source={x:Static local:Lang.Instance}}"
+                            Style="{StaticResource FlatBtn}" HorizontalAlignment="Left"
+                            FontSize="10" Padding="10,4" Margin="0,2,0,6" Click="AddCondition_Click"/>
                     <TextBlock x:Name="MatchHint"
+                               FontFamily="{DynamicResource Theme.FontFamily}"
+                               FontSize="9" Foreground="{DynamicResource TextMuted}"
+                               TextWrapping="Wrap" Margin="0,0,0,4"/>
+                    <TextBlock Text="{Binding [RuleCondHint], Source={x:Static local:Lang.Instance}}"
                                FontFamily="{DynamicResource Theme.FontFamily}"
                                FontSize="9" Foreground="{DynamicResource TextMuted}"
                                TextWrapping="Wrap" Margin="0,0,0,12"/>

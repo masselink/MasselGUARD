@@ -210,7 +210,8 @@ namespace MasselGUARD.ViewModels
         private bool NeedsGatewayMac()
         {
             var cfg = _config.Config;
-            return cfg.Rules.Any(r => r.Enabled && r.IsNetworkKind && r.EffectiveMatchBy == NetworkMatchBy.GatewayMac)
+            return cfg.Rules.Any(r => r.Enabled && r.IsNetworkKind
+                                      && r.EffectiveConditions.Any(c => c.By == NetworkMatchBy.GatewayMac))
                 || cfg.TrustedNetworks.Any(t => t.TrimStart().StartsWith("mac:", StringComparison.OrdinalIgnoreCase));
         }
 
@@ -351,10 +352,9 @@ namespace MasselGUARD.ViewModels
         private void LogSecondaryRuleMatches(NetworkSnapshot snap)
         {
             var cfg  = _config.Config;
-            var prio = NetworkMatcher.RepairPriority(cfg.NetworkMatchPriority);
             foreach (var other in snap.Adapters.Where(a => !a.IsPrimary))
             {
-                var hit = NetworkMatcher.MatchingRules(cfg.Rules, other, prio, r => !DnsPolicy.IsDnsOnly(r)).FirstOrDefault();
+                var hit = NetworkMatcher.MatchingRules(cfg.Rules, other, r => !DnsPolicy.IsDnsOnly(r)).FirstOrDefault();
                 if (hit != null)
                     _log.Info($"Rule \"{hit.RuleName}\" matches {RuleTester.Label(other)} but " +
                               $"{RuleTester.Label(snap.Primary)} is the primary network; the tunnel follows the primary network");

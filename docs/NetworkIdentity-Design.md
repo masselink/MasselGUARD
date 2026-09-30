@@ -161,7 +161,9 @@ public record NetworkSnapshot(IReadOnlyList<NetworkIdentity> Adapters)
 
 Steps 4 to 6 are exactly today's logic. Only "SSID matched" (3) and "is trusted" (4) call the matcher instead of comparing strings.
 
-### 4.3 Ordering inside the "specific network" step
+> **SUPERSEDED (decided during implementation):** the match-type priority described below was built and then **removed**. The rules TABLE is the only ordering: when several network rules match, the first one top-down (drag and drop arranges it) wins, for the tunnel and for DNS; there is no `NetworkMatchPriority` setting and no longest-prefix rule. Reason: one visible ordering is easier to reason about than a hidden second one. The MAC-vs-SSID reasoning below still applies as guidance for how to ORDER the rows (put the more specific rule higher).
+
+### 4.3 Ordering inside the "specific network" step (superseded, see note above)
 
 Candidate rules are ranked **by match type first, list order second**. The match-type order is a **user setting**, `AppConfig.NetworkMatchPriority`, so the user decides, for example, whether a gateway MAC beats an SSID or the other way round.
 

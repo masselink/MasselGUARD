@@ -61,7 +61,7 @@ namespace MasselGUARD.Services
         /// <summary>
         /// Same precedence for ONE adapter's <see cref="NetworkIdentity"/> (DNS is evaluated per adapter;
         /// docs/NetworkIdentity-Design.md 2.3). Network rules match on SSID, DNS suffix, gateway MAC or
-        /// subnet, ordered by the user's match-type priority; a null identity (no network) skips the
+        /// subnet, first hit in the rules table (top-down) wins; a null identity (no network) skips the
         /// network-dependent steps, exactly like "no SSID" did.
         /// </summary>
         public static DnsResult Evaluate(AppConfig cfg, NetworkIdentity? network, DateTime now)
@@ -79,8 +79,7 @@ namespace MasselGUARD.Services
             if (network != null)
             {
                 var m = NetworkMatcher.MatchingRules(cfg.Rules, network,
-                            NetworkMatcher.RepairPriority(cfg.NetworkMatchPriority),
-                            r => !string.IsNullOrEmpty(r.DnsProfileId)).FirstOrDefault();
+                            r => !string.IsNullOrEmpty(r.DnsProfileId)).FirstOrDefault();   // table order: first hit wins
                 if (m != null)
                     return Resolve(cfg, m.DnsProfileId, $"Rule: {NetworkMatcher.NetName(network)}");
             }
