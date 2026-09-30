@@ -1101,10 +1101,11 @@ namespace MasselGUARD
             }
         }
 
-        private void ShowQr_Click(object sender, RoutedEventArgs e)
+        /// <summary>Shows a tunnel's config as a QR code (tunnel right-click menu).</summary>
+        private void ShowQrFor(TunnelEntryViewModel vm)
         {
-            if ((sender as FrameworkElement)?.DataContext is not TunnelEntryViewModel vm)
-                return;
+            // Same rule as Export: a managed lock on Tunnels forbids exposing private keys.
+            if (ConfigSvc.TunnelsLocked) return;
             var stored = vm.StoredTunnel;
 
             // Only local tunnels have a config stored in MasselGUARD to encode.
@@ -2497,6 +2498,10 @@ namespace MasselGUARD
                 items.Add(("🚀  " + Lang.T("CtxSetStart"), accent,
                     () => { ConfigSvc.Config.ConnectOnStartTunnel = entry.Name;
                             ApplyDefaultTunnelChange(); }));
+
+            // QR export - not offered when a managed policy locks Tunnels (private keys).
+            if (!ConfigSvc.TunnelsLocked)
+                items.Add(("▦  " + Lang.T("MenuShowQr"), textPri, () => ShowQrFor(entry)));
 
             // ── Build the popup window ────────────────────────────────────────
             var popup = new Window

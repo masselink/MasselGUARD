@@ -2,6 +2,8 @@
 
 A big interface and settings overhaul: one place to turn features on or off, a consistent main-window layout, a pop-out activity log, and section icons you can theme.
 
+![The "Resolving Raven" theme - MasselGUARD 4.5.0's signature look, with its own section icons](images/resolving-raven-dark-preview.png)
+
 ### Features live in one place
 
 - **General > Feature settings** - every feature area (WireGuard, DNS, Automation, Activity log, History) is turned on or off from a single set of cards in General. Each card has an "Enable feature" toggle, a title-bar-button behaviour (show/hide the panel, or disable the feature outright), and a "show button" switch.
@@ -69,6 +71,8 @@ The built-in shield / globe / robot / bar-chart / hamburger are the default icon
 - Saving a theme in the Theme Builder no longer drops its custom section icons.
 - A tunnel that is both the default-action tunnel and the connect-on-start tunnel no longer connects twice at startup (it logged "Connected" twice).
 - No empty band above the history panel when the Automation panel is hidden.
+- Right-clicking a tunnel showed only "Show QR code"; the menu to set it as the default-action, open-network or connect-on-start tunnel is back (QR code included).
+- The setup wizard offered a kill switch "Off" option that doesn't exist (it behaved like Per tunnel); it now offers Per tunnel / Always, like Settings.
 - The WireGuard / DNS feature switches (setup wizard and Settings) could snap back or be drawn in the wrong state, because one of them had to stay on. Both can now be off, and the wizard cards are simply called **WireGuard VPN** and **DNS automation** (no more "...only"). ([#55](https://github.com/masselink/MasselGUARD/issues/55))
 
 ## v4.2.0 - Resolving Raven

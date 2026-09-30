@@ -757,7 +757,7 @@
   "SettingsDnsOffDesc": "Schakel de DNS-functie in om resolvers per netwerk, DNS-profielen en lekbescherming te configureren.",
   "SettingsDnsOffEnable": "DNS inschakelen",
   "SettingsThemeRepoHdr": "Themarepository",
-  "SettingsThemeRepoDesc": "GitHub-repository waaruit de themabrowser (Weergave → Thema's bladeren…) downloadt. Laat leeg om de officiële MasselGUARD-themarepository te gebruiken. Thema's worden per gebruiker geïnstalleerd in %APPDATA%\\MasselGUARD\\themes.",
+  "SettingsThemeRepoDesc": "GitHub-repository waaruit de themabrowser (Weergave → Thema's downloaden…) downloadt. Laat leeg om de officiële MasselGUARD-themarepository te gebruiken. Thema's worden per gebruiker geïnstalleerd in %APPDATA%\\MasselGUARD\\themes.",
   "SettingsThemeRepoDefault": "Standaard",
   "SettingsThemeRepoResetTip": "Terugzetten naar de officiële MasselGUARD-themarepository",
   "SettingsFontPreviewApplyTip": "Pas dit lettertype 10 s toe op de hele interface",

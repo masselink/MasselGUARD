@@ -757,7 +757,7 @@
   "SettingsDnsOffDesc": "Включите функцию DNS, чтобы настроить преобразователи для каждой сети, профили DNS и защиту от утечек.",
   "SettingsDnsOffEnable": "Включить DNS",
   "SettingsThemeRepoHdr": "Репозиторий тем",
-  "SettingsThemeRepoDesc": "Репозиторий GitHub, из которого загружает браузер тем (Оформление → Обзор тем…). Оставьте пустым, чтобы использовать официальный репозиторий тем MasselGUARD. Темы устанавливаются для каждого пользователя в %APPDATA%\\MasselGUARD\\themes.",
+  "SettingsThemeRepoDesc": "Репозиторий GitHub, из которого загружает браузер тем (Внешний вид → Загрузить темы…). Оставьте пустым, чтобы использовать официальный репозиторий тем MasselGUARD. Темы устанавливаются для каждого пользователя в %APPDATA%\\MasselGUARD\\themes.",
   "SettingsThemeRepoDefault": "По умолчанию",
   "SettingsThemeRepoResetTip": "Сбросить к официальному репозиторию тем MasselGUARD",
   "SettingsFontPreviewApplyTip": "Применить этот шрифт ко всему интерфейсу на 10 с",

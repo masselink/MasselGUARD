@@ -757,7 +757,7 @@
   "SettingsDnsOffDesc": "Ağ başına çözümleyicileri, DNS profillerini ve sızıntı korumasını yapılandırmak için DNS özelliğini açın.",
   "SettingsDnsOffEnable": "DNS'yi etkinleştir",
   "SettingsThemeRepoHdr": "Tema deposu",
-  "SettingsThemeRepoDesc": "Tema tarayıcısının (Görünüm → Temalara göz at…) indirdiği GitHub deposu. Resmi MasselGUARD tema deposunu kullanmak için boş bırakın. Temalar kullanıcı başına %APPDATA%\\MasselGUARD\\themes konumuna kurulur.",
+  "SettingsThemeRepoDesc": "Tema tarayıcısının (Görünüm → Tema indir…) indirdiği GitHub deposu. Resmi MasselGUARD tema deposunu kullanmak için boş bırakın. Temalar kullanıcı başına %APPDATA%\\MasselGUARD\\themes konumuna kurulur.",
   "SettingsThemeRepoDefault": "Varsayılan",
   "SettingsThemeRepoResetTip": "Resmi MasselGUARD tema deposuna sıfırla",
   "SettingsFontPreviewApplyTip": "Bu yazı tipini tüm arayüze 10 sn uygula",

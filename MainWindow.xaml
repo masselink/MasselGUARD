@@ -547,6 +547,9 @@
                                             <Setter Property="MinHeight" Value="{Binding RowMinHeight}"/>
                                             <EventSetter Event="PreviewMouseLeftButtonDown"
                                                          Handler="TunnelItem_MouseDown"/>
+                                            <!-- Right-click menu: default action / open protection / connect on start / QR (ShowTunnelPopup). -->
+                                            <EventSetter Event="PreviewMouseRightButtonUp"
+                                                         Handler="TunnelItem_RightClick"/>
                                             <Style.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter Property="Background" Value="{DynamicResource ListHover}"/>
@@ -560,12 +563,6 @@
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
                                             <Grid Margin="0">
-                                                <Grid.ContextMenu>
-                                                    <ContextMenu>
-                                                        <MenuItem Header="{Binding [MenuShowQr], Source={x:Static local:Lang.Instance}}"
-                                                                  Click="ShowQr_Click"/>
-                                                    </ContextMenu>
-                                                </Grid.ContextMenu>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="4"/>
                                                     <ColumnDefinition Width="*"/>

@@ -757,7 +757,7 @@
   "SettingsDnsOffDesc": "Activez la fonction DNS pour configurer les résolveurs par réseau, les profils DNS et la protection contre les fuites.",
   "SettingsDnsOffEnable": "Activer le DNS",
   "SettingsThemeRepoHdr": "Dépôt de thèmes",
-  "SettingsThemeRepoDesc": "Dépôt GitHub à partir duquel le navigateur de thèmes (Apparence → Parcourir les thèmes…) télécharge. Laissez vide pour utiliser le dépôt officiel de thèmes MasselGUARD. Les thèmes s'installent par utilisateur dans %APPDATA%\\MasselGUARD\\themes.",
+  "SettingsThemeRepoDesc": "Dépôt GitHub à partir duquel le navigateur de thèmes (Apparence → Télécharger des thèmes…) télécharge. Laissez vide pour utiliser le dépôt officiel de thèmes MasselGUARD. Les thèmes s'installent par utilisateur dans %APPDATA%\\MasselGUARD\\themes.",
   "SettingsThemeRepoDefault": "Par défaut",
   "SettingsThemeRepoResetTip": "Réinitialiser vers le dépôt officiel de thèmes MasselGUARD",
   "SettingsFontPreviewApplyTip": "Appliquer cette police à toute l'interface pendant 10 s",

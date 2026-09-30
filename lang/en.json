@@ -757,7 +757,7 @@
   "SettingsDnsOffDesc": "Turn on the DNS feature to configure per-network resolvers, DNS profiles and leak protection.",
   "SettingsDnsOffEnable": "Enable DNS",
   "SettingsThemeRepoHdr": "Theme repository",
-  "SettingsThemeRepoDesc": "GitHub repository the theme browser (Appearance → Browse themes…) downloads from. Leave blank to use the official MasselGUARD themes repository. Themes install per-user into %APPDATA%\\MasselGUARD\\themes.",
+  "SettingsThemeRepoDesc": "GitHub repository the theme browser (Appearance → Download themes…) downloads from. Leave blank to use the official MasselGUARD themes repository. Themes install per-user into %APPDATA%\\MasselGUARD\\themes.",
   "SettingsThemeRepoDefault": "Default",
   "SettingsThemeRepoResetTip": "Reset to the official MasselGUARD themes repository",
   "SettingsFontPreviewApplyTip": "Apply this font to the whole interface for 10 s",

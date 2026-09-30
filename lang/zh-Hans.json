@@ -757,7 +757,7 @@
   "SettingsDnsOffDesc": "开启 DNS 功能以配置每个网络的解析器、DNS 配置文件和泄漏保护。",
   "SettingsDnsOffEnable": "启用 DNS",
   "SettingsThemeRepoHdr": "主题仓库",
-  "SettingsThemeRepoDesc": "主题浏览器（外观 → 浏览主题…）从中下载的 GitHub 仓库。留空则使用官方 MasselGUARD 主题仓库。主题按用户安装到 %APPDATA%\\MasselGUARD\\themes。",
+  "SettingsThemeRepoDesc": "主题浏览器（外观 → 下载主题…）从中下载的 GitHub 仓库。留空则使用官方 MasselGUARD 主题仓库。主题按用户安装到 %APPDATA%\\MasselGUARD\\themes。",
   "SettingsThemeRepoDefault": "默认",
   "SettingsThemeRepoResetTip": "重置为官方 MasselGUARD 主题仓库",
   "SettingsFontPreviewApplyTip": "将此字体应用于整个界面 10 秒",

@@ -757,7 +757,7 @@
   "SettingsDnsOffDesc": "DNS 機能をオンにすると、ネットワークごとのリゾルバー、DNS プロファイル、リーク保護を構成できます。",
   "SettingsDnsOffEnable": "DNS を有効にする",
   "SettingsThemeRepoHdr": "テーマリポジトリ",
-  "SettingsThemeRepoDesc": "テーマブラウザー（外観 → テーマを閲覧…）のダウンロード元となる GitHub リポジトリ。空欄にすると公式の MasselGUARD テーマリポジトリを使用します。テーマはユーザーごとに %APPDATA%\\MasselGUARD\\themes にインストールされます。",
+  "SettingsThemeRepoDesc": "テーマブラウザー（外観 → テーマをダウンロード…）のダウンロード元となる GitHub リポジトリ。空欄にすると公式の MasselGUARD テーマリポジトリを使用します。テーマはユーザーごとに %APPDATA%\\MasselGUARD\\themes にインストールされます。",
   "SettingsThemeRepoDefault": "既定",
   "SettingsThemeRepoResetTip": "公式の MasselGUARD テーマリポジトリにリセット",
   "SettingsFontPreviewApplyTip": "このフォントをインターフェース全体に 10 秒間適用",

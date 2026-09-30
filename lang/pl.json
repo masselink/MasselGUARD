@@ -757,7 +757,7 @@
   "SettingsDnsOffDesc": "Włącz funkcję DNS, aby skonfigurować resolvery dla poszczególnych sieci, profile DNS i ochronę przed wyciekami.",
   "SettingsDnsOffEnable": "Włącz DNS",
   "SettingsThemeRepoHdr": "Repozytorium motywów",
-  "SettingsThemeRepoDesc": "Repozytorium GitHub, z którego pobiera przeglądarka motywów (Wygląd → Przeglądaj motywy…). Pozostaw puste, aby użyć oficjalnego repozytorium motywów MasselGUARD. Motywy instalują się dla użytkownika w %APPDATA%\\MasselGUARD\\themes.",
+  "SettingsThemeRepoDesc": "Repozytorium GitHub, z którego pobiera przeglądarka motywów (Wygląd → Pobierz motywy…). Pozostaw puste, aby użyć oficjalnego repozytorium motywów MasselGUARD. Motywy instalują się dla użytkownika w %APPDATA%\\MasselGUARD\\themes.",
   "SettingsThemeRepoDefault": "Domyślne",
   "SettingsThemeRepoResetTip": "Przywróć oficjalne repozytorium motywów MasselGUARD",
   "SettingsFontPreviewApplyTip": "Zastosuj tę czcionkę do całego interfejsu na 10 s",

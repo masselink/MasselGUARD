@@ -757,7 +757,7 @@
   "SettingsDnsOffDesc": "Ative o recurso DNS para configurar resolvedores por rede, perfis DNS e proteção contra vazamentos.",
   "SettingsDnsOffEnable": "Ativar DNS",
   "SettingsThemeRepoHdr": "Repositório de temas",
-  "SettingsThemeRepoDesc": "Repositório do GitHub do qual o navegador de temas (Aparência → Procurar temas…) baixa. Deixe em branco para usar o repositório oficial de temas do MasselGUARD. Os temas são instalados por usuário em %APPDATA%\\MasselGUARD\\themes.",
+  "SettingsThemeRepoDesc": "Repositório do GitHub do qual o navegador de temas (Aparência → Baixar temas…) baixa. Deixe em branco para usar o repositório oficial de temas do MasselGUARD. Os temas são instalados por usuário em %APPDATA%\\MasselGUARD\\themes.",
   "SettingsThemeRepoDefault": "Padrão",
   "SettingsThemeRepoResetTip": "Redefinir para o repositório oficial de temas do MasselGUARD",
   "SettingsFontPreviewApplyTip": "Aplicar esta fonte a toda a interface por 10 s",
