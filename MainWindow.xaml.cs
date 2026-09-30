@@ -782,6 +782,7 @@ namespace MasselGUARD
 
         private void ApplyGroupFilter()
         {
+            QueueWindowSizeSync(false);   // entry count changed - re-fit the list rows (ApplyRowCaps)
             var all    = _vm.TunnelList;
             var groups = ConfigSvc.Config.TunnelGroups;
 
@@ -1466,6 +1467,7 @@ namespace MasselGUARD
         /// <summary>Rebuild the DNS-profiles panel rows from config (profiles + rule usage counts).</summary>
         public void RebuildDnsPanel()
         {
+            QueueWindowSizeSync(false);   // entry count changed - re-fit the list rows (ApplyRowCaps)
             if (DnsProfilesPanelList == null) return;
             // Preserve the selection across the ItemsSource swap (new row objects would otherwise
             // clear it, disabling Edit/Delete).
@@ -2749,12 +2751,6 @@ namespace MasselGUARD
             bool rightColNeeded = (tunnels && dns) || (wifiShown && logVisible);
             var  auto = GridLength.Auto;
             var  zero = new GridLength(0);
-            // Cap the list rows only when BOTH the top and bottom regions are present, so they share
-            // the height without one dominating. When only one region is shown it fills the content
-            // area (no cap) so a lone panel - e.g. the Activity log by itself - stretches down to the
-            // history panel instead of stopping at the cap and leaving a gap.
-            double listCap = bothRegions ? ListRowMaxHeight : double.PositiveInfinity;
-
             // WireGuard (tunnels) - left, rows 0-2. Spans full width when DNS is hidden.
             var tv = tunnels ? Visibility.Visible : Visibility.Collapsed;
             int tunnelSpan = dns ? 1 : 3;
@@ -2769,11 +2765,7 @@ namespace MasselGUARD
             // when neither top panel is shown, otherwise it leaves an empty band above Automation/log.
             if (TopHeaderRow != null) TopHeaderRow.MinHeight = topPresent ? 30 : 0;
             if (TunnelsListRow != null)
-            {
-                TunnelsListRow.Height    = topPresent ? new GridLength(5, GridUnitType.Star) : new GridLength(0);
-                TunnelsListRow.MinHeight = topPresent ? 165 : 0;
-                TunnelsListRow.MaxHeight = listCap;
-            }
+                TunnelsListRow.Height = topPresent ? new GridLength(5, GridUnitType.Star) : new GridLength(0);
 
             // DNS - top-right when WireGuard is shown, else it takes the left column full width.
             var dv = dns ? Visibility.Visible : Visibility.Collapsed;
@@ -2792,11 +2784,8 @@ namespace MasselGUARD
             if (WifiRulesHeaderRow != null) WifiRulesHeaderRow.Height = wifiShown ? auto : zero;
             if (WifiRulesBtnsRow   != null) WifiRulesBtnsRow.Height   = wifiShown ? auto : zero;
             if (WifiRulesPanelRow  != null)
-            {
-                WifiRulesPanelRow.Height    = bottomPresent ? new GridLength(2, GridUnitType.Star) : zero;
-                WifiRulesPanelRow.MinHeight = bottomPresent ? (wifiShown ? 152 : 90) : 0;
-                WifiRulesPanelRow.MaxHeight = bottomPresent ? listCap : double.PositiveInfinity;
-            }
+                WifiRulesPanelRow.Height = bottomPresent ? new GridLength(2, GridUnitType.Star) : zero;
+            ApplyRowCaps();   // row heights follow the WireGuard / Automation lists (see ApplyRowCaps)
 
             // Automation (WiFi rules) - left, rows 3-5. Spans full width when the log is hidden.
             int autoSpan = logVisible ? 1 : 3;
@@ -2848,6 +2837,63 @@ namespace MasselGUARD
             QueueWindowSizeSync(false);
         }
 
+        // ── List-row heights ───────────────────────────────────────────────────
+        // When both the top (WireGuard | DNS) and bottom (Automation | Activity log) regions are shown,
+        // each row is sized by its LEFT list - the tunnels and the automation rules - to fit its entries
+        // (at least MinVisibleRows, at most ListRowMaxHeight). The DNS profiles and the log beside them
+        // don't grow the row; they scroll. A lone region still fills the content area (no cap), so a
+        // single panel stretches down to the history panel.
+        private const int MinVisibleRows = 4;
+        private double _bottomRowCap = ListRowMaxHeight;
+        private readonly Dictionary<System.Windows.Controls.ListView, double> _rowHeightCache = new();
+
+        private void ApplyRowCaps()
+        {
+            var cfg = ConfigSvc.Config;
+            bool tunnels = cfg.EnableTunnels && cfg.TunnelsSectionVisible;
+            bool dns     = cfg.EnableDns && cfg.DnsSectionVisible;
+            bool log     = cfg.ActivityLogEnabled && _logPanelVisible;
+            bool wifi    = !cfg.ManualMode && cfg.ShowWifiRulesOnMainWindow;
+            bool top = tunnels || dns, bottom = wifi || log, both = top && bottom;
+
+            double topCap = !both ? double.PositiveInfinity
+                          : tunnels ? FitListRows(TunnelBoxBorder, TunnelsListView)
+                          :           FitListRows(DnsPanelBox, DnsProfilesPanelList);
+            double botCap = !both ? double.PositiveInfinity
+                          : wifi    ? FitListRows(WifiRulesPanel, WifiRulesListView)
+                          :           ListRowMaxHeight;   // log only: keep the standard cap
+            _bottomRowCap = double.IsPositiveInfinity(botCap) ? ListRowMaxHeight : botCap;
+
+            if (TunnelsListRow != null)
+            {
+                TunnelsListRow.MaxHeight = top ? topCap : double.PositiveInfinity;
+                TunnelsListRow.MinHeight = !top ? 0 : both ? topCap : 165;
+            }
+            if (WifiRulesPanelRow != null)
+            {
+                WifiRulesPanelRow.MaxHeight = bottom ? botCap : double.PositiveInfinity;
+                WifiRulesPanelRow.MinHeight = !bottom ? 0 : both ? botCap : (wifi ? 152 : 90);
+            }
+        }
+
+        /// <summary>Height of the list card <paramref name="box"/> that shows <paramref name="lv"/>'s entries
+        /// without scrolling - at least MinVisibleRows rows, at most ListRowMaxHeight. Chrome (column
+        /// header, borders, margins) = card height minus the list's own height; the row height is measured
+        /// from a realized row (remembered for when the list is empty).</summary>
+        private double FitListRows(FrameworkElement? box, System.Windows.Controls.ListView? lv)
+        {
+            if (box == null || lv == null || box.ActualHeight <= 0 || lv.ActualHeight <= 0) return ListRowMaxHeight;
+            double chrome = box.ActualHeight - lv.ActualHeight + box.Margin.Top + box.Margin.Bottom;
+
+            if (lv.Items.Count > 0 &&
+                lv.ItemContainerGenerator.ContainerFromIndex(0) is FrameworkElement row && row.ActualHeight > 0)
+                _rowHeightCache[lv] = row.ActualHeight;
+            if (!_rowHeightCache.TryGetValue(lv, out var rowH)) return ListRowMaxHeight;   // not measured yet
+
+            int rows = Math.Max(MinVisibleRows, lv.Items.Count);
+            return Math.Min(ListRowMaxHeight, Math.Ceiling(chrome + rows * rowH + 4));   // +4: list border slack
+        }
+
         /// <summary>Coalesce a content-driven window-size pass to the next layout tick. <paramref
         /// name="snap"/> sets the window Height to the content minimum (shrink-to-fit on a section
         /// toggle); otherwise MinHeight is refreshed and Height only grows if it would clip.</summary>
@@ -2886,9 +2932,10 @@ namespace MasselGUARD
             // Without Automation those rows are collapsed and the log's header + buttons sit inside
             // the capped row too - subtract them, or the probe over-measures by that much and leaves
             // an empty band above the history panel.
+            ApplyRowCaps();   // row heights follow the current tunnel / rule counts
             var cfgNow = ConfigSvc.Config;
             bool automationShown = !cfgNow.ManualMode && cfgNow.ShowWifiRulesOnMainWindow;
-            double logProbeCap = ListRowMaxHeight;
+            double logProbeCap = automationShown ? _bottomRowCap : ListRowMaxHeight;
             if (!automationShown && LogHeaderGrid != null && LogExportRow != null)
                 logProbeCap = Math.Max(40, ListRowMaxHeight
                     - LogHeaderGrid.DesiredSize.Height - LogExportRow.DesiredSize.Height);   // DesiredSize includes margins
@@ -3470,6 +3517,7 @@ namespace MasselGUARD
 
         public void RefreshWifiRulesPanel()
         {
+            QueueWindowSizeSync(false);   // entry count changed - re-fit the list rows (ApplyRowCaps)
             bool manualMode = ConfigSvc.Config.ManualMode;
             bool showPanel  = ConfigSvc.Config.ShowWifiRulesOnMainWindow && !manualMode;
 
