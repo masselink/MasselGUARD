@@ -15,24 +15,52 @@ set DOTNET_NOLOGO=1
 set DIST=%~dp0dist
 set DEPS=%~dp0wireguard-deps
 
-rem ── Architecture selection ───────────────────────────────────────────────────
-rem   BUILD.bat            -> builds all supported arches (x64 + arm64)
-rem   BUILD.bat x64        -> x64 only
-rem   BUILD.bat arm64      -> arm64 only
+rem ── Arguments (any order) ────────────────────────────────────────────────────
+rem   BUILD.bat                  -> builds all supported arches (x64 + arm64) + release zips
+rem   BUILD.bat x64 | arm64      -> that arch only (all = both)
+rem   nozip                      -> skip the release zip (quick test build; removes a stale zip)
+rem   run                        -> after a successful build, start MasselGUARD.exe for this
+rem                                 PC's architecture and don't wait for a key press
+rem   e.g.  BUILD.bat x64 nozip run
 rem Each arch is published natively (framework-dependent single-file) into
 rem dist\<arch>\ with its matching wireguard-deps\<arch>\ DLLs, then zipped to
 rem dist\MasselGUARD-<arch>.zip for release. ARM64 native DLLs must be built
 rem separately (tunnelbuild\tunnelbuild.bat arm64); without them the ARM64 exe
 rem still builds but has no local-tunnel support.
-set ARCHES=%~1
-if "%ARCHES%"=="" set ARCHES=all
-if /I "%ARCHES%"=="all" set ARCHES=x64 arm64
+set ARCHES=
+set NOZIP=0
+set RUN=0
+:parse_args
+if "%~1"=="" goto args_done
+if /I "%~1"=="x64" (
+    set ARCHES=!ARCHES! x64
+) else if /I "%~1"=="arm64" (
+    set ARCHES=!ARCHES! arm64
+) else if /I "%~1"=="all" (
+    set ARCHES=!ARCHES! x64 arm64
+) else if /I "%~1"=="nozip" (
+    set NOZIP=1
+) else if /I "%~1"=="run" (
+    set RUN=1
+) else (
+    echo.
+    echo  ERROR: unknown argument "%~1".
+    echo  Usage: BUILD.bat [x64^|arm64^|all] [nozip] [run]
+    echo.
+    pause & exit /b 1
+)
+shift
+goto parse_args
+:args_done
+if "%ARCHES%"=="" set ARCHES=x64 arm64
+set PACKAGING=release zips
+if "%NOZIP%"=="1" set PACKAGING=no zips (test build)
 
 echo.
 echo  --------------------------------------------------
 echo  MasselGUARD  v%VERSION%  ^|  %CODENAME%
 echo  Harold Masselink  ^|  https://masselink.net
-echo  Building arch(es): %ARCHES%
+echo  Building arch(es):%ARCHES%  ^|  %PACKAGING%
 echo  --------------------------------------------------
 echo.
 
@@ -85,6 +113,20 @@ echo.
 echo   Target machine requires the .NET 10 Desktop Runtime for its architecture:
 echo   https://dotnet.microsoft.com/download/dotnet/10.0
 echo.
+
+rem ── Optional: start the build for this PC's architecture ────────────────────
+if "%RUN%"=="1" (
+    set RUNARCH=x64
+    if /I "%PROCESSOR_ARCHITECTURE%"=="ARM64" set RUNARCH=arm64
+    if /I "%PROCESSOR_ARCHITEW6432%"=="ARM64" set RUNARCH=arm64
+    if exist "%DIST%\!RUNARCH!\MasselGUARD.exe" (
+        echo   Starting dist\!RUNARCH!\MasselGUARD.exe ...
+        start "" "%DIST%\!RUNARCH!\MasselGUARD.exe"
+        exit /b 0
+    )
+    echo   NOTE: run skipped - no !RUNARCH! build for this PC ^(add !RUNARCH! to the arguments^).
+    echo.
+)
 pause
 exit /b 0
 
@@ -225,8 +267,14 @@ if exist "%OUT%\*.pdb" (
 rem ── Package release zip: dist\MasselGUARD-<arch>.zip ────────────────────────
 rem Delete any stale zip first so the existence check reflects THIS run only, then
 rem fail the build if packaging did not produce it (a missing release asset is fatal).
-echo   Packaging dist\MasselGUARD-%ARCH%.zip ...
+rem With "nozip" the stale zip is still removed, so an old build can't be shipped by mistake.
 if exist "%DIST%\MasselGUARD-%ARCH%.zip" del /f /q "%DIST%\MasselGUARD-%ARCH%.zip" >nul 2>&1
+if "%NOZIP%"=="1" (
+    echo   Skipped release zip ^(nozip^)
+    echo.
+    endlocal & exit /b 0
+)
+echo   Packaging dist\MasselGUARD-%ARCH%.zip ...
 rem Retry the zip: cloud sync (OneDrive) / AV can briefly lock a freshly-copied
 rem file in dist\%ARCH%\lang\ right as Compress-Archive reads it. Ride it out.
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$src='%OUT%\*'; $dst='%DIST%\MasselGUARD-%ARCH%.zip'; for($i=1;$i -le 8;$i++){ try { Compress-Archive -Path $src -DestinationPath $dst -Force -ErrorAction Stop; break } catch { if($i -eq 8){ throw }; Write-Host ('  zip source locked (attempt ' + $i + '/8) - retrying in 3s...'); Start-Sleep -Seconds 3 } }"
