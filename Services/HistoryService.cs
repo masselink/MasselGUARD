@@ -178,14 +178,25 @@ namespace MasselGUARD.Services
 
         /// <summary>Record connection to a new SSID (closes any previously-open entry first).</summary>
         public void RecordSsidConnect(string ssid, bool isOpen = false)
+            => RecordNetworkConnect(ssid, MasselGUARD.Models.NetworkIdentity.KindWifi, isOpen);
+
+        /// <summary>Record the primary network (Wi-Fi or wired) the history follows; closes the previously
+        /// open entry. The chart shows one network at a time, so entries never overlap.</summary>
+        public void RecordNetworkConnect(MasselGUARD.Models.NetworkIdentity id)
+            => RecordNetworkConnect(NetworkMatcher.HistoryLabel(id), id.Kind, id.IsOpen,
+                                    id.IsWired ? id.AdapterName : "", id.DnsSuffix, id.GatewayMac);
+
+        private void RecordNetworkConnect(string label, string kind, bool isOpen,
+            string adapterName = "", string? dnsSuffix = null, string? gatewayMac = null)
         {
             if (!CaptureEnabled) return;
-            if (string.IsNullOrWhiteSpace(ssid)) return;
+            if (string.IsNullOrWhiteSpace(label)) return;
             lock (_ssidLock)
             {
-                // Already recording this exact SSID - skip duplicate
+                // Already recording this exact network - skip duplicate
                 if (_ssidEntries.Any(e => e.DisconnectedAt == null &&
-                        e.Ssid.Equals(ssid, StringComparison.OrdinalIgnoreCase)))
+                        string.Equals(e.Kind, kind, StringComparison.OrdinalIgnoreCase) &&
+                        e.Ssid.Equals(label, StringComparison.OrdinalIgnoreCase)))
                     return;
 
                 // Close any other open entry
@@ -194,9 +205,13 @@ namespace MasselGUARD.Services
 
                 _ssidEntries.Insert(0, new MasselGUARD.Models.WifiHistoryEntry
                 {
-                    Ssid        = ssid,
+                    Ssid        = label,
                     ConnectedAt = DateTime.UtcNow,
                     IsOpen      = isOpen,
+                    Kind        = kind,
+                    AdapterName = adapterName,
+                    DnsSuffix   = dnsSuffix,
+                    GatewayMac  = gatewayMac,
                 });
 
                 if (_ssidEntries.Count > MaxSsidEntries)

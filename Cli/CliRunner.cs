@@ -105,7 +105,7 @@ namespace MasselGUARD.Cli
                     "network"                           => CmdNetwork(args, cfg, json),
                     "log"                               => CmdLog(args, json, logType),
                     "tunnel-history"                => CmdTunnelHistory(args, json),
-                    "wifi-history"                      => CmdWifiHistory(args, json),
+                    "wifi-history" or "network-history" => CmdWifiHistory(args, json),
                     "import"                            => CmdImport(args, cfg, configSvc, json, quiet),
                     "delete"        or "remove"         => CmdDelete(args, cfg, configSvc, json, quiet),
                     "rawconnect"                        => CmdRawConnect(args, cfg, configSvc, json, quiet),
@@ -751,7 +751,10 @@ namespace MasselGUARD.Cli
             {
                 CliOutput.PrintJson(entries.Select(e => new
                 {
-                    ssid            = e.Ssid,
+                    ssid            = e.Ssid,           // display label: SSID, or the wired network's suffix / adapter
+                    kind            = e.Kind,
+                    adapter         = string.IsNullOrEmpty(e.AdapterName) ? null : e.AdapterName,
+                    dns_suffix      = e.DnsSuffix,
                     connected_at    = e.ConnectedAt.ToLocalTime().ToString("o"),
                     disconnected_at = e.DisconnectedAt?.ToLocalTime().ToString("o"),
                     duration_sec    = e.DisconnectedAt.HasValue
@@ -762,23 +765,24 @@ namespace MasselGUARD.Cli
                 return 0;
             }
 
-            if (entries.Count == 0) { CliOutput.Info("No WiFi history."); return 0; }
+            if (entries.Count == 0) { CliOutput.Info("No network history."); return 0; }
 
-            int ssidW = Math.Max(entries.Max(e => (e.Ssid ?? "").Length), 4);
+            int ssidW = Math.Max(entries.Max(e => (e.Ssid ?? "").Length), 7);
             int whenW = 18, durW = 10;
 
-            CliOutput.Info($"  {"SSID".PadRight(ssidW)}  {"When".PadRight(whenW)}  {"Duration".PadRight(durW)}  Security");
-            CliOutput.Info($"  {new string('─', ssidW)}  {new string('─', whenW)}  {new string('─', durW)}  ────────");
+            CliOutput.Info($"  {"Network".PadRight(ssidW)}  {"Type".PadRight(5)}  {"When".PadRight(whenW)}  {"Duration".PadRight(durW)}  Security");
+            CliOutput.Info($"  {new string('─', ssidW)}  {new string('─', 5)}  {new string('─', whenW)}  {new string('─', durW)}  ────────");
 
             foreach (var e in entries)
             {
                 var ssid = (e.Ssid ?? "").PadRight(ssidW);
+                var type = (e.IsWired ? "wired" : "wifi").PadRight(5);
                 var when = FormatWhen(e.ConnectedAt.ToLocalTime()).PadRight(whenW);
                 var dur  = e.DisconnectedAt.HasValue
                     ? FormatUptime(e.DisconnectedAt.Value - e.ConnectedAt).PadRight(durW)
                     : "active    ";
-                var sec  = e.IsOpen ? "open" : "secured";
-                CliOutput.Info($"  {ssid}  {when}  {dur}  {sec}");
+                var sec  = e.IsWired ? "-" : e.IsOpen ? "open" : "secured";
+                CliOutput.Info($"  {ssid}  {type}  {when}  {dur}  {sec}");
             }
             return 0;
         }

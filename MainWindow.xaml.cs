@@ -324,6 +324,9 @@ namespace MasselGUARD
             UpdateStatusBarCentre();
             ApplyPolicyGating();
 
+            // History follows the primary network (subscribe before the first evaluation below)
+            _vm.PrimaryNetworkChanged += OnPrimaryNetworkChanged;
+
             // WiFi - single consolidated handler: label + rule evaluation
             WifiSvc.SsidChanged += OnWifiChanged;
             WifiSvc.Start();
@@ -1900,7 +1903,14 @@ namespace MasselGUARD
         }
 
         // ── Status bar ────────────────────────────────────────────────────────
-        private string? _lastRecordedSsid = null;
+        /// <summary>The history follows the PRIMARY network (Wi-Fi or wired), one segment at a time, so the
+        /// chart band never overlaps. Raised by the view-model when the primary network really changes.</summary>
+        private void OnPrimaryNetworkChanged(NetworkIdentity? primary)
+        {
+            if (!ConfigSvc.Config.StoreWifiHistory) return;
+            if (primary == null) HistorySvc.RecordSsidDisconnect();
+            else                 HistorySvc.RecordNetworkConnect(primary);
+        }
 
         private void OnWifiChanged(string? ssid, bool isOpen)
         {
@@ -1923,16 +1933,7 @@ namespace MasselGUARD
         /// </summary>
         private void ApplyWifiState(string? ssid, bool isOpen)
         {
-            if (!string.Equals(ssid, _lastRecordedSsid, StringComparison.OrdinalIgnoreCase))
-            {
-                if (ConfigSvc.Config.StoreWifiHistory)
-                {
-                    if (ssid != null) HistorySvc.RecordSsidConnect(ssid, isOpen);
-                    else              HistorySvc.RecordSsidDisconnect();
-                }
-                _lastRecordedSsid = ssid;
-            }
-
+            // (History is recorded from the primary-network event, not here: see OnPrimaryNetworkChanged.)
             UpdateWifiLabel(ssid);
             _vm.ApplyWifiState(ssid, isOpen);
         }
@@ -5977,7 +5978,7 @@ namespace MasselGUARD
             // WiFi icon dot (steel-blue tint)
             row.Children.Add(new TextBlock
             {
-                Text              = "📶",
+                Text              = entry.IsWired ? "🔌" : "📶",
                 FontSize          = 8,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin            = new Thickness(0, 0, 4, 0),
@@ -5985,7 +5986,8 @@ namespace MasselGUARD
 
             // Build label
             var connLocal = entry.ConnectedAt.ToLocalTime();
-            string openTag = entry.IsOpen ? "  ⚠ " + Lang.T("ChartOpenTag") : "";
+            string openTag = (entry.IsWired ? "  · " + Lang.T("DiagKindWired") : "")
+                           + (entry.IsOpen ? "  ⚠ " + Lang.T("ChartOpenTag") : "");
             string text;
             if (entry.DisconnectedAt == null)
             {

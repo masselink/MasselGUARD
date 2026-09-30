@@ -180,6 +180,11 @@ namespace MasselGUARD.ViewModels
         /// <summary>The connected networks as of the last evaluation (Wi-Fi + wired, primary flagged).</summary>
         public NetworkSnapshot CurrentNetwork => _lastSnapshot;
 
+        /// <summary>Raised (UI thread) when the PRIMARY network really changed (kind, name or open flag;
+        /// a resolving MAC or a renewed lease does not count). Null = no network. The history follows this.</summary>
+        public event Action<NetworkIdentity?>? PrimaryNetworkChanged;
+        private string _lastHistoryKey = "\0";   // sentinel so the very first snapshot always reports
+
         /// <summary>GUID of the primary network's adapter (the one shown in the DNS panel and diagnostics);
         /// falls back to the WLAN adapter before the first snapshot exists.</summary>
         public Guid PrimaryInterfaceGuid =>
@@ -263,6 +268,13 @@ namespace MasselGUARD.ViewModels
             bool firstEvaluation = !_networkEvaluatedOnce;
             _lastSnapshot = snap;
             _networkEvaluatedOnce = true;
+
+            string histKey = NetworkMatcher.HistoryKey(snap.Primary);
+            if (histKey != _lastHistoryKey)
+            {
+                _lastHistoryKey = histKey;
+                try { PrimaryNetworkChanged?.Invoke(snap.Primary); } catch { /* history must never break rules */ }
+            }
 
             var cfg     = _config.Config;
             var oldKeys = _lastAdapterKeys;

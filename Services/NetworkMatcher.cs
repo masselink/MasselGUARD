@@ -199,6 +199,20 @@ namespace MasselGUARD.Services
                 Array.Empty<string>(), null, 0, true);
         }
 
+        /// <summary>Label a network gets in the history/chart: the SSID for Wi-Fi, the DNS suffix for a
+        /// wired network, and the adapter name when neither exists.</summary>
+        public static string HistoryLabel(NetworkIdentity id)
+        {
+            if (id.IsWifi && !string.IsNullOrEmpty(id.Ssid)) return id.Ssid!;
+            if (id.IsWired && !string.IsNullOrEmpty(id.DnsSuffix)) return id.DnsSuffix!;
+            return id.AdapterName;
+        }
+
+        /// <summary>Identity of "the network the history is following": changes when the primary network
+        /// really changes (kind, label or open flag), not when a MAC resolves or a lease renews.</summary>
+        public static string HistoryKey(NetworkIdentity? id) =>
+            id == null ? "" : $"{id.Kind}|{HistoryLabel(id)}|{(id.IsOpen ? 1 : 0)}";
+
         /// <summary>Name used in decision reasons: the SSID for Wi-Fi, the adapter name for wired.</summary>
         public static string NetName(NetworkIdentity id) =>
             id.IsWifi && !string.IsNullOrEmpty(id.Ssid) ? id.Ssid! : id.AdapterName;
@@ -335,6 +349,16 @@ namespace MasselGUARD.Services
             Eq("primary-empty", PrimaryId(Array.Empty<NetworkIdentity>(), "windows"), "none");
             Eq("primary-exactly-one", SelectPrimary(new[] { eth, wifi }, "windows").Count(a => a.IsPrimary), 1);
             Eq("primary-unknown-mode", PrimaryId(new[] { wifi, eth }, "bogus"), "eth");
+
+            // 5b. History label / key: SSID, else DNS suffix (wired), else adapter name; MAC/lease churn keeps the key.
+            Eq("hist-wifi",           HistoryLabel(cafe), "Cafe-Free");
+            Eq("hist-wired-suffix",   HistoryLabel(office), "corp.example.com");
+            Eq("hist-wired-adapter",  HistoryLabel(Id("wired", "eth")), "eth");
+            Eq("hist-wifi-no-ssid",   HistoryLabel(Id("wifi", "wlan")), "wlan");
+            Eq("hist-key-none",       HistoryKey(null), "");
+            Check("hist-key-stable-mac", HistoryKey(office) == HistoryKey(office with { GatewayMac = null, Subnets = new[] { "10.9.9.0/24" } }));
+            Check("hist-key-differs-label", HistoryKey(office) != HistoryKey(Id("wired", "eth", suffix: "hotel.example")));
+            Check("hist-key-differs-kind",  HistoryKey(Id("wired", "x", ssid: "A")) != HistoryKey(Id("wifi", "x", ssid: "A")));
 
             // 6. Snapshot fingerprint: identical = same, any identity change = different.
             var s1 = new NetworkSnapshot(SelectPrimary(new[] { eth, wifi }, "windows"));
