@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Input;
@@ -36,21 +37,29 @@ namespace MasselGUARD.Views
 
         private void Rebuild()
         {
-            LogDocument.Blocks.Clear();
-            foreach (var e in _log.Entries) Append(e);
+            _timeWidth = LogTable.TimeWidth(LogBox);
+            TimeHeaderCol.Width = new GridLength(_timeWidth);
+            // One batched edit (newest first) - see LogTable.Fill.
+            LogTable.Fill(LogBox, Enumerable.Reverse(_log.Entries).Select(BuildRow).ToList());
             CountLabel.Text = _log.Count.ToString();
         }
+
+        // Time slot width - measured from the log font in Rebuild and applied to the header's
+        // Time column too, so events stay under "Event".
+        private double _timeWidth = 70;
 
         /// <summary>Render one entry at the top (newest first), matching the main-window styling.</summary>
         private void Append(LogEntry entry)
         {
-            var para = new Paragraph { Margin = new Thickness(0), Padding = new Thickness(0) };
+            LogTable.Prepend(LogDocument, BuildRow(entry));
+            CountLabel.Text = _log.Count.ToString();
+        }
 
+        private Paragraph BuildRow(LogEntry entry)
+        {
             Brush tsBrush;
             try { tsBrush = new SolidColorBrush((Color)FindResource("Theme.LogTimestampColor")); }
             catch { tsBrush = SafeBrush("TextMuted"); }
-
-            var ts = new Run(entry.Timestamp.ToString("HH:mm:ss") + "  ") { Foreground = tsBrush };
 
             Brush msgBrush = entry.Level switch
             {
@@ -60,16 +69,8 @@ namespace MasselGUARD.Views
                 _             => SafeBrush("TextMuted"),
             };
 
-            string prefix = entry.IsContinuation ? "  ↳ " : "";
-            para.Inlines.Add(ts);
-            para.Inlines.Add(new Run(prefix + entry.Message) { Foreground = msgBrush });
-
-            if (LogDocument.Blocks.FirstBlock != null)
-                LogDocument.Blocks.InsertBefore(LogDocument.Blocks.FirstBlock, para);
-            else
-                LogDocument.Blocks.Add(para);
-
-            CountLabel.Text = _log.Count.ToString();
+            // Same two-column Time | Event table as the main-window log (see LogTable).
+            return LogTable.BuildRow(entry, tsBrush, msgBrush, _timeWidth);
         }
 
         private Brush SafeBrush(string key)

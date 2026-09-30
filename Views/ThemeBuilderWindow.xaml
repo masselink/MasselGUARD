@@ -54,7 +54,7 @@
                         </Grid.RowDefinitions>
 
                         <!-- Add theme (create / download / import) -->
-                        <Button Grid.Row="0" Content="+ Add theme"
+                        <Button Grid.Row="0" Content="{Binding [TBAddThemeBtn], Source={x:Static local:Lang.Instance}}"
                                 Style="{StaticResource FlatBtn}"
                                 HorizontalAlignment="Stretch" Margin="8,8,8,4"
                                 Click="AddTheme_Click"
@@ -601,6 +601,16 @@
                                         </Border>
                                     </Grid>
 
+                                    <!-- Section icons (title-bar toggles, panel headers, Settings sidebar). Shared by both
+                                         variants; empty → built-in glyph. Rows are built in code (IconFields). -->
+                                    <TextBlock Text="{Binding [TBSectionIcons], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimary}" Margin="0,10,0,2"/>
+                                    <TextBlock Text="{Binding [TBSectionIconsTip], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                                    <StackPanel x:Name="SectionIconsPanel" Margin="0,0,0,8"/>
+
                                     <!-- Per-colour transparency (alpha channel baked into that colour's hex) -->
                                     <TextBlock Text="{Binding [TBColourTransparency], Source={x:Static local:Lang.Instance}}" FontFamily="{DynamicResource Theme.FontFamily}"
                                                FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"
@@ -1067,7 +1077,7 @@
 
                     <!-- Right: live indicator + status + cancel + save -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <TextBlock x:Name="LiveIndicator" Text="● LIVE"
+                        <TextBlock x:Name="LiveIndicator"
                                    FontFamily="{DynamicResource Theme.FontFamily}"
                                    FontSize="10" FontWeight="Bold"
                                    Foreground="{DynamicResource Accent}"

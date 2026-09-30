@@ -38,13 +38,26 @@ namespace MasselGUARD.Views
         private Brush B(string key, Color fb) => TryFindResource(key) as Brush ?? new SolidColorBrush(fb);
         private FontFamily Fnt() => TryFindResource("Theme.FontFamily") as FontFamily ?? new FontFamily("Segoe UI");
 
-        private StackPanel AddSection(string title)
+        /// <summary>A label shown in the UI language on screen and in English in the "Copy all"
+        /// report (support text stays English). A plain string is the same on both sides.</summary>
+        private readonly record struct Txt(string Ui, string En)
         {
-            _text.AppendLine().AppendLine("==== " + title + " ====");
+            public static implicit operator Txt(string? s) => new(s ?? "", s ?? "");
+            public Txt Indent() => new("  " + Ui, "  " + En);
+        }
+
+        /// <summary>Localized pair for a lang key; <see cref="Txt"/> arguments format per side.</summary>
+        private static Txt L(string key, params object[] a) =>
+            new(Lang.T(key,  a.Select(x => x is Txt t ? (object)t.Ui : x).ToArray()),
+                Lang.En(key, a.Select(x => x is Txt t ? (object)t.En : x).ToArray()));
+
+        private StackPanel AddSection(Txt title)
+        {
+            _text.AppendLine().AppendLine("==== " + title.En + " ====");
             var body   = new StackPanel();
             var header = new TextBlock
             {
-                Text = title, FontFamily = Fnt(), FontSize = 12, FontWeight = FontWeights.Bold,
+                Text = title.Ui, FontFamily = Fnt(), FontSize = 12, FontWeight = FontWeights.Bold,
                 Foreground = B("Accent", Color.FromRgb(88, 166, 255)), Margin = new Thickness(0, 0, 0, 8),
                 TextWrapping = TextWrapping.Wrap,
             };
@@ -64,22 +77,21 @@ namespace MasselGUARD.Views
             return body;
         }
 
-        private void AddKv(StackPanel body, string key, string? value, bool mono = false)
+        private void AddKv(StackPanel body, Txt key, Txt value, bool mono = false)
         {
-            value ??= "";
-            _text.Append("  ").Append(key).Append(": ").AppendLine(value);
+            _text.Append("  ").Append(key.En).Append(": ").AppendLine(value.En);
             var g = new Grid { Margin = new Thickness(0, 1, 0, 1) };
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
             g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var k = new TextBlock
             {
-                Text = key, FontFamily = Fnt(), FontSize = 11,
+                Text = key.Ui, FontFamily = Fnt(), FontSize = 11,
                 Foreground = B("TextMuted", Color.FromRgb(110, 118, 129)),
                 TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Top,
             };
             var v = new TextBlock
             {
-                Text = value, FontFamily = mono ? new FontFamily("Consolas") : Fnt(), FontSize = 11,
+                Text = value.Ui, FontFamily = mono ? new FontFamily("Consolas") : Fnt(), FontSize = 11,
                 Foreground = B("TextPrimary", Color.FromRgb(230, 237, 243)), TextWrapping = TextWrapping.Wrap,
             };
             Grid.SetColumn(k, 0); Grid.SetColumn(v, 1);
@@ -94,16 +106,16 @@ namespace MasselGUARD.Views
             _text = new StringBuilder();
             _text.AppendLine($"MasselGUARD system diagnostics - {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
 
-            try { BuildSummary(); }      catch (Exception ex) { AddKv(AddSection("Environment"), "error", ex.Message); }
-            try { BuildConnectivity(); } catch (Exception ex) { AddKv(AddSection("Connectivity"), "error", ex.Message); }
-            try { BuildTunnels(); }      catch (Exception ex) { AddKv(AddSection("Active tunnels"), "error", ex.Message); }
-            try { BuildDns(); }          catch (Exception ex) { AddKv(AddSection("DNS"), "error", ex.Message); }
-            try { BuildAdapters(); }     catch (Exception ex) { AddKv(AddSection("Network adapters"), "error", ex.Message); }
+            try { BuildSummary(); }      catch (Exception ex) { AddKv(AddSection(L("DiagSecEnvironment")), L("DiagError"), ex.Message); }
+            try { BuildConnectivity(); } catch (Exception ex) { AddKv(AddSection(L("DiagSecConnectivity")), L("DiagError"), ex.Message); }
+            try { BuildTunnels(); }      catch (Exception ex) { AddKv(AddSection(L("DiagSecTunnels")), L("DiagError"), ex.Message); }
+            try { BuildDns(); }          catch (Exception ex) { AddKv(AddSection("DNS"), L("DiagError"), ex.Message); }
+            try { BuildAdapters(); }     catch (Exception ex) { AddKv(AddSection(L("DiagSecAdapters")), L("DiagError"), ex.Message); }
         }
 
         private void BuildConnectivity()
         {
-            var body = AddSection("Connectivity");
+            var body = AddSection(L("DiagSecConnectivity"));
             var btn = new Button
             {
                 Content = Lang.T("SysDiagCheckIp"),
@@ -116,7 +128,7 @@ namespace MasselGUARD.Views
 
             _publicIpResult = new TextBlock
             {
-                Text = "Public IP not checked (this sends one request that leaves your machine).",
+                Text = Lang.T("DiagIpNotChecked"),
                 FontFamily = Fnt(), FontSize = 11,
                 Foreground = B("TextMuted", Color.FromRgb(110, 118, 129)),
                 TextWrapping = TextWrapping.Wrap,
@@ -128,23 +140,21 @@ namespace MasselGUARD.Views
         {
             if (_publicIpResult == null) return;
             _publicIpResult.Foreground = B("TextMuted", Color.FromRgb(110, 118, 129));
-            _publicIpResult.Text = "Checking…";
+            _publicIpResult.Text = Lang.T("DiagIpChecking");
             try
             {
                 using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(8) };
                 string ip = (await http.GetStringAsync("https://api.ipify.org")).Trim();
                 int active = _main._vm.TunnelList.Count(t => t.IsActive);
-                string note = active > 0
-                    ? "a tunnel is active - this should be the tunnel's exit IP"
-                    : "no tunnel active - this is your ISP's IP";
+                var note = L(active > 0 ? "DiagIpNoteTunnel" : "DiagIpNoteIsp");
                 _publicIpResult.Foreground = B("TextPrimary", Color.FromRgb(230, 237, 243));
-                _publicIpResult.Text = $"Public IP: {ip}   ({note})";
-                _text.AppendLine($"  Public IP check: {ip} ({note})");
+                _publicIpResult.Text = Lang.T("DiagIpResult", ip, note.Ui);
+                _text.AppendLine($"  Public IP check: {ip} ({note.En})");
             }
             catch (Exception ex)
             {
                 _publicIpResult.Foreground = B("TextPrimary", Color.FromRgb(230, 237, 243));
-                _publicIpResult.Text = "Check failed: " + ex.Message;
+                _publicIpResult.Text = Lang.T("DiagIpFailed", ex.Message);
             }
         }
 
@@ -182,46 +192,46 @@ namespace MasselGUARD.Views
         private void BuildSummary()
         {
             var cfg  = _main.ConfigSvc.Config;
-            var body = AddSection("Environment");
+            var body = AddSection(L("DiagSecEnvironment"));
             AddKv(body, "MasselGUARD", UpdateChecker.VersionWithCodename);
-            AddKv(body, "Build", string.IsNullOrEmpty(UpdateChecker.BuildStamp) ? "(dev build)" : UpdateChecker.BuildStamp);
-            AddKv(body, "Architecture", $"process {RuntimeInformation.ProcessArchitecture}, OS {RuntimeInformation.OSArchitecture}");
-            AddKv(body, "OS", $"{Environment.OSVersion.VersionString} (build {Environment.OSVersion.Version.Build})");
-            AddKv(body, "Elevated", IsElevated() ? "yes (administrator)" : "no");
-            AddKv(body, "Exe directory", TunnelDll.ExeDirPublic, mono: true);
-            AddKv(body, "Wi-Fi SSID", string.IsNullOrEmpty(_main.WifiSvc.CurrentSsid) ? "-" : _main.WifiSvc.CurrentSsid!);
-            AddKv(body, "Active tunnels", _main._vm.TunnelList.Count(t => t.IsActive).ToString());
-            AddKv(body, "DNS profiles", $"{cfg.DnsProfiles.Count} configured, automation {(cfg.DnsAutomationEnabled ? "on" : "off")}");
+            AddKv(body, L("DiagBuild"), string.IsNullOrEmpty(UpdateChecker.BuildStamp) ? L("DiagDevBuild") : UpdateChecker.BuildStamp);
+            AddKv(body, L("DiagArch"), L("DiagArchValue", RuntimeInformation.ProcessArchitecture, RuntimeInformation.OSArchitecture));
+            AddKv(body, "OS", L("DiagOsValue", Environment.OSVersion.VersionString, Environment.OSVersion.Version.Build));
+            AddKv(body, L("DiagElevated"), IsElevated() ? L("DiagYesAdmin") : L("DiagNo"));
+            AddKv(body, L("DiagExeDir"), TunnelDll.ExeDirPublic, mono: true);
+            AddKv(body, L("DiagSsid"), string.IsNullOrEmpty(_main.WifiSvc.CurrentSsid) ? "-" : _main.WifiSvc.CurrentSsid!);
+            AddKv(body, L("DiagSecTunnels"), _main._vm.TunnelList.Count(t => t.IsActive).ToString());
+            AddKv(body, L("DiagDnsProfiles"), L(cfg.DnsAutomationEnabled ? "DiagDnsProfilesOn" : "DiagDnsProfilesOff", cfg.DnsProfiles.Count));
         }
 
         private void BuildTunnels()
         {
             var cfg  = _main.ConfigSvc.Config;
-            var body = AddSection("Active tunnels");
+            var body = AddSection(L("DiagSecTunnels"));
             var active = _main._vm.TunnelList.Where(t => t.IsActive).ToList();
-            if (active.Count == 0) { AddKv(body, "status", "no active tunnels"); return; }
+            if (active.Count == 0) { AddKv(body, L("DiagStatus"), L("DiagNoActiveTunnels")); return; }
 
             foreach (var t in active)
             {
                 TunnelDll.TunnelStats st = default;
                 try { st = TunnelDll.GetStats(t.Name); } catch { }
-                string hs = st.LastHandshakeUtc is DateTime h
-                    ? $"{(int)(DateTime.UtcNow - h).TotalSeconds}s ago"
+                Txt hs = st.LastHandshakeUtc is DateTime h
+                    ? L("DiagSecondsAgo", (int)(DateTime.UtcNow - h).TotalSeconds)
                     : "-";
 
                 var stored = t.StoredTunnel;
                 bool ks = cfg.KillSwitchMode == "always" || stored.KillSwitch;
-                string killSwitch = ks
-                    ? (cfg.KillSwitchMode == "always" && !stored.KillSwitch ? "on (global)" : "on")
-                    : "off";
-                string split = stored.SplitMode == "off"
-                    ? "off"
-                    : $"{stored.SplitMode} ({stored.SplitRanges.Count} range{(stored.SplitRanges.Count == 1 ? "" : "s")})";
+                Txt killSwitch = ks
+                    ? L(cfg.KillSwitchMode == "always" && !stored.KillSwitch ? "DiagOnGlobal" : "DiagOn")
+                    : L("DiagOff");
+                Txt split = stored.SplitMode == "off"
+                    ? L("DiagOff")
+                    : L("DiagSplitValue", stored.SplitMode, stored.SplitRanges.Count);
 
-                AddKv(body, t.Name, $"handshake {hs}   ↑{Bytes(st.TxBytes)}   ↓{Bytes(st.RxBytes)}");
-                AddKv(body, "  endpoint", EndpointOf(stored), mono: true);
-                AddKv(body, "  kill switch", killSwitch);
-                AddKv(body, "  split tunnel", split);
+                AddKv(body, t.Name, L("DiagHandshake", hs, Bytes(st.TxBytes), Bytes(st.RxBytes)));
+                AddKv(body, L("DiagEndpoint").Indent(), EndpointOf(stored), mono: true);
+                AddKv(body, L("DiagKillSwitch").Indent(), killSwitch);
+                AddKv(body, L("DiagSplit").Indent(), split);
             }
         }
 
@@ -251,19 +261,19 @@ namespace MasselGUARD.Views
             var cfg  = _main.ConfigSvc.Config;
             var body = AddSection("DNS");
 
-            string state;
+            Txt state;
             var manual = _main._vm.ManualDnsProfileId;
             if (manual != null)
                 state = manual == DnsProfile.AutomaticId
-                    ? "manual override: automatic (DHCP)"
-                    : "manual override: " + (cfg.DnsProfiles.FirstOrDefault(p => p.Id == manual)?.Name ?? manual);
-            else if (_main._vm.DnsActive)      state = "profile applied by automation";
-            else if (cfg.DnsAutomationEnabled) state = "following automation (no profile active)";
-            else                               state = "off";
+                    ? L("DiagManualAuto")
+                    : L("DiagManual", cfg.DnsProfiles.FirstOrDefault(p => p.Id == manual)?.Name ?? manual);
+            else if (_main._vm.DnsActive)      state = L("DiagDnsAutoApplied");
+            else if (cfg.DnsAutomationEnabled) state = L("DiagDnsFollowing");
+            else                               state = L("DiagOff");
             AddKv(body, "MasselGUARD DNS", state);
 
             bool doh = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
-            AddKv(body, "Encrypted DNS (DoH)", doh ? "supported" : "not on this Windows build");
+            AddKv(body, L("DiagDoh"), doh ? L("DiagSupported") : L("DiagDohUnsupported"));
 
             var guid = _main.WifiSvc.CurrentInterfaceGuid;
             var active = guid != Guid.Empty
@@ -272,11 +282,11 @@ namespace MasselGUARD.Views
                 : null;
             if (active != null)
             {
-                AddKv(body, "Active interface", active.Name);
-                AddKv(body, "Resolvers in use", Resolvers(active), mono: true);
+                AddKv(body, L("DiagActiveIf"), active.Name);
+                AddKv(body, L("DiagResolvers"), Resolvers(active), mono: true);
             }
             else
-                AddKv(body, "Active interface", "-");
+                AddKv(body, L("DiagActiveIf"), "-");
         }
 
         private void BuildAdapters()
@@ -295,18 +305,19 @@ namespace MasselGUARD.Views
                 .OrderBy(n => n.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            var head = AddSection("Network adapters");
-            AddKv(head, "shown", $"{nics.Count} connected of {all.Count} total (inactive / virtual hidden)");
+            var head = AddSection(L("DiagSecAdapters"));
+            AddKv(head, L("DiagShown"), L("DiagShownValue", nics.Count, all.Count));
 
             foreach (var n in nics)
             {
                 bool up = n.OperationalStatus == OperationalStatus.Up;
-                var body = AddSection($"{n.Name}  ·  {FriendlyType(n)}  ·  {(up ? "up" : n.OperationalStatus.ToString().ToLowerInvariant())}");
+                Txt state = up ? L("DiagUp") : n.OperationalStatus.ToString().ToLowerInvariant();
+                var body = AddSection(new Txt($"{n.Name}  ·  {FriendlyType(n)}  ·  {state.Ui}", $"{n.Name}  ·  {FriendlyType(n)}  ·  {state.En}"));
                 try
                 {
-                    AddKv(body, "Description", n.Description);
+                    AddKv(body, L("DiagDescription"), n.Description);
                     AddKv(body, "MAC", FormatMac(n.GetPhysicalAddress()), mono: true);
-                    if (n.Speed > 0) AddKv(body, "Link speed", $"{n.Speed / 1_000_000.0:0.#} Mbps");
+                    if (n.Speed > 0) AddKv(body, L("DiagLinkSpeed"), $"{n.Speed / 1_000_000.0:0.#} Mbps");
 
                     var ip = n.GetIPProperties();
 
@@ -314,11 +325,16 @@ namespace MasselGUARD.Views
                     try { mtuVal = ip.GetIPv4Properties()?.Mtu ?? 0; } catch { }
                     _ifMetrics.TryGetValue(n.Name, out var mm);
                     if (mtuVal <= 0 && mm.mtu > 0) mtuVal = mm.mtu;   // fall back to the netsh MTU
-                    string routing = "";
-                    if (mtuVal > 0)    routing = $"MTU {mtuVal}";
-                    if (mm.metric > 0) routing += (routing.Length > 0 ? "   " : "") + $"metric {mm.metric}";
+                    Txt routing = mtuVal > 0 ? $"MTU {mtuVal}" : "";
+                    if (mm.metric > 0)
+                    {
+                        var metric = L("DiagMetric", mm.metric);
+                        routing = routing.Ui.Length > 0
+                            ? new Txt(routing.Ui + "   " + metric.Ui, routing.En + "   " + metric.En)
+                            : metric;
+                    }
                     // AddKv writes to both the UI and the copy-all buffer.
-                    if (routing.Length > 0) AddKv(body, "MTU / metric", routing);
+                    if (routing.Ui.Length > 0) AddKv(body, L("DiagMtuMetric"), routing);
 
                     var v4 = ip.UnicastAddresses.Where(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
                         .Select(a => $"{a.Address}/{a.PrefixLength}").ToArray();
@@ -329,25 +345,25 @@ namespace MasselGUARD.Views
                     if (v6.Length > 0) AddKv(body, "IPv6", string.Join(", ", v6), mono: true);
 
                     var gw = ip.GatewayAddresses.Select(g => g.Address.ToString()).Where(s => s != "0.0.0.0").ToArray();
-                    if (gw.Length > 0) AddKv(body, "Gateway", string.Join(", ", gw), mono: true);
+                    if (gw.Length > 0) AddKv(body, L("DiagGateway"), string.Join(", ", gw), mono: true);
 
                     try
                     {
                         var v4p = ip.GetIPv4Properties();
                         if (v4p != null)
                         {
-                            AddKv(body, "DHCP", v4p.IsDhcpEnabled ? "enabled" : "static");
+                            AddKv(body, "DHCP", v4p.IsDhcpEnabled ? L("DiagEnabled") : L("DiagStatic"));
                             var dhcp = ip.DhcpServerAddresses.Select(d => d.ToString()).ToArray();
-                            if (v4p.IsDhcpEnabled && dhcp.Length > 0) AddKv(body, "DHCP server", string.Join(", ", dhcp), mono: true);
+                            if (v4p.IsDhcpEnabled && dhcp.Length > 0) AddKv(body, L("DiagDhcpServer"), string.Join(", ", dhcp), mono: true);
                         }
                     }
                     catch { }
 
                     var dns = ip.DnsAddresses.Select(d => d.ToString()).ToArray();
-                    if (dns.Length > 0) AddKv(body, "DNS servers", string.Join(", ", dns), mono: true);
-                    if (!string.IsNullOrEmpty(ip.DnsSuffix)) AddKv(body, "DNS suffix", ip.DnsSuffix);
+                    if (dns.Length > 0) AddKv(body, L("DiagDnsServers"), string.Join(", ", dns), mono: true);
+                    if (!string.IsNullOrEmpty(ip.DnsSuffix)) AddKv(body, L("DiagDnsSuffix"), ip.DnsSuffix);
                 }
-                catch (Exception ex) { AddKv(body, "error", ex.Message); }
+                catch (Exception ex) { AddKv(body, L("DiagError"), ex.Message); }
             }
         }
 
@@ -380,9 +396,9 @@ namespace MasselGUARD.Views
             try
             {
                 var a = ni.GetIPProperties().DnsAddresses.Select(x => x.ToString()).ToArray();
-                return a.Length == 0 ? "(none)" : string.Join(", ", a);
+                return a.Length == 0 ? Lang.T("DiagNone") : string.Join(", ", a);
             }
-            catch (Exception ex) { return $"(read failed: {ex.Message})"; }
+            catch (Exception ex) { return Lang.T("DiagReadFailed", ex.Message); }
         }
 
         private static string FriendlyType(NetworkInterface n)

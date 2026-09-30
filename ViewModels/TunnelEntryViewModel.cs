@@ -329,10 +329,40 @@ namespace MasselGUARD.ViewModels
         public long TxBytesLive => _txBytes;
         public long RxBytesLive => _rxBytes;
 
-        /// <summary>Configured caps in bytes; 0 = no cap for that period.</summary>
-        public long DailyCapBytes   => (long)StoredTunnel.DailyCapMB   * 1_048_576L;
-        public long WeeklyCapBytes  => (long)StoredTunnel.WeeklyCapMB  * 1_048_576L;
-        public long MonthlyCapBytes => (long)StoredTunnel.MonthlyCapMB * 1_048_576L;
+        /// <summary>User-set caps in bytes; 0 = no cap for that period (or the period follows history).
+        /// Warnings, the amber highlight and "over" act on these only.</summary>
+        public long DailyCapBytes   => (long)StoredTunnel.DailyUserCapMB   * 1_048_576L;
+        public long WeeklyCapBytes  => (long)StoredTunnel.WeeklyUserCapMB  * 1_048_576L;
+        public long MonthlyCapBytes => (long)StoredTunnel.MonthlyUserCapMB * 1_048_576L;
+
+        // ── Historical reference (periods without a user-set cap) ─────────────
+        // Average bytes/day over the last 365 days (or all history when shorter), fed by the
+        // MainViewModel poll; null = no history at all (the bar/ring shows an empty track).
+        private double? _avgBytesPerDay;
+        private double  _historySpanDays;
+        private const double DaysPerMonth = 365.25 / 12;
+
+        private long HistoryRef(double days) => _avgBytesPerDay is double v ? (long)(v * days) : 0;
+
+        /// <summary>What each period's bar/ring fills against: the user-set cap, else the typical
+        /// (historical average) usage for that period length.</summary>
+        public long DayRefBytes   => DailyCapBytes   > 0 ? DailyCapBytes   : HistoryRef(1);
+        public long WeekRefBytes  => WeeklyCapBytes  > 0 ? WeeklyCapBytes  : HistoryRef(7);
+        public long MonthRefBytes => MonthlyCapBytes > 0 ? MonthlyCapBytes : HistoryRef(DaysPerMonth);
+
+        /// <summary>True when the period measures against history (drawn in the accent colour only).</summary>
+        public bool DayIsHistory   => DailyCapBytes   <= 0;
+        public bool WeekIsHistory  => WeeklyCapBytes  <= 0;
+        public bool MonthIsHistory => MonthlyCapBytes <= 0;
+
+        /// <summary>Called by the poll with the tunnel's historical average (null = no history).</summary>
+        public void UpdateHistoryBaseline(double? avgBytesPerDay, double spanDays)
+        {
+            if (_avgBytesPerDay == avgBytesPerDay && _historySpanDays == spanDays) return;
+            _avgBytesPerDay  = avgBytesPerDay;
+            _historySpanDays = spanDays;
+            RaiseUsageIndicators();
+        }
 
         /// <summary>Period-to-date usage in bytes (history + live session), for cap enforcement.</summary>
         public long DayUsageBytes   => _dayBytes;
@@ -341,12 +371,12 @@ namespace MasselGUARD.ViewModels
 
         /// <summary>True when any period is configured (so usage is worth showing).</summary>
         private bool AnyCapConfigured =>
-            StoredTunnel.DailyCapMB > 0 || StoredTunnel.WeeklyCapMB > 0 || StoredTunnel.MonthlyCapMB > 0;
+            StoredTunnel.DailyUserCapMB > 0 || StoredTunnel.WeeklyUserCapMB > 0 || StoredTunnel.MonthlyUserCapMB > 0;
 
         // The row's inline usage figure stays month-to-date; the tooltip breaks out
         // whichever caps are configured, and the highlight/colour react to any breach.
         public string MonthlyUsageDisplay =>
-            StoredTunnel.MonthlyCapMB > 0
+            StoredTunnel.MonthlyUserCapMB > 0
                 ? $"▤ {FormatBytes(_monthlyBytes)} / {FormatBytes(MonthlyCapBytes)}"
                 : $"▤ {FormatBytes(_monthlyBytes)}";
 
@@ -359,12 +389,12 @@ namespace MasselGUARD.ViewModels
                 {
                     if (sb.Length > 0) sb.Append('\n');
                     sb.Append(capMB > 0
-                        ? $"{label}: {FormatBytes(used)} of {FormatBytes(cap)} cap{(cap > 0 && used >= cap ? "  ⚠ over" : "")}"
+                        ? $"{label}: {Lang.T("UsageOfCap", FormatBytes(used), FormatBytes(cap))}{(cap > 0 && used >= cap ? "  ⚠ " + Lang.T("UsageOver") : "")}"
                         : $"{label}: {FormatBytes(used)}");
                 }
-                Line("Today",      _dayBytes,     DailyCapBytes,   StoredTunnel.DailyCapMB);
-                Line("This week",  _weekBytes,    WeeklyCapBytes,  StoredTunnel.WeeklyCapMB);
-                Line("This month", _monthlyBytes, MonthlyCapBytes, StoredTunnel.MonthlyCapMB);
+                Line(Lang.T("UsageToday"),     _dayBytes,     DailyCapBytes,   StoredTunnel.DailyUserCapMB);
+                Line(Lang.T("UsageThisWeek"),  _weekBytes,    WeeklyCapBytes,  StoredTunnel.WeeklyUserCapMB);
+                Line(Lang.T("UsageThisMonth"), _monthlyBytes, MonthlyCapBytes, StoredTunnel.MonthlyUserCapMB);
                 return sb.ToString();
             }
         }
@@ -390,17 +420,17 @@ namespace MasselGUARD.ViewModels
         // and red once over it, and the hover tooltip breaks the numbers out.
         private static double Frac(long used, long cap) => cap > 0 ? (double)used / cap : 0.0;
 
-        public double DayCapFraction   => Frac(_dayBytes,     DailyCapBytes);
-        public double WeekCapFraction  => Frac(_weekBytes,    WeeklyCapBytes);
-        public double MonthCapFraction => Frac(_monthlyBytes, MonthlyCapBytes);
+        public double DayCapFraction   => Frac(_dayBytes,     DayRefBytes);
+        public double WeekCapFraction  => Frac(_weekBytes,    WeekRefBytes);
+        public double MonthCapFraction => Frac(_monthlyBytes, MonthRefBytes);
 
-        // A period's ring is shown when its cap is set AND its per-ring hide flag is off.
-        // These feed CapRings.DaySet/WeekSet/MonthSet, so a hidden ring simply isn't drawn
-        // (its warning/enforcement still runs). Rings show even when disconnected - the
-        // CapRings control renders them greyed (Active=false) but at real usage.
-        public bool DayCapSet   => DailyCapBytes   > 0 && !StoredTunnel.DailyCapHideRing;
-        public bool WeekCapSet  => WeeklyCapBytes  > 0 && !StoredTunnel.WeeklyCapHideRing;
-        public bool MonthCapSet => MonthlyCapBytes > 0 && !StoredTunnel.MonthlyCapHideRing;
+        // Every period is shown unless its "Hide usage" flag is on - against the user-set cap, or
+        // else the historical average (an empty track when there is no history yet). These feed
+        // CapRings/CapBars.DaySet/WeekSet/MonthSet. Shown even when disconnected - the controls
+        // render them greyed (Active=false) but at real usage.
+        public bool DayCapSet   => !StoredTunnel.DailyCapHideRing;
+        public bool WeekCapSet  => !StoredTunnel.WeeklyCapHideRing;
+        public bool MonthCapSet => !StoredTunnel.MonthlyCapHideRing;
 
         // At least one period's ring/bar is shown (cap set and not per-ring-hidden).
         public bool AnyRingShown => DayCapSet || WeekCapSet || MonthCapSet;
@@ -422,22 +452,35 @@ namespace MasselGUARD.ViewModels
         // ring row. Rings-style keeps the natural compact height.
         public double RowMinHeight => CapStyleIsBars ? 34.0 : 0.0;
 
-        /// <summary>Per-period breakdown for the rings' hover tooltip (set periods only).</summary>
+        /// <summary>Per-period breakdown for the bars'/rings' hover tooltip (shown periods only),
+        /// saying whether each one measures against a cap set by the user or against history.</summary>
         public string CapRingsTooltip
         {
             get
             {
                 var sb = new System.Text.StringBuilder();
-                void Line(string label, long used, long cap)
+                void Line(bool shown, string label, long used, long cap, long histRef)
                 {
-                    if (cap <= 0) return;
+                    if (!shown) return;
                     if (sb.Length > 0) sb.Append('\n');
-                    int pct = (int)System.Math.Round(100.0 * used / cap);
-                    sb.Append($"{label}: {FormatBytes(used)} / {FormatBytes(cap)} ({pct}%){(used >= cap ? "  ⚠ over" : "")}");
+                    if (cap > 0)
+                    {
+                        int pct = (int)System.Math.Round(100.0 * used / cap);
+                        sb.Append(Lang.T("CapTipUser", label, FormatBytes(used), FormatBytes(cap), pct));
+                        if (used >= cap) sb.Append("  ⚠ ").Append(Lang.T("UsageOver"));
+                    }
+                    else if (_avgBytesPerDay != null && histRef > 0)
+                    {
+                        int pct = (int)System.Math.Round(100.0 * used / histRef);
+                        sb.Append(Lang.T("CapTipHistory", label, FormatBytes(used), FormatBytes(histRef), pct,
+                                         (int)System.Math.Round(_historySpanDays)));
+                    }
+                    else
+                        sb.Append(Lang.T("CapTipNoHistory", label, FormatBytes(used)));
                 }
-                Line("Day",   _dayBytes,     DailyCapBytes);
-                Line("Week",  _weekBytes,    WeeklyCapBytes);
-                Line("Month", _monthlyBytes, MonthlyCapBytes);
+                Line(DayCapSet,   Lang.T("UsageToday"),     _dayBytes,     DailyCapBytes,   HistoryRef(1));
+                Line(WeekCapSet,  Lang.T("UsageThisWeek"),  _weekBytes,    WeeklyCapBytes,  HistoryRef(7));
+                Line(MonthCapSet, Lang.T("UsageThisMonth"), _monthlyBytes, MonthlyCapBytes, HistoryRef(DaysPerMonth));
                 return sb.ToString();
             }
         }
@@ -484,6 +527,14 @@ namespace MasselGUARD.ViewModels
             _dayBytes     = dayBytes;
             _weekBytes    = weekBytes;
             _monthlyBytes = monthBytes;
+            RaiseUsageIndicators();
+        }
+
+        private void RaiseUsageIndicators()
+        {
+            OnPropertyChanged(nameof(DayIsHistory));
+            OnPropertyChanged(nameof(WeekIsHistory));
+            OnPropertyChanged(nameof(MonthIsHistory));
             OnPropertyChanged(nameof(MonthlyUsageDisplay));
             OnPropertyChanged(nameof(MonthlyUsageTooltip));
             OnPropertyChanged(nameof(MonthlyUsageVisibility));
@@ -588,7 +639,7 @@ namespace MasselGUARD.ViewModels
 
         /// <summary>Tooltip explaining the click action.</summary>
         public string? RuleCountTooltip =>
-            RuleCount > 0 ? $"Click to highlight {RuleCount} rule(s) for this tunnel" : null;
+            RuleCount > 0 ? Lang.T("RuleCountTip", RuleCount) : null;
 
         public System.Windows.Media.Brush GroupAccentBrush
         {
@@ -617,7 +668,7 @@ namespace MasselGUARD.ViewModels
             catch { return System.Windows.Media.Brushes.White; }
         }
 
-        public string TypeLabel  => IsLocal ? "Local" : "WireGuard";
+        public string TypeLabel  => IsLocal ? Lang.T("TunnelTypeLocal") : "WireGuard";
         public string TypeColour => IsLocal ? "Accent" : "TextMuted";
 
         public RelayCommand ConnectCommand    { get; }
@@ -679,6 +730,11 @@ namespace MasselGUARD.ViewModels
         /// </summary>
         public async Task ConnectAsync()
         {
+            // A connect already in flight (e.g. the automation default action at startup, then
+            // connect-on-start a moment later while IsActive is still false) - wait for it instead
+            // of connecting twice (which logged "Connected" twice and restarted the service).
+            if (_connectInFlight != null) { await _connectInFlight; return; }
+
             UserDisconnected = false;
             string source = PendingConnectSource;
             PendingConnectSource = "Manual"; // consume and reset for next call
@@ -687,14 +743,18 @@ namespace MasselGUARD.ViewModels
             {
                 // Run on a background thread - companion tunnel connects block for several
                 // seconds (CreateService P/Invoke + WaitForStatus polling).
-                await Task.Run(() => _tunnels.Connect(StoredTunnel, _config.Config, source));
+                _connectInFlight = Task.Run(() => _tunnels.Connect(StoredTunnel, _config.Config, source));
+                await _connectInFlight;
             }
             finally
             {
+                _connectInFlight = null;
                 IsConnecting = false;
             }
             RefreshStatus();
         }
+
+        private Task? _connectInFlight;
 
         private async void DoDisconnect()
         {

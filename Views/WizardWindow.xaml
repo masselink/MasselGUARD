@@ -177,7 +177,7 @@
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0">
-                                    <TextBlock Text="{Binding [ActivityLogHeader], Source={x:Static local:Lang.Instance}}" FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Text="{Binding [FeatLogTitle], Source={x:Static local:Lang.Instance}}" FontFamily="{DynamicResource Theme.FontFamily}" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource TextPrimary}"/>
                                     <TextBlock Text="{Binding [FeatLogDesc], Source={x:Static local:Lang.Instance}}" FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,3,0,0"/>
                                 </StackPanel>
                                 <ToggleButton Grid.Column="1" x:Name="WizFeatLogToggle" Style="{StaticResource ToggleSwitch}" Width="44" Height="22" Margin="12,0,0,0" VerticalAlignment="Center" Checked="WizFeatLog_Changed" Unchecked="WizFeatLog_Changed"/>

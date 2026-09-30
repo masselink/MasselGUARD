@@ -81,9 +81,9 @@ namespace MasselGUARD.Services
                 AutoReconnect        = t.AutoReconnect,
                 RetryCount           = t.RetryCount,
                 RetryDelaySec        = t.RetryDelaySec,
-                DailyCapMB           = t.DailyCapMB,
-                WeeklyCapMB          = t.WeeklyCapMB,
-                MonthlyCapMB         = t.MonthlyCapMB,
+                DailyCapMB           = t.DailyUserCapMB,   // a period that follows history exports as "no cap"
+                WeeklyCapMB          = t.WeeklyUserCapMB,
+                MonthlyCapMB         = t.MonthlyUserCapMB,
                 PreConnectScript     = t.PreConnectScript,
                 PostConnectScript    = t.PostConnectScript,
                 PreDisconnectScript  = t.PreDisconnectScript,
@@ -104,9 +104,11 @@ namespace MasselGUARD.Services
                 if (AutoReconnect .HasValue)      t.AutoReconnect        = AutoReconnect.Value;
                 if (RetryCount    .HasValue)      t.RetryCount           = RetryCount.Value;
                 if (RetryDelaySec .HasValue)      t.RetryDelaySec        = RetryDelaySec.Value;
-                if (DailyCapMB    .HasValue)      t.DailyCapMB           = DailyCapMB.Value;
-                if (WeeklyCapMB   .HasValue)      t.WeeklyCapMB          = WeeklyCapMB.Value;
-                if (MonthlyCapMB  .HasValue)      t.MonthlyCapMB         = MonthlyCapMB.Value;
+                // An imported cap decides the period's mode: a value > 0 is a user cap, 0 follows
+                // history (null = derive "Use history" from the cap).
+                if (DailyCapMB    .HasValue) { t.DailyCapMB   = DailyCapMB.Value;   t.DailyCapUseHistory   = null; }
+                if (WeeklyCapMB   .HasValue) { t.WeeklyCapMB  = WeeklyCapMB.Value;  t.WeeklyCapUseHistory  = null; }
+                if (MonthlyCapMB  .HasValue) { t.MonthlyCapMB = MonthlyCapMB.Value; t.MonthlyCapUseHistory = null; }
                 if (PreConnectScript     != null) t.PreConnectScript     = PreConnectScript;
                 if (PostConnectScript    != null) t.PostConnectScript    = PostConnectScript;
                 if (PreDisconnectScript  != null) t.PreDisconnectScript  = PreDisconnectScript;

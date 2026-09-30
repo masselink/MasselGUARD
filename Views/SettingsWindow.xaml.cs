@@ -63,7 +63,33 @@ namespace MasselGUARD.Views
             };
 
             Lang.Instance.LanguageChanged += OnLanguageChanged;
-            Closed += (_, _) => Lang.Instance.LanguageChanged -= OnLanguageChanged;
+            ThemeManager.Instance.ThemeChanged += OnThemeChanged;
+            Closed += (_, _) =>
+            {
+                Lang.Instance.LanguageChanged -= OnLanguageChanged;
+                ThemeManager.Instance.ThemeChanged -= OnThemeChanged;
+            };
+            RefreshSidebarIcons();
+        }
+
+        private void OnThemeChanged(object? sender, EventArgs e) =>
+            Dispatcher.BeginInvoke(RefreshSidebarIcons);
+
+        /// <summary>Feature-tab icons follow the main window: a theme's custom Theme.Icon.* geometry
+        /// replaces the built-in glyph, otherwise the default stays.</summary>
+        private void RefreshSidebarIcons()
+        {
+            void Pair(string key, FrameworkElement def, FrameworkElement ovr)
+            {
+                bool custom = TryFindResource(key) is System.Windows.Media.Geometry;
+                def.Visibility = custom ? Visibility.Collapsed : Visibility.Visible;
+                ovr.Visibility = custom ? Visibility.Visible : Visibility.Collapsed;
+            }
+            Pair("Theme.Icon.Tunnels",    SideIconTunnelsDef,    SideIconTunnelsOvr);
+            Pair("Theme.Icon.Dns",        SideIconDnsDef,        SideIconDnsOvr);
+            Pair("Theme.Icon.Automation", SideIconAutomationDef, SideIconAutomationOvr);
+            Pair("Theme.Icon.Log",        SideIconLogDef,        SideIconLogOvr);
+            Pair("Theme.Icon.Charts",     SideIconChartsDef,     SideIconChartsOvr);
         }
 
         private void OnLanguageChanged(object? sender, EventArgs e) =>
@@ -159,6 +185,7 @@ namespace MasselGUARD.Views
             if (tab == "Log")        { PopulateLogLevelPicker(); PopulateLogSettings(); }
             if (tab == "Startup")    { RefreshInstallState(); RefreshDllStatus(); SyncStartWithWindows(); SyncStartupOptions(); SyncConfirmOnClose(); }
             if (tab == "About")      RefreshUpdateState();
+            if (tab == "Diagnostics") ScanOrphans();
 
             // Managed-preset lock UI - runs last so it wins over the per-tab populate above.
             ApplyPresetLocks();
@@ -489,7 +516,7 @@ namespace MasselGUARD.Views
                     FontSize  = 11,
                     Padding   = new Thickness(4, 2, 4, 2),
                     Margin    = new Thickness(0, 0, 4, 0),
-                    ToolTip   = isHidden ? "Show tab" : "Hide tab",
+                    ToolTip   = Lang.T(isHidden ? "GroupTabShowTip" : "GroupTabHideTip"),
                     Opacity   = isHidden ? 0.4 : 1.0,
                 };
                 eyeBtn.Click += (_, _) =>
@@ -509,7 +536,7 @@ namespace MasselGUARD.Views
                     FontSize  = 11,
                     Padding   = new Thickness(4, 2, 4, 2),
                     Margin    = new Thickness(0, 0, 4, 0),
-                    ToolTip   = isDefault ? "This group opens on startup" : "Set as default on startup",
+                    ToolTip   = Lang.T(isDefault ? "GroupIsDefaultTip" : "GroupSetDefaultTip"),
                     Opacity   = isDefault ? 1.0 : 0.5,
                 };
                 starBtn.Click += (_, _) =>
@@ -760,9 +787,8 @@ namespace MasselGUARD.Views
                 ThemeUpdatesBadge.Visibility = n > 0 ? Visibility.Visible : Visibility.Collapsed;
                 if (n > 0)
                 {
-                    ThemeUpdatesBadge.Text    = n == 1 ? "● 1 update" : $"● {n} updates";
-                    ThemeUpdatesBadge.ToolTip = "Theme update" + (n == 1 ? "" : "s") + " available: " +
-                        string.Join(", ", themeUpdates) + ". Click to open Community themes.";
+                    ThemeUpdatesBadge.Text    = "● " + (n == 1 ? Lang.T("ThemeUpdatesBadgeOne") : Lang.T("ThemeUpdatesBadgeMany", n));
+                    ThemeUpdatesBadge.ToolTip = Lang.T("ThemeUpdatesBadgeTip", string.Join(", ", themeUpdates));
                 }
             }
 
@@ -1420,7 +1446,7 @@ namespace MasselGUARD.Views
 
         // ── Feature modules (General page) ─────────────────────────────────────
         // Two top-level features (WireGuard tunnels / DNS automation) can be turned on/off;
-        // at least one stays on. Persist directly + re-gate the affected Settings tabs live.
+        // both may be off. Persist directly + re-gate the affected Settings tabs live.
         // See docs/FeatureModules-Design.md.
         private bool _featLoading;
 
@@ -1438,9 +1464,6 @@ namespace MasselGUARD.Views
             if (FeatAutoEnableToggle   != null) FeatAutoEnableToggle.IsChecked   = !cfg.ManualMode;
             if (FeatLogEnableToggle    != null) FeatLogEnableToggle.IsChecked    = cfg.ActivityLogEnabled;
             if (FeatChartsEnableToggle != null) FeatChartsEnableToggle.IsChecked = cfg.ChartsEnabled;
-            // The WireGuard/DNS module pair must keep at least one on - disable the sole-on toggle.
-            if (FeatWgEnableToggle  != null) FeatWgEnableToggle.IsEnabled  = !(cfg.EnableTunnels && !cfg.EnableDns);
-            if (FeatDnsEnableToggle != null) FeatDnsEnableToggle.IsEnabled = !(cfg.EnableDns && !cfg.EnableTunnels);
 
             // Behaviour radios (Show/hide vs Enable/disable)
             static void Beh(System.Windows.Controls.RadioButton? hide, System.Windows.Controls.RadioButton? dis, bool disables)
@@ -1471,15 +1494,8 @@ namespace MasselGUARD.Views
             bool on = tb.IsChecked == true;
             switch (tb.Tag as string)
             {
-                case "wg":
-                case "dns":
-                {
-                    bool t = (tb.Tag as string) == "wg"  ? on : cfg.EnableTunnels;
-                    bool d = (tb.Tag as string) == "dns" ? on : cfg.EnableDns;
-                    if (!t && !d) { RefreshFeatureControls(); return; }   // keep at least one module on
-                    cfg.EnableTunnels = t; cfg.EnableDns = d;
-                    break;
-                }
+                case "wg":     cfg.EnableTunnels = on; break;
+                case "dns":    cfg.EnableDns = on; break;
                 case "auto":   cfg.ManualMode = !on; break;
                 case "log":    cfg.ActivityLogEnabled = on; _main.LogSvc.Enabled = on; break;
                 case "charts": cfg.ChartsEnabled = on; _main.HistorySvc.CaptureEnabled = on; break;
@@ -1607,6 +1623,77 @@ namespace MasselGUARD.Views
             _main.ApplyFeatureVisibility();
             ApplyFeatureTabVisibility();   // un-dim the sidebar tab now that the feature is on
             ShowTab("Tunnels");
+        }
+
+        // ── Orphaned tunnel services (Diagnostics tab) ─────────────────────────
+        /// <summary>List leftover WireGuardTunnel$ services (see MainWindow.GetOrphanedServices) with
+        /// a per-row Remove button and a Remove-all. Runs when the Diagnostics tab is shown.</summary>
+        private void ScanOrphans()
+        {
+            if (OrphanListPanel == null) return;
+            var orphans = _main.GetOrphanedServices();
+
+            if (OrphanStatusLabel != null)
+                OrphanStatusLabel.Text = orphans.Count == 0
+                    ? Lang.T("SettingsNoOrphans")
+                    : Lang.T("OrphansFound", orphans.Count);
+
+            OrphanListPanel.Children.Clear();
+            OrphanListPanel.Visibility = orphans.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            foreach (var o in orphans)
+            {
+                var card = new System.Windows.Controls.Border
+                {
+                    BorderThickness = new Thickness(1),
+                    CornerRadius    = new CornerRadius(3),
+                    Padding         = new Thickness(10, 6, 10, 6),
+                    Margin          = new Thickness(0, 0, 0, 4),
+                };
+                card.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty,  "Surface");
+                card.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "BorderColor");
+
+                var row = new System.Windows.Controls.Grid();
+                row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = GridLength.Auto });
+
+                var names = new System.Windows.Controls.StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                var title = new System.Windows.Controls.TextBlock { Text = o.TunnelName, FontSize = 10 };
+                title.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextPrimary");
+                var sub = new System.Windows.Controls.TextBlock { Text = $"{o.ServiceName}  ·  ○ {Lang.T("OrphanStopped")}", FontSize = 9 };
+                sub.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextMuted");
+                names.Children.Add(title);
+                names.Children.Add(sub);
+                System.Windows.Controls.Grid.SetColumn(names, 0);
+
+                var captured = o;
+                var removeBtn = new System.Windows.Controls.Button
+                {
+                    Content  = Lang.T("BtnRemoveOrphan"),
+                    FontSize = 9,
+                    Padding  = new Thickness(8, 3, 8, 3),
+                };
+                removeBtn.SetResourceReference(StyleProperty, "DangerBtn");
+                removeBtn.Click += (_, _) => { _main.RemoveOrphan(captured); ScanOrphans(); };
+                System.Windows.Controls.Grid.SetColumn(removeBtn, 1);
+
+                row.Children.Add(names);
+                row.Children.Add(removeBtn);
+                card.Child = row;
+                OrphanListPanel.Children.Add(card);
+            }
+
+            if (RemoveAllOrphansBtn != null)
+                RemoveAllOrphansBtn.Visibility = orphans.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void ScanOrphans_Click(object sender, RoutedEventArgs e) => ScanOrphans();
+
+        private void RemoveAllOrphans_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (var o in _main.GetOrphanedServices())
+                _main.RemoveOrphan(o);
+            ScanOrphans();
         }
 
         private void EnableDnsFromStub_Click(object sender, RoutedEventArgs e)
@@ -2786,8 +2873,7 @@ namespace MasselGUARD.Views
                 // window closes, ask whether to keep it instead of silently discarding it.
                 bool systemModeChanged = _draft.SystemThemeMode != _main.ConfigSvc.Config.SystemThemeMode;
                 if (systemModeChanged && ThemedMessageDialog.Confirm(this,
-                        "You changed the appearance mode (Dark/Light/Follow system) without saving.\n\n" +
-                        "Keep this change?", "Unsaved appearance change"))
+                        Lang.T("UnsavedAppearanceMsg"), Lang.T("UnsavedAppearanceTitle")))
                 {
                     CommitDraft();   // saves everything staged, matching the Save button
                     return;

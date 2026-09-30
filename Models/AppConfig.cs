@@ -88,7 +88,7 @@ namespace MasselGUARD.Models
         // ── Feature modules ───────────────────────────────────────────────────
         // MasselGUARD's two top-level features can each be turned on/off (wizard + Settings),
         // so it can run as a full tunnel manager, a DNS-only resolver switcher, or both.
-        // Invariant: at least one is always on (see ConfigService.EnsureAtLeastOneModule).
+        // Both may be off (the main window then shows only whatever other sections are enabled).
         // Both default true → upgraders keep tunnels AND see the DNS section (DnsAutomationEnabled
         // still gates whether DNS automation actually runs). See docs/FeatureModules-Design.md.
 
@@ -281,6 +281,9 @@ namespace MasselGUARD.Models
         public double DnsColServerW  { get; set; } = 0;
         public double DnsColRulesW   { get; set; } = 0;
         public double DnsColEnableW  { get; set; } = 0;
+        /// <summary>Bumped when the default tunnel/DNS column layout changes; a lower saved value
+        /// discards those saved widths once so the new defaults apply (1 = 4.5.0 layout).</summary>
+        public int    ColumnLayoutVersion { get; set; } = 0;
 
         // ── Kill switch ───────────────────────────────────────────────────────
         /// <summary>

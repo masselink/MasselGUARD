@@ -30,7 +30,6 @@ namespace MasselGUARD.ViewModels
                 OnPropertyChanged(nameof(IsFirstStep));
                 OnPropertyChanged(nameof(IsLastStep));
                 OnPropertyChanged(nameof(CanGoBack));
-                OnPropertyChanged(nameof(NextLabel));
                 BackCommand.RaiseCanExecuteChanged();
                 NextCommand.RaiseCanExecuteChanged();
             }
@@ -39,7 +38,6 @@ namespace MasselGUARD.ViewModels
         public bool IsFirstStep => _step == 0;
         public bool IsLastStep  => _step == TotalSteps - 1;
         public bool CanGoBack   => _step > 0;
-        public string NextLabel => IsLastStep ? "Finish" : "Next";
 
         // ── Step 1: Language ──────────────────────────────────────────────────
         public ObservableCollection<MasselGUARD.LangItem> AvailableLanguages { get; } = new();
@@ -85,15 +83,12 @@ namespace MasselGUARD.ViewModels
         }
 
         // ── Step 8: About card ────────────────────────────────────────────────
-        public string AppVersion         => UpdateChecker.CurrentVersionString;
-        public string PreviousAppVersion => _config.Config.LastRunVersion ?? "unknown";
-        public string UpdateStatus { get; private set; } = "Not checked";
+        public string PreviousAppVersion => _config.Config.LastRunVersion ?? Lang.T("VersionUnknown");
 
         // ── Commands ──────────────────────────────────────────────────────────
         public RelayCommand      BackCommand         { get; }
         public RelayCommand      NextCommand         { get; }
         public RelayCommand      SkipCommand         { get; }
-        public AsyncRelayCommand CheckUpdateCommand  { get; }
 
         // ── Events ────────────────────────────────────────────────────────────
         public event Action? Finished;
@@ -116,7 +111,6 @@ namespace MasselGUARD.ViewModels
             BackCommand        = new RelayCommand(GoBack,  () => CanGoBack);
             NextCommand        = new RelayCommand(GoNext);
             SkipCommand        = new RelayCommand(() => Skipped?.Invoke());
-            CheckUpdateCommand = new AsyncRelayCommand(CheckUpdate);
 
             PopulateLanguages();
         }
@@ -176,8 +170,7 @@ namespace MasselGUARD.ViewModels
         {
             var cfg           = _config.Config;
             cfg.ManualMode    = _disableWifiRules;
-            // At least one module must stay enabled - fall back to tunnels if somehow both off.
-            cfg.EnableTunnels = _enableTunnels || !_enableDns;
+            cfg.EnableTunnels = _enableTunnels;
             cfg.EnableDns     = _enableDns;
             _config.Save();
             _log.Ok("Wizard completed");
@@ -198,28 +191,6 @@ namespace MasselGUARD.ViewModels
                     _selectedLanguage = item;
             }
             OnPropertyChanged(nameof(SelectedLanguage));
-        }
-
-        // ── Update check ──────────────────────────────────────────────────────
-
-        private async System.Threading.Tasks.Task CheckUpdate(object? _)
-        {
-            UpdateStatus = "Checking…";
-            OnPropertyChanged(nameof(UpdateStatus));
-            await UpdateChecker.CheckAsync(_config.Config, _config.Save);
-            UpdateStatus = GetUpdateStatusText();
-            OnPropertyChanged(nameof(UpdateStatus));
-        }
-
-        private string GetUpdateStatusText()
-        {
-            var current = UpdateChecker.CurrentVersionString;
-            var latest  = _config.Config.LatestKnownVersion;
-            if (string.IsNullOrEmpty(latest)) return "Not checked";
-            return string.Compare(current, latest,
-                StringComparison.OrdinalIgnoreCase) >= 0
-                ? $"Up to date (v{current})"
-                : $"Update available: v{latest}";
         }
     }
 }

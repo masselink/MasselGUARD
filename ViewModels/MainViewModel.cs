@@ -51,9 +51,9 @@ namespace MasselGUARD.ViewModels
         private bool _tunnelOwnsDns;
 
         public  string  CurrentSsidDisplay =>
-            string.IsNullOrEmpty(_currentSsid) ? "No WiFi" : _currentSsid;
+            string.IsNullOrEmpty(_currentSsid) ? Lang.T("StatusNoWifi") : _currentSsid;
 
-        private string _activeTunnelName = "Not connected";
+        private string _activeTunnelName = Lang.T("StatusDisconnected");
         public  string  ActiveTunnelName
         {
             get => _activeTunnelName;
@@ -299,18 +299,18 @@ namespace MasselGUARD.ViewModels
             // Skip the warning for periods that enforce (Kill): the kill toast supersedes
             // it, so we don't flash a warn toast a beat before the disconnect toast.
             if (!t.StoredTunnel.DailyCapKill)
-                WarnCap(t, t.StoredTunnel.DailyCapMB,   dayBytes,
-                        $"{t.Name}|D|{now:yyyy-MM-dd}", "Daily", "today");
+                WarnCap(t, t.StoredTunnel.DailyUserCapMB,   dayBytes,
+                        $"{t.Name}|D|{now:yyyy-MM-dd}", "Daily", "today", "D");
             if (!t.StoredTunnel.WeeklyCapKill)
-                WarnCap(t, t.StoredTunnel.WeeklyCapMB,  weekBytes,
-                        $"{t.Name}|W|{System.Globalization.ISOWeek.GetYear(now)}W{System.Globalization.ISOWeek.GetWeekOfYear(now):00}", "Weekly", "this week");
+                WarnCap(t, t.StoredTunnel.WeeklyUserCapMB,  weekBytes,
+                        $"{t.Name}|W|{System.Globalization.ISOWeek.GetYear(now)}W{System.Globalization.ISOWeek.GetWeekOfYear(now):00}", "Weekly", "this week", "W");
             if (!t.StoredTunnel.MonthlyCapKill)
-                WarnCap(t, t.StoredTunnel.MonthlyCapMB, monthBytes,
-                        $"{t.Name}|M|{now:yyyy-MM}", "Monthly", "this month");
+                WarnCap(t, t.StoredTunnel.MonthlyUserCapMB, monthBytes,
+                        $"{t.Name}|M|{now:yyyy-MM}", "Monthly", "this month", "M");
         }
 
         private void WarnCap(TunnelEntryViewModel t, int capMB, long usedBytes,
-                             string dedupeKey, string label, string when)
+                             string dedupeKey, string label, string when, string letter)
         {
             if (capMB <= 0) return;                                  // period cap off
             if (usedBytes < (long)capMB * 1_048_576L) return;        // under cap
@@ -321,9 +321,9 @@ namespace MasselGUARD.ViewModels
                 (Application.Current as App)?.ShowTrayNotification(
                     new Views.ToastNotification
                     {
-                        Category   = "Data cap reached",
-                        Primary    = $"{t.Name}: {label.ToLowerInvariant()} data cap reached",
-                        Secondary  = $"{capMB} MB used {when}.",
+                        Category   = Lang.T("ToastCatDataCap"),
+                        Primary    = Lang.T("CapWarnPrimary" + letter, t.Name),
+                        Secondary  = Lang.T("CapWarnUsed" + letter, capMB),
                         StripColor = "Warning",
                         DurationMs = _config.Config.NotificationDurationSeconds * 1000,
                     });
@@ -337,6 +337,33 @@ namespace MasselGUARD.ViewModels
 
         /// <summary>An over-budget, kill-enabled period that isn't currently overridden.</summary>
         public sealed record CapKillInfo(string Letter, string PeriodWord, long UsedBytes, long CapBytes, string OverrideKey);
+
+        // Historical average per tunnel (bytes/day over the last 365 days, or all history when
+        // shorter), cached for a few minutes - it scans the whole history, and a typical day
+        // doesn't move second by second.
+        private readonly Dictionary<string, (DateTime At, double? Avg, double Span)> _baselineCache =
+            new(StringComparer.OrdinalIgnoreCase);
+        private static readonly TimeSpan BaselineRefresh = TimeSpan.FromMinutes(5);
+
+        private (double? avg, double span) HistoryBaseline(string name, DateTime nowUtc)
+        {
+            if (_baselineCache.TryGetValue(name, out var c) && nowUtc - c.At < BaselineRefresh)
+                return (c.Avg, c.Span);
+            var avg = _history.GetAverageBytesPerDay(name, nowUtc, out var span);
+            _baselineCache[name] = (nowUtc, avg, span);
+            return (avg, span);
+        }
+
+        /// <summary>The tunnel's typical usage per day / week / month in MB (historical average,
+        /// rounded up), or null when it has no history - shown in the tunnel editor's greyed cap
+        /// boxes while "Use history" is ticked, and used as the starting cap when it's unticked.</summary>
+        public (int day, int week, int month)? HistoricalReferenceMB(string name)
+        {
+            var avg = _history.GetAverageBytesPerDay(name, DateTime.UtcNow, out _);
+            if (avg is not double v) return null;
+            static int Mb(double bytes) => (int)Math.Ceiling(bytes / 1_048_576.0);
+            return (Mb(v), Mb(v * 7), Mb(v * 365.25 / 12));
+        }
 
         private (long day, long week, long month) PeriodUsage(TunnelEntryViewModel vm, DateTime now)
         {
@@ -377,9 +404,9 @@ namespace MasselGUARD.ViewModels
                     : new CapKillInfo(letter, word, used, cap, key);
             }
 
-            return Check(st.DailyCapKill,   st.DailyCapMB,   day,   "d", "daily",   $"{now:yyyy-MM-dd}")
-                ?? Check(st.WeeklyCapKill,  st.WeeklyCapMB,  week,  "w", "weekly",  $"{System.Globalization.ISOWeek.GetYear(now)}W{System.Globalization.ISOWeek.GetWeekOfYear(now):00}")
-                ?? Check(st.MonthlyCapKill, st.MonthlyCapMB, month, "m", "monthly", $"{now:yyyy-MM}");
+            return Check(st.DailyCapKill,   st.DailyUserCapMB,   day,   "d", "daily",   $"{now:yyyy-MM-dd}")
+                ?? Check(st.WeeklyCapKill,  st.WeeklyUserCapMB,  week,  "w", "weekly",  $"{System.Globalization.ISOWeek.GetYear(now)}W{System.Globalization.ISOWeek.GetWeekOfYear(now):00}")
+                ?? Check(st.MonthlyCapKill, st.MonthlyUserCapMB, month, "m", "monthly", $"{now:yyyy-MM}");
         }
 
         /// <summary>Forget any "ignore this period" override and kill marker for a tunnel - called
@@ -404,9 +431,9 @@ namespace MasselGUARD.ViewModels
                 if (kill && capMB > 0 && used >= (long)capMB * 1_048_576L)
                     _capOverridden.Add($"{vm.Name}|{letter}|{instance}");
             }
-            Maybe(st.DailyCapKill,   st.DailyCapMB,   day,   "d", $"{now:yyyy-MM-dd}");
-            Maybe(st.WeeklyCapKill,  st.WeeklyCapMB,  week,  "w", $"{System.Globalization.ISOWeek.GetYear(now)}W{System.Globalization.ISOWeek.GetWeekOfYear(now):00}");
-            Maybe(st.MonthlyCapKill, st.MonthlyCapMB, month, "m", $"{now:yyyy-MM}");
+            Maybe(st.DailyCapKill,   st.DailyUserCapMB,   day,   "d", $"{now:yyyy-MM-dd}");
+            Maybe(st.WeeklyCapKill,  st.WeeklyUserCapMB,  week,  "w", $"{System.Globalization.ISOWeek.GetYear(now)}W{System.Globalization.ISOWeek.GetWeekOfYear(now):00}");
+            Maybe(st.MonthlyCapKill, st.MonthlyUserCapMB, month, "m", $"{now:yyyy-MM}");
         }
 
         /// <summary>Disconnect an active tunnel that has crossed a kill-enabled cap.</summary>
@@ -440,13 +467,13 @@ namespace MasselGUARD.ViewModels
             // Sticky, interactive confirmation - offer to ignore the cap and reconnect.
             (Application.Current as App)?.ShowTrayNotification(new Views.ToastNotification
             {
-                Category     = "Data cap reached",
-                Primary      = $"{t.Name}: disconnected - {kill.PeriodWord} cap reached",
-                Secondary    = $"{FmtBytes(kill.UsedBytes)} of {FmtBytes(kill.CapBytes)} used this period.",
+                Category     = Lang.T("ToastCatDataCap"),
+                Primary      = Lang.T("CapKillPrimary" + kill.Letter.ToUpperInvariant(), t.Name),
+                Secondary    = Lang.T("CapUsedThisPeriod", FmtBytes(kill.UsedBytes), FmtBytes(kill.CapBytes)),
                 StripColor   = "Danger",
                 Interactive  = true,
-                ConfirmLabel = "Ignore & reconnect",
-                CancelLabel  = "Dismiss",
+                ConfirmLabel = Lang.T("CapBtnIgnoreReconnect"),
+                CancelLabel  = Lang.T("BtnDismiss"),
                 OnConfirm    = () =>
                 {
                     OverrideCap(t);
@@ -464,13 +491,13 @@ namespace MasselGUARD.ViewModels
                       $"({FmtBytes(kill.UsedBytes)} / {FmtBytes(kill.CapBytes)}).");
             (Application.Current as App)?.ShowTrayNotification(new Views.ToastNotification
             {
-                Category     = "Data cap reached",
-                Primary      = $"{vm.Name}: over the {kill.PeriodWord} cap",
-                Secondary    = $"{FmtBytes(kill.UsedBytes)} of {FmtBytes(kill.CapBytes)} used this period. Connect anyway?",
+                Category     = Lang.T("ToastCatDataCap"),
+                Primary      = Lang.T("CapOverPrimary" + kill.Letter.ToUpperInvariant(), vm.Name),
+                Secondary    = Lang.T("CapUsedConnectAnyway", FmtBytes(kill.UsedBytes), FmtBytes(kill.CapBytes)),
                 StripColor   = "Danger",
                 Interactive  = true,
-                ConfirmLabel = "Connect",
-                CancelLabel  = "Cancel",
+                ConfirmLabel = Lang.T("BtnConnect"),
+                CancelLabel  = Lang.T("BtnCancel"),
                 OnConfirm    = () => { OverrideCap(vm); onConnect(); },
                 OnCancel     = () => _log.Info($"Auto-connect cancelled for {vm.Name} (over {kill.PeriodWord} cap)."),
             });
@@ -506,14 +533,14 @@ namespace MasselGUARD.ViewModels
             _dnsLeakWarned.Add(t.Name);
             if (wantLog)
                 _log.Warn($"Possible DNS leak on {t.Name}: another network adapter has DNS servers. " +
-                          "Enable DNS leak protection in Settings → Advanced.");
+                          "Enable DNS leak protection in Settings → DNS.");
             if (wantToast)
                 (Application.Current as App)?.ShowTrayNotification(
                     new Views.ToastNotification
                     {
-                        Category   = "DNS leak warning",
-                        Primary    = $"Possible DNS leak: {t.Name}",
-                        Secondary  = "Enable DNS leak protection in Settings → Advanced.",
+                        Category   = Lang.T("ToastCatDnsLeak"),
+                        Primary    = Lang.T("DnsLeakToastPrimary", t.Name),
+                        Secondary  = Lang.T("DnsLeakToastSecondary"),
                         StripColor = "Warning",
                         DurationMs = _config.Config.NotificationDurationSeconds * 1000,
                     });
@@ -565,6 +592,8 @@ namespace MasselGUARD.ViewModels
                     long weekTotal  = wrx + wtx + live;
                     long monthTotal = mrx + mtx + live;
                     t.UpdateUsage(dayTotal, weekTotal, monthTotal);
+                    var (avg, span) = HistoryBaseline(t.Name, now);
+                    t.UpdateHistoryBaseline(avg, span);
 
                     if (nowActive)
                     {
@@ -589,7 +618,7 @@ namespace MasselGUARD.ViewModels
             }
 
             var active = TunnelList.FirstOrDefault(t => t.IsActive);
-            ActiveTunnelName = active?.Name ?? "Not connected";
+            ActiveTunnelName = active?.Name ?? Lang.T("StatusDisconnected");
 
             // DNS resolver ownership (§6): while any tunnel is up, its own DNS/NRPT supersedes,
             // so DNS rules are held off the physical NIC. On the falling edge (tunnel released),
@@ -795,10 +824,10 @@ namespace MasselGUARD.ViewModels
                     bool isRule    = result.Reason.StartsWith("Rule:");
                     bool isOpen    = result.Reason.StartsWith("Open network");
                     bool isDefault = result.Reason.StartsWith("Default");
-                    string category  = isRule    ? "WiFi Rule Matched"
-                                     : isOpen    ? "Open Network Protection"
-                                     : isDefault ? "Default Action"
-                                     :             "Automation";
+                    string category  = isRule    ? Lang.T("ToastCatRule")
+                                     : isOpen    ? Lang.T("SettingsSectionOpenWifi")
+                                     : isDefault ? Lang.T("SettingsSectionDefaultAction")
+                                     :             Lang.T("SettingsTabAutomation");
                     string stripKey  = isOpen    ? "Success"
                                      : isDefault ? "Warning"
                                      :             "Accent";
@@ -806,8 +835,8 @@ namespace MasselGUARD.ViewModels
                         new Views.ToastNotification
                         {
                             Category   = category,
-                            Primary    = "Disconnected",
-                            Secondary  = result.Reason,
+                            Primary    = Lang.T("StatusDisconnected"),
+                            Secondary  = LocalizeReason(result.Reason),
                             StripColor = stripKey,
                             DurationMs = ms,
                         });
@@ -856,10 +885,10 @@ namespace MasselGUARD.ViewModels
                 bool isRule    = reason.StartsWith("Rule:");
                 bool isOpen    = reason.StartsWith("Open network");
                 bool isDefault = reason.StartsWith("Default");
-                string category = isRule    ? "WiFi Rule Matched"
-                                : isOpen    ? "Open Network Protection"
-                                : isDefault ? "Default Action"
-                                :             "Automation";
+                string category = isRule    ? Lang.T("ToastCatRule")
+                                : isOpen    ? Lang.T("SettingsSectionOpenWifi")
+                                : isDefault ? Lang.T("SettingsSectionDefaultAction")
+                                :             Lang.T("SettingsTabAutomation");
                 string stripKey = isOpen    ? "Success"
                                 : isDefault ? "Warning"
                                 :             "Accent";
@@ -868,7 +897,7 @@ namespace MasselGUARD.ViewModels
                     {
                         Category   = category,
                         Primary    = target.Name,
-                        Secondary  = reason,
+                        Secondary  = LocalizeReason(reason),
                         StripColor = stripKey,
                         DurationMs = ms,
                     });
@@ -955,6 +984,16 @@ namespace MasselGUARD.ViewModels
         {
             _manualDnsProfileId = null;
             _log.Ok("DNS: manual override cleared - following automation.");
+            // Undo what the manual override wrote to the physical NIC first - it forces a static
+            // resolver even while a tunnel owns DNS, and ApplyPendingDns alone can't clear it (it
+            // returns early when a tunnel owns resolution or when no rule result is pending, e.g.
+            // right after Revert-to-default). Clearing the marker here is what makes ONE click
+            // enough; automation then re-applies its own profile below if it has one.
+            var guid = _wifi.CurrentInterfaceGuid;
+            if (guid != Guid.Empty && _dns.HasOverride(guid)) _dns.Restore(guid);
+            RecordDnsDefaultResolver();
+            SetActiveDns(null);
+            _lastDnsAutoToast = null;   // let automation announce whatever it re-applies
             ApplyPendingDns();
         }
 
@@ -1054,7 +1093,7 @@ namespace MasselGUARD.ViewModels
                     _log.Info($"DNS: {result.Reason}");
                     _dns.SetAutomatic(guid, families);
                     RecordDnsDefaultResolver();   // show the actual server in use
-                    MaybeToastDnsAuto("auto", "System default (DHCP)", result.Reason);
+                    MaybeToastDnsAuto("auto", Lang.T("DnsSystemDefaultDhcp"), result.Reason);
                     SetActiveDns(null);
                     break;
 
@@ -1063,7 +1102,7 @@ namespace MasselGUARD.ViewModels
                     {
                         _log.Info("DNS: no matching rule - restoring the network's own resolver.");
                         _dns.Restore(guid);
-                        MaybeToastDnsAuto("restored", "Network default restored", result.Reason);
+                        MaybeToastDnsAuto("restored", Lang.T("DnsNetworkDefaultRestored"), result.Reason);
                     }
                     else
                     {
@@ -1075,6 +1114,48 @@ namespace MasselGUARD.ViewModels
                     SetActiveDns(null);
                     break;
             }
+        }
+
+        /// <summary>Translate a RuleEngine / DnsPolicy reason for display. Reasons are built in English
+        /// ("&lt;head&gt;[: subject][ → tail]") and stay English in the log and history; the known head
+        /// and tail phrases are swapped here, names (SSID, tunnel, profile) are kept as-is.</summary>
+        internal static string LocalizeReason(string reason)
+        {
+            if (string.IsNullOrEmpty(reason)) return reason;
+            string head = reason, tail = null!;
+            int arrow = reason.LastIndexOf(" → ", StringComparison.Ordinal);
+            if (arrow >= 0) { head = reason[..arrow]; tail = reason[(arrow + 3)..]; }
+
+            head = head switch
+            {
+                "Default action: disconnect"        => Lang.T("ReasonDefaultDisconnect"),
+                "Default action on WiFi disconnect" => Lang.T("ReasonDefaultOnWifiLost"),
+                "Schedule window ended"             => Lang.T("ReasonScheduleEnded"),
+                "Open network protection"           => Lang.T("BehaviourOpenProtection"),
+                "Open network"                      => Lang.T("ReasonOpenNetwork"),
+                "Default DNS"                       => Lang.T("ReasonDefaultDns"),
+                "No matching rule"                  => Lang.T("ReasonNoMatch"),
+                _ => head.StartsWith("Default action: activate ", StringComparison.Ordinal)
+                        ? Lang.T("ReasonDefaultActivate", head["Default action: activate ".Length..])
+                   : head.StartsWith("Rule: ", StringComparison.Ordinal)
+                        ? Lang.T("ReasonRule") + ": " + head["Rule: ".Length..]
+                   : head.StartsWith("Schedule: ", StringComparison.Ordinal)
+                        ? Lang.T("ReasonSchedule") + ": " + head["Schedule: ".Length..]
+                   : head.StartsWith("Untrusted network: ", StringComparison.Ordinal)
+                        ? Lang.T("ReasonUntrusted") + ": " + head["Untrusted network: ".Length..]
+                   : head.StartsWith("Trusted network: ", StringComparison.Ordinal)
+                        ? Lang.T("ReasonTrusted") + ": " + head["Trusted network: ".Length..]
+                   : head,
+            };
+            if (tail == null) return head;
+            tail = tail switch
+            {
+                "disconnect"       => Lang.T("ReasonTailDisconnect"),
+                "no DNS change"    => Lang.T("ReasonTailNoDnsChange"),
+                "automatic (DHCP)" => Lang.T("DnsSystemDefaultDhcp"),
+                _                  => tail,
+            };
+            return head + " → " + tail;
         }
 
         /// <summary>Fire a tray toast when <em>automation</em> changes the active DNS resolver - even
@@ -1089,13 +1170,13 @@ namespace MasselGUARD.ViewModels
 
             bool isOpen    = reason.StartsWith("Open network");
             bool isDefault = reason.StartsWith("Default");
-            string category = reason.StartsWith("Rule:")            ? "DNS Rule Matched"
-                            : isOpen                                 ? "DNS · Open Network"
-                            : reason.StartsWith("Schedule:")         ? "DNS Schedule"
-                            : reason.StartsWith("Trusted network")   ? "DNS · Trusted Network"
-                            : reason.StartsWith("Untrusted network") ? "DNS · Untrusted Network"
-                            : isDefault                              ? "DNS Default"
-                            :                                          "DNS Automation";
+            string category = reason.StartsWith("Rule:")            ? Lang.T("ToastCatDnsRule")
+                            : isOpen                                 ? "DNS · " + Lang.T("ReasonOpenNetwork")
+                            : reason.StartsWith("Schedule:")         ? Lang.T("ToastCatDnsSchedule")
+                            : reason.StartsWith("Trusted network")   ? "DNS · " + Lang.T("ReasonTrusted")
+                            : reason.StartsWith("Untrusted network") ? "DNS · " + Lang.T("ReasonUntrusted")
+                            : isDefault                              ? Lang.T("ToastCatDnsDefault")
+                            :                                          Lang.T("WizSumDnsAutomation");
             string stripKey = isOpen ? "Success" : isDefault ? "Warning" : "Accent";
 
             EmitToast(
@@ -1103,7 +1184,7 @@ namespace MasselGUARD.ViewModels
                 {
                     Category   = category,
                     Primary    = primary,
-                    Secondary  = reason,
+                    Secondary  = LocalizeReason(reason),
                     StripColor = stripKey,
                     DurationMs = _config.Config.NotificationDurationSeconds * 1000,
                 });
@@ -1225,8 +1306,8 @@ namespace MasselGUARD.ViewModels
         {
             var dlg = new Microsoft.Win32.SaveFileDialog
             {
-                Title      = "Export Activity Log",
-                Filter     = "Text files (*.txt)|*.txt",
+                Title      = Lang.T("ExportLogDialogTitle"),
+                Filter     = Lang.T("TextFilesFilter") + " (*.txt)|*.txt",
                 FileName   = $"MasselGUARD-log-{DateTime.Now:yyyyMMdd}",
                 DefaultExt = ".txt",
             };

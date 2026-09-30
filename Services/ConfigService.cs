@@ -81,7 +81,6 @@ namespace MasselGUARD.Services
 
             DropCompanionTunnels();
             MigrateInlineConfigsToFiles();
-            EnsureAtLeastOneModule();
             ApplyPreset();
         }
 
@@ -98,15 +97,6 @@ namespace MasselGUARD.Services
                 foreach (var t in Config.Tunnels) t.Source = "local";
                 try { Save(); } catch { /* best-effort */ }
             }
-        }
-
-        /// <summary>Feature-module invariant: at least one of the tunnel / DNS features must be
-        /// enabled, or the app would have no purpose. A config with both off (hand-edited, or a
-        /// bad preset) falls back to the tunnel feature. See docs/FeatureModules-Design.md.</summary>
-        private void EnsureAtLeastOneModule()
-        {
-            if (!Config.EnableTunnels && !Config.EnableDns)
-                Config.EnableTunnels = true;
         }
 
         /// <summary>

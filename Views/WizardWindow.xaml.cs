@@ -204,21 +204,33 @@ namespace MasselGUARD.Views
                 WizSummaryPanel.Children.Add(g);
             }
 
-            string features = _vm.EnableTunnels && _vm.EnableDns ? "WireGuard VPN + DNS"
-                            : _vm.EnableTunnels ? "WireGuard VPN"
-                            : "DNS automation";
-            Row("Features", features);
+            string OnOff(bool on) => Lang.T(on ? "WizSumOn" : "WizSumOff");
+            string YesNo(bool on) => Lang.T(on ? "BtnYes" : "BtnNo");
+            string Mode(string mode) => mode switch
+            {
+                "always"     => Lang.T("WizSumModeAlways"),
+                "per-tunnel" => Lang.T("WizSumModePerTunnel"),
+                _            => Lang.T("WizSumOff"),
+            };
+
+            // Enabled feature areas, named as in General > Feature settings.
+            var features = new System.Collections.Generic.List<string>();
+            if (_vm.EnableTunnels)       features.Add("WireGuard");
+            if (_vm.EnableDns)           features.Add(Lang.T("SettingsTabDns"));
+            if (!_vm.DisableWifiRules)   features.Add(Lang.T("SettingsTabAutomation"));
+            if (cfg.ActivityLogEnabled)  features.Add(Lang.T("FeatLogTitle"));
+            if (cfg.ChartsEnabled)       features.Add(Lang.T("WizHistoryTitle"));
+            Row(Lang.T("WizSumFeatures"), features.Count > 0 ? string.Join(", ", features) : Lang.T("WizSumNone"));
             if (_vm.EnableTunnels)
             {
-                Row("WiFi automation",  _vm.DisableWifiRules ? "Off (manual)" : "On");
-                Row("Auto-reconnect",   cfg.AutoReconnectMode);
-                Row("Kill switch",      cfg.KillSwitchMode);
+                Row(Lang.T("WizSumAutoReconnect"), Mode(cfg.AutoReconnectMode));
+                Row(Lang.T("WizKsTitle"),          Mode(cfg.KillSwitchMode));
             }
             if (_vm.EnableDns)
-                Row("DNS automation",   cfg.DnsAutomationEnabled ? "On" : "Off");
-            Row("Start with Windows",  cfg.StartWithWindows ? "Yes" : "No");
-            Row("Start minimized",     cfg.StartMinimized ? "Yes" : "No");
-            Row("Tray notifications",  cfg.ShowTrayPopupOnSwitch ? "On" : "Off");
+                Row(Lang.T("WizSumDnsAutomation"), OnOff(cfg.DnsAutomationEnabled));
+            Row(Lang.T("WizSumStartWithWindows"),  YesNo(cfg.StartWithWindows));
+            Row(Lang.T("WizStartMinTitle"),        YesNo(cfg.StartMinimized));
+            Row(Lang.T("WizSumTrayNotifications"), OnOff(cfg.ShowTrayPopupOnSwitch));
         }
 
         // ── Dot indicators ────────────────────────────────────────────────────
@@ -293,7 +305,6 @@ namespace MasselGUARD.Views
         {
             if (_settingControls) return;
             bool on = WizFeatWgToggle?.IsChecked == true;
-            if (!on && !_vm.EnableDns) { _settingControls = true; WizFeatWgToggle!.IsChecked = true; _settingControls = false; return; } // keep ≥1 module
             _vm.EnableTunnels = on;
             UpdateFeatureStepEnablement();
         }
@@ -302,7 +313,6 @@ namespace MasselGUARD.Views
         {
             if (_settingControls) return;
             bool on = WizFeatDnsToggle?.IsChecked == true;
-            if (!on && !_vm.EnableTunnels) { _settingControls = true; WizFeatDnsToggle!.IsChecked = true; _settingControls = false; return; }
             _vm.EnableDns = on;
             UpdateFeatureStepEnablement();
         }
@@ -641,7 +651,7 @@ namespace MasselGUARD.Views
 
             if (latest == null)
             {
-                if (WizVersionLabel   != null) WizVersionLabel.Text   = $"MasselGUARD v{UpdateChecker.CurrentVersionString} - could not reach server";
+                if (WizVersionLabel   != null) WizVersionLabel.Text   = Lang.T("WizUpdNoServer", UpdateChecker.CurrentVersionString);
                 if (WizCheckUpdateBtn != null) WizCheckUpdateBtn.Content = Lang.T("BtnCheckUpdate");
                 return;
             }
@@ -649,19 +659,19 @@ namespace MasselGUARD.Views
             if (UpdateChecker.IsNewerVersion(latest.TagName))
             {
                 _pendingRelease = latest;
-                if (WizVersionLabel   != null) WizVersionLabel.Text     = $"v{latest.TagName} is available  →  you are on v{UpdateChecker.CurrentVersionString}";
-                if (WizCheckUpdateBtn != null) WizCheckUpdateBtn.Content = Lang.T("BtnUpdate") is { Length: > 0 } s ? s : "Update now";
-                if (BtnNext != null) BtnNext.Content = "Save & Update";
+                if (WizVersionLabel   != null) WizVersionLabel.Text     = Lang.T("WizUpdAvailable", latest.TagName, UpdateChecker.CurrentVersionString);
+                if (WizCheckUpdateBtn != null) WizCheckUpdateBtn.Content = Lang.T("BtnUpdate");
+                if (BtnNext != null) BtnNext.Content = Lang.T("WizBtnSaveUpdate");
             }
             else if (UpdateChecker.IsAheadOfLatest(latest.TagName))
             {
-                if (WizVersionLabel   != null) WizVersionLabel.Text     = $"MasselGUARD v{UpdateChecker.CurrentVersionString} - ahead of release";
-                if (WizCheckUpdateBtn != null) { WizCheckUpdateBtn.Content = "✓  Dev build"; WizCheckUpdateBtn.IsEnabled = false; }
+                if (WizVersionLabel   != null) WizVersionLabel.Text     = Lang.T("WizUpdAhead", UpdateChecker.CurrentVersionString);
+                if (WizCheckUpdateBtn != null) { WizCheckUpdateBtn.Content = "✓  " + Lang.T("WizUpdDevBuild"); WizCheckUpdateBtn.IsEnabled = false; }
             }
             else
             {
-                if (WizVersionLabel   != null) WizVersionLabel.Text     = $"MasselGUARD v{UpdateChecker.CurrentVersionString} - up to date";
-                if (WizCheckUpdateBtn != null) { WizCheckUpdateBtn.Content = "✓  Up to date"; WizCheckUpdateBtn.IsEnabled = false; }
+                if (WizVersionLabel   != null) WizVersionLabel.Text     = Lang.T("WizUpdCurrent", UpdateChecker.CurrentVersionString);
+                if (WizCheckUpdateBtn != null) { WizCheckUpdateBtn.Content = "✓  " + Lang.T("WizUpdUpToDate"); WizCheckUpdateBtn.IsEnabled = false; }
             }
         }
 
@@ -690,8 +700,8 @@ namespace MasselGUARD.Views
             }
             catch (Exception ex)
             {
-                if (WizCheckUpdateBtn != null) { WizCheckUpdateBtn.IsEnabled = true; WizCheckUpdateBtn.Content = "Retry"; }
-                if (WizVersionLabel   != null) WizVersionLabel.Text = $"Update failed: {ex.Message}";
+                if (WizCheckUpdateBtn != null) { WizCheckUpdateBtn.IsEnabled = true; WizCheckUpdateBtn.Content = Lang.T("WizUpdRetry"); }
+                if (WizVersionLabel   != null) WizVersionLabel.Text = Lang.T("WizUpdFailed", ex.Message);
             }
         }
 
@@ -699,18 +709,6 @@ namespace MasselGUARD.Views
         private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (e.LeftButton == MouseButtonState.Pressed) DragMove();
-        }
-    }
-
-    internal static class CommandExtensions
-    {
-        internal static System.Threading.Tasks.Task ExecuteAsync(
-            this Infrastructure.AsyncRelayCommand cmd, object? parameter)
-        {
-            var tcs = new System.Threading.Tasks.TaskCompletionSource();
-            cmd.Execute(parameter);
-            tcs.SetResult();
-            return tcs.Task;
         }
     }
 }

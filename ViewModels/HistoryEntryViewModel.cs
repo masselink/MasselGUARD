@@ -26,7 +26,7 @@ namespace MasselGUARD.ViewModels
                 var local = _entry.ConnectedAt.ToLocalTime();
                 return local.Date == DateTime.Today
                     ? local.ToString("HH:mm:ss")
-                    : local.ToString("dd MMM  HH:mm");
+                    : local.ToString("dd MMM  HH:mm", Lang.Culture);
             }
         }
 
@@ -34,7 +34,7 @@ namespace MasselGUARD.ViewModels
         /// Full date + time string always shown in the hover popup (never time-only).
         /// </summary>
         public string FullWhenDisplay =>
-            _entry.ConnectedAt.ToLocalTime().ToString("dd MMM yyyy  HH:mm:ss");
+            _entry.ConnectedAt.ToLocalTime().ToString("dd MMM yyyy  HH:mm:ss", Lang.Culture);
 
         /// <summary>
         /// Session duration. Shows "active" when the tunnel is still connected,
@@ -46,7 +46,7 @@ namespace MasselGUARD.ViewModels
             get
             {
                 if (_entry.DisconnectedAt == null)
-                    return "active";
+                    return Lang.T("ChartActive");
 
                 var span = _entry.DisconnectedAt.Value - _entry.ConnectedAt;
                 if (span.TotalSeconds < 60)
@@ -69,11 +69,11 @@ namespace MasselGUARD.ViewModels
             {
                 var connLocal = _entry.ConnectedAt.ToLocalTime();
                 if (_entry.DisconnectedAt == null)
-                    return $"{connLocal:HH:mm} – active";
+                    return $"{connLocal:HH:mm} – {Lang.T("ChartActive")}";
                 var discLocal = _entry.DisconnectedAt.Value.ToLocalTime();
                 return connLocal.Date == discLocal.Date
                     ? $"{connLocal:HH:mm} – {discLocal:HH:mm}"
-                    : $"{connLocal:dd MMM HH:mm} – {discLocal:dd MMM HH:mm}";
+                    : string.Format(Lang.Culture, "{0:dd MMM HH:mm} – {1:dd MMM HH:mm}", connLocal, discLocal);
             }
         }
 

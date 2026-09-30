@@ -211,7 +211,7 @@ namespace MasselGUARD
         public static string GetThemeDisplayName(string folderName)
         {
             if (folderName is "__system__" or "system")
-                return "System (Windows colors)";
+                return Lang.T("ThemeSystemName");
             try
             {
                 var json = ThemeJsonPath(folderName);
@@ -648,9 +648,14 @@ namespace MasselGUARD
             SetBrush(res, "ListHover",    lstHov);
             SetBrush(res, "ListSelected", lstSel);
 
-            // Log timestamp colour - falls back to resolved border colour if not set
-            var tsHex = !string.IsNullOrWhiteSpace(d.ColorLogTimestamp) ? d.ColorLogTimestamp : border;
-            res["Theme.LogTimestampColor"] = ParseColor(tsHex, Colors.Gray);
+            // Log timestamp colour (themeable: colorLogTimestamp). Falls back to the muted text colour
+            // when unset - and when the theme's value is too faint to read on the log's card
+            // background (below 3:1), since most themes shipped very subdued timestamps.
+            var tsCol  = ParseColor(!string.IsNullOrWhiteSpace(d.ColorLogTimestamp) ? d.ColorLogTimestamp : txtMut, Colors.Gray);
+            var mutCol = ParseColor(txtMut, Colors.Gray);
+            var cardCol = ParseColor(card, Colors.Black);
+            if (ContrastRatio(tsCol, cardCol) < MinLogTimestampContrast) tsCol = mutCol;
+            res["Theme.LogTimestampColor"] = tsCol;
 
             // Typography
             res["Theme.FontFamily"]          = ResolveFontFamily(d.FontFamily, folder);
@@ -708,7 +713,7 @@ namespace MasselGUARD
             res["Theme.DnsBadgeLocation"] = string.IsNullOrWhiteSpace(d.DnsBadgeLocation)
                 ? "bottom-right" : d.DnsBadgeLocation.Trim().ToLowerInvariant();
 
-            // Custom section icons — a parsed Geometry when the theme supplies one, else null so the
+            // Custom section icons - a parsed Geometry when the theme supplies one, else null so the
             // main window falls back to the built-in default icon for that section.
             res["Theme.Icon.Tunnels"]    = ParseIconGeometry(d.IconTunnels);
             res["Theme.Icon.Dns"]        = ParseIconGeometry(d.IconDns);
@@ -1258,6 +1263,21 @@ namespace MasselGUARD
         {
             try { return (Color)ColorConverter.ConvertFromString(hex); }
             catch { return fallback; }
+        }
+
+        /// <summary>Readability floor for activity-log timestamps against the log background.</summary>
+        private const double MinLogTimestampContrast = 3.0;
+
+        /// <summary>WCAG contrast ratio (1..21) between two colours; alpha is ignored.</summary>
+        private static double ContrastRatio(Color a, Color b)
+        {
+            static double Lum(Color c)
+            {
+                static double Ch(byte v) { double s = v / 255.0; return s <= 0.03928 ? s / 12.92 : Math.Pow((s + 0.055) / 1.055, 2.4); }
+                return 0.2126 * Ch(c.R) + 0.7152 * Ch(c.G) + 0.0722 * Ch(c.B);
+            }
+            double la = Lum(a), lb = Lum(b);
+            return (Math.Max(la, lb) + 0.05) / (Math.Min(la, lb) + 0.05);
         }
 
         /// <summary>Parse theme icon path data (WPF/SVG mini-language) into a frozen Geometry, or null

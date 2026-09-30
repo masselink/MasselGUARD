@@ -39,6 +39,9 @@ namespace MasselGUARD
         // Cap for the Tunnels/DNS and WiFi/log list rows so they stay compact (≈ one panel's worth)
         // rather than stretching to fill a tall window; longer lists scroll within the card.
         private const double ListRowMaxHeight = 240;
+        // Width of the activity log's Time column. MUST match the Time column in the log's header
+        // bar (MainWindow.xaml, LogContent) so the Event text lines up under the "Event" header.
+        private double _logTimeWidth = 70;   // Time slot width - measured from the log font in RebuildLog
 
         // ── Content-driven window sizing ──────────────────────────────────────
         // Coalesced request to re-measure the content and set MinHeight (and optionally snap Height)
@@ -83,7 +86,7 @@ namespace MasselGUARD
             // small and off-baseline next to the minimize/close paths).
             if (MaxGlyph != null)     MaxGlyph.Visibility     = maximized ? Visibility.Collapsed : Visibility.Visible;
             if (RestoreGlyph != null) RestoreGlyph.Visibility = maximized ? Visibility.Visible    : Visibility.Collapsed;
-            if (MaximizeBtn != null)  MaximizeBtn.ToolTip     = maximized ? "Restore" : "Maximize";
+            if (MaximizeBtn != null)  MaximizeBtn.ToolTip     = Lang.T(maximized ? "TooltipRestore" : "TooltipMaximize");
             if (OuterBorder != null)
             {
                 OuterBorder.BorderThickness = maximized ? new Thickness(0) : new Thickness(1);
@@ -232,6 +235,16 @@ namespace MasselGUARD
             Dispatcher.BeginInvoke(new Action(WarnIfCloudSyncedLocation),
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
 
+            // Orphaned WireGuardTunnel$ services (crash / improper-shutdown debris): note them in the
+            // log once at startup; they're listed + removable in Settings → Diagnostics.
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                var orphans = GetOrphanedServices();
+                if (orphans.Count > 0)
+                    LogSvc.Warn($"{orphans.Count} orphaned WireGuardTunnel$ service(s) found. " +
+                                "Use Settings > Diagnostics to remove them.");
+            }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
             // Subscribe to log service and render existing entries
             LogSvc.EntryAdded += AppendLogEntry;
             RebuildLog();
@@ -256,6 +269,10 @@ namespace MasselGUARD
                 _vm.RebuildTunnelList();
                 UpdateAdminLabel();
                 UpdateFooterLabel();
+                UpdateWindowTitle();
+                UpdateTunnelLabel();
+                UpdateHiddenCountBadge();
+                UpdateStatusBarCentre();
                 RebuildLog();
             });
 
@@ -391,11 +408,9 @@ namespace MasselGUARD
                         string curStr = Fmt(cVer, cBuild);
                         string insStr = Fmt(iVer, iBuild);
 
-                        string msg = currentIsNewer
-                            ? $"This copy of MasselGUARD ({curStr}) is newer than the installed version ({insStr}).\n\nDo you want to overwrite the installed version with this copy?"
-                            : $"This copy of MasselGUARD ({curStr}) differs from the installed version ({insStr}).\n\nDo you want to overwrite the installed version with this copy?";
+                        string msg = Lang.T(currentIsNewer ? "UpdateInstalledNewer" : "UpdateInstalledDiffers", curStr, insStr);
 
-                        if (ShowThemedYesNo(msg, "Update installed version"))
+                        if (ShowThemedYesNo(msg, Lang.T("UpdateInstalledTitle")))
                             RunInstallPublic();
                     }
                     catch { }
@@ -443,40 +458,8 @@ namespace MasselGUARD
             // don't queue up stacked BeginInvoke batches that produce duplicate entries.
             void AddToDoc()
             {
-                var para = new Paragraph { Margin = new Thickness(0), Padding = new Thickness(0) };
-
-                // Timestamp
-                Brush tsBrush;
-                try
-                {
-                    var col = (System.Windows.Media.Color)FindResource("Theme.LogTimestampColor");
-                    tsBrush = new SolidColorBrush(col);
-                }
-                catch { tsBrush = (Brush)FindResource("TextMuted"); }
-
-                var ts = new Run(entry.Timestamp.ToString("HH:mm:ss") + "  ")
-                {
-                    Foreground = tsBrush
-                };
-
-                // Ok events (Connected, Disconnected, …) shown in Accent (Windows theme colour)
-                Brush msgBrush = entry.Level switch
-                {
-                    LogLevel.Ok    => SafeBrush("Accent"),
-                    LogLevel.Warn  => SafeBrush("Danger"),
-                    LogLevel.Info  => SafeBrush("Accent"),
-                    _              => SafeBrush("TextMuted"),
-                };
-
-                string prefix = entry.IsContinuation ? "  ↳ " : "";
-                var msgRun = new Run(prefix + entry.Message) { Foreground = msgBrush };
-
-                para.Inlines.Add(ts);
-                para.Inlines.Add(msgRun);
-                if (LogDocument.Blocks.FirstBlock != null)
-                    LogDocument.Blocks.InsertBefore(LogDocument.Blocks.FirstBlock, para);
-                else
-                    LogDocument.Blocks.Add(para);
+                // Two-column Time | Event table - wrapped lines stay under Event (see Views.LogTable).
+                Views.LogTable.Prepend(LogDocument, BuildLogRow(entry));
                 LogBox.ScrollToHome();
                 LogCountLabel.Text = LogSvc.Count.ToString();
             }
@@ -487,6 +470,27 @@ namespace MasselGUARD
                 Dispatcher.BeginInvoke(AddToDoc);
         }
 
+        private System.Windows.Documents.Paragraph BuildLogRow(LogEntry entry)
+        {
+            Brush tsBrush;
+            try
+            {
+                var col = (System.Windows.Media.Color)FindResource("Theme.LogTimestampColor");
+                tsBrush = new SolidColorBrush(col);
+            }
+            catch { tsBrush = (Brush)FindResource("TextMuted"); }
+
+            // Ok events (Connected, Disconnected, …) shown in Accent (Windows theme colour)
+            Brush msgBrush = entry.Level switch
+            {
+                LogLevel.Ok    => SafeBrush("Accent"),
+                LogLevel.Warn  => SafeBrush("Danger"),
+                LogLevel.Info  => SafeBrush("Accent"),
+                _              => SafeBrush("TextMuted"),
+            };
+            return Views.LogTable.BuildRow(entry, tsBrush, msgBrush, _logTimeWidth);
+        }
+
         private Brush SafeBrush(string key)
         {
             try { return (Brush)FindResource(key); }
@@ -495,9 +499,13 @@ namespace MasselGUARD
 
         private void RebuildLog()
         {
-            LogDocument.Blocks.Clear();
-            foreach (var e in LogSvc.Entries)
-                AppendLogEntry(e);
+            // Time slot + header column follow the current log font (theme / font-size changes rebuild).
+            _logTimeWidth = Views.LogTable.TimeWidth(LogBox);
+            if (LogTimeHeaderCol != null) LogTimeHeaderCol.Width = new GridLength(_logTimeWidth);
+            // One batched edit (newest first) - see LogTable.Fill.
+            Views.LogTable.Fill(LogBox,
+                Enumerable.Reverse(LogSvc.Entries).Select(BuildLogRow).ToList());
+            LogBox.ScrollToHome();
             LogCountLabel.Text = LogSvc.Count.ToString();
         }
 
@@ -757,7 +765,7 @@ namespace MasselGUARD
                 HiddenCountBadge.BorderThickness = new Thickness(1);
                 HiddenCountBadge.SetResourceReference(Border.BorderBrushProperty, "Accent");
                 HiddenCountBadge.CornerRadius    = new System.Windows.CornerRadius(8);
-                HiddenCountBtn.ToolTip = "Override active: showing all tunnels. Click to restore hidden groups.";
+                HiddenCountBtn.ToolTip = Lang.T("HiddenCountOverrideTip");
             }
             else
             {
@@ -768,7 +776,7 @@ namespace MasselGUARD
                 HiddenCountBadge.BorderThickness = new Thickness(0);
                 HiddenCountBadge.BorderBrush     = Brushes.Transparent;
                 HiddenCountBadge.CornerRadius    = new System.Windows.CornerRadius(8);
-                HiddenCountBtn.ToolTip = "Some tunnels hidden by group settings. Click to show all.";
+                HiddenCountBtn.ToolTip = Lang.T("HiddenCountHiddenTip");
             }
         }
 
@@ -928,11 +936,8 @@ namespace MasselGUARD
             var tunnels = ConfigSvc.Config.Tunnels;
             int fromIdx = tunnels.FindIndex(t => t.Name == dragged.Name);
             int toIdx   = tunnels.FindIndex(t => t.Name == target.Name);
-            if (fromIdx < 0 || toIdx < 0 || fromIdx == toIdx) return;
-
-            var moved = tunnels[fromIdx];
-            tunnels.RemoveAt(fromIdx);
-            tunnels.Insert(toIdx, moved);
+            // Land exactly where the drop line was drawn (above/below the target), like DNS/Automation.
+            if (!MoveToDropLine(tunnels, fromIdx, toIdx, TunnelsListView, target, e)) return;
             ConfigSvc.Save();
             _vm.RebuildTunnelList();
             RebuildTunnelGroups();
@@ -945,6 +950,73 @@ namespace MasselGUARD
                 .GetAdornerLayer(TunnelsListView);
             layer?.Remove(_dropAdorner);
             _dropAdorner = null;
+        }
+
+        // ── Generic drop-line for the DNS profiles + Automation lists ─────────
+        // Same visual as the tunnel list: a line above/below the row under the cursor. Only one list
+        // is dragged at a time, so a single adorner is tracked with the list that hosts it.
+        private DropLineAdorner?                _listDropAdorner;
+        private System.Windows.Controls.ListView? _listDropHost;
+
+        /// <summary>Draw (or move) the drop line on <paramref name="list"/> for the row under the
+        /// cursor. Hidden over the dragged row itself or empty space.</summary>
+        private void ShowListDropLine<T>(System.Windows.Controls.ListView list, DragEventArgs e, T? dragged)
+            where T : class
+        {
+            var target = GetItemUnderCursor<T>(list, e.GetPosition(list));
+            if (target == null || ReferenceEquals(target, dragged)) { RemoveListDropLine(); return; }
+            if (list.ItemContainerGenerator.ContainerFromItem(target) is not System.Windows.Controls.ListViewItem c) return;
+
+            bool above = e.GetPosition(c).Y < c.ActualHeight / 2;
+            double y   = c.TranslatePoint(new System.Windows.Point(0, above ? 0 : c.ActualHeight), list).Y - 1;
+
+            if (_listDropAdorner == null || !ReferenceEquals(_listDropHost, list))
+            {
+                RemoveListDropLine();
+                var layer = System.Windows.Documents.AdornerLayer.GetAdornerLayer(list);
+                if (layer != null)
+                {
+                    _listDropAdorner = new DropLineAdorner(list);
+                    layer.Add(_listDropAdorner);
+                    _listDropHost = list;
+                }
+            }
+            _listDropAdorner?.SetY(y);
+        }
+
+        /// <summary>DragLeave bubbles up from every child the cursor crosses, so only drop the line
+        /// when the cursor has really left the list (avoids flicker between cells).</summary>
+        private void RemoveListDropLineIfOutside(System.Windows.Controls.ListView list, DragEventArgs e)
+        {
+            var p = e.GetPosition(list);
+            if (p.X < 0 || p.Y < 0 || p.X >= list.ActualWidth || p.Y >= list.ActualHeight)
+                RemoveListDropLine();
+        }
+
+        private void RemoveListDropLine()
+        {
+            if (_listDropAdorner != null && _listDropHost != null)
+                System.Windows.Documents.AdornerLayer.GetAdornerLayer(_listDropHost)?.Remove(_listDropAdorner);
+            _listDropAdorner = null;
+            _listDropHost    = null;
+        }
+
+        /// <summary>Move <paramref name="from"/> to where the drop line was drawn (above or below
+        /// <paramref name="target"/>). Returns false when the position doesn't change.</summary>
+        private static bool MoveToDropLine<TItem>(List<TItem> items, int from, int targetIdx,
+            System.Windows.Controls.ListView list, object targetRow, DragEventArgs e)
+        {
+            if (from < 0 || targetIdx < 0) return false;
+            bool above = true;
+            if (list.ItemContainerGenerator.ContainerFromItem(targetRow) is System.Windows.Controls.ListViewItem c)
+                above = e.GetPosition(c).Y < c.ActualHeight / 2;
+            int insert = above ? targetIdx : targetIdx + 1;
+            if (from < insert) insert--;              // removing the source shifts later indexes up
+            if (insert == from) return false;
+            var moved = items[from];
+            items.RemoveAt(from);
+            items.Insert(insert, moved);
+            return true;
         }
 
         private void SetItemOpacity(TunnelEntryViewModel vm, double opacity)
@@ -1130,6 +1202,9 @@ namespace MasselGUARD
                 DailyCapHideRing    = dlg.ResultDailyCapHideRing,
                 WeeklyCapHideRing   = dlg.ResultWeeklyCapHideRing,
                 MonthlyCapHideRing  = dlg.ResultMonthlyCapHideRing,
+                DailyCapUseHistory   = dlg.ResultDailyCapUseHistory,
+                WeeklyCapUseHistory  = dlg.ResultWeeklyCapUseHistory,
+                MonthlyCapUseHistory = dlg.ResultMonthlyCapUseHistory,
                 SplitMode           = dlg.ResultSplitMode,
                 SplitRanges         = dlg.ResultSplitRanges,
             };
@@ -1169,6 +1244,7 @@ namespace MasselGUARD
 
             var groupNames = ConfigSvc.Config.TunnelGroups.Select(g => g.Name).ToList();
             var (usedDay, usedWeek, usedMonth) = PeriodUsedBytes(stored.Name);
+            var historyMB = _vm.HistoricalReferenceMB(stored.Name);   // typical usage for the greyed "Use history" boxes
             var dlg = stored.Source == "local"
                 ? (Window)new Views.TunnelConfigDialog(
                     stored.Name, Services.TunnelService.DecryptConfig(stored), stored.Group,
@@ -1193,7 +1269,11 @@ namespace MasselGUARD
                     existingSplitApps: stored.SplitApps,
                     existingDailyUsedBytes: usedDay,
                     existingWeeklyUsedBytes: usedWeek,
-                    existingMonthlyUsedBytes: usedMonth)
+                    existingMonthlyUsedBytes: usedMonth,
+                    dailyUsesHistory: stored.DailyUsesHistory,
+                    weeklyUsesHistory: stored.WeeklyUsesHistory,
+                    monthlyUsesHistory: stored.MonthlyUsesHistory,
+                    historyMB: historyMB)
                     { Owner = this }
                 : new Views.TunnelMetadataDialog(
                     stored.Name, stored.Group, stored.Notes,
@@ -1216,7 +1296,11 @@ namespace MasselGUARD
                     existingMonthlyCapHideRing: stored.MonthlyCapHideRing,
                     existingDailyUsedBytes: usedDay,
                     existingWeeklyUsedBytes: usedWeek,
-                    existingMonthlyUsedBytes: usedMonth)
+                    existingMonthlyUsedBytes: usedMonth,
+                    dailyUsesHistory: stored.DailyUsesHistory,
+                    weeklyUsesHistory: stored.WeeklyUsesHistory,
+                    monthlyUsesHistory: stored.MonthlyUsesHistory,
+                    historyMB: historyMB)
                     { Owner = this };
 
             if (dlg.ShowDialog() != true) return;
@@ -1253,6 +1337,9 @@ namespace MasselGUARD
                 stored.DailyCapHideRing   = tcd.ResultDailyCapHideRing;
                 stored.WeeklyCapHideRing  = tcd.ResultWeeklyCapHideRing;
                 stored.MonthlyCapHideRing = tcd.ResultMonthlyCapHideRing;
+                stored.DailyCapUseHistory   = tcd.ResultDailyCapUseHistory;
+                stored.WeeklyCapUseHistory  = tcd.ResultWeeklyCapUseHistory;
+                stored.MonthlyCapUseHistory = tcd.ResultMonthlyCapUseHistory;
                 stored.SplitMode      = tcd.ResultSplitMode;
                 stored.SplitRanges    = tcd.ResultSplitRanges;
             }
@@ -1277,6 +1364,9 @@ namespace MasselGUARD
                 stored.DailyCapHideRing   = tmd.ResultDailyCapHideRing;
                 stored.WeeklyCapHideRing  = tmd.ResultWeeklyCapHideRing;
                 stored.MonthlyCapHideRing = tmd.ResultMonthlyCapHideRing;
+                stored.DailyCapUseHistory   = tmd.ResultDailyCapUseHistory;
+                stored.WeeklyCapUseHistory  = tmd.ResultWeeklyCapUseHistory;
+                stored.MonthlyCapUseHistory = tmd.ResultMonthlyCapUseHistory;
             }
             else return;
 
@@ -1426,23 +1516,34 @@ namespace MasselGUARD
             var delta = e.GetPosition(null) - _dnsDragStart;
             if (Math.Abs(delta.X) < 4 && Math.Abs(delta.Y) < 4) return;
             DragDrop.DoDragDrop(DnsProfilesPanelList, _dragDnsRow, DragDropEffects.Move);
+            RemoveListDropLine();   // drag finished or cancelled
             _dragDnsRow = null;
         }
 
+        private void DnsRow_DragOver(object sender, DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent(typeof(DnsProfileRow)))
+            { e.Effects = DragDropEffects.None; e.Handled = true; return; }
+            e.Effects = DragDropEffects.Move;
+            e.Handled = true;
+            ShowListDropLine(DnsProfilesPanelList, e, e.Data.GetData(typeof(DnsProfileRow)) as DnsProfileRow);
+        }
+
+        private void DnsRow_DragLeave(object sender, DragEventArgs e)
+            => RemoveListDropLineIfOutside(DnsProfilesPanelList, e);
+
         private void DnsRow_Drop(object sender, DragEventArgs e)
         {
+            RemoveListDropLine();
             if (e.Data.GetData(typeof(DnsProfileRow)) is not DnsProfileRow dragged) return;
-            var target = (e.OriginalSource as FrameworkElement)?.DataContext as DnsProfileRow;
+            var target = GetItemUnderCursor<DnsProfileRow>(DnsProfilesPanelList, e.GetPosition(DnsProfilesPanelList));
             if (target == null || target.Id == dragged.Id) return;
 
             var profiles = ConfigSvc.Config.DnsProfiles;
             int si = profiles.FindIndex(p => p.Id == dragged.Id);
             int ti = profiles.FindIndex(p => p.Id == target.Id);
-            if (si < 0 || ti < 0) return;
-
-            var moved = profiles[si];
-            profiles.RemoveAt(si);
-            profiles.Insert(ti, moved);
+            // Land exactly where the drop line was drawn (above / below the target row).
+            if (!MoveToDropLine(profiles, si, ti, DnsProfilesPanelList, target, e)) return;
 
             // Manual reorder implies the manual order, so clear any active column sort and show it.
             _dnsSortCol = ""; _dnsSortAsc = true;
@@ -1851,8 +1952,8 @@ namespace MasselGUARD
 
             // Dynamic tooltip: show status text (includes uptime) when active
             TunnelLabel.ToolTip = active != null
-                ? $"{active.Name}\n{active.StatusText}\nType: {active.TypeLabel}"
-                : "No active tunnel";
+                ? $"{active.Name}\n{active.StatusText}\n{Lang.T("MainTunnelType", active.TypeLabel)}"
+                : Lang.T("MainNoActiveTunnel");
 
             UpdateShieldChevron();
         }
@@ -1950,7 +2051,7 @@ namespace MasselGUARD
         private void UpdateWindowTitle()
         {
             var appName = ThemeManager.Instance.Current.AppName;
-            Title = $"{appName} v{UpdateChecker.CurrentVersionString} - WireGuard VPN Client";
+            Title = $"{appName} v{UpdateChecker.CurrentVersionString} - {Lang.T("TrayIdleSubtitle")}";
         }
 
         private static (ImageSource?, System.Drawing.Icon?) LoadDefaultExeIcon()
@@ -1976,7 +2077,7 @@ namespace MasselGUARD
             string modeText = AppRunMode switch
             {
                 AppRunModeKind.Managed         => Lang.T("InstallStatusManaged"),
-                AppRunModeKind.ManagedPortable => "Managed (Portable)",
+                AppRunModeKind.ManagedPortable => Lang.T("FooterModeManagedPortable"),
                 _                              => Lang.T("InstallStatusNotInstalled"),
             };
             FooterLabel.Text = $"{Lang.T("FooterMode")}: {modeText}";
@@ -2063,9 +2164,43 @@ namespace MasselGUARD
         }
 
         // ── Window chrome ─────────────────────────────────────────────────────
+        // Standard Windows title-bar behaviour for our custom chrome: double-click toggles maximize,
+        // and dragging a maximized window restores it under the cursor (only once the mouse moves).
+        private Point? _maxDragStart;
+
         private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
         {
-            if (e.LeftButton == MouseButtonState.Pressed) DragMove();
+            if (e.ChangedButton != MouseButton.Left) return;
+            if (e.ClickCount == 2)
+            {
+                _maxDragStart = null;
+                MaximizeBtn_Click(sender, e);
+                e.Handled = true;
+                return;
+            }
+            if (WindowState == WindowState.Maximized) { _maxDragStart = e.GetPosition(this); return; }
+            DragMove();
+        }
+
+        private void TitleBar_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (_maxDragStart is not Point start) return;
+            if (e.LeftButton != MouseButtonState.Pressed) { _maxDragStart = null; return; }
+            var pos = e.GetPosition(this);
+            if (Math.Abs(pos.X - start.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(pos.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+            _maxDragStart = null;
+
+            // Keep the cursor over the same relative spot of the (narrower) restored title bar.
+            double ratio  = ActualWidth > 0 ? pos.X / ActualWidth : 0.5;
+            var screenDip = PresentationSource.FromVisual(this)?.CompositionTarget is { } ct
+                ? ct.TransformFromDevice.Transform(PointToScreen(pos))
+                : PointToScreen(pos);
+            WindowState = WindowState.Normal;
+            double w = RestoreBounds.Width > 0 ? RestoreBounds.Width : Width;
+            Left = screenDip.X - w * ratio;
+            Top  = screenDip.Y - pos.Y;
+            DragMove();
         }
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
@@ -2155,6 +2290,66 @@ namespace MasselGUARD
 
         private string? GetCurrentSsid() => WifiSvc.CurrentSsid;
         private List<string> GetAvailableTunnels() => GetTunnelNames();
+
+        // ── Orphaned service detection (Settings → Diagnostics) ───────────────
+        public record OrphanedService(string ServiceName, string TunnelName);
+
+        /// <summary>Service names queued for deletion - hidden from the orphan list immediately so the
+        /// user doesn't see them again while removal is in progress. Pruned once SCM confirms they're gone.</summary>
+        private readonly HashSet<string> _pendingOrphanDeletion = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Leftover <c>WireGuardTunnel$</c> services that no active tunnel is using. Both the
+        /// WireGuard app and MasselGUARD delete the SCM entry when a tunnel is deactivated, so a
+        /// stopped service is debris from a crash / improper shutdown.</summary>
+        public List<OrphanedService> GetOrphanedServices()
+        {
+            var result = new List<OrphanedService>();
+            try
+            {
+                var presentInScm = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                const string prefix = "WireGuardTunnel$";
+                foreach (var svc in System.ServiceProcess.ServiceController.GetServices())
+                {
+                    if (!svc.ServiceName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+                    presentInScm.Add(svc.ServiceName);
+
+                    // Running/starting services are in use - not orphans.
+                    if (svc.Status is System.ServiceProcess.ServiceControllerStatus.Running
+                                   or System.ServiceProcess.ServiceControllerStatus.StartPending)
+                        continue;
+                    // Already queued for deletion - hide until SCM confirms it is gone.
+                    if (_pendingOrphanDeletion.Contains(svc.ServiceName)) continue;
+
+                    var name = svc.ServiceName[prefix.Length..];
+                    // A tunnel MasselGUARD is mid-connect on (service created, not yet started), active
+                    // or mid-disconnect is not an orphan - otherwise the startup scan races an
+                    // auto-connect and flags the brand-new service in its brief Stopped window.
+                    var vm = _vm.TunnelList.FirstOrDefault(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                    if (vm != null && (vm.IsConnecting || vm.IsActive || vm.IsDisconnecting)) continue;
+
+                    result.Add(new OrphanedService(svc.ServiceName, name));
+                }
+                _pendingOrphanDeletion.RemoveWhere(s => !presentInScm.Contains(s));
+            }
+            catch { /* SCM enumeration can fail on locked-down hosts - report nothing */ }
+            return result;
+        }
+
+        public void RemoveOrphan(OrphanedService orphan)
+        {
+            _pendingOrphanDeletion.Add(orphan.ServiceName);   // hide from the next scan immediately
+            try
+            {
+                // Stops (if needed) and deletes the SCM entry.
+                TunnelDll.ForceRemoveService(orphan.ServiceName);
+                LogSvc.Ok($"Orphan removed: {orphan.TunnelName}");
+            }
+            catch (Exception ex)
+            {
+                _pendingOrphanDeletion.Remove(orphan.ServiceName);   // failed - let it reappear
+                LogSvc.Warn($"Remove orphan failed ({orphan.TunnelName}): {ex.Message}");
+            }
+        }
 
         /// <summary>Normalises a version string for equality comparison - strips a leading "v", a
         /// "+git-hash" suffix, and any trailing zero components, so "4.2.0", "v4.2.0" and "4.2.0.0"
@@ -2273,31 +2468,31 @@ namespace MasselGUARD
             var items = new List<(string label, Brush icon, Action action)>();
 
             if (entry.IsDefaultTunnel)
-                items.Add(("Clear default action tunnel", textMuted,
+                items.Add((Lang.T("CtxClearDefault"), textMuted,
                     () => { ConfigSvc.Config.DefaultAction = "none";
                             ConfigSvc.Config.DefaultTunnel = "";
                             ApplyDefaultTunnelChange(); }));
             else
-                items.Add(("⚡  Set as default action tunnel", accent,
+                items.Add(("⚡  " + Lang.T("CtxSetDefault"), accent,
                     () => { ConfigSvc.Config.DefaultAction = "activate";
                             ConfigSvc.Config.DefaultTunnel = entry.Name;
                             ApplyDefaultTunnelChange(); }));
 
             if (entry.IsOpenProtection)
-                items.Add(("Clear open network protection", textMuted,
+                items.Add((Lang.T("CtxClearOpen"), textMuted,
                     () => { ConfigSvc.Config.OpenWifiTunnel = "";
                             ApplyDefaultTunnelChange(); }));
             else
-                items.Add(("🔓  Set as open network protection", success,
+                items.Add(("🔓  " + Lang.T("CtxSetOpen"), success,
                     () => { ConfigSvc.Config.OpenWifiTunnel = entry.Name;
                             ApplyDefaultTunnelChange(); }));
 
             if (entry.IsConnectOnStart)
-                items.Add(("Clear connect on start", textMuted,
+                items.Add((Lang.T("CtxClearStart"), textMuted,
                     () => { ConfigSvc.Config.ConnectOnStartTunnel = "";
                             ApplyDefaultTunnelChange(); }));
             else
-                items.Add(("🚀  Set as connect-on-start tunnel", accent,
+                items.Add(("🚀  " + Lang.T("CtxSetStart"), accent,
                     () => { ConfigSvc.Config.ConnectOnStartTunnel = entry.Name;
                             ApplyDefaultTunnelChange(); }));
 
@@ -2419,25 +2614,36 @@ namespace MasselGUARD
             if (Math.Abs(delta.X) < 4 && Math.Abs(delta.Y) < 4) return;
             DragDrop.DoDragDrop(WifiRulesListView, _dragRule,
                 DragDropEffects.Move);
+            RemoveListDropLine();   // drag finished or cancelled
             _dragRule = null;
         }
 
+        private void WifiRule_DragOver(object sender, DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent(typeof(WifiRuleRow)))
+            { e.Effects = DragDropEffects.None; e.Handled = true; return; }
+            e.Effects = DragDropEffects.Move;
+            e.Handled = true;
+            ShowListDropLine(WifiRulesListView, e, e.Data.GetData(typeof(WifiRuleRow)) as WifiRuleRow);
+        }
+
+        private void WifiRule_DragLeave(object sender, DragEventArgs e)
+            => RemoveListDropLineIfOutside(WifiRulesListView, e);
+
         private void WifiRule_Drop(object sender, DragEventArgs e)
         {
+            RemoveListDropLine();
             if (e.Data.GetData(typeof(WifiRuleRow)) is not WifiRuleRow draggedRow) return;
-            var target = (e.OriginalSource as FrameworkElement)
-                         ?.DataContext as WifiRuleRow;
-            if (target == null || target == draggedRow) return;
+            var target = GetItemUnderCursor<WifiRuleRow>(WifiRulesListView, e.GetPosition(WifiRulesListView));
+            if (target == null || ReferenceEquals(target, draggedRow)) return;
 
+            // Resolve by the row's own rule instance - matching on SSID text picked the wrong rule
+            // when several rules share a display value (e.g. two "Untrusted networks" rules).
             var rules = ConfigSvc.Config.Rules;
-            var srcRule = rules.FirstOrDefault(r => r.Ssid == draggedRow.Ssid);
-            var tgtRule = rules.FirstOrDefault(r => r.Ssid == target.Ssid);
-            if (srcRule == null || tgtRule == null) return;
-
-            int si = rules.IndexOf(srcRule);
-            int ti = rules.IndexOf(tgtRule);
-            rules.RemoveAt(si);
-            rules.Insert(ti, srcRule);
+            int si = rules.IndexOf(draggedRow.Rule);
+            int ti = rules.IndexOf(target.Rule);
+            // Land exactly where the drop line was drawn (above / below the target row).
+            if (!MoveToDropLine(rules, si, ti, WifiRulesListView, target, e)) return;
             ConfigSvc.Save();
             RefreshWifiRulesPanel();
         }
@@ -2559,6 +2765,9 @@ namespace MasselGUARD
                 Grid.SetColumn(el, 0);
                 Grid.SetColumnSpan(el, tunnelSpan);
             }
+            // The header row carries a MinHeight for a stable WireGuard/DNS header strip; release it
+            // when neither top panel is shown, otherwise it leaves an empty band above Automation/log.
+            if (TopHeaderRow != null) TopHeaderRow.MinHeight = topPresent ? 30 : 0;
             if (TunnelsListRow != null)
             {
                 TunnelsListRow.Height    = topPresent ? new GridLength(5, GridUnitType.Star) : new GridLength(0);
@@ -2609,10 +2818,13 @@ namespace MasselGUARD
                 LogPanelGrid.Visibility = logVisible ? Visibility.Visible : Visibility.Collapsed;
             }
 
-            // The Automation header (row 3) and the log's own header row both carry MinHeight=24 with a
-            // 12/6 margin, so the two list column-headers line up without a shared-size group (shared
-            // size + star sizing can crash WPF's arrange on some themes).
-            if (LogHeaderGrid != null) LogHeaderGrid.Margin = new Thickness(0, (topPresent || (wifiShown && logVisible)) ? 12 : 0, 0, 6);
+            // The Automation header (row 3) and the log's own header row both carry MinHeight=24 and
+            // the SAME margin, so the two list column-headers line up without a shared-size group
+            // (shared size + star sizing can crash WPF's arrange on some themes). The 12px top gap
+            // only exists to separate them from a top panel; with no top panel they sit at the top.
+            var bottomHeaderMargin = new Thickness(0, topPresent ? 12 : 0, 0, 6);
+            if (WifiRulesHeader != null) WifiRulesHeader.Margin = bottomHeaderMargin;
+            if (LogHeaderGrid   != null) LogHeaderGrid.Margin   = bottomHeaderMargin;
 
             // Right column exists only when a panel actually occupies it.
             MainContentGrid.ColumnDefinitions[1].Width = rightColNeeded ? new GridLength(10) : new GridLength(0);
@@ -2669,8 +2881,19 @@ namespace MasselGUARD
         {
             if (RootContentGrid == null || WindowState == WindowState.Maximized) return;
 
+            // Bound the probe only. With Automation shown, the log's header and button strip line up
+            // with Automation's own (Auto) header/button rows, so the list alone gets the row cap.
+            // Without Automation those rows are collapsed and the log's header + buttons sit inside
+            // the capped row too - subtract them, or the probe over-measures by that much and leaves
+            // an empty band above the history panel.
+            var cfgNow = ConfigSvc.Config;
+            bool automationShown = !cfgNow.ManualMode && cfgNow.ShowWifiRulesOnMainWindow;
+            double logProbeCap = ListRowMaxHeight;
+            if (!automationShown && LogHeaderGrid != null && LogExportRow != null)
+                logProbeCap = Math.Max(40, ListRowMaxHeight
+                    - LogHeaderGrid.DesiredSize.Height - LogExportRow.DesiredSize.Height);   // DesiredSize includes margins
             double savedLogMax = LogContent?.MaxHeight ?? double.PositiveInfinity;
-            if (LogContent != null) LogContent.MaxHeight = ListRowMaxHeight;   // bound the probe only
+            if (LogContent != null) LogContent.MaxHeight = logProbeCap;
 
             double w = ActualWidth > 0 ? ActualWidth : Width;
             RootContentGrid.Measure(new Size(w, double.PositiveInfinity));
@@ -2894,7 +3117,7 @@ namespace MasselGUARD
         {
             if (WifiRulesListView.SelectedItem is not WifiRuleRow row) return;
             var rule = row.Rule;
-            if (!ShowThemedYesNo($"Delete rule \"{rule.RuleName}\"?", "Delete rule")) return;
+            if (!ShowThemedYesNo(Lang.T("DeleteRuleMsg", rule.RuleName), Lang.T("DeleteRuleTitle"))) return;
             ConfigSvc.Config.Rules.Remove(rule);
             LogSvc.Ok($"Rule deleted: {rule.RuleName}");
             OnRulesChanged();
@@ -3217,10 +3440,10 @@ namespace MasselGUARD
                 ? Visibility.Visible : Visibility.Collapsed;
 
             DefaultTunnelLabel.ToolTip  = showDef
-                ? $"Default action: activate \"{def}\"\nActivates when no WiFi rule matches the current network"
+                ? Lang.T("StatusDefaultTip", def)
                 : null;
             OpenProtectionLabel.ToolTip = showOpen
-                ? $"Open network protection: \"{open}\"\nActivates automatically when joining a passwordless WiFi network"
+                ? Lang.T("StatusOpenTip", open)
                 : null;
         }
 
@@ -4171,7 +4394,7 @@ namespace MasselGUARD
             panel.Children.Add(installTitleTb);
             var installSelectFolderTb = new System.Windows.Controls.TextBlock
             {
-                Text=Lang.T("InstallSelectFolder"),
+                Text=Lang.T("InstallPickFolderMsg"),
                 Foreground=(System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
                 Margin=new Thickness(0,0,0,4),
             };
@@ -4206,7 +4429,7 @@ namespace MasselGUARD
 
             var willInstallToTb = new System.Windows.Controls.TextBlock
             {
-                Text="Will install to:",
+                Text=Lang.T("InstallWillInstallTo"),
                 Foreground=(System.Windows.Media.Brush)Application.Current.Resources["TextMuted"],
                 Margin=new Thickness(0,0,0,2),
             };
@@ -4235,7 +4458,7 @@ namespace MasselGUARD
             {
                 var dlg = new System.Windows.Forms.FolderBrowserDialog
                 {
-                    Description=Lang.T("InstallSelectFolder"),
+                    Description=Lang.T("InstallPickFolderMsg"),
                     SelectedPath=folderBox.Text.Trim(),
                     ShowNewFolderButton=true,
                 };
@@ -4254,7 +4477,7 @@ namespace MasselGUARD
             btnInstall.Click += (_,_) =>
             {
                 var parent = folderBox.Text.Trim();
-                if (string.IsNullOrEmpty(parent)) { resolvedLabel.Text="Please select a folder."; return; }
+                if (string.IsNullOrEmpty(parent)) { resolvedLabel.Text=Lang.T("InstallPickFolderMsg"); return; }
                 finalResult = System.IO.Path.GetFullPath(System.IO.Path.Combine(parent, InstallFolderName));
                 // Save chosen path to config immediately
                 ConfigSvc.Config.InstalledPath = finalResult;
@@ -4836,7 +5059,7 @@ namespace MasselGUARD
             // ── Limit markers - a red ring on the bucket where cumulative usage
             //    first reached the cap for this range. The line then either drops
             //    (killed) or continues (limit overruled), which the eye reads off. ──
-            string rangeWord = rangeDays == 1 ? "daily" : rangeDays == 7 ? "weekly" : "monthly";
+            string limitKey = rangeDays == 1 ? "ChartLimitDay" : rangeDays == 7 ? "ChartLimitWeek" : "ChartLimitMonth";
             var dangerBrush = (System.Windows.Media.Brush)FindResource("Danger");
             foreach (var name in tunnelNames)
             {
@@ -4844,9 +5067,9 @@ namespace MasselGUARD
                 var stored = ConfigSvc.Config.Tunnels
                     .FirstOrDefault(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
                 if (stored == null) continue;
-                int capMB = rangeDays == 1 ? stored.DailyCapMB
-                          : rangeDays == 7 ? stored.WeeklyCapMB
-                          :                  stored.MonthlyCapMB;
+                int capMB = rangeDays == 1 ? stored.DailyUserCapMB
+                          : rangeDays == 7 ? stored.WeeklyUserCapMB
+                          :                  stored.MonthlyUserCapMB;
                 if (capMB <= 0) continue;
                 long capBytes = (long)capMB * 1_048_576L;
 
@@ -4867,7 +5090,7 @@ namespace MasselGUARD
                     Width = ringR, Height = ringR,
                     Stroke = dangerBrush, StrokeThickness = 2,
                     Fill = System.Windows.Media.Brushes.Transparent,
-                    ToolTip = $"{name}: {rangeWord} limit reached ({FormatInfoBytes(capBytes)})",
+                    ToolTip = Lang.T(limitKey, name, FormatInfoBytes(capBytes)),
                 };
                 System.Windows.Controls.Canvas.SetLeft(ring, mx - ringR / 2);
                 System.Windows.Controls.Canvas.SetTop(ring, my - ringR / 2);
@@ -4879,7 +5102,7 @@ namespace MasselGUARD
             for (int i = 0; i < count; i += labelEvery)
             {
                 var b   = _usageBuckets[i];
-                var lbl = rangeDays == 1 ? b.Start.ToString("HH:mm") : b.Start.ToString("ddd d");
+                var lbl = rangeDays == 1 ? b.Start.ToString("HH:mm") : b.Start.ToString("ddd d", Lang.Culture);
                 var tb  = new TextBlock { Text = lbl, FontSize = 8, Foreground = tickBrush };
                 tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
                 double cx = i * slot + slot / 2.0;
@@ -5019,7 +5242,7 @@ namespace MasselGUARD
                 });
 
                 var dt  = start + TimeSpan.FromSeconds(span.TotalSeconds * frac);
-                var lbl = rangeDays2 >= 7 ? dt.ToString("ddd\nHH:mm") : dt.ToString("HH:mm");
+                var lbl = rangeDays2 >= 7 ? dt.ToString("ddd\nHH:mm", Lang.Culture) : dt.ToString("HH:mm");
                 var tb  = new TextBlock
                 {
                     Text = lbl, FontSize = 8, Foreground = tickBrush,
@@ -5052,7 +5275,7 @@ namespace MasselGUARD
                 {
                     var tp = new StackPanel { Orientation = Orientation.Vertical };
                     tp.Children.Add(new TextBlock { Text = name, FontSize = 10, FontWeight = FontWeights.SemiBold });
-                    tp.Children.Add(new TextBlock { Text = $"Period total  ↑ {FormatInfoBytes(cd.PeriodTx)}   ↓ {FormatInfoBytes(cd.PeriodRx)}", FontSize = 9 });
+                    tp.Children.Add(new TextBlock { Text = Lang.T("ChartPeriodTotal", FormatInfoBytes(cd.PeriodTx), FormatInfoBytes(cd.PeriodRx)), FontSize = 9 });
                     tip = new ToolTip { Content = tp };
                 }
 
@@ -5302,7 +5525,7 @@ namespace MasselGUARD
                     Stroke = gridBrush, StrokeThickness = 1,
                 });
                 var dt  = start + TimeSpan.FromSeconds(span.TotalSeconds * frac);
-                var lbl = rangeDays >= 7 ? dt.ToString("ddd\nHH:mm") : dt.ToString("HH:mm");
+                var lbl = rangeDays >= 7 ? dt.ToString("ddd\nHH:mm", Lang.Culture) : dt.ToString("HH:mm");
                 var tb  = new TextBlock
                 {
                     Text = lbl, FontSize = 8, Foreground = tickBrush,
@@ -5716,11 +5939,11 @@ namespace MasselGUARD
 
             // Build label
             var connLocal = entry.ConnectedAt.ToLocalTime();
-            string openTag = entry.IsOpen ? "  ⚠ open" : "";
+            string openTag = entry.IsOpen ? "  ⚠ " + Lang.T("ChartOpenTag") : "";
             string text;
             if (entry.DisconnectedAt == null)
             {
-                text = $"{entry.Ssid}{openTag}   since {connLocal:HH:mm}";
+                text = $"{entry.Ssid}{openTag}   {Lang.T("ChartSince", connLocal.ToString("HH:mm"))}";
             }
             else
             {
@@ -5786,7 +6009,7 @@ namespace MasselGUARD
             string text;
             if (entry.DisconnectedAt == null)
             {
-                text = $"{entry.Name}   since {connLocal:HH:mm}";
+                text = $"{entry.Name}   {Lang.T("ChartSince", connLocal.ToString("HH:mm"))}";
             }
             else
             {
@@ -5826,7 +6049,7 @@ namespace MasselGUARD
             var tip = new StackPanel { Margin = new Thickness(8, 6, 8, 6) };
             tip.Children.Add(new TextBlock
             {
-                Text = ConfigSvc.Config.InfoTimeRangeDays >= 7 ? hoverT.ToString("ddd dd MMM  HH:mm") : hoverT.ToString("HH:mm"),
+                Text = ConfigSvc.Config.InfoTimeRangeDays >= 7 ? hoverT.ToString("ddd dd MMM  HH:mm", Lang.Culture) : hoverT.ToString("HH:mm"),
                 FontSize = 9, FontWeight = FontWeights.SemiBold,
                 Foreground = (System.Windows.Media.Brush)FindResource("TextPrimary"),
                 Margin = new Thickness(0, 0, 0, 4),
@@ -5884,9 +6107,9 @@ namespace MasselGUARD
             if (disconnectedAt == null)
             {
                 if (isNearNow && _prevStats.TryGetValue(name, out var lv))
-                    info = $"{name}   active   ↑ {FormatInfoBytes(lv.tx)}/s   ↓ {FormatInfoBytes(lv.rx)}/s";
+                    info = $"{name}   {Lang.T("ChartActive")}   ↑ {FormatInfoBytes(lv.tx)}/s   ↓ {FormatInfoBytes(lv.rx)}/s";
                 else
-                    info = $"{name}   active since {connectedAt.ToLocalTime():HH:mm}";
+                    info = $"{name}   {Lang.T("ChartActiveSince", connectedAt.ToLocalTime().ToString("HH:mm"))}";
             }
             else
             {
@@ -5917,12 +6140,12 @@ namespace MasselGUARD
             if (ConfigSvc.Config.InfoTimeRangeDays == 1)
             {
                 bStart = new DateTime(hUtc.Year, hUtc.Month, hUtc.Day, hUtc.Hour, 0, 0, DateTimeKind.Utc);
-                bEnd = bStart.AddHours(1); label = "this hour";
+                bEnd = bStart.AddHours(1); label = Lang.T("ChartUsageHour");
             }
             else
             {
                 bStart = new DateTime(hUtc.Year, hUtc.Month, hUtc.Day, 0, 0, 0, DateTimeKind.Utc);
-                bEnd = bStart.AddDays(1); label = "this day";
+                bEnd = bStart.AddDays(1); label = Lang.T("ChartUsageDay");
             }
             bool current = bEnd > DateTime.UtcNow;
 
@@ -5953,7 +6176,7 @@ namespace MasselGUARD
 
             tip.Children.Add(new TextBlock
             {
-                Text = $"▤ Data usage ({label})", FontSize = 9, FontWeight = FontWeights.SemiBold,
+                Text = $"▤ {label}", FontSize = 9, FontWeight = FontWeights.SemiBold,
                 Foreground = (System.Windows.Media.Brush)FindResource("TextPrimary"),
                 Margin = new Thickness(0, 0, 0, 2),
             });
@@ -5978,7 +6201,7 @@ namespace MasselGUARD
             if (rows.Count > 1)
                 tip.Children.Add(new TextBlock
                 {
-                    Text = $"Total   {FormatInfoBytes(total)}", FontSize = 9, FontWeight = FontWeights.SemiBold,
+                    Text = $"{Lang.T("ChartTotal")}   {FormatInfoBytes(total)}", FontSize = 9, FontWeight = FontWeights.SemiBold,
                     Foreground = (System.Windows.Media.Brush)FindResource("TextPrimary"),
                     Margin = new Thickness(0, 2, 0, 0),
                 });
@@ -6080,7 +6303,7 @@ namespace MasselGUARD
             // Time header
             var hoverT = (segStart + TimeSpan.FromSeconds((segEnd - segStart).TotalSeconds / 2));
             string timeLabel = ConfigSvc.Config.InfoTimeRangeDays >= 7
-                ? hoverT.ToString("ddd dd MMM  HH:mm")
+                ? hoverT.ToString("ddd dd MMM  HH:mm", Lang.Culture)
                 : hoverT.ToString("HH:mm");
             tipStack.Children.Add(new TextBlock
             {
@@ -6105,7 +6328,7 @@ namespace MasselGUARD
                 string info;
                 if (entry.DisconnectedAt == null)
                 {
-                    info = $"{name}   active since {entry.ConnectedAt.ToLocalTime():HH:mm}";
+                    info = $"{name}   {Lang.T("ChartActiveSince", entry.ConnectedAt.ToLocalTime().ToString("HH:mm"))}";
                 }
                 else
                 {
@@ -6188,6 +6411,16 @@ namespace MasselGUARD
         private void InitColumnWidths()
         {
             var cfg = ConfigSvc.Config;
+
+            // 4.5.0 changed the tunnel (Name widest) and DNS (Server column removed) defaults:
+            // drop widths saved under the old layout once so the new proportions apply.
+            if (cfg.ColumnLayoutVersion < 1)
+            {
+                cfg.TunColNameW = cfg.TunColStatusW = cfg.TunColRulesW = cfg.TunColActionW = 0;
+                cfg.DnsColNameW = cfg.DnsColTypeW = cfg.DnsColServerW = cfg.DnsColRulesW = cfg.DnsColEnableW = 0;
+                cfg.ColumnLayoutVersion = 1;
+                ConfigSvc.Save();
+            }
 
             // Discard saved tunnel widths that look wrong (Rules > 100px = auto-saved star proportion)
             if (cfg.TunColRulesW > 100)

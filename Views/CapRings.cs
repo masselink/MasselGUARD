@@ -57,6 +57,21 @@ namespace MasselGUARD.Views
         public bool   MonthSet      { get => (bool)GetValue(MonthSetProperty);        set => SetValue(MonthSetProperty, value); }
         public bool   Active        { get => (bool)GetValue(ActiveProperty);          set => SetValue(ActiveProperty, value); }
 
+        // True when that period measures against the tunnel's historical average instead of a
+        // user-set cap: drawn in the accent colour only (no amber/red - it is not a limit).
+        public static readonly DependencyProperty DayHistoryProperty =
+            DependencyProperty.Register(nameof(DayHistory), typeof(bool), typeof(CapRings),
+                new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+        public static readonly DependencyProperty WeekHistoryProperty =
+            DependencyProperty.Register(nameof(WeekHistory), typeof(bool), typeof(CapRings),
+                new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+        public static readonly DependencyProperty MonthHistoryProperty =
+            DependencyProperty.Register(nameof(MonthHistory), typeof(bool), typeof(CapRings),
+                new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender));
+        public bool DayHistory   { get => (bool)GetValue(DayHistoryProperty);   set => SetValue(DayHistoryProperty, value); }
+        public bool WeekHistory  { get => (bool)GetValue(WeekHistoryProperty);  set => SetValue(WeekHistoryProperty, value); }
+        public bool MonthHistory { get => (bool)GetValue(MonthHistoryProperty); set => SetValue(MonthHistoryProperty, value); }
+
         // Claim exactly the width the set rings need at the current font-derived diameter,
         // so the control sizes to the tunnel line rather than a hard-coded box.
         protected override Size MeasureOverride(Size availableSize)
@@ -85,11 +100,11 @@ namespace MasselGUARD.Views
             dc.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, w, h));
 
             // Configured periods in fixed order: day, week, month.
-            var periods = new (bool Set, double Frac, string Glyph)[]
+            var periods = new (bool Set, double Frac, string Glyph, bool Hist)[]
             {
-                (DaySet,   DayFraction,   Lang.T("CapRingDay")),
-                (WeekSet,  WeekFraction,  Lang.T("CapRingWeek")),
-                (MonthSet, MonthFraction, Lang.T("CapRingMonth")),
+                (DaySet,   DayFraction,   Lang.T("CapRingDay"),   DayHistory),
+                (WeekSet,  WeekFraction,  Lang.T("CapRingWeek"),  WeekHistory),
+                (MonthSet, MonthFraction, Lang.T("CapRingMonth"), MonthHistory),
             };
 
             int n = 0;
@@ -116,12 +131,12 @@ namespace MasselGUARD.Views
             {
                 if (!p.Set) continue;
                 double cx = x + dia / 2;
-                DrawRing(dc, new Point(cx, cy), r, p.Frac, track, p.Glyph);
+                DrawRing(dc, new Point(cx, cy), r, p.Frac, p.Hist, track, p.Glyph);
                 x += dia + RingGap;
             }
         }
 
-        private void DrawRing(DrawingContext dc, Point c, double r, double frac, Color track, string glyph)
+        private void DrawRing(DrawingContext dc, Point c, double r, double frac, bool hist, Color track, string glyph)
         {
             // Faint full-circle track behind every configured ring.
             var trackPen = new Pen(new SolidColorBrush(track), Stroke);
@@ -132,7 +147,7 @@ namespace MasselGUARD.Views
             double f = frac;
             if (f > 0)
             {
-                var pen = new Pen(new SolidColorBrush(Active ? ArcColor(f) : InactiveArcColor()), Stroke)
+                var pen = new Pen(new SolidColorBrush(Active ? ArcColor(f, hist) : InactiveArcColor()), Stroke)
                 {
                     StartLineCap = PenLineCap.Round,
                     EndLineCap   = PenLineCap.Round,
@@ -201,8 +216,9 @@ namespace MasselGUARD.Views
             return new Point(c.X + r * Math.Cos(a), c.Y + r * Math.Sin(a));
         }
 
-        private Color ArcColor(double f) =>
-            f >= 1.0    ? ThemeColor("Danger",      Color.FromRgb(0xE7, 0x4C, 0x3C))
+        private Color ArcColor(double f, bool hist) =>
+            hist        ? ThemeColor("Accent",      Color.FromRgb(0x3D, 0x8B, 0xFD))
+          : f >= 1.0    ? ThemeColor("Danger",      Color.FromRgb(0xE7, 0x4C, 0x3C))
           : f >= WarnAt ? ThemeColor("WarningColor", Color.FromRgb(0xF0, 0xA0, 0x2E))
           :               ThemeColor("Accent",       Color.FromRgb(0x3D, 0x8B, 0xFD));
 

@@ -40,9 +40,10 @@ namespace MasselGUARD.Models
         // values are simply ignored on load.
 
         // ── Data-usage warnings ──────────────────────────────────────────────
-        // Advisory caps in megabytes; 0 = off. When the tunnel's Rx+Tx total for
-        // the period crosses the cap, a one-time warning is raised (log + tray +
-        // row highlight). These are warnings only - nothing is disconnected.
+        // Caps in megabytes; 0 = off. When the tunnel's Rx+Tx total for the period crosses a
+        // user-set cap, a one-time warning is raised (log + tray + row highlight), and the
+        // tunnel is disconnected when that period's Kill at cap is on. Ignored while the
+        // period follows history (see *CapUseHistory / *UserCapMB below).
         /// <summary>Daily data-usage warning threshold in MB (UTC calendar day). 0 = off.</summary>
         public int DailyCapMB   { get; set; } = 0;
         /// <summary>Weekly data-usage warning threshold in MB (UTC calendar week, Mon-start). 0 = off.</summary>
@@ -60,12 +61,31 @@ namespace MasselGUARD.Models
         public bool WeeklyCapKill  { get; set; } = false;
         public bool MonthlyCapKill { get; set; } = false;
 
-        // Local UI preference: hide an individual period's usage ring on the tunnel's row
-        // even when that period's cap is set (warnings/enforcement still apply). Per-ring so
-        // you can show e.g. only the monthly ring. Not exported - display-only.
+        // Local UI preference ("Hide usage"): hide an individual period's usage bar/ring on the
+        // tunnel's row (warnings/enforcement still apply). Every period is shown by default - against
+        // the user-set cap, or else the tunnel's historical average. Not exported - display-only.
+        // (Property names kept from the ring-only days so existing configs load unchanged.)
         public bool DailyCapHideRing   { get; set; } = false;
         public bool WeeklyCapHideRing  { get; set; } = false;
         public bool MonthlyCapHideRing { get; set; } = false;
+
+        // "Use history" per period: measure the usage bar/ring against the tunnel's historical
+        // average (last 365 days, or all history when shorter) instead of the typed cap. null =
+        // not chosen yet → history unless a cap is already set, so existing caps keep working.
+        // A history reference is informational: no warnings, no Kill at cap, no chart marker.
+        public bool? DailyCapUseHistory   { get; set; }
+        public bool? WeeklyCapUseHistory  { get; set; }
+        public bool? MonthlyCapUseHistory { get; set; }
+
+        [System.Text.Json.Serialization.JsonIgnore] public bool DailyUsesHistory   => DailyCapUseHistory   ?? DailyCapMB   <= 0;
+        [System.Text.Json.Serialization.JsonIgnore] public bool WeeklyUsesHistory  => WeeklyCapUseHistory  ?? WeeklyCapMB  <= 0;
+        [System.Text.Json.Serialization.JsonIgnore] public bool MonthlyUsesHistory => MonthlyCapUseHistory ?? MonthlyCapMB <= 0;
+
+        /// <summary>The user-set cap that warnings / Kill at cap / the chart marker act on: the typed
+        /// value, or 0 when the period follows history.</summary>
+        [System.Text.Json.Serialization.JsonIgnore] public int DailyUserCapMB   => DailyUsesHistory   ? 0 : DailyCapMB;
+        [System.Text.Json.Serialization.JsonIgnore] public int WeeklyUserCapMB  => WeeklyUsesHistory  ? 0 : WeeklyCapMB;
+        [System.Text.Json.Serialization.JsonIgnore] public int MonthlyUserCapMB => MonthlyUsesHistory ? 0 : MonthlyCapMB;
 
         // ── Split tunneling (4.0.0) ──────────────────────────────────────────
         // See docs/SplitTunneling-Design.md. Route/IP-based split is a pure

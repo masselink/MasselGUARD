@@ -249,7 +249,7 @@ namespace MasselGUARD.ViewModels
 
         private void DoAddGroup()
         {
-            var g = new TunnelGroup("New group");
+            var g = new TunnelGroup(Lang.T("DefaultGroupName"));
             TunnelGroups.Add(g);
             SaveImmediate();
         }

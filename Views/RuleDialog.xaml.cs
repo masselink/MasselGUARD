@@ -48,6 +48,7 @@ namespace MasselGUARD.Views
                           bool tunnelsEnabled = true)
         {
             InitializeComponent();
+            LocalizeDayButtons();
 
             // Hide the DNS picker when the DNS module is off (tunnels-only); hide the tunnel
             // picker when the tunnel module is off (DNS-only → the rule is trigger → DNS).
@@ -315,6 +316,14 @@ namespace MasselGUARD.Views
                     Lang.T("RuleDialogNoWifi"),
                     Lang.T("RuleDialogNoWifiTitle"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>Weekday buttons show the UI language's abbreviated day names (Tag = DayOfWeek).</summary>
+        private void LocalizeDayButtons()
+        {
+            var names = Lang.Culture.DateTimeFormat.AbbreviatedDayNames;
+            foreach (var b in new[] { DayMon, DayTue, DayWed, DayThu, DayFri, DaySat, DaySun })
+                if (int.TryParse(b.Tag as string, out var d) && d is >= 0 and < 7) b.Content = names[d];
         }
 
         private void RuleType_Changed(object sender, RoutedEventArgs e)

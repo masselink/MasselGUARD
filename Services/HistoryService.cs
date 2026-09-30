@@ -325,6 +325,34 @@ namespace MasselGUARD.Services
             return (rx, tx);
         }
 
+        /// <summary>
+        /// Historical average usage (rx+tx bytes per day) for <paramref name="tunnelName"/> over the
+        /// last 365 days - or, when the tunnel's history is shorter, over the span since its first
+        /// recorded session. Idle days count as zero, so it is a true per-day average. Returns
+        /// null when there is no history at all. <paramref name="spanDays"/> is the span used.
+        /// </summary>
+        public double? GetAverageBytesPerDay(string tunnelName, DateTime nowUtc, out double spanDays)
+        {
+            spanDays = 0;
+            var windowStart = nowUtc.AddDays(-365);
+            DateTime? first = null;
+            long bytes = 0;
+            lock (_lock)
+            {
+                foreach (var e in _entries)
+                {
+                    if (!e.TunnelName.Equals(tunnelName, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (first == null || e.ConnectedAt < first) first = e.ConnectedAt;
+                    if (e.ConnectedAt >= windowStart && e.ConnectedAt < nowUtc)
+                        bytes += e.SessionRxBytes + e.SessionTxBytes;
+                }
+            }
+            if (first == null) return null;
+            var from = first.Value > windowStart ? first.Value : windowStart;
+            spanDays = Math.Max(1.0, (nowUtc - from).TotalDays);   // at least one day, so a fresh tunnel isn't over-scaled
+            return bytes / spanDays;
+        }
+
         // ── Record events ─────────────────────────────────────────────────────
 
         /// <summary>Called when a tunnel successfully connects.</summary>

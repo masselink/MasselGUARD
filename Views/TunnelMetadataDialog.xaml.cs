@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
@@ -26,6 +26,12 @@ namespace MasselGUARD.Views
         public bool   ResultDailyCapHideRing   { get; private set; }
         public bool   ResultWeeklyCapHideRing  { get; private set; }
         public bool   ResultMonthlyCapHideRing { get; private set; }
+        public bool   ResultDailyCapUseHistory   { get; private set; } = true;
+        public bool   ResultWeeklyCapUseHistory  { get; private set; } = true;
+        public bool   ResultMonthlyCapUseHistory { get; private set; } = true;
+
+        // Day / week / month rows: "Use history" greys the cap box (see CapPeriodRow).
+        private CapPeriodRow? _dailyRow, _weeklyRow, _monthlyRow;
 
         public TunnelMetadataDialog(string tunnelName, string currentGroup,
                                     string currentNotes, List<string> groups,
@@ -41,9 +47,16 @@ namespace MasselGUARD.Views
                                     bool existingDailyCapHideRing = false, bool existingWeeklyCapHideRing = false,
                                     bool existingMonthlyCapHideRing = false,
                                     long existingDailyUsedBytes = 0, long existingWeeklyUsedBytes = 0,
-                                    long existingMonthlyUsedBytes = 0)
+                                    long existingMonthlyUsedBytes = 0,
+                                    bool dailyUsesHistory = true, bool weeklyUsesHistory = true,
+                                    bool monthlyUsesHistory = true,
+                                    (int day, int week, int month)? historyMB = null)
         {
             InitializeComponent();
+            DefaultActionToggleLabel.Text  = "⚡ " + Lang.T("BehaviourDefaultAction");
+            OpenProtectionToggleLabel.Text = "🔓 " + Lang.T("BehaviourOpenProtection");
+            KillSwitchToggleLabel.Text     = "🔒 " + Lang.T("SettingsKillSwitchModeTitle");
+            AutoReconnectToggleLabel.Text  = "🔄 " + Lang.T("SettingsAutoReconnectModeTitle");
 
             DialogTitle.Text     = Lang.T("TunnelMetadataTitle");
             TunnelNameLabel.Text = tunnelName;
@@ -73,20 +86,23 @@ namespace MasselGUARD.Views
                     KillSwitchToggle.IsEnabled = false;
                     KillSwitchToggle.Opacity   = 0.5;
                     if (KillSwitchToggleLabel != null)
-                        KillSwitchToggleLabel.Text = "🔒 Kill switch  (controlled globally)";
+                        KillSwitchToggleLabel.Text = "🔒 " + Lang.T("SettingsKillSwitchModeTitle") + "  (" + Lang.T("ControlledGlobally") + ")";
                 }
             }
 
             // Data-usage warning thresholds + "show in row" flags
-            if (DailyCapBox   != null) DailyCapBox.Text   = existingDailyCapMB.ToString();
-            if (WeeklyCapBox  != null) WeeklyCapBox.Text  = existingWeeklyCapMB.ToString();
-            if (MonthlyCapBox != null) MonthlyCapBox.Text = existingMonthlyCapMB.ToString();
             if (DailyCapKillChk   != null) DailyCapKillChk.IsChecked   = existingDailyCapKill;
             if (WeeklyCapKillChk  != null) WeeklyCapKillChk.IsChecked  = existingWeeklyCapKill;
             if (MonthlyCapKillChk != null) MonthlyCapKillChk.IsChecked = existingMonthlyCapKill;
             if (DailyHideRingChk   != null) DailyHideRingChk.IsChecked   = existingDailyCapHideRing;
             if (WeeklyHideRingChk  != null) WeeklyHideRingChk.IsChecked  = existingWeeklyCapHideRing;
             if (MonthlyHideRingChk != null) MonthlyHideRingChk.IsChecked = existingMonthlyCapHideRing;
+            _dailyRow   = new CapPeriodRow(DailyUseHistoryChk,   DailyCapBox!,   DailyCapKillChk!,
+                                           existingDailyCapMB,   dailyUsesHistory,   historyMB?.day);
+            _weeklyRow  = new CapPeriodRow(WeeklyUseHistoryChk,  WeeklyCapBox!,  WeeklyCapKillChk!,
+                                           existingWeeklyCapMB,  weeklyUsesHistory,  historyMB?.week);
+            _monthlyRow = new CapPeriodRow(MonthlyUseHistoryChk, MonthlyCapBox!, MonthlyCapKillChk!,
+                                           existingMonthlyCapMB, monthlyUsesHistory, historyMB?.month);
             if (DailyUsedLabel    != null) DailyUsedLabel.Text    = UsedText(existingDailyUsedBytes);
             if (WeeklyUsedLabel   != null) WeeklyUsedLabel.Text   = UsedText(existingWeeklyUsedBytes);
             if (MonthlyUsedLabel  != null) MonthlyUsedLabel.Text  = UsedText(existingMonthlyUsedBytes);
@@ -109,7 +125,7 @@ namespace MasselGUARD.Views
                             AutoReconnectToggle.IsEnabled = false;
                             AutoReconnectToggle.Opacity   = 0.5;
                             if (AutoReconnectToggleLabel != null)
-                                AutoReconnectToggleLabel.Text = "🔄 Auto-reconnect  (controlled globally)";
+                                AutoReconnectToggleLabel.Text = "🔄 " + Lang.T("SettingsAutoReconnectModeTitle") + "  (" + Lang.T("ControlledGlobally") + ")";
                         }
                     }
                 }
@@ -128,9 +144,12 @@ namespace MasselGUARD.Views
             ResultIsOpenProtection    = IsOpenProtectionToggle?.IsChecked == true;
             ResultKillSwitch          = KillSwitchToggle?.IsChecked       == true;
             ResultAutoReconnect       = AutoReconnectToggle?.IsChecked    == true;
-            ResultDailyCapMB          = CapMB(DailyCapBox);
-            ResultWeeklyCapMB         = CapMB(WeeklyCapBox);
-            ResultMonthlyCapMB        = CapMB(MonthlyCapBox);
+            ResultDailyCapMB          = _dailyRow?.CapMB   ?? CapMB(DailyCapBox);
+            ResultWeeklyCapMB         = _weeklyRow?.CapMB  ?? CapMB(WeeklyCapBox);
+            ResultMonthlyCapMB        = _monthlyRow?.CapMB ?? CapMB(MonthlyCapBox);
+            ResultDailyCapUseHistory   = _dailyRow?.UsesHistory   ?? true;
+            ResultWeeklyCapUseHistory  = _weeklyRow?.UsesHistory  ?? true;
+            ResultMonthlyCapUseHistory = _monthlyRow?.UsesHistory ?? true;
             ResultDailyCapKill        = DailyCapKillChk?.IsChecked   == true;
             ResultWeeklyCapKill       = WeeklyCapKillChk?.IsChecked  == true;
             ResultMonthlyCapKill      = MonthlyCapKillChk?.IsChecked == true;

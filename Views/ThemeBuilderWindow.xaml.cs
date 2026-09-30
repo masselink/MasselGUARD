@@ -50,6 +50,20 @@ namespace MasselGUARD.Views
         private string _darkAppIcon = "", _lightAppIcon = "";
         private string _darkDnsBadgePath = "", _lightDnsBadgePath = "";   // per-variant DNS badge SVG path
 
+        // Section icons (Theme.Icon.*): root-level path data on a 24x24 grid, shared by both variants.
+        // (property suffix, label lang key or brand literal, built-in default path for the preview)
+        private static readonly (string Key, string Label, string Default)[] IconFields =
+        {
+            ("Tunnels",    "WireGuard",             "M12 2 L20 5 L20 11 C20 16 16.4 19.6 12 21 C7.6 19.6 4 16 4 11 L4 5 Z"),
+            ("Dns",        "SettingsTabDns",        "F0 M12 2 A10 10 0 1 0 12 22 A10 10 0 1 0 12 2 Z M12 3.6 A8.4 8.4 0 1 1 12 20.4 A8.4 8.4 0 1 1 12 3.6 Z"),
+            ("Automation", "SettingsTabAutomation", "F0 M6,6.5 h12 a3,3 0 0 1 3,3 v6.5 a3,3 0 0 1 -3,3 h-12 a3,3 0 0 1 -3,-3 v-6.5 a3,3 0 0 1 3,-3 z M7.9,11 a1.5,1.5 0 1 0 3,0 a1.5,1.5 0 1 0 -3,0 z M13.1,11 a1.5,1.5 0 1 0 3,0 a1.5,1.5 0 1 0 -3,0 z M9,15.1 h6 v1.7 h-6 z"),
+            ("Log",        "FeatLogTitle",          "M4 5.1 H20 V6.9 H4 Z M4 11.1 H20 V12.9 H4 Z M4 17.1 H20 V18.9 H4 Z"),
+            ("Charts",     "WizHistoryTitle",       "M3 13 H7 V21 H3 Z M10 8 H14 V21 H10 Z M17 3 H21 V21 H17 Z"),
+        };
+        private readonly Dictionary<string, string>  _icons     = new();
+        private readonly Dictionary<string, TextBox> _iconBoxes = new();
+        private readonly Dictionary<string, System.Windows.Shapes.Path> _iconPreviews = new();
+
         // Color-picker controls built in BuildColorRows() - both variants shown side by side.
         private readonly Dictionary<string, TextBox> _lightBoxes    = new();
         private readonly Dictionary<string, TextBox> _darkBoxes     = new();
@@ -70,31 +84,15 @@ namespace MasselGUARD.Views
         private readonly Stack<ThemeSnapshot> _redo = new();
         private ThemeSnapshot? _baseline;
 
-        // Color keys + friendly labels in display order
-        private static readonly (string key, string label)[] ColorFields =
+        // Colour keys in display order (row labels come from the TBCol<name> lang keys)
+        private static readonly string[] ColorFields =
         {
-            ("ColorWindowBg",    "Window background"),
-            ("ColorSurface",     "Surface (title/footer)"),
-            ("ColorCard",        "Card / list panel"),
-            ("ColorBorder",      "Border / divider"),
-            ("ColorAccent",      "Accent"),
-            ("ColorTextPrimary", "Text - primary"),
-            ("ColorTextMuted",   "Text - muted"),
-            ("ColorSuccess",     "Success (green)"),
-            ("ColorDanger",      "Danger (red)"),
-            ("ColorHighlight",   "Highlight"),
-            ("ColorError",       "Error text"),
-            ("ColorErrorBg",     "Error background"),
-            ("ColorWarning",     "Warning text"),
-            ("ColorWarningBg",   "Warning background"),
-            ("ColorListHover",   "List row - hover"),
-            ("ColorListSelected","List row - selected"),
-            ("ColorLogTimestamp","Log timestamp"),
-            ("ColorTrayBg",      "Tray menu background"),
-            ("ColorTrayHover",   "Tray menu hover"),
-            ("ColorTrayText",    "Tray menu text"),
-            ("ColorTrayBorder",  "Tray menu border"),
-            ("ColorDnsBadge",    "DNS badge"),
+            "ColorWindowBg", "ColorSurface", "ColorCard", "ColorBorder",
+            "ColorAccent", "ColorTextPrimary", "ColorTextMuted", "ColorSuccess",
+            "ColorDanger", "ColorHighlight", "ColorError", "ColorErrorBg",
+            "ColorWarning", "ColorWarningBg", "ColorListHover", "ColorListSelected",
+            "ColorLogTimestamp", "ColorTrayBg", "ColorTrayHover", "ColorTrayText",
+            "ColorTrayBorder", "ColorDnsBadge",
         };
 
         // ── Constructor ───────────────────────────────────────────────────────
@@ -106,6 +104,8 @@ namespace MasselGUARD.Views
             // Shift while starting the app to revert to the Windows default theme.
             InitializeComponent();
             BuildColorRows();
+            BuildIconRows();
+            UpdateLiveIndicator();
             PopulateThemeList();
 
             // Font dropdown - every installed family, rendered in its own typeface.
@@ -183,6 +183,7 @@ namespace MasselGUARD.Views
             var draft  = CollectDraft();
             var folder = ThemeManager.ThemeFolder(_editingName);
             ThemeManager.Instance.ApplyPreview(draft, folder);
+            _main.RefreshThemeIcons();   // preview doesn't raise ThemeChanged - swap custom/built-in icons now
         }
 
         /// <summary>Toggles whether switching themes / editing previews live. Resuming
@@ -198,13 +199,13 @@ namespace MasselGUARD.Views
         {
             if (_livePaused)
             {
-                LiveIndicator.Text    = "⏸ PAUSED";
+                LiveIndicator.Text    = "⏸ " + Lang.T("TBPausedLabel");
                 LiveIndicator.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
                 LiveIndicator.ToolTip = Lang.T("TBLivePausedTip");
             }
             else
             {
-                LiveIndicator.Text    = "● LIVE";
+                LiveIndicator.Text    = "● " + Lang.T("TBLiveLabel");
                 LiveIndicator.SetResourceReference(TextBlock.ForegroundProperty, "Accent");
                 LiveIndicator.ToolTip = Lang.T("TBLiveTip");
             }
@@ -367,7 +368,7 @@ namespace MasselGUARD.Views
         private static void FillVariantVals(Dictionary<string, string> target, ThemeDefinition? src)
         {
             if (src == null) return;
-            foreach (var (key, _) in ColorFields)
+            foreach (var key in ColorFields)
             {
                 var val = typeof(ThemeDefinition).GetProperty(key)?.GetValue(src) as string ?? "";
                 if (!string.IsNullOrWhiteSpace(val)) target[key] = val;
@@ -381,7 +382,7 @@ namespace MasselGUARD.Views
             _loading = true;
             try
             {
-                foreach (var (key, _) in ColorFields)
+                foreach (var key in ColorFields)
                 {
                     var lv = _lightVals.TryGetValue(key, out var l) ? l : "";
                     var dv = _darkVals.TryGetValue(key,  out var d) ? d : "";
@@ -481,7 +482,7 @@ namespace MasselGUARD.Views
             bool invert    = InvertCopyCheck?.IsChecked == true;
             bool emptyOnly = EmptySlotsOnlyCheck?.IsChecked == true;
             if (!emptyOnly) target.Clear();
-            foreach (var (key, _) in ColorFields)
+            foreach (var key in ColorFields)
             {
                 // Tray slots resolve their fallback so the tray menu is copied too.
                 var v = SourceColor(source, key);
@@ -518,7 +519,7 @@ namespace MasselGUARD.Views
             header.Children.Add(hLight); header.Children.Add(hDark);
             ColorsPanel.Children.Add(header);
 
-            foreach (var (key, label) in ColorFields)
+            foreach (var key in ColorFields)
             {
                 if (key == "ColorTrayBg")
                 {
@@ -1000,6 +1001,9 @@ namespace MasselGUARD.Views
             _lightTrayD  = FirstNonEmpty(_draft.Light?.TrayIconDisconnected, _draft.TrayIconDisconnected);
             _darkDnsBadgePath  = FirstNonEmpty(_draft.Dark?.DnsBadgePath,  _draft.DnsBadgePath);
             _lightDnsBadgePath = FirstNonEmpty(_draft.Light?.DnsBadgePath, _draft.DnsBadgePath);
+            // Icons are root-level in the builder; a hand-authored per-variant icon seeds it (saving moves it to root).
+            foreach (var (key, _, _) in IconFields)
+                _icons[key] = FirstNonEmpty(GetIcon(_draft, key), FirstNonEmpty(GetIcon(_draft.Dark, key), GetIcon(_draft.Light, key)));
 
             _loading = true;
             try { PopulateEditor(); }
@@ -1065,6 +1069,14 @@ namespace MasselGUARD.Views
             _loading = wl;
             UpdateDnsBadgePreview(DnsBadgePreviewDark,  _darkDnsBadgePath,  dark: true);
             UpdateDnsBadgePreview(DnsBadgePreviewLight, _lightDnsBadgePath, dark: false);
+            wl = _loading; _loading = true;
+            foreach (var (key, _, _) in IconFields)
+            {
+                var v = IconValue(key);
+                _iconBoxes[key].Text = v;
+                UpdateIconPreview(key, v);
+            }
+            _loading = wl;
             TitleBarHeightSlider.Value  = d.TitleBarHeight;
             ShowTitleBarIconCheck.IsChecked    = d.ShowTitleBarIcon;
             ShowTitleBarAppNameCheck.IsChecked = d.ShowTitleBarAppName;
@@ -1135,6 +1147,7 @@ namespace MasselGUARD.Views
             foreach (var rb in DnsBadgePosGrid.Children.OfType<RadioButton>()) rb.IsEnabled = !readOnly;
             if (DnsBadgePathDarkBox  != null) DnsBadgePathDarkBox.IsReadOnly  = readOnly;
             if (DnsBadgePathLightBox != null) DnsBadgePathLightBox.IsReadOnly = readOnly;
+            foreach (var box in _iconBoxes.Values) box.IsReadOnly = readOnly;
             ListHoverAlphaSlider.IsEnabled = !readOnly;
             TrayHoverAlphaSlider.IsEnabled = !readOnly;
             HighlightAlphaSlider.IsEnabled = !readOnly;
@@ -1323,6 +1336,83 @@ namespace MasselGUARD.Views
         {
             if (!IsInitialized || _loading) return;
             OnEditorChanged();
+        }
+
+        // ── Section icons ─────────────────────────────────────────────────────
+        private static string? GetIcon(ThemeDefinition? d, string key) => d == null ? null : key switch
+        {
+            "Tunnels"    => d.IconTunnels,
+            "Dns"        => d.IconDns,
+            "Automation" => d.IconAutomation,
+            "Log"        => d.IconLog,
+            "Charts"     => d.IconCharts,
+            _            => null,
+        };
+
+        private string IconValue(string key) => _icons.TryGetValue(key, out var v) ? v : "";
+
+        /// <summary>One row per section icon: label, path-data box and a 24x24-grid preview
+        /// (the built-in glyph is shown dimmed while the box is empty).</summary>
+        private void BuildIconRows()
+        {
+            foreach (var (key, label, _) in IconFields)
+            {
+                var g = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(84) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var lbl = new TextBlock { FontSize = 10, VerticalAlignment = VerticalAlignment.Center };
+                if (label == "WireGuard") lbl.Text = label;   // brand literal
+                else lbl.SetBinding(TextBlock.TextProperty,
+                         new System.Windows.Data.Binding($"[{label}]") { Source = Lang.Instance });
+                lbl.SetResourceReference(TextBlock.FontFamilyProperty, "Theme.FontFamily");
+                lbl.SetResourceReference(TextBlock.ForegroundProperty, "TextMuted");
+
+                var box = new TextBox
+                {
+                    FontFamily = new FontFamily("Consolas"), FontSize = 10,
+                    Padding = new Thickness(6, 4, 6, 4), VerticalAlignment = VerticalAlignment.Center,
+                };
+                var k = key;
+                box.TextChanged += (_, _) =>
+                {
+                    if (_loading) return;
+                    _icons[k] = box.Text.Trim();
+                    UpdateIconPreview(k, _icons[k]);
+                    OnEditorChanged();
+                };
+
+                var path = new System.Windows.Shapes.Path();
+                path.SetResourceReference(System.Windows.Shapes.Shape.FillProperty, "TextPrimary");
+                var canvas = new Canvas { Width = 24, Height = 24 };
+                canvas.Children.Add(path);
+                var preview = new Border
+                {
+                    Width = 28, Height = 28, Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(4),
+                    CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(1),
+                    Child = new Viewbox { Child = canvas },
+                };
+                preview.SetResourceReference(Border.BorderBrushProperty, "BorderColor");
+
+                Grid.SetColumn(lbl, 0); Grid.SetColumn(box, 1); Grid.SetColumn(preview, 2);
+                g.Children.Add(lbl); g.Children.Add(box); g.Children.Add(preview);
+                SectionIconsPanel.Children.Add(g);
+                _iconBoxes[key]    = box;
+                _iconPreviews[key] = path;
+            }
+        }
+
+        /// <summary>Preview the custom path, or the built-in glyph (dimmed) when empty. An invalid
+        /// path previews as nothing - the app then falls back to the built-in icon too.</summary>
+        private void UpdateIconPreview(string key, string? pathText)
+        {
+            if (!_iconPreviews.TryGetValue(key, out var path)) return;
+            bool custom = !string.IsNullOrWhiteSpace(pathText);
+            string d = custom ? pathText! : IconFields.First(f => f.Key == key).Default;
+            try   { path.Data = Geometry.Parse(d); }
+            catch { path.Data = null; }
+            path.Opacity = custom ? 1.0 : 0.4;
         }
 
         // Built-in DNS badge silhouette (24×24), mirrors App's default - used for the preview when
@@ -1611,10 +1701,16 @@ namespace MasselGUARD.Views
                 BackgroundImage   = ActiveBgImg,
                 BackgroundStretch = GetCheckedTag(StretchFill, StretchCenter, StretchTile, StretchTopLeft),
                 BackgroundOpacity = Math.Round(BgOpacitySlider.Value, 2),
+
+                IconTunnels    = IconValue("Tunnels"),
+                IconDns        = IconValue("Dns"),
+                IconAutomation = IconValue("Automation"),
+                IconLog        = IconValue("Log"),
+                IconCharts     = IconValue("Charts"),
             };
 
             // Colors via reflection - the live preview uses the variant the pill selects.
-            foreach (var (key, _) in ColorFields)
+            foreach (var key in ColorFields)
             {
                 if (!ActiveVals.TryGetValue(key, out var v)) continue;
                 typeof(ThemeDefinition).GetProperty(key)?.SetValue(d, v);
@@ -1666,7 +1762,7 @@ namespace MasselGUARD.Views
                 }
                 catch (Exception ex)
                 {
-                    ThemedMessageDialog.Info(this, $"Could not build a palette from the image:\n{ex.Message}",
+                    ThemedMessageDialog.Info(this, Lang.T("TBPaletteError", ex.Message),
                         Lang.T("TBTitle"));
                     return;
                 }
@@ -1993,7 +2089,7 @@ namespace MasselGUARD.Views
             var node = JsonSerializer.SerializeToNode(root, opts)!.AsObject();
 
             // Root carries structural settings only
-            foreach (var (key, _) in ColorFields)
+            foreach (var key in ColorFields)
                 node.Remove(JsonNamingPolicy.CamelCase.ConvertName(key));
             node.Remove("type");   // obsolete in the unified format
             node.Remove("dark");
@@ -2008,6 +2104,12 @@ namespace MasselGUARD.Views
             node.Remove("trayIconConnected");
             node.Remove("trayIconDisconnected");
             node.Remove("dnsBadgePath");   // per-variant now - lives in the dark/light sections
+            // Section icons stay at root; drop the empty ones so an icon-less theme.json stays clean.
+            foreach (var (key, _, _) in IconFields)
+            {
+                var k = "icon" + key;
+                if (node[k] is JsonValue jv && string.IsNullOrWhiteSpace(jv.ToString())) node.Remove(k);
+            }
 
             static JsonObject? Section(Dictionary<string, string> vals, Dictionary<string, string> assets)
             {

@@ -71,7 +71,7 @@ namespace MasselGUARD.Views
             _view = new ListCollectionView(_items) { Filter = FilterItem };
             ItemsHost.ItemsSource = _view;
             CenterStatus.Visibility = Visibility.Collapsed;
-            StatusText.Text = $"{_items.Count} theme(s) available";
+            StatusText.Text = Lang.T("ThemeBrowserCount", _items.Count);
 
             await LoadPreviewsAsync();
         }
@@ -241,7 +241,7 @@ namespace MasselGUARD.Views
             }
             catch (Exception ex)
             {
-                StatusText.Text = $"Install failed: {ex.Message}";
+                StatusText.Text = Lang.T("ThemeBrowserInstallFailed", ex.Message);
             }
             finally { it.Busy = false; }
         }
