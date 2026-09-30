@@ -43,9 +43,10 @@ namespace MasselGUARD.ViewModels
         private string? _currentSsid;
 
         // ── DNS automation (parallel axis; see docs/DnsAutomation-Design.md §6) ──
-        /// <summary>Last-evaluated DNS action for the current network, re-applied when a tunnel
-        /// releases ownership of resolution.</summary>
-        private DnsPolicy.DnsResult? _pendingDns;
+        /// <summary>Last-evaluated DNS action PER ADAPTER (keyed by adapter GUID), re-applied when a
+        /// tunnel releases ownership of resolution. DNS is evaluated per adapter so a switch between
+        /// Wi-Fi and wired leaves no gap (docs/NetworkIdentity-Design.md 2.3).</summary>
+        private readonly Dictionary<Guid, DnsPolicy.DnsResult> _pendingDnsByGuid = new();
         /// <summary>True while ≥1 tunnel is active - the tunnel's own DNS/NRPT supersedes, so the
         /// pending DNS action is held off the physical NIC until it drops.</summary>
         private bool _tunnelOwnsDns;
@@ -168,6 +169,186 @@ namespace MasselGUARD.ViewModels
 
         private System.Threading.Timer? _disconnectDebounce;
 
+        // ── Network identity (wired + Wi-Fi; docs/NetworkIdentity-Design.md) ─────────────────
+        private NetworkWatcher? _netWatcher;
+        private readonly object _captureLock = new();
+        private NetworkSnapshot _lastSnapshot = NetworkSnapshot.Empty;
+        private bool   _networkEvaluatedOnce;
+        private string _lastPrimaryKey = "";
+        private Dictionary<string, string> _lastAdapterKeys = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>The connected networks as of the last evaluation (Wi-Fi + wired, primary flagged).</summary>
+        public NetworkSnapshot CurrentNetwork => _lastSnapshot;
+
+        /// <summary>GUID of the primary network's adapter (the one shown in the DNS panel and diagnostics);
+        /// falls back to the WLAN adapter before the first snapshot exists.</summary>
+        public Guid PrimaryInterfaceGuid =>
+            Guid.TryParse(_lastSnapshot.Primary?.AdapterId, out var g) ? g : _wifi.CurrentInterfaceGuid;
+
+        /// <summary>Start watching Windows network-change events (debounced). Call once after startup.</summary>
+        public void StartNetworkWatching()
+        {
+            if (_netWatcher != null) return;
+            _netWatcher = new NetworkWatcher(() => _config.Config.NetworkSettleMs);
+            _netWatcher.Settled += () =>
+            {
+                NetworkSnapshot snap;
+                try { snap = CaptureSettledSnapshot(); }
+                catch (Exception ex) { _log.Debug($"Network snapshot failed: {ex.Message}"); return; }
+                Application.Current?.Dispatcher.BeginInvoke(new Action(() => ApplyNetworkSnapshot(snap)));
+            };
+            _netWatcher.Start();
+        }
+
+        /// <summary>True when a rule or trusted entry needs the gateway MAC, so the ARP lookup is only
+        /// paid for by users who actually match on it.</summary>
+        private bool NeedsGatewayMac()
+        {
+            var cfg = _config.Config;
+            return cfg.Rules.Any(r => r.Enabled && r.IsNetworkKind && r.EffectiveMatchBy == NetworkMatchBy.GatewayMac)
+                || cfg.TrustedNetworks.Any(t => t.TrimStart().StartsWith("mac:", StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>Live snapshot (SSID from the WLAN service). May block on ARP when a MAC rule exists.</summary>
+        public NetworkSnapshot CaptureNetwork(bool forceMac = false) =>
+            NetworkMonitor.Capture(_config.Config.PrimaryNetworkMode,
+                guid => guid == _wifi.CurrentInterfaceGuid
+                    ? (_wifi.CurrentSsid, _wifi.IsOpenNetwork)
+                    : (null, false),
+                resolveGatewayMac: forceMac || NeedsGatewayMac());
+
+        /// <summary>Snapshot for the settle path: when a MAC rule exists and a gateway MAC is still
+        /// unresolved right after a link came up, retry at +1 s and +3 s before deciding (design 6.3).</summary>
+        private NetworkSnapshot CaptureSettledSnapshot()
+        {
+            lock (_captureLock)
+            {
+                var snap = CaptureNetwork();
+                if (!NeedsGatewayMac()) return snap;
+                foreach (int wait in new[] { 1000, 2000 })
+                {
+                    if (!snap.Adapters.Any(a => a.Gateway != null && a.GatewayMac == null)) break;
+                    System.Threading.Thread.Sleep(wait);
+                    snap = CaptureNetwork();
+                }
+                return snap;
+            }
+        }
+
+        /// <summary>Capture and apply right now on the calling (UI) thread. Used at startup and by the
+        /// Wi-Fi path, which has already debounced.</summary>
+        public void EvaluateNetworkNow()
+        {
+            NetworkSnapshot snap;
+            try { lock (_captureLock) snap = CaptureNetwork(); }
+            catch (Exception ex) { _log.Debug($"Network snapshot failed: {ex.Message}"); return; }
+            ApplyNetworkSnapshot(snap);
+        }
+
+        /// <summary>
+        /// One decision point for every network change. The tunnel action follows the PRIMARY network
+        /// only (one global decision) and runs only when the primary identity changed; DNS is
+        /// evaluated per adapter and re-applied only for adapters whose identity changed. A snapshot
+        /// identical to the previous one does nothing.
+        /// </summary>
+        public void ApplyNetworkSnapshot(NetworkSnapshot snap)
+        {
+            // Associated to Wi-Fi but no usable address yet (DHCP pending): not a disconnect. The
+            // address-changed event re-evaluates once the network is really usable.
+            if (snap.IsEmpty && !string.IsNullOrEmpty(_wifi.CurrentSsid)) return;
+
+            var prev = _lastSnapshot;
+            if (_networkEvaluatedOnce && snap.SameAs(prev)) return;
+
+            bool firstEvaluation = !_networkEvaluatedOnce;
+            _lastSnapshot = snap;
+            _networkEvaluatedOnce = true;
+
+            var cfg     = _config.Config;
+            var oldKeys = _lastAdapterKeys;
+            var newKeys = snap.Adapters.ToDictionary(a => a.AdapterId, a => a.Fingerprint(), StringComparer.OrdinalIgnoreCase);
+            _lastAdapterKeys = newKeys;
+
+            // Log the adapter layout only when it is more than the single Wi-Fi the classic log already shows.
+            bool layoutChanged = !oldKeys.Keys.OrderBy(k => k).SequenceEqual(newKeys.Keys.OrderBy(k => k), StringComparer.OrdinalIgnoreCase)
+                                 || snap.Primary?.AdapterId != prev.Primary?.AdapterId;
+            if (layoutChanged && !snap.IsEmpty && !(snap.Adapters.Count == 1 && snap.Adapters[0].IsWifi))
+            {
+                var others = snap.Adapters.Where(a => !a.IsPrimary).Select(RuleTester.Label).ToList();
+                _log.Info($"Network: {RuleTester.Label(snap.Primary)} is the primary network" +
+                          (others.Count > 0 ? $"; also connected: {string.Join(", ", others)}" : ""));
+            }
+
+            // Coalesce the tunnel + DNS toasts from this one network change into a single pop-up.
+            _coalesceToasts = true;
+            try
+            {
+                // ── Tunnel: follows the primary network ─────────────────────────────
+                string primaryKey = snap.Primary?.Fingerprint() ?? "";
+                if (snap.IsEmpty)
+                {
+                    // Was connected, now nothing: the classic "on disconnect" default action.
+                    if (!firstEvaluation && !prev.IsEmpty)
+                    {
+                        if (prev.Primary is { IsWifi: false })
+                            _log.Info($"Network: {RuleTester.Label(prev.Primary)} disconnected");
+                        ApplyRuleResult(_rules.EvaluateWifiDisconnected(cfg));
+                    }
+                    _lastPrimaryKey = "";
+                }
+                else if (firstEvaluation || primaryKey != _lastPrimaryKey)
+                {
+                    _lastPrimaryKey = primaryKey;
+                    var r = _rules.EvaluateNetwork(cfg, snap.Primary);
+                    ApplyRuleResult(r);
+                    if (r.Details != null)
+                        foreach (var line in r.Details) _log.Info(line);
+                    LogSecondaryRuleMatches(snap);
+                }
+
+                // ── DNS: per adapter, only for adapters that changed or appeared ─────
+                var changed = new List<Guid>();
+                foreach (var a in snap.Adapters)
+                {
+                    if (!Guid.TryParse(a.AdapterId, out var g)) continue;
+                    if (!firstEvaluation && oldKeys.TryGetValue(a.AdapterId, out var k) && k == newKeys[a.AdapterId]) continue;
+                    _pendingDnsByGuid[g] = _rules.EvaluateDns(cfg, a);
+                    changed.Add(g);
+                }
+
+                // Adapters that left: hand back their own resolver (a static DNS written by netsh persists
+                // on the adapter even while it is unplugged) and forget the pending action.
+                foreach (var gone in oldKeys.Keys.Where(k => !newKeys.ContainsKey(k)))
+                {
+                    if (!Guid.TryParse(gone, out var g)) continue;
+                    _pendingDnsByGuid.Remove(g);
+                    try { if (_dns.HasOverride(g)) _dns.Restore(g); } catch { /* adapter gone entirely */ }
+                }
+
+                if (changed.Count > 0) ApplyPendingDns(changed);
+            }
+            finally
+            {
+                _coalesceToasts = false;
+                FlushCoalescedToasts();
+            }
+        }
+
+        /// <summary>A rule that matches a secondary network is ignored for the tunnel (the primary decides);
+        /// say so once per decision so a "why didn't it fire?" question answers itself.</summary>
+        private void LogSecondaryRuleMatches(NetworkSnapshot snap)
+        {
+            var cfg  = _config.Config;
+            var prio = NetworkMatcher.RepairPriority(cfg.NetworkMatchPriority);
+            foreach (var other in snap.Adapters.Where(a => !a.IsPrimary))
+            {
+                var hit = NetworkMatcher.MatchingRules(cfg.Rules, other, prio, r => !DnsPolicy.IsDnsOnly(r)).FirstOrDefault();
+                if (hit != null)
+                    _log.Info($"Rule \"{hit.RuleName}\" matches {RuleTester.Label(other)} but " +
+                              $"{RuleTester.Label(snap.Primary)} is the primary network; the tunnel follows the primary network");
+            }
+        }
+
         /// <summary>Apply WiFi state from a known SSID (e.g. from a SsidChanged event).</summary>
         public void ApplyWifiState(string? ssid, bool isOpen)
         {
@@ -195,8 +376,9 @@ namespace MasselGUARD.ViewModels
                     _currentSsid = null;
                     OnPropertyChanged(nameof(CurrentSsidDisplay));
                     _log.Info("WiFi disconnected");
-                    var result = _rules.EvaluateWifiDisconnected(_config.Config);
-                    Application.Current?.Dispatcher.Invoke(() => ApplyRuleResult(result));
+                    // Re-evaluate from a fresh snapshot: nothing left = the classic on-disconnect default
+                    // action; a wired network still up = its rules apply instead.
+                    Application.Current?.Dispatcher.Invoke(EvaluateNetworkNow);
                 }, null, 2000, System.Threading.Timeout.Infinite);
                 return;
             }
@@ -211,19 +393,9 @@ namespace MasselGUARD.ViewModels
             _currentSsid = ssid;
             OnPropertyChanged(nameof(CurrentSsidDisplay));
             _log.Info($"WiFi: {ssid}{(isOpen ? " (open)" : "")}");
-            var r = _rules.EvaluateWifi(_config.Config, ssid, isOpen);
-            // Coalesce the tunnel + DNS toasts from this one network change into a single pop-up.
-            _coalesceToasts = true;
-            try
-            {
-                ApplyRuleResult(r);
-                ApplyDnsForCurrentNetwork(ssid, isOpen);   // parallel DNS axis
-            }
-            finally
-            {
-                _coalesceToasts = false;
-                FlushCoalescedToasts();
-            }
+            // Rules + DNS run from a fresh snapshot of ALL connected networks (Wi-Fi + wired); if the new
+            // Wi-Fi has no usable address yet, the address-changed event evaluates it once it does.
+            EvaluateNetworkNow();
         }
 
         /// <summary>Query current SSID and apply state - used on startup only.</summary>
@@ -231,6 +403,7 @@ namespace MasselGUARD.ViewModels
         {
             var (ssid, isOpen) = _wifi.QueryCurrentSsid();
             ApplyWifiState(ssid, isOpen);
+            EvaluateNetworkNow();   // wired-only machines have no SSID event to trigger the first evaluation
         }
 
         public System.Windows.Visibility RulesColumnVisibility =>
@@ -989,8 +1162,8 @@ namespace MasselGUARD.ViewModels
             // returns early when a tunnel owns resolution or when no rule result is pending, e.g.
             // right after Revert-to-default). Clearing the marker here is what makes ONE click
             // enough; automation then re-applies its own profile below if it has one.
-            var guid = _wifi.CurrentInterfaceGuid;
-            if (guid != Guid.Empty && _dns.HasOverride(guid)) _dns.Restore(guid);
+            foreach (var guid in DnsTargets())
+                if (guid != Guid.Empty && _dns.HasOverride(guid)) _dns.Restore(guid);
             RecordDnsDefaultResolver();
             SetActiveDns(null);
             _lastDnsAutoToast = null;   // let automation announce whatever it re-applies
@@ -1006,33 +1179,47 @@ namespace MasselGUARD.ViewModels
         public void ManualRevertToDefault()
         {
             _manualDnsProfileId = null;   // stop forcing anything
-            _pendingDns = null;           // and don't let a stale rule result re-apply on the next poll
-            var guid = _wifi.CurrentInterfaceGuid;
-            if (guid != Guid.Empty) _dns.Restore(guid);   // put back exactly what was there before
+            _pendingDnsByGuid.Clear();    // and don't let a stale rule result re-apply on the next poll
+            foreach (var guid in DnsTargets())
+                if (guid != Guid.Empty) _dns.Restore(guid);   // put back exactly what was there before
             RecordDnsDefaultResolver();
             SetActiveDns(null);           // no MasselGUARD profile applied any more - clear the marker
             _log.Ok("DNS: reverted to previous settings.");
         }
 
-        /// <summary>Evaluate the DNS action for the current network and apply it (subject to
-        /// tunnel ownership). Runs alongside - never instead of - the tunnel rule.</summary>
-        private void ApplyDnsForCurrentNetwork(string? ssid, bool isOpen)
+        /// <summary>Adapters DNS actions are written to: every connected adapter of the last snapshot
+        /// (Wi-Fi and wired), or the WLAN adapter before the first snapshot exists.</summary>
+        private List<Guid> DnsTargets()
         {
-            _pendingDns = _rules.EvaluateDns(_config.Config, ssid, isOpen);
-            ApplyPendingDns();
+            var list = new List<Guid>();
+            foreach (var a in _lastSnapshot.Adapters)
+                if (Guid.TryParse(a.AdapterId, out var g) && g != Guid.Empty) list.Add(g);
+            if (list.Count == 0)
+            {
+                var w = _wifi.CurrentInterfaceGuid;
+                if (w != Guid.Empty) list.Add(w);
+            }
+            return list;
         }
 
-        /// <summary>
-        /// Write the last-evaluated DNS action to the active WiFi interface - unless a tunnel
-        /// currently owns resolution (its own DNS/NRPT supersedes), in which case the action is
-        /// held and re-asserted from <see cref="RefreshTunnelStatus"/> when the tunnel drops.
-        /// "None" restores any prior override so an unmatched network gets its own DNS back.
-        /// </summary>
-        private void ApplyPendingDns()
-        {
-            var guid = _wifi.CurrentInterfaceGuid;
-            if (guid == Guid.Empty) return;   // no WiFi interface to target right now
+        private string AdapterName(Guid guid) =>
+            _lastSnapshot.Adapters.FirstOrDefault(a => Guid.TryParse(a.AdapterId, out var g) && g == guid)?.AdapterName
+            ?? guid.ToString("B");
 
+        /// <summary>
+        /// Write the last-evaluated DNS action to each connected adapter (or just <paramref name="only"/>)
+        /// - unless a tunnel currently owns resolution (its own DNS/NRPT supersedes), in which case the
+        /// action is held and re-asserted from <see cref="RefreshTunnelStatus"/> when the tunnel drops.
+        /// "None" restores any prior override so an unmatched network gets its own DNS back. The marker,
+        /// toast and history follow the PRIMARY adapter; the others are applied quietly.
+        /// </summary>
+        private void ApplyPendingDns(IReadOnlyCollection<Guid>? only = null)
+        {
+            var targets = DnsTargets();
+            if (only != null) targets = targets.Where(only.Contains).ToList();
+            if (targets.Count == 0) return;   // no connected interface to target right now
+
+            var primary = PrimaryInterfaceGuid;
             string families = _config.Config.DnsAddressFamilies;
 
             // A manually-forced PROFILE (Enable) outranks everything, including an active tunnel's
@@ -1043,7 +1230,7 @@ namespace MasselGUARD.ViewModels
                     string.Equals(p.Id, _manualDnsProfileId, StringComparison.Ordinal));
                 if (mp != null)
                 {
-                    _dns.ApplyProfile(guid, mp, families);
+                    foreach (var g in targets) _dns.ApplyProfile(g, mp, families);
                     RecordDnsHistory(mp.Name);
                     _lastDnsAutoToast = null;   // manual override in force - re-announce when automation resumes
                     SetActiveDns(mp.Id);
@@ -1066,53 +1253,61 @@ namespace MasselGUARD.ViewModels
             // No tunnel: a forced system/DHCP default (legacy AutomaticId state) applies.
             if (_manualDnsProfileId == DnsProfile.AutomaticId)
             {
-                _dns.SetAutomatic(guid, families);   // forced system/DHCP default
+                foreach (var g in targets) _dns.SetAutomatic(g, families);   // forced system/DHCP default
                 RecordDnsDefaultResolver();          // show the actual server (e.g. 1.1.1.1)
                 _lastDnsAutoToast = null;            // manual default in force - re-announce on resume
                 SetActiveDns(null);                  // "automatic/DHCP" is not a profile - no marker
                 return;
             }
 
-            var result = _pendingDns;
-            if (result == null) return;
-
-            switch (result.Action)
+            foreach (var guid in targets)
             {
-                case DnsPolicy.DnsActionKind.Apply:
-                    var profile = _config.Config.DnsProfiles.FirstOrDefault(p =>
-                        string.Equals(p.Id, result.ProfileId, StringComparison.Ordinal));
-                    if (profile == null) { _log.Warn($"DNS: profile '{result.ProfileId}' not found."); return; }
-                    _log.Info($"DNS: {result.Reason}");
-                    _dns.ApplyProfile(guid, profile, families);
-                    RecordDnsHistory(profile.Name);
-                    MaybeToastDnsAuto($"prof:{profile.Name}", profile.Name, result.Reason);
-                    SetActiveDns(profile.Id);
-                    break;
+                if (!_pendingDnsByGuid.TryGetValue(guid, out var result)) continue;
+                // The marker / toast / history follow the primary adapter; with a single target that is it.
+                bool lead   = targets.Count == 1 || guid == primary;
+                string who  = _lastSnapshot.Adapters.Count > 1 ? $" ({AdapterName(guid)})" : "";
 
-                case DnsPolicy.DnsActionKind.Automatic:
-                    _log.Info($"DNS: {result.Reason}");
-                    _dns.SetAutomatic(guid, families);
-                    RecordDnsDefaultResolver();   // show the actual server in use
-                    MaybeToastDnsAuto("auto", Lang.T("DnsSystemDefaultDhcp"), result.Reason);
-                    SetActiveDns(null);
-                    break;
+                switch (result.Action)
+                {
+                    case DnsPolicy.DnsActionKind.Apply:
+                        var profile = _config.Config.DnsProfiles.FirstOrDefault(p =>
+                            string.Equals(p.Id, result.ProfileId, StringComparison.Ordinal));
+                        if (profile == null) { _log.Warn($"DNS: profile '{result.ProfileId}' not found."); continue; }
+                        _log.Info($"DNS{who}: {result.Reason}");
+                        _dns.ApplyProfile(guid, profile, families);
+                        if (!lead) break;
+                        RecordDnsHistory(profile.Name);
+                        MaybeToastDnsAuto($"prof:{profile.Name}", profile.Name, result.Reason);
+                        SetActiveDns(profile.Id);
+                        break;
 
-                default: // None - hand the network back its own resolver if we had overridden it.
-                    if (_dns.HasOverride(guid))
-                    {
-                        _log.Info("DNS: no matching rule - restoring the network's own resolver.");
-                        _dns.Restore(guid);
-                        MaybeToastDnsAuto("restored", Lang.T("DnsNetworkDefaultRestored"), result.Reason);
-                    }
-                    else
-                    {
-                        // Nothing was overridden - the network's own resolver already stands. Record
-                        // the state so a later automation change is what triggers the next toast.
-                        _lastDnsAutoToast = "none";
-                    }
-                    RecordDnsDefaultResolver();   // show the network's own DNS server (e.g. 1.1.1.1)
-                    SetActiveDns(null);
-                    break;
+                    case DnsPolicy.DnsActionKind.Automatic:
+                        _log.Info($"DNS{who}: {result.Reason}");
+                        _dns.SetAutomatic(guid, families);
+                        if (!lead) break;
+                        RecordDnsDefaultResolver();   // show the actual server in use
+                        MaybeToastDnsAuto("auto", Lang.T("DnsSystemDefaultDhcp"), result.Reason);
+                        SetActiveDns(null);
+                        break;
+
+                    default: // None - hand the network back its own resolver if we had overridden it.
+                        if (_dns.HasOverride(guid))
+                        {
+                            _log.Info($"DNS{who}: no matching rule - restoring the network's own resolver.");
+                            _dns.Restore(guid);
+                            if (lead) MaybeToastDnsAuto("restored", Lang.T("DnsNetworkDefaultRestored"), result.Reason);
+                        }
+                        else if (lead)
+                        {
+                            // Nothing was overridden - the network's own resolver already stands. Record
+                            // the state so a later automation change is what triggers the next toast.
+                            _lastDnsAutoToast = "none";
+                        }
+                        if (!lead) break;
+                        RecordDnsDefaultResolver();   // show the network's own DNS server (e.g. 1.1.1.1)
+                        SetActiveDns(null);
+                        break;
+                }
             }
         }
 
@@ -1215,7 +1410,7 @@ namespace MasselGUARD.ViewModels
         {
             try
             {
-                var id = _wifi.CurrentInterfaceGuid.ToString("B");
+                var id = PrimaryInterfaceGuid.ToString("B");
                 var ni = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
                     .FirstOrDefault(n => string.Equals(n.Id, id, StringComparison.OrdinalIgnoreCase));
                 return ni?.GetIPProperties().DnsAddresses.FirstOrDefault()?.ToString();

@@ -858,6 +858,54 @@
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
                                                Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
                                                Margin="0,4,0,0"/>
+                                    <TextBlock Text="{Binding [SettingsTrustedPrefixHint], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Network matching: which network decides the tunnel + match-type priority -->
+                            <TextBlock Text="{Binding [SettingsSectionNetworkMatching], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding [SettingsPrimaryNetworkLabel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                               Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,4"/>
+                                    <ComboBox x:Name="PrimaryNetworkBox" FontSize="11" HorizontalAlignment="Left"
+                                              MinWidth="260" SelectionChanged="PrimaryNetwork_Changed"/>
+                                    <TextBlock Text="{Binding [SettingsPrimaryNetworkHint], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,4,0,0"/>
+
+                                    <TextBlock Text="{Binding [SettingsMatchPriorityLabel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                               Foreground="{DynamicResource TextPrimary}" Margin="0,14,0,4"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <ListBox x:Name="MatchPriorityList" MinWidth="260" FontSize="11"
+                                                 SelectionMode="Single"/>
+                                        <StackPanel Margin="8,0,0,0" VerticalAlignment="Top">
+                                            <Button x:Name="MatchPriorityUpBtn" Content="▲"
+                                                    ToolTip="{Binding [SettingsMoveUpTip], Source={x:Static local:Lang.Instance}}"
+                                                    Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,4"
+                                                    Click="MatchPriorityUp_Click"/>
+                                            <Button x:Name="MatchPriorityDownBtn" Content="▼"
+                                                    ToolTip="{Binding [SettingsMoveDownTip], Source={x:Static local:Lang.Instance}}"
+                                                    Style="{StaticResource FlatBtn}" FontSize="10" Padding="10,4"
+                                                    Margin="0,4,0,0" Click="MatchPriorityDown_Click"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <Button x:Name="MatchPriorityResetBtn"
+                                            Content="{Binding [SettingsMatchPriorityReset], Source={x:Static local:Lang.Instance}}"
+                                            Style="{StaticResource FlatBtn}"
+                                            FontSize="10" Padding="10,4" HorizontalAlignment="Left"
+                                            Margin="0,6,0,0" Click="MatchPriorityReset_Click"/>
+                                    <TextBlock Text="{Binding [SettingsMatchPriorityHint], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,4,0,0"/>
                                 </StackPanel>
                             </Border>
 

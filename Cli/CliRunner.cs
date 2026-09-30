@@ -197,15 +197,21 @@ namespace MasselGUARD.Cli
             var (backPass, backFail, backFailures) = Services.RouteBasedBackend.SelfTest();
             var (expPass,  expFail,  expFailures)  = Services.TunnelExportService.SelfTest();
             var (dnsPass,  dnsFail,  dnsFailures)  = Services.DnsPolicy.RunSelfTest();
+            var (netPass,  netFail,  netFailures)  = Services.NetworkMatcher.RunSelfTest();
+            var (rtPass,   rtFail,   rtFailures)   = Services.RuleTester.RunSelfTest();
+            var (rePass,   reFail,   reFailures)   = Services.RuleEngine.RunSelfTest();
 
             foreach (var f in cidrFailures) CliOutput.Error($"FAIL CidrMath {f}");
             foreach (var f in backFailures) CliOutput.Error($"FAIL Backend {f}");
             foreach (var f in expFailures)  CliOutput.Error($"FAIL Export {f}");
             foreach (var f in dnsFailures)  CliOutput.Error($"FAIL DnsPolicy {f}");
+            foreach (var f in netFailures)  CliOutput.Error($"FAIL NetworkMatcher {f}");
+            foreach (var f in rtFailures)   CliOutput.Error($"FAIL RuleTester {f}");
+            foreach (var f in reFailures)   CliOutput.Error($"FAIL RuleEngine {f}");
 
-            int pass = cidrPass + backPass + expPass + dnsPass;
-            int fail = cidrFail + backFail + expFail + dnsFail;
-            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}).");
+            int pass = cidrPass + backPass + expPass + dnsPass + netPass + rtPass + rePass;
+            int fail = cidrFail + backFail + expFail + dnsFail + netFail + rtFail + reFail;
+            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}, NetworkMatcher {netPass}, RuleTester {rtPass}, RuleEngine {rePass}).");
             else           CliOutput.Error($"Self-test: {pass} passed, {fail} failed.");
             return fail == 0 ? 0 : 1;
         }

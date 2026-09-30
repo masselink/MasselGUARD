@@ -142,6 +142,26 @@ namespace MasselGUARD.Services
             return result;
         }
 
+        // ── Small public helpers for network-identity matching ─────────────────
+
+        /// <summary>"10.20.4.17/24" → "10.20.4.0/24" (network form). Null for invalid input.</summary>
+        public static string? NormalizeCidr(string? token) =>
+            token == null ? null : Cidr.Parse(token)?.ToString();
+
+        /// <summary>Prefix length of a CIDR token, or null when invalid.</summary>
+        public static int? PrefixLength(string? token) =>
+            token == null ? null : Cidr.Parse(token)?.Prefix;
+
+        /// <summary>True when <paramref name="outer"/> contains <paramref name="inner"/>
+        /// (equal counts, same family only). False if either token is invalid.</summary>
+        public static bool ContainsCidr(string? outer, string? inner)
+        {
+            if (outer == null || inner == null) return false;
+            var o = Cidr.Parse(outer);
+            var i = Cidr.Parse(inner);
+            return o.HasValue && i.HasValue && o.Value.Contains(i.Value);
+        }
+
         // ── The CIDR value type ───────────────────────────────────────────────
 
         /// <summary>An IPv4 or IPv6 CIDR block: a masked network address (as a big-endian

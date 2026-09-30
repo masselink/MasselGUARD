@@ -47,7 +47,7 @@
                            FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4"/>
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                     <RadioButton x:Name="TypeWifiRadio" GroupName="RuleType" IsChecked="True"
-                                 Content="{Binding [RuleDialogTypeWifi], Source={x:Static local:Lang.Instance}}"
+                                 Content="{Binding [RuleDialogTypeNetwork], Source={x:Static local:Lang.Instance}}"
                                  Foreground="{DynamicResource TextPrimary}"
                                  FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
                                  Margin="0,0,16,0" Checked="RuleType_Changed"/>
@@ -89,23 +89,34 @@
                     </Border>
                 </StackPanel>
 
-                <!-- SSID (WiFi rules) -->
+                <!-- Network rules: match by SSID / DNS suffix / gateway MAC / subnet -->
                 <StackPanel x:Name="SsidPanel">
-                    <TextBlock Text="{Binding [RuleDialogSsidLabel], Source={x:Static local:Lang.Instance}}"
+                    <TextBlock Text="{Binding [RuleDialogMatchByLabel], Source={x:Static local:Lang.Instance}}"
                                FontFamily="{DynamicResource Theme.FontFamily}"
                                FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4"/>
-                    <Grid Margin="0,0,0,12">
+                    <ComboBox x:Name="MatchByBox" Margin="0,0,0,10"
+                              SelectionChanged="MatchBy_Changed"/>
+                    <TextBlock x:Name="MatchValueLabel"
+                               Text="{Binding [RuleDialogSsidLabel], Source={x:Static local:Lang.Instance}}"
+                               FontFamily="{DynamicResource Theme.FontFamily}"
+                               FontSize="10" Foreground="{DynamicResource TextMuted}" Margin="0,0,0,4"/>
+                    <Grid Margin="0,0,0,4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBox Grid.Column="0" x:Name="SsidBox" Margin="0,0,8,0"
                                  TextChanged="SsidBox_TextChanged"/>
-                        <Button Grid.Column="1"
-                                Content="{Binding [BtnUseCurrent], Source={x:Static local:Lang.Instance}}"
+                        <Button Grid.Column="1" x:Name="FetchBtn"
+                                Content="{Binding [BtnFetchNetwork], Source={x:Static local:Lang.Instance}}"
+                                ToolTip="{Binding [RuleFetchTip], Source={x:Static local:Lang.Instance}}"
                                 Style="{StaticResource FlatBtn}"
-                                FontSize="10" Padding="10,6" Click="UseCurrent_Click"/>
+                                FontSize="10" Padding="10,6" Click="Fetch_Click"/>
                     </Grid>
+                    <TextBlock x:Name="MatchHint"
+                               FontFamily="{DynamicResource Theme.FontFamily}"
+                               FontSize="9" Foreground="{DynamicResource TextMuted}"
+                               TextWrapping="Wrap" Margin="0,0,0,12"/>
                 </StackPanel>
 
                 <!-- Schedule (time rules) -->

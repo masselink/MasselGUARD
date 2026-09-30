@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
@@ -5,16 +6,23 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using MasselGUARD.Models;
+using MasselGUARD.Services;
 
 namespace MasselGUARD.Views
 {
     public partial class RuleDialog : Window
     {
         public string ResultName   { get; private set; } = "";
+        /// <summary>The SSID when matching by SSID (kept for compatibility); empty for the other match types.</summary>
         public string ResultSsid   { get; private set; } = "";
+        /// <summary>"ssid" | "dnssuffix" | "gatewaymac" | "subnet" (<see cref="NetworkMatchBy"/>).</summary>
+        public string ResultMatchBy    { get; private set; } = NetworkMatchBy.Ssid;
+        /// <summary>The normalised value for the non-SSID match types; empty when matching by SSID.</summary>
+        public string ResultMatchValue { get; private set; } = "";
         public string ResultTunnel { get; private set; } = "";
-        /// <summary>"wifi" | "schedule" | "trusted" - which trigger type the user chose.</summary>
-        public string ResultKind      { get; private set; } = "wifi";
+        /// <summary>"network" | "schedule" | "trusted" - which trigger type the user chose.</summary>
+        public string ResultKind      { get; private set; } = "network";
         /// <summary>For a trusted rule: "untrusted" (activate off-list) or "trusted" (activate on-list).</summary>
         public string ResultTrustedWhen { get; private set; } = "untrusted";
         public string ResultStartTime { get; private set; } = "09:00";
@@ -45,10 +53,24 @@ namespace MasselGUARD.Views
                           List<(string id, string name)>? dnsProfiles = null,
                           string existingDnsProfileId = "",
                           bool dnsEnabled = true,
-                          bool tunnelsEnabled = true)
+                          bool tunnelsEnabled = true,
+                          string existingMatchBy = NetworkMatchBy.Ssid,
+                          string existingMatchValue = "",
+                          Func<NetworkSnapshot>? captureNetwork = null)
         {
             InitializeComponent();
             LocalizeDayButtons();
+            _captureNetwork = captureNetwork;
+
+            // Match-by choices (Tag = NetworkMatchBy value); labels are the shared network-field names.
+            foreach (var (by, key) in new[]
+            {
+                (NetworkMatchBy.Ssid, "DiagSsid"), (NetworkMatchBy.DnsSuffix, "DiagDnsSuffix"),
+                (NetworkMatchBy.GatewayMac, "DiagGatewayMac"), (NetworkMatchBy.Subnet, "DiagSubnet"),
+            })
+                MatchByBox.Items.Add(new ComboBoxItem { Content = Lang.T(key), Tag = by });
+            string startBy = NetworkMatchBy.IsKnown(existingMatchBy) ? existingMatchBy : NetworkMatchBy.Ssid;
+            MatchByBox.SelectedIndex = MatchByIndex(startBy);
 
             // Hide the DNS picker when the DNS module is off (tunnels-only); hide the tunnel
             // picker when the tunnel module is off (DNS-only → the rule is trigger → DNS).
@@ -74,12 +96,13 @@ namespace MasselGUARD.Views
             foreach (ComboBoxItem it in DnsProfileBox.Items)
                 if ((it.Tag as string) == existingDnsProfileId) { DnsProfileBox.SelectedItem = it; break; }
 
+            string existingValue = startBy == NetworkMatchBy.Ssid ? existingSsid : existingMatchValue;
             bool editMode = existingKind == "schedule" || existingKind == "trusted"
-                            || !string.IsNullOrEmpty(existingSsid);
+                            || !string.IsNullOrEmpty(existingValue);
 
-            if (!string.IsNullOrEmpty(existingSsid))
+            if (!string.IsNullOrEmpty(existingValue))
             {
-                SsidBox.Text        = existingSsid;
+                SsidBox.Text        = existingValue;
                 _nameManuallyEdited = !string.IsNullOrEmpty(existingName);
                 NameBox.Text        = existingName;
             }
@@ -307,15 +330,75 @@ namespace MasselGUARD.Views
             AutoGenerateName(tunnel);
         }
 
-        private void UseCurrent_Click(object sender, RoutedEventArgs e)
+        // ── Network match (SSID / DNS suffix / gateway MAC / subnet) ───────────────────────
+
+        private readonly Func<NetworkSnapshot>? _captureNetwork;
+
+        private static int MatchByIndex(string by) => by switch
         {
-            if (!string.IsNullOrEmpty(_currentSsid))
-                SsidBox.Text = _currentSsid;
-            else
-                MessageBox.Show(
-                    Lang.T("RuleDialogNoWifi"),
-                    Lang.T("RuleDialogNoWifiTitle"),
+            NetworkMatchBy.DnsSuffix  => 1,
+            NetworkMatchBy.GatewayMac => 2,
+            NetworkMatchBy.Subnet     => 3,
+            _                         => 0,
+        };
+
+        private string SelectedMatchBy() =>
+            (MatchByBox.SelectedItem as ComboBoxItem)?.Tag as string ?? NetworkMatchBy.Ssid;
+
+        /// <summary>Label + hint follow the chosen match type; the typed value is kept.</summary>
+        private void MatchBy_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (MatchValueLabel == null || MatchHint == null) return;
+            var (label, hint) = SelectedMatchBy() switch
+            {
+                NetworkMatchBy.DnsSuffix  => ("RuleMatchValueSuffix", "RuleMatchHintSuffix"),
+                NetworkMatchBy.GatewayMac => ("RuleMatchValueMac",    "RuleMatchHintMac"),
+                NetworkMatchBy.Subnet     => ("RuleMatchValueSubnet", "RuleMatchHintSubnet"),
+                _                         => ("RuleDialogSsidLabel",  "RuleMatchHintSsid"),
+            };
+            MatchValueLabel.Text = Lang.T(label);
+            MatchHint.Text       = Lang.T(hint);
+            AutoGenerateName();
+        }
+
+        /// <summary>Fetch: read the value of the chosen match type from a connected network. One hit fills
+        /// the box; several (Wi-Fi + wired, or several subnets) open a small menu to pick from.</summary>
+        private async void Fetch_Click(object sender, RoutedEventArgs e)
+        {
+            string by = SelectedMatchBy();
+            NetworkSnapshot? snap = null;
+            if (_captureNetwork != null)
+            {
+                FetchBtn.IsEnabled = false;
+                try { snap = await System.Threading.Tasks.Task.Run(_captureNetwork); }
+                catch { /* fall back to the SSID the window already knows */ }
+                finally { FetchBtn.IsEnabled = true; }
+            }
+
+            var options = new List<(string label, string value)>();
+            if (snap != null)
+                foreach (var a in snap.Adapters.OrderByDescending(x => x.IsPrimary))
+                    foreach (var v in NetworkMatcher.ValuesFor(a, by))
+                        options.Add(($"{a.AdapterName}{(a.IsPrimary ? $" ({Lang.T("DiagPrimaryTag")})" : "")}: {v}", v));
+            if (options.Count == 0 && by == NetworkMatchBy.Ssid && !string.IsNullOrEmpty(_currentSsid))
+                options.Add((_currentSsid!, _currentSsid!));
+
+            if (options.Count == 0)
+            {
+                MessageBox.Show(Lang.T("RuleFetchNone"), Lang.T("RuleDialogNoWifiTitle"),
                     MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (options.Count == 1) { SsidBox.Text = options[0].value; return; }
+
+            var menu = new ContextMenu { PlacementTarget = FetchBtn, Placement = PlacementMode.Bottom };
+            foreach (var (label, value) in options)
+            {
+                var item = new MenuItem { Header = label };
+                item.Click += (_, _) => SsidBox.Text = value;
+                menu.Items.Add(item);
+            }
+            menu.IsOpen = true;
         }
 
         /// <summary>Weekday buttons show the UI language's abbreviated day names (Tag = DayOfWeek).</summary>
@@ -356,7 +439,7 @@ namespace MasselGUARD.Views
         {
             bool schedule = TypeScheduleRadio?.IsChecked == true;
             bool trusted  = TypeTrustedRadio?.IsChecked  == true;
-            ResultKind   = schedule ? "schedule" : trusted ? "trusted" : "wifi";
+            ResultKind   = schedule ? "schedule" : trusted ? "trusted" : "network";
             ResultTunnel = TunnelBox.Text.Trim();
             ResultDnsProfileId = (DnsProfileBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
 
@@ -401,17 +484,39 @@ namespace MasselGUARD.Views
                 return;
             }
 
-            var ssid = SsidBox.Text.Trim();
+            var by  = SelectedMatchBy();
+            var ssid = SsidBox.Text.Trim();          // the match value, whatever the type
             if (string.IsNullOrEmpty(ssid))
             {
                 MessageBox.Show(
-                    Lang.T("RuleDialogSsidRequired"),
+                    Lang.T(by == NetworkMatchBy.Ssid ? "RuleDialogSsidRequired" : "RuleValueRequired"),
                     Lang.T("RuleDialogValidationTitle"),
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 SsidBox.Focus();
                 return;
             }
-            ResultSsid   = ssid;
+
+            // Store the value in its canonical form so matching and the rule list are consistent.
+            string? canonical = by switch
+            {
+                NetworkMatchBy.GatewayMac => NetworkMatcher.NormalizeMac(ssid),
+                NetworkMatchBy.Subnet     => CidrMath.NormalizeCidr(ssid),
+                NetworkMatchBy.DnsSuffix  => NetworkMatcher.NormalizeSuffix(ssid),
+                _                         => ssid,
+            };
+            if (canonical == null)
+            {
+                MessageBox.Show(
+                    Lang.T(by == NetworkMatchBy.GatewayMac ? "RuleMacInvalid" : "RuleSubnetInvalid"),
+                    Lang.T("RuleDialogValidationTitle"),
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                SsidBox.Focus();
+                return;
+            }
+            ssid = canonical;
+            ResultMatchBy    = by;
+            ResultMatchValue = by == NetworkMatchBy.Ssid ? "" : canonical;
+            ResultSsid       = by == NetworkMatchBy.Ssid ? canonical : "";
             var name = NameBox.Text.Trim();
             if (string.IsNullOrEmpty(name))
                 name = string.IsNullOrEmpty(ResultTunnel)

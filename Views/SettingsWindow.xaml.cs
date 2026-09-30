@@ -2495,7 +2495,7 @@ namespace MasselGUARD.Views
 
             var diag = new Services.DiagnosticsService(Sink);
             var cfg  = _main.ConfigSvc.Config;
-            var guid = _main.WifiSvc.CurrentInterfaceGuid;
+            var guid = _main._vm.PrimaryInterfaceGuid;
 
             try
             {

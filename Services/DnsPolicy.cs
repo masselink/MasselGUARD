@@ -48,13 +48,23 @@ namespace MasselGUARD.Services
         /// mirroring <c>RuleEngine.EvaluateWifi</c> so the two axes are predictable:
         ///   1. DNS automation off (ManualMode or !DnsAutomationEnabled) → None.
         ///   2. Open-network profile (OpenWifiDnsProfileId) on an open network.
-        ///   3. SSID rule - enabled "wifi" rule matching the SSID with a DnsProfileId.
+        ///   3. Network rule - enabled "network" (or legacy "wifi") rule matching the network
+        ///      (SSID / DNS suffix / gateway MAC / subnet) with a DnsProfileId.
         ///   4. Trusted rule - enabled "trusted" rule firing on its side of the list.
         ///   5. Schedule rule - enabled "schedule" rule currently in-window.
         ///   6. Default (DefaultDnsProfileId).
-        /// Steps 3–4 need an SSID; 5–6 apply regardless. Pure - does not mutate ExecutionCount.
+        /// Steps 3–4 need a connected network; 5–6 apply regardless. Pure - does not mutate ExecutionCount.
         /// </summary>
         public static DnsResult Evaluate(AppConfig cfg, string? ssid, bool isOpenNetwork, DateTime now)
+            => Evaluate(cfg, NetworkMatcher.FromSsid(ssid, isOpenNetwork), now);
+
+        /// <summary>
+        /// Same precedence for ONE adapter's <see cref="NetworkIdentity"/> (DNS is evaluated per adapter;
+        /// docs/NetworkIdentity-Design.md 2.3). Network rules match on SSID, DNS suffix, gateway MAC or
+        /// subnet, ordered by the user's match-type priority; a null identity (no network) skips the
+        /// network-dependent steps, exactly like "no SSID" did.
+        /// </summary>
+        public static DnsResult Evaluate(AppConfig cfg, NetworkIdentity? network, DateTime now)
         {
             // Off when: manual mode, DNS automation not running, or the DNS feature module is
             // disabled entirely (tunnels-only install).
@@ -62,36 +72,33 @@ namespace MasselGUARD.Services
                 return NoAction;
 
             // 2. Open-network protection
-            if (isOpenNetwork && !string.IsNullOrEmpty(cfg.OpenWifiDnsProfileId))
+            if (network != null && network.IsOpen && !string.IsNullOrEmpty(cfg.OpenWifiDnsProfileId))
                 return Resolve(cfg, cfg.OpenWifiDnsProfileId, "Open network");
 
-            bool haveSsid = !string.IsNullOrEmpty(ssid);
-
-            // 3. Explicit SSID rules
-            if (haveSsid)
+            // 3. Network rules (SSID / DNS suffix / gateway MAC / subnet), best match type first
+            if (network != null)
             {
-                var m = cfg.Rules.FirstOrDefault(r =>
-                    r.Enabled && r.Kind == "wifi" && !string.IsNullOrEmpty(r.DnsProfileId) &&
-                    string.Equals(r.Ssid, ssid, StringComparison.OrdinalIgnoreCase));
+                var m = NetworkMatcher.MatchingRules(cfg.Rules, network,
+                            NetworkMatcher.RepairPriority(cfg.NetworkMatchPriority),
+                            r => !string.IsNullOrEmpty(r.DnsProfileId)).FirstOrDefault();
                 if (m != null)
-                    return Resolve(cfg, m.DnsProfileId, $"Rule: {ssid}");
+                    return Resolve(cfg, m.DnsProfileId, $"Rule: {NetworkMatcher.NetName(network)}");
             }
 
             // 4. Trusted / untrusted rules (each fires only on its side of the shared list)
-            if (haveSsid)
+            if (network != null)
             {
                 bool? isTrusted = null;
                 foreach (var r in cfg.Rules)
                 {
                     if (!r.Enabled || r.Kind != "trusted" || string.IsNullOrEmpty(r.DnsProfileId)) continue;
-                    isTrusted ??= cfg.TrustedNetworks.Any(s =>
-                        string.Equals(s, ssid, StringComparison.OrdinalIgnoreCase));
+                    isTrusted ??= NetworkMatcher.IsTrusted(cfg.TrustedNetworks, network);
 
                     bool sideMatches = r.TrustedWhenOnList ? isTrusted.Value : !isTrusted.Value;
                     if (!sideMatches) continue;
 
                     string side = isTrusted.Value ? "Trusted network" : "Untrusted network";
-                    return Resolve(cfg, r.DnsProfileId, $"{side}: {ssid}");
+                    return Resolve(cfg, r.DnsProfileId, $"{side}: {NetworkMatcher.NetName(network)}");
                 }
             }
 

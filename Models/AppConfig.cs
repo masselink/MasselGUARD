@@ -220,6 +220,20 @@ namespace MasselGUARD.Models
         /// Default both (setting only v4 leaves v6 resolving via the network resolver).</summary>
         public string DnsAddressFamilies { get; set; } = "both";
 
+        // ── Network identity (wired + Wi-Fi rules; docs/NetworkIdentity-Design.md) ──
+        /// <summary>Which connected network decides the tunnel action: "windows" (best default route,
+        /// default) | "wired" | "wifi". DNS is evaluated per adapter regardless.</summary>
+        public string PrimaryNetworkMode { get; set; } = PrimaryNetworkModes.Windows;
+
+        /// <summary>Debounce window (ms) for bursts of network-change events (dock plug-in, DHCP renew).</summary>
+        public int NetworkSettleMs { get; set; } = 2000;
+
+        /// <summary>Priority of the network match types, highest first: a permutation of gatewaymac /
+        /// ssid / dnssuffix / subnet. Always read through <c>NetworkMatcher.RepairPriority</c> so a
+        /// hand-edited value can never disable a match type.</summary>
+        public List<string> NetworkMatchPriority { get; set; } = new()
+            { NetworkMatchBy.GatewayMac, NetworkMatchBy.Ssid, NetworkMatchBy.DnsSuffix, NetworkMatchBy.Subnet };
+
         // ── Info / statistics section ─────────────────────────────────────────
         /// <summary>Show the timeline/statistics panel above the footer.</summary>
         public bool ShowTimeline             { get; set; } = true;

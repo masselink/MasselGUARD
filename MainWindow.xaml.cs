@@ -330,6 +330,10 @@ namespace MasselGUARD
 
             // Query initial state; retry with timer until SSID found
             TryUpdateWifi();
+            // Wired + Wi-Fi: evaluate the connected networks once now (a wired-only PC has no SSID event
+            // to trigger it) and keep following Windows network changes (debounced).
+            _vm.EvaluateNetworkNow();
+            _vm.StartNetworkWatching();
             var retryTimer = new System.Windows.Threading.DispatcherTimer
             {
                 Interval = TimeSpan.FromMilliseconds(800)
@@ -2663,6 +2667,7 @@ namespace MasselGUARD
             bool rulesLocked  = ConfigSvc.IsLocked("Rules");
             if (WifiRuleEditBtn   != null) WifiRuleEditBtn.IsEnabled   = hasSelection && !rulesLocked;
             if (WifiRuleDeleteBtn != null) WifiRuleDeleteBtn.IsEnabled = hasSelection && !rulesLocked;
+            if (WifiRuleTestBtn   != null) WifiRuleTestBtn.IsEnabled   = hasSelection;   // read-only, allowed under a locked policy
             if (WifiRuleToggleBtn != null)
             {
                 WifiRuleToggleBtn.IsEnabled = hasSelection && !rulesLocked;
@@ -3103,7 +3108,8 @@ namespace MasselGUARD
                 tunnels: GetTunnelNames(),
                 dnsProfiles: DnsProfileChoices(),
                 dnsEnabled: ConfigSvc.Config.EnableDns,
-                tunnelsEnabled: ConfigSvc.Config.EnableTunnels)
+                tunnelsEnabled: ConfigSvc.Config.EnableTunnels,
+                captureNetwork: CaptureNetworkSnapshot)
                 { Owner = this };
             if (dlg.ShowDialog() != true) return;
             var rule = new Models.TunnelRule
@@ -3111,6 +3117,8 @@ namespace MasselGUARD
                 Kind         = dlg.ResultKind,
                 Name         = dlg.ResultName,
                 Ssid         = dlg.ResultSsid,
+                MatchBy      = dlg.ResultMatchBy,
+                MatchValue   = dlg.ResultMatchValue,
                 Tunnel       = dlg.ResultTunnel,
                 StartTime    = dlg.ResultStartTime,
                 EndTime      = dlg.ResultEndTime,
@@ -3146,12 +3154,17 @@ namespace MasselGUARD
                 dnsProfiles:    DnsProfileChoices(),
                 existingDnsProfileId: rule.DnsProfileId,
                 dnsEnabled:     ConfigSvc.Config.EnableDns,
-                tunnelsEnabled: ConfigSvc.Config.EnableTunnels)
+                tunnelsEnabled: ConfigSvc.Config.EnableTunnels,
+                existingMatchBy:    rule.EffectiveMatchBy,
+                existingMatchValue: rule.MatchValue,
+                captureNetwork: CaptureNetworkSnapshot)
                 { Owner = this };
             if (dlg.ShowDialog() != true) return;
             rule.Kind        = dlg.ResultKind;
             rule.Name        = dlg.ResultName;
             rule.Ssid        = dlg.ResultSsid;
+            rule.MatchBy     = dlg.ResultMatchBy;
+            rule.MatchValue  = dlg.ResultMatchValue;
             rule.Tunnel      = dlg.ResultTunnel;
             rule.StartTime   = dlg.ResultStartTime;
             rule.EndTime     = dlg.ResultEndTime;
@@ -3188,6 +3201,39 @@ namespace MasselGUARD
             // Refresh the button label for the still-selected row.
             if (WifiRuleToggleBtn != null)
                 WifiRuleToggleBtn.Content = Lang.T(rule.Enabled ? "BtnDisableRule" : "BtnEnableRule");
+        }
+
+        /// <summary>Live snapshot of the connected Wi-Fi / wired networks (SSID from the WLAN service).
+        /// May block ~1.5 s per adapter on the gateway ARP lookup - call off the UI thread.</summary>
+        internal NetworkSnapshot CaptureNetworkSnapshot() => _vm.CaptureNetwork(forceMac: true);
+
+        /// <summary>Tests whether the selected rule's requirements are met right now and writes the
+        /// result to the activity log. Read-only: nothing is connected, changed or counted.</summary>
+        private async void WifiRuleTest_Click(object sender, RoutedEventArgs e)
+        {
+            if (WifiRulesListView.SelectedItem is not WifiRuleRow row) return;
+            var rule = row.Rule;
+
+            NetworkSnapshot net;
+            try { net = await System.Threading.Tasks.Task.Run(CaptureNetworkSnapshot); }
+            catch (Exception ex)
+            {
+                LogSvc.Warn($"Rule test failed for {rule.RuleName}: {ex.Message}");
+                return;
+            }
+
+            var r = RuleTester.Test(rule, ConfigSvc.Config, net, DateTime.Now);
+            string kind = rule.Kind switch
+            {
+                "schedule" => "schedule rule",
+                "trusted"  => "trusted-network rule",
+                _          => "network rule",
+            };
+            LogSvc.Info($"Rule test: {rule.RuleName} ({kind})");
+            LogSvc.Write(r.Met ? LogLevel.Ok : LogLevel.Info,
+                (r.Met ? "Requirement met: " : "Requirement not met: ") + r.Summary, isContinuation: true);
+            foreach (var note in r.Notes)
+                LogSvc.Write(LogLevel.Info, "Note: " + note, isContinuation: true);
         }
 
         // ── Defaults popup ────────────────────────────────────────────────────

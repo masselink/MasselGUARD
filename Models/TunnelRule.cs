@@ -80,8 +80,52 @@ namespace MasselGUARD.Models
         public string Ssid
         {
             get => _ssid;
-            set { SetField(ref _ssid, value); OnPropertyChanged(nameof(SsidDisplay)); }
+            set { SetField(ref _ssid, value); OnPropertyChanged(nameof(SsidDisplay)); OnPropertyChanged(nameof(RuleName)); }
         }
+
+        // ── Network match (docs/NetworkIdentity-Design.md, section 3.1) ────────────────────────
+        // A network rule (Kind "network", or "wifi" for rules saved before wired support) matches the
+        // current network by one identity field. For MatchBy "ssid" the value is Ssid (kept for
+        // compatibility, so existing rules and the dialog keep working untouched); for the other match
+        // types it is MatchValue.
+
+        private string _matchBy    = NetworkMatchBy.Ssid;
+        private string _matchValue = "";
+
+        /// <summary>"ssid" | "dnssuffix" | "gatewaymac" | "subnet" (<see cref="NetworkMatchBy"/>).</summary>
+        public string MatchBy
+        {
+            get => _matchBy;
+            set { SetField(ref _matchBy, value); OnPropertyChanged(nameof(SsidDisplay)); OnPropertyChanged(nameof(RuleName)); }
+        }
+
+        /// <summary>Value for the non-SSID match types (suffix, MAC, CIDR). Unused for MatchBy "ssid".</summary>
+        public string MatchValue
+        {
+            get => _matchValue;
+            set { SetField(ref _matchValue, value); OnPropertyChanged(nameof(SsidDisplay)); OnPropertyChanged(nameof(RuleName)); }
+        }
+
+        /// <summary>True for a network-triggered rule: the current "network" kind and the legacy "wifi" kind.</summary>
+        [JsonIgnore]
+        public bool IsNetworkKind => _kind == "network" || _kind == "wifi";
+
+        /// <summary>The match type actually in force (an empty/unknown stored value means SSID).</summary>
+        [JsonIgnore]
+        public string EffectiveMatchBy => NetworkMatchBy.IsKnown(_matchBy) ? _matchBy : NetworkMatchBy.Ssid;
+
+        /// <summary>The value the engine compares: <see cref="Ssid"/> for SSID rules, else <see cref="MatchValue"/>.</summary>
+        [JsonIgnore]
+        public string EffectiveMatchValue => EffectiveMatchBy == NetworkMatchBy.Ssid ? _ssid : _matchValue;
+
+        /// <summary>English label for the match type ("SSID", "DNS suffix", "gateway MAC", "subnet").</summary>
+        public static string MatchByLabel(string matchBy) => matchBy switch
+        {
+            NetworkMatchBy.DnsSuffix  => "DNS suffix",
+            NetworkMatchBy.GatewayMac => "gateway MAC",
+            NetworkMatchBy.Subnet     => "subnet",
+            _                         => "SSID",
+        };
 
         public string Tunnel
         {
@@ -135,6 +179,8 @@ namespace MasselGUARD.Models
         public string SsidDisplay =>
             _kind == "schedule" ? $"⏰ {ScheduleSummary}"
           : _kind == "trusted"  ? (TrustedWhenOnList ? "🛡 Trusted networks" : "🛡 Untrusted networks")
+          : EffectiveMatchBy != NetworkMatchBy.Ssid
+              ? (string.IsNullOrEmpty(_matchValue) ? "-" : $"🔎 {MatchByLabel(EffectiveMatchBy)}: {_matchValue}")
           : (string.IsNullOrEmpty(_ssid) ? "-" : $"📶 {_ssid}");   // 📶 matches the footer's current-SSID icon
 
         [JsonIgnore]
@@ -155,7 +201,8 @@ namespace MasselGUARD.Models
                     var side = TrustedWhenOnList ? "Trusted network" : "Untrusted network";
                     return $"{side} \u2192 {(string.IsNullOrEmpty(_tunnel) ? "disconnect" : _tunnel)}";
                 }
-                var ssid   = string.IsNullOrEmpty(_ssid)   ? "\u2014"          : _ssid;
+                var shown  = EffectiveMatchValue;
+                var ssid   = string.IsNullOrEmpty(shown)   ? "\u2014"          : shown;
                 var target = string.IsNullOrEmpty(_tunnel) ? "disconnect" : _tunnel;
                 return $"{ssid} \u2192 {target}";
             }

@@ -110,7 +110,85 @@ namespace MasselGUARD.Views
             try { BuildConnectivity(); } catch (Exception ex) { AddKv(AddSection(L("DiagSecConnectivity")), L("DiagError"), ex.Message); }
             try { BuildTunnels(); }      catch (Exception ex) { AddKv(AddSection(L("DiagSecTunnels")), L("DiagError"), ex.Message); }
             try { BuildDns(); }          catch (Exception ex) { AddKv(AddSection("DNS"), L("DiagError"), ex.Message); }
+            try { BuildNetworkIdentity(); } catch (Exception ex) { AddKv(AddSection(L("DiagSecNetIdentity")), L("DiagError"), ex.Message); }
+            try { BuildRules(); }        catch (Exception ex) { AddKv(AddSection(L("DiagSecRules")), L("DiagError"), ex.Message); }
             try { BuildAdapters(); }     catch (Exception ex) { AddKv(AddSection(L("DiagSecAdapters")), L("DiagError"), ex.Message); }
+        }
+
+        // ── Network identity + rule requirements (docs/NetworkIdentity-Design.md) ────
+        private static Txt MatchLabel(string by) => by switch
+        {
+            NetworkMatchBy.GatewayMac => L("DiagGatewayMac"),
+            NetworkMatchBy.Ssid       => L("DiagSsid"),
+            NetworkMatchBy.DnsSuffix  => L("DiagDnsSuffix"),
+            NetworkMatchBy.Subnet     => L("DiagSubnet"),
+            _                         => by,
+        };
+
+        private void BuildNetworkIdentity()
+        {
+            var cfg  = _main.ConfigSvc.Config;
+            var net  = _main.CaptureNetworkSnapshot();
+            var head = AddSection(L("DiagSecNetIdentity"));
+
+            AddKv(head, L("DiagPrimaryMode"), cfg.PrimaryNetworkMode switch
+            {
+                PrimaryNetworkModes.Wired => L("DiagPrimaryModeWired"),
+                PrimaryNetworkModes.Wifi  => L("DiagPrimaryModeWifi"),
+                _                         => L("DiagPrimaryModeWindows"),
+            });
+
+            var prio = NetworkMatcher.RepairPriority(cfg.NetworkMatchPriority).Select(MatchLabel).ToList();
+            AddKv(head, L("DiagMatchPriority"),
+                new Txt(string.Join("  >  ", prio.Select(p => p.Ui)), string.Join("  >  ", prio.Select(p => p.En))));
+
+            AddKv(head, L("DiagTrustedList"),
+                cfg.TrustedNetworks.Count == 0 ? L("DiagNone") : string.Join(", ", cfg.TrustedNetworks));
+
+            if (net.IsEmpty)
+            {
+                AddKv(head, L("DiagSecAdapters"), L("DiagNoNetwork"));
+                return;
+            }
+
+            foreach (var a in net.Adapters.OrderByDescending(x => x.IsPrimary).ThenBy(x => x.AdapterName, StringComparer.OrdinalIgnoreCase))
+            {
+                Txt kind = a.IsWifi ? L("DiagKindWifi") : L("DiagKindWired");
+                Txt tag  = a.IsPrimary ? L("DiagPrimaryTag") : "";
+                var title = new Txt(
+                    $"{a.AdapterName}  ·  {kind.Ui}" + (a.IsPrimary ? $"  ·  {tag.Ui}" : ""),
+                    $"{a.AdapterName}  ·  {kind.En}" + (a.IsPrimary ? $"  ·  {tag.En}" : ""));
+                var body = AddSection(title);
+
+                if (a.IsWifi) AddKv(body, L("DiagSsid"), a.Ssid ?? "-");
+                AddKv(body, L("DiagDnsSuffix"), a.DnsSuffix ?? "-");
+                AddKv(body, L("DiagGateway"), a.Gateway ?? "-", mono: true);
+                AddKv(body, L("DiagGatewayMac"),
+                    a.GatewayMac != null ? (Txt)a.GatewayMac : a.Gateway == null ? (Txt)"-" : L("DiagUnresolved"), mono: true);
+                AddKv(body, L("DiagSubnets"), a.Subnets.Count == 0 ? "-" : string.Join(", ", a.Subnets), mono: true);
+                AddKv(body, L("DiagRouteMetric"), a.RouteMetric == int.MaxValue ? L("DiagNoDefaultRoute") : a.RouteMetric.ToString());
+            }
+        }
+
+        private void BuildRules()
+        {
+            var cfg  = _main.ConfigSvc.Config;
+            var body = AddSection(L("DiagSecRules"));
+            if (cfg.Rules.Count == 0) { AddKv(body, L("DiagSecRules"), L("DiagNoRules")); return; }
+
+            var net = _main.CaptureNetworkSnapshot();
+            var now = DateTime.Now;
+            foreach (var rule in cfg.Rules)
+            {
+                var r    = RuleTester.Test(rule, cfg, net, now);
+                Txt verdict = r.Met ? L("DiagRuleMet") : L("DiagRuleNotMet");
+                Txt off  = rule.Enabled ? "" : L("DiagRuleDisabled");
+                string uiOff = off.Ui.Length > 0 ? $"  [{off.Ui}]" : "";
+                string enOff = off.En.Length > 0 ? $"  [{off.En}]" : "";
+                // The reason text is English data (like the rule/DNS reasons); the verdict is localized.
+                AddKv(body, rule.RuleName,
+                    new Txt($"{verdict.Ui}: {r.Summary}{uiOff}", $"{verdict.En}: {r.Summary}{enOff}"));
+            }
         }
 
         private void BuildConnectivity()
@@ -275,7 +353,7 @@ namespace MasselGUARD.Views
             bool doh = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000);
             AddKv(body, L("DiagDoh"), doh ? L("DiagSupported") : L("DiagDohUnsupported"));
 
-            var guid = _main.WifiSvc.CurrentInterfaceGuid;
+            var guid = _main._vm.PrimaryInterfaceGuid;   // the primary network's adapter (Wi-Fi or wired)
             var active = guid != Guid.Empty
                 ? NetworkInterface.GetAllNetworkInterfaces()
                     .FirstOrDefault(n => string.Equals(n.Id, guid.ToString("B"), StringComparison.OrdinalIgnoreCase))

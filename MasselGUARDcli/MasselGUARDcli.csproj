@@ -42,6 +42,10 @@
     <Compile Include="..\Services\CidrMath.cs" />
     <Compile Include="..\Services\SplitTunnelBackend.cs" />
     <Compile Include="..\Services\DnsPolicy.cs" />
+    <Compile Include="..\Services\NetworkMatcher.cs" />
+    <Compile Include="..\Services\NetworkMonitor.cs" />
+    <Compile Include="..\Services\RuleTester.cs" />
+    <Compile Include="..\Services\RuleEngine.cs" />
     <Compile Include="..\Services\ConfigService.cs" />
     <Compile Include="..\Services\PresetService.cs" />
     <Compile Include="..\Services\HistoryService.cs" />
