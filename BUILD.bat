@@ -21,7 +21,11 @@ rem   BUILD.bat x64 | arm64      -> that arch only (all = both)
 rem   nozip                      -> skip the release zip (quick test build; removes a stale zip)
 rem   run                        -> after a successful build, start MasselGUARD.exe for this
 rem                                 PC's architecture and don't wait for a key press
-rem   e.g.  BUILD.bat x64 nozip run
+rem   noui                       -> build only the CLI (MasselGUARDcli.exe)
+rem   nocli                      -> build only the GUI (MasselGUARD.exe)
+rem                                 A partial build replaces just that exe in dist\<arch>\ and
+rem                                 never packages a zip (a release zip needs both from one build).
+rem   e.g.  BUILD.bat x64 nozip run      BUILD.bat x64 nocli run      BUILD.bat noui
 rem Each arch is published natively (framework-dependent single-file) into
 rem dist\<arch>\ with its matching wireguard-deps\<arch>\ DLLs, then zipped to
 rem dist\MasselGUARD-<arch>.zip for release. ARM64 native DLLs must be built
@@ -30,6 +34,8 @@ rem still builds but has no local-tunnel support.
 set ARCHES=
 set NOZIP=0
 set RUN=0
+set NOUI=0
+set NOCLI=0
 :parse_args
 if "%~1"=="" goto args_done
 if /I "%~1"=="x64" (
@@ -42,25 +48,43 @@ if /I "%~1"=="x64" (
     set NOZIP=1
 ) else if /I "%~1"=="run" (
     set RUN=1
+) else if /I "%~1"=="noui" (
+    set NOUI=1
+) else if /I "%~1"=="nocli" (
+    set NOCLI=1
 ) else (
     echo.
     echo  ERROR: unknown argument "%~1".
-    echo  Usage: BUILD.bat [x64^|arm64^|all] [nozip] [run]
+    echo  Usage: BUILD.bat [x64^|arm64^|all] [nozip] [run] [noui^|nocli]
     echo.
     pause & exit /b 1
 )
 shift
 goto parse_args
 :args_done
+if "%NOUI%%NOCLI%"=="11" (
+    echo.
+    echo  ERROR: noui and nocli together leave nothing to build.
+    echo.
+    pause & exit /b 1
+)
 if "%ARCHES%"=="" set ARCHES=x64 arm64
+rem A partial build never makes a release zip - it would pair a fresh exe with an older one.
+set PARTIAL=0
+if "%NOUI%"=="1"  set PARTIAL=1
+if "%NOCLI%"=="1" set PARTIAL=1
+if "%PARTIAL%"=="1" set NOZIP=1
 set PACKAGING=release zips
 if "%NOZIP%"=="1" set PACKAGING=no zips (test build)
+set PARTS=GUI + CLI
+if "%NOUI%"=="1"  set PARTS=CLI only
+if "%NOCLI%"=="1" set PARTS=GUI only
 
 echo.
 echo  --------------------------------------------------
 echo  MasselGUARD  v%VERSION%  ^|  %CODENAME%
 echo  Harold Masselink  ^|  https://masselink.net
-echo  Building arch(es):%ARCHES%  ^|  %PACKAGING%
+echo  Building arch(es):%ARCHES%  ^|  %PARTS%  ^|  %PACKAGING%
 echo  --------------------------------------------------
 echo.
 
@@ -115,6 +139,11 @@ echo   https://dotnet.microsoft.com/download/dotnet/10.0
 echo.
 
 rem ── Optional: start the build for this PC's architecture ────────────────────
+if "%RUN%"=="1" if "%NOUI%"=="1" (
+    echo   NOTE: run skipped - the GUI was not built ^(noui^).
+    echo.
+    set RUN=0
+)
 if "%RUN%"=="1" (
     set RUNARCH=x64
     if /I "%PROCESSOR_ARCHITECTURE%"=="ARM64" set RUNARCH=arm64
@@ -155,14 +184,15 @@ rem A running .exe cannot be deleted or overwritten -- but it CAN be renamed, so
 rem old ren-based probe missed it and the build failed later at the bundle/zip step
 rem while still leaving a STALE exe behind. Probe by deleting instead (we rebuild it
 rem anyway): if the file survives the delete, it is in use -- fail now, clearly.
-if exist "%OUT%\MasselGUARD.exe" (
+rem Only the exe(s) being rebuilt are probed (and removed) - a partial build keeps the other one.
+if "%NOUI%"=="0" if exist "%OUT%\MasselGUARD.exe" (
     del /f /q "%OUT%\MasselGUARD.exe" >nul 2>&1
     if exist "%OUT%\MasselGUARD.exe" (
         echo   BUILD FAILED -- %ARCH% MasselGUARD.exe is running. Close MasselGUARD ^(including the tray icon^) and retry.
         endlocal & exit /b 1
     )
 )
-if exist "%OUT%\MasselGUARDcli.exe" (
+if "%NOCLI%"=="0" if exist "%OUT%\MasselGUARDcli.exe" (
     del /f /q "%OUT%\MasselGUARDcli.exe" >nul 2>&1
     if exist "%OUT%\MasselGUARDcli.exe" (
         echo   BUILD FAILED -- %ARCH% MasselGUARDcli.exe is running. Close it and retry.
@@ -179,9 +209,15 @@ if exist "%~dp0obj"                rmdir /s /q "%~dp0obj"
 if exist "%~dp0bin"                rmdir /s /q "%~dp0bin"
 if exist "%~dp0MasselGUARDcli\obj" rmdir /s /q "%~dp0MasselGUARDcli\obj"
 if exist "%~dp0MasselGUARDcli\bin" rmdir /s /q "%~dp0MasselGUARDcli\bin"
-if exist "%OUT%"                   rmdir /s /q "%OUT%"
+rem A full build starts from an empty dist\<arch>\; a partial build (noui / nocli) keeps the
+rem folder so the exe that is NOT rebuilt stays in place.
+if "%PARTIAL%"=="0" if exist "%OUT%" rmdir /s /q "%OUT%"
 
 rem ── Compile GUI ─────────────────────────────────────────────────────────────
+if "%NOUI%"=="1" (
+    echo   Skipped MasselGUARD ^(GUI^) - noui
+    goto skip_gui
+)
 echo   Compiling MasselGUARD (GUI) [%ARCH%]...
 dotnet publish "%~dp0MasselGUARD.csproj" -c Release -r %RID% --self-contained false -o "%OUT%" ^
     -p:RuntimeIdentifier=%RID% ^
@@ -198,8 +234,13 @@ if not exist "%OUT%\MasselGUARD.exe" (
     endlocal & exit /b 1
 )
 echo   OK  %ARCH%\MasselGUARD.exe
+:skip_gui
 
 rem ── Compile CLI ─────────────────────────────────────────────────────────────
+if "%NOCLI%"=="1" (
+    echo   Skipped MasselGUARDcli ^(CLI^) - nocli
+    goto skip_cli
+)
 echo   Compiling MasselGUARDcli (CLI) [%ARCH%]...
 dotnet publish "%~dp0MasselGUARDcli\MasselGUARDcli.csproj" -c Release -r %RID% --self-contained false -o "%OUT%" ^
     -p:RuntimeIdentifier=%RID% ^
@@ -216,6 +257,7 @@ if not exist "%OUT%\MasselGUARDcli.exe" (
     endlocal & exit /b 1
 )
 echo   OK  %ARCH%\MasselGUARDcli.exe
+:skip_cli
 
 rem ── Copy install helper ─────────────────────────────────────────────────────
 if exist "%~dp0install-dotnet.bat" copy /y "%~dp0install-dotnet.bat" "%OUT%\install-dotnet.bat" >nul
@@ -270,7 +312,11 @@ rem fail the build if packaging did not produce it (a missing release asset is f
 rem With "nozip" the stale zip is still removed, so an old build can't be shipped by mistake.
 if exist "%DIST%\MasselGUARD-%ARCH%.zip" del /f /q "%DIST%\MasselGUARD-%ARCH%.zip" >nul 2>&1
 if "%NOZIP%"=="1" (
-    echo   Skipped release zip ^(nozip^)
+    if "%PARTIAL%"=="1" (
+        echo   Skipped release zip ^(partial build - a release zip needs both exes from one build^)
+    ) else (
+        echo   Skipped release zip ^(nozip^)
+    )
     echo.
     endlocal & exit /b 0
 )

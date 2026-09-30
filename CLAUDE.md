@@ -13,9 +13,11 @@ BUILD.bat          # all arches (x64 + arm64); requires .NET 10 SDK
 BUILD.bat x64      # single arch
 BUILD.bat arm64
 BUILD.bat x64 nozip run   # quick test build: no release zip, then start dist\<this PC's arch>\MasselGUARD.exe
+BUILD.bat x64 nocli run   # GUI only (keeps the existing CLI exe), then start it
+BUILD.bat noui            # CLI only (keeps the existing GUI exe)
 ```
 
-Arguments combine in any order: an arch (`x64`/`arm64`/`all`), `nozip` (skip packaging; a stale zip is still deleted so an old build can't be shipped by mistake) and `run` (after a successful build, start the exe matching this PC's architecture and exit without the closing `pause`). Unknown arguments print the usage and fail.
+Arguments combine in any order: an arch (`x64`/`arm64`/`all`), `nozip` (skip packaging; a stale zip is still deleted so an old build can't be shipped by mistake), `run` (after a successful build, start the exe matching this PC's architecture and exit without the closing `pause`) and `noui` / `nocli` (build just one exe: only that exe is probed and replaced, `dist\<arch>\` is not wiped so the other one stays, and no zip is packaged since a release zip needs both exes from one build; `run` with `noui` explains and starts nothing; both together is an error). Unknown arguments print the usage and fail.
 
 Each arch publishes natively (framework-dependent single-file) into `dist\<arch>\` (`MasselGUARD.exe` + `MasselGUARDcli.exe`) and is zipped to `dist\MasselGUARD-<arch>.zip` for release. ARM64 is a genuine cross-publish from an x64 host - the SDK produces a native ARM64 apphost (PE machine `0xAA64`). See **x64 / ARM64 architecture support** below.
 
