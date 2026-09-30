@@ -30,7 +30,7 @@ Every panel - **WireGuard**, **DNS**, **Automation**, **Activity log** and **His
 
 **Light and dark are both built in**, and every section icon and colour is themeable. Browse and install community themes from the in-app Theme Browser, or make your own - the signature **Resolving Raven** theme even ships a full custom icon set.
 
-![The "Forking Fox" theme - one of the signature looks available in the theme browser](docs/images/forking-fox-theme.png)
+![The "Resolving Raven" theme - the 4.5.0 signature look with its own section icons, available in the theme browser](docs/images/resolving-raven-dark-preview.png)
 
 ---
 
