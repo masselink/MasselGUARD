@@ -12,7 +12,7 @@ MasselGUARD is a WireGuard client that also controls your DNS, and switches **bo
 
 > **⚡ Native x64 *and* ARM64** - MasselGUARD ships a genuine **native ARM64** build, so on Windows-on-ARM devices (Snapdragon-based Copilot+ PCs, recent Surface) it runs at full native speed **with full standalone-tunnel support** - not under x64 emulation. Because the wireguard-NT kernel driver can't be emulated, a native ARM64 app is the *only* way to run local tunnels on ARM, and few WireGuard clients offer one. Running the x64 build on an ARM64 PC? MasselGUARD offers a **one-click switch** to the native ARM64 build at startup. ([Which download?](#which-download))
 
-> **User manual** → [`docs/Manual.md`](docs/Manual.md)
+> **User manual** → [`docs/MANUAL.md`](docs/MANUAL.md)
 > **CLI manual** → [`docs/CLIManual.md`](docs/CLIManual.md)
 > **Technical reference** → [`docs/Reference.md`](docs/Reference.md)
 > **Release notes (all versions)** → [`docs/WHATSNEW.md`](docs/WHATSNEW.md)
@@ -70,8 +70,8 @@ Every panel - **WireGuard**, **DNS**, **Automation**, **Activity log** and **His
 ### Auto-reconnect
 - Detects unexpected tunnel drops (sleep/wake, kernel crash, network blip) and reconnects automatically
 - **3 retry attempts** with 5 s / 10 s / 15 s backoff; gives up cleanly after the third failure
-- Intentional disconnects (user, WiFi rule, CLI) are never retried - and a clean deactivate via the WireGuard app is recognised and respected
-- Global mode in Settings → Tunnels: **Off** / **Per tunnel** / **Always** (default)
+- Intentional disconnects (user, Automation rule, CLI) are never retried - and a clean deactivate via the WireGuard app is recognised and respected
+- Global mode in Settings → WireGuard: **Off** / **Per tunnel** / **Always** (default)
 - Per-tunnel toggle in Edit Tunnel dialog; hidden when global mode is Off, greyed when Always
 
 ### WireGuard app awareness (companion tunnels)
@@ -85,9 +85,9 @@ Every panel - **WireGuard**, **DNS**, **Automation**, **Activity log** and **His
 ### Tunnel management
 - Live tunnel list - Connect/Disconnect per entry, real-time uptime
 - **⚡ / 🔓 badges** inline after tunnel name for default action and open protection
-- **Rules column** - count of WiFi rules per tunnel; click to highlight them
+- **Rules column** - count of Automation rules per tunnel; click to highlight them
 - **Tunnel Groups** - colour-coded tabs, drag tunnels between groups by dropping on tab buttons, hide/show, default group, hide empty groups
-- **Drag-to-reorder** tunnels and WiFi rules
+- **Drag-to-reorder** tunnels, Automation rules and DNS profiles
 - Quick Connect - connect any `.conf` from disk without importing
 - Pre/post scripts at four hook points per tunnel
 - **Pre-flight config validation** - key format, CIDR syntax, MTU, ports, endpoint checked before connect; per-tunnel and global skip option for unusual configs

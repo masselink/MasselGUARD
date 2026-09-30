@@ -1606,14 +1606,14 @@
                         <!-- Legend - wrapping colour-dot chips grouped under VPN / Wi-Fi captions.
                              Auto-height (rows sized in RenderChart); chips built in BuildLegendChip.
                              Click a chip to hide/show that series in the chart. -->
-                        <StackPanel x:Name="LegendRow" Grid.Row="2" Orientation="Vertical">
-                            <!-- VPN tunnels -->
+                        <StackPanel x:Name="LegendRow" Grid.Row="2" Orientation="Vertical" Grid.IsSharedSizeScope="True">
+                            <!-- WireGuard tunnels -->
                             <Grid x:Name="VpnLegendGroup">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="Auto" MinWidth="36" SharedSizeGroup="LegendLabel"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="VPN" FontSize="9" FontWeight="SemiBold"
+                                <TextBlock Grid.Column="0" Text="WireGuard" FontSize="9" FontWeight="SemiBold"
                                            FontFamily="{DynamicResource Theme.FontFamily}"
                                            Foreground="{DynamicResource TextMuted}"
                                            VerticalAlignment="Top" Margin="0,2,6,0"/>
@@ -1622,7 +1622,7 @@
                             <!-- Wi-Fi SSIDs -->
                             <Grid x:Name="WifiLegendContainer" Visibility="Collapsed">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="Auto" MinWidth="36" SharedSizeGroup="LegendLabel"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="Wi-Fi" FontSize="9" FontWeight="SemiBold"
@@ -1634,7 +1634,7 @@
                             <!-- DNS profiles / servers -->
                             <Grid x:Name="DnsLegendContainer" Visibility="Collapsed">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="36"/>
+                                    <ColumnDefinition Width="Auto" MinWidth="36" SharedSizeGroup="LegendLabel"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="DNS" FontSize="9" FontWeight="SemiBold"

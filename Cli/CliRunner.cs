@@ -24,8 +24,8 @@ namespace MasselGUARD.Cli
     ///   disconnect &lt;name&gt;            Disconnect a tunnel by name
     ///   disconnect-all               Disconnect all active tunnels
     ///   info &lt;name&gt;                  Detailed status for one tunnel
-    ///   log [n]                      Recent activity log entries (default 20)
-    ///   tunnel-history [n]       Connection history (default 20)
+    ///   log [n]                      Recent connections (default 20)
+    ///   tunnel-history [n]           Connection history (default 20)
     ///   wifi-history [n]             WiFi SSID history (default 20)
     ///   import &lt;file&gt;               Import a .conf, .mgconf or .conf.dpapi tunnel
     ///   delete &lt;name&gt;               Remove a tunnel from config
@@ -1140,8 +1140,8 @@ namespace MasselGUARD.Cli
             CliOutput.Info("  disconnect-all             Disconnect all active tunnels");
             CliOutput.Info("  info <name>                Detailed status for one tunnel");
             CliOutput.Info("  dns status                 Show DNS-automation config + live resolvers");
-            CliOutput.Info("  log [n]                    Last n activity log entries (default 20)");
-            CliOutput.Info("  tunnel-history [n]     Connection history with source and traffic (default 20)");
+            CliOutput.Info("  log [n]                    Recent connections (default 20)");
+            CliOutput.Info("  tunnel-history [n]         Connection history with source and traffic (default 20)");
             CliOutput.Info("  wifi-history [n]           WiFi SSID history with duration and security (default 20)");
             CliOutput.Info("  import <file>              Import a .conf, .mgconf or .conf.dpapi tunnel");
             CliOutput.Info("  delete <name>              Remove a tunnel from config");

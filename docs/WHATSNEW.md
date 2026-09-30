@@ -24,6 +24,7 @@ A big interface and settings overhaul: one place to turn features on or off, a c
 - **WiFi rules are now "Automation"** throughout the app, with a small robot icon.
 - The tunnels panel is titled **WireGuard**, with a total-tunnel counter after the name, then the category tabs.
 - **Consistent panel layout** - WireGuard and DNS on top, Automation and Activity log below; whichever panels you show fill the space the same way every time, and a lone panel stretches to full width.
+- **Compact rows** - the WireGuard and Automation lists always show at least four entries, and the DNS profiles and activity log beside them scroll instead of making the window taller.
 - **Dim section icons** now sit before each panel header (shield, globe, robot, hamburger), matching the title-bar buttons.
 - **Expand the activity log** into its own resizable window with the new Expand button; it stays live and shares Clear/Export with the main log.
 - **Activity log in Time | Event columns** - wrapped and multi-line entries stay neatly under the Event column, whatever font the theme uses. Times are easier to read: a theme's timestamp colour that is too faint falls back to its normal muted text colour.

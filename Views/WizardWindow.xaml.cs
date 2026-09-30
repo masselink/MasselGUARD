@@ -131,12 +131,10 @@ namespace MasselGUARD.Views
                 if (WizArOff != null && WizArOff.IsChecked != true && WizArPerTunnel?.IsChecked != true && WizArAlways?.IsChecked != true)
                     WizArOff.IsChecked = true;
 
-                string ks = cfg.KillSwitchMode;
-                if (WizKsOff       != null) WizKsOff.IsChecked       = ks == "off";
-                if (WizKsPerTunnel != null) WizKsPerTunnel.IsChecked = ks == "per-tunnel";
-                if (WizKsAlways    != null) WizKsAlways.IsChecked    = ks == "always";
-                if (WizKsPerTunnel != null && WizKsOff?.IsChecked != true && WizKsPerTunnel.IsChecked != true && WizKsAlways?.IsChecked != true)
-                    WizKsPerTunnel.IsChecked = true;
+                // Anything but "always" is per tunnel (a legacy "off" from older wizards behaved the same).
+                bool ksAlways = cfg.KillSwitchMode == "always";
+                if (WizKsPerTunnel != null) WizKsPerTunnel.IsChecked = !ksAlways;
+                if (WizKsAlways    != null) WizKsAlways.IsChecked    = ksAlways;
 
                 if (WizDnsIndicatorToggle != null) WizDnsIndicatorToggle.IsChecked = cfg.ShowDnsIndicator;
                 if (WizShowTunnelBtnToggle != null) WizShowTunnelBtnToggle.IsChecked = cfg.ShowTunnelToggleButton;
@@ -224,7 +222,7 @@ namespace MasselGUARD.Views
             if (_vm.EnableTunnels)
             {
                 Row(Lang.T("WizSumAutoReconnect"), Mode(cfg.AutoReconnectMode));
-                Row(Lang.T("WizKsTitle"),          Mode(cfg.KillSwitchMode));
+                Row(Lang.T("WizKsTitle"),          Mode(cfg.KillSwitchMode == "always" ? "always" : "per-tunnel"));
             }
             if (_vm.EnableDns)
                 Row(Lang.T("WizSumDnsAutomation"), OnOff(cfg.DnsAutomationEnabled));

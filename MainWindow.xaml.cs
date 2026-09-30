@@ -3395,29 +3395,6 @@ namespace MasselGUARD
 
             popup.Show();
         }
-        private void TunnelContextMenu_Opened(object sender, RoutedEventArgs e)
-        {
-            if (sender is not System.Windows.Controls.ContextMenu cm) return;
-            var entry = (cm.PlacementTarget as System.Windows.Controls.ListViewItem)
-                        ?.DataContext as TunnelEntryViewModel;
-            if (entry == null) return;
-            if (cm.FindName("MenuSetDefault")         is System.Windows.Controls.MenuItem ms)
-                ms.Visibility  = entry.IsDefaultTunnel  ? Visibility.Collapsed : Visibility.Visible;
-            if (cm.FindName("MenuClearDefault")       is System.Windows.Controls.MenuItem mc)
-                mc.Visibility  = entry.IsDefaultTunnel  ? Visibility.Visible   : Visibility.Collapsed;
-            if (cm.FindName("MenuSetOpenProtection")  is System.Windows.Controls.MenuItem mo)
-                mo.Visibility  = entry.IsOpenProtection ? Visibility.Collapsed : Visibility.Visible;
-            if (cm.FindName("MenuClearOpenProtection")is System.Windows.Controls.MenuItem mp)
-                mp.Visibility  = entry.IsOpenProtection ? Visibility.Visible   : Visibility.Collapsed;
-        }
-
-        private TunnelEntryViewModel? GetContextMenuEntry(object sender)
-        {
-            if (sender is not System.Windows.Controls.MenuItem mi) return null;
-            return (mi.Parent as System.Windows.Controls.ContextMenu)?.Tag
-                   as TunnelEntryViewModel;
-        }
-
         private void ApplyDefaultTunnelChange()
         {
             ConfigSvc.Save();
@@ -3431,36 +3408,6 @@ namespace MasselGUARD
         private void NotifyAllBadges()
         {
             foreach (var t in _vm.TunnelList) t.NotifyBadgesChanged();
-        }
-
-        private void MenuSetDefault_Click(object s, RoutedEventArgs e)
-        {
-            var entry = GetContextMenuEntry(s); if (entry == null) return;
-            ConfigSvc.Config.DefaultAction = "activate";
-            ConfigSvc.Config.DefaultTunnel = entry.Name;
-            ApplyDefaultTunnelChange();
-        }
-
-        private void MenuClearDefault_Click(object s, RoutedEventArgs e)
-        {
-            if (GetContextMenuEntry(s) == null) return;
-            ConfigSvc.Config.DefaultAction = "none";
-            ConfigSvc.Config.DefaultTunnel = "";
-            ApplyDefaultTunnelChange();
-        }
-
-        private void MenuSetOpenProtection_Click(object s, RoutedEventArgs e)
-        {
-            var entry = GetContextMenuEntry(s); if (entry == null) return;
-            ConfigSvc.Config.OpenWifiTunnel = entry.Name;
-            ApplyDefaultTunnelChange();
-        }
-
-        private void MenuClearOpenProtection_Click(object s, RoutedEventArgs e)
-        {
-            if (GetContextMenuEntry(s) == null) return;
-            ConfigSvc.Config.OpenWifiTunnel = "";
-            ApplyDefaultTunnelChange();
         }
 
         public void UpdateStatusBarCentre()
@@ -4921,7 +4868,7 @@ namespace MasselGUARD
             else DnsLegendPanel?.Children.Clear();
             if (!t && !u) { LegendPanel?.Children.Clear(); WifiLegendPanel?.Children.Clear(); }
 
-            // Hide the "VPN" caption row when there are no tunnel chips (Wi-Fi hides itself in DrawWifiBand).
+            // Hide the "WireGuard" caption row when there are no tunnel chips (Wi-Fi hides itself in DrawWifiBand).
             if (VpnLegendGroup != null)
                 VpnLegendGroup.Visibility = (anyPane && LegendPanel != null && LegendPanel.Children.Count > 0)
                     ? Visibility.Visible : Visibility.Collapsed;

@@ -413,11 +413,11 @@ namespace MasselGUARD.ViewModels
         public System.Windows.Media.Brush MonthlyUsageColor =>
             IsOverCap ? ThemeBrush("WarningColor") : ThemeBrush("TextMuted");
 
-        // ── Cap usage rings - shown in the row when connected ──────────────────
-        // Three concentric arcs (day inner · week middle · month outer). A ring is
-        // drawn only when that period's cap is set; each fills 0→360° as usage → cap.
-        // The <see cref="Views.CapRings"/> control turns a ring amber near the limit
-        // and red once over it, and the hover tooltip breaks the numbers out.
+        // ── Usage bars / rings - shown on every row ─────────────────────────────
+        // One bar or arc per period (day · week · month), each filling as usage → reference:
+        // the user-set cap, or else the historical average. <see cref="Views.CapRings"/> /
+        // <see cref="Views.CapBars"/> turn a capped period amber near the limit and red once
+        // over it (history is drawn in the accent colour only); the tooltip breaks it out.
         private static double Frac(long used, long cap) => cap > 0 ? (double)used / cap : 0.0;
 
         public double DayCapFraction   => Frac(_dayBytes,     DayRefBytes);

@@ -524,10 +524,10 @@
                                        FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
                                        Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,8"/>
                             <StackPanel Orientation="Horizontal">
-                                <RadioButton x:Name="WizKsOff" GroupName="WizKs" Tag="off" Content="{Binding [SettingsModeOff], Source={x:Static local:Lang.Instance}}"
-                                             Style="{StaticResource PillRadio}" Checked="WizKsMode_Changed"/>
+                                <!-- No "Off": the kill switch has no global off (TunnelService honours
+                                     "always" or each tunnel's own toggle), same two pills as Settings. -->
                                 <RadioButton x:Name="WizKsPerTunnel" GroupName="WizKs" Tag="per-tunnel" Content="{Binding [SettingsModePerTunnel], Source={x:Static local:Lang.Instance}}"
-                                             Style="{StaticResource PillRadio}" Margin="6,0,0,0" Checked="WizKsMode_Changed"/>
+                                             Style="{StaticResource PillRadio}" Checked="WizKsMode_Changed"/>
                                 <RadioButton x:Name="WizKsAlways" GroupName="WizKs" Tag="always" Content="{Binding [SettingsModeAlways], Source={x:Static local:Lang.Instance}}"
                                              Style="{StaticResource PillRadio}" Margin="6,0,0,0" Checked="WizKsMode_Changed"/>
                             </StackPanel>

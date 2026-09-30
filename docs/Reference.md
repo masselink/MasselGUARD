@@ -1,6 +1,6 @@
 # MasselGUARD - Technical reference
 
-Developer/technical reference for v4.2.0 - Resolving Raven. For end-user instructions see [`Manual.md`](Manual.md).
+Developer/technical reference for v4.5.0 - Resolving Raven. For end-user instructions see [`MANUAL.md`](MANUAL.md).
 
 ---
 
@@ -10,8 +10,8 @@ Developer/technical reference for v4.2.0 - Resolving Raven. For end-user instruc
 2. [Startup sequence](#2-startup-sequence)
 3. [WiFi monitoring](#3-wifi-monitoring)
 4. [Rule evaluation](#4-rule-evaluation)
-5. [Connecting a tunnel - Standalone](#5-connecting-a-tunnel--standalone)
-6. [Connecting a tunnel - Companion](#6-connecting-a-tunnel--companion)
+5. [Connecting a tunnel - Standalone](#5-connecting-a-tunnel---standalone)
+6. [Connecting a tunnel - Companion](#6-connecting-a-tunnel---companion)
 7. [Disconnecting a tunnel](#7-disconnecting-a-tunnel)
 8. [Pre/post scripts](#8-prepost-scripts)
 9. [Tunnel groups and categories](#9-tunnel-groups-and-categories)
@@ -543,12 +543,12 @@ Continuation lines (detail sub-entries) render with a `↳` prefix in the timest
 
 ## 20. Import / Export settings
 
-**Export** (Settings → Advanced → Export settings):
+**Export** (Settings → General → Export settings):
 - Shows a warning that tunnel configs are excluded and future-version compatibility is not guaranteed
 - Writes a `*.masselguard` JSON file containing: Rules, TunnelGroups, DefaultAction, DefaultTunnel, OpenWifiTunnel, ManualMode, Mode, Language, themes, log level, popup toggle
 - Field `AppVersion` stores the exporting app version
 
-**Import** (Settings → Advanced → Import settings):
+**Import** (Settings → General → Import settings):
 - Reads `*.masselguard` or `*.json`
 - Compares `AppVersion` to running version - shows a Yes/No warning for any mismatch (both older→newer and newer→older)
 - Uses `JsonDocument` for field-by-field parsing - unknown/future fields are silently ignored

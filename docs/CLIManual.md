@@ -1,6 +1,6 @@
 # MasselGUARD - CLI Manual
 
-**Version 4.2.0 - Resolving Raven**
+**Version 4.5.0 - Resolving Raven**
 
 MasselGUARD includes a full command-line interface for scripting, automation, and headless operation. The CLI and the GUI share the same WireGuard kernel driver and the same configuration - any change made via CLI is reflected in the GUI within ~1 second, and vice versa.
 
@@ -376,7 +376,7 @@ Active interface resolvers:
 
 Shows recent connection history. Reads from `%APPDATA%\MasselGUARD\tunnel_history.json` - the **same file** that Settings → History shows in the GUI. No duplication; one source of truth.
 
-> **Note:** The GUI's activity log panel (debug entries, timing, script output) is in-memory only and is not accessible from the CLI. `log` shows connection history only.
+> **Note:** `log` shows connection history only. The GUI's activity log (debug entries, timing, script output) is not read by the CLI; when kept across restarts it is the plain-text file `%APPDATA%\MasselGUARD\masselguard.log`.
 
 ```
 MasselGUARD log
