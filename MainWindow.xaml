@@ -1209,7 +1209,8 @@
                                                     <ColumnDefinition Width="{Binding Data.DnsCol1W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="50"/>
                                                     <ColumnDefinition Width="{Binding Data.DnsCol2W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="0"/>
                                                     <ColumnDefinition Width="{Binding Data.DnsCol3W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="0"/>
-                                                    <ColumnDefinition Width="{Binding Data.DnsCol4W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="60"/>
+                                                    <!-- Last column takes what is left, so the list's scrollbar can never clip the Enable button -->
+                                                    <ColumnDefinition Width="*" MinWidth="60"/>
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                                     <TextBlock Text="●" Foreground="{DynamicResource Success}"

@@ -287,21 +287,26 @@ namespace MasselGUARD
                     ConfigSvc.Config.FontOverrideFamily,
                     ConfigSvc.Config.FontOverrideSize);
 
-                _vm.RebuildTunnelList();
-                RebuildTunnelGroups();
-                RefreshWifiRulesPanel();
-                UpdateStatusBarCentre();
-                UpdateFooterLabel();
-                UpdateAdminLabel();
-                UpdateShieldChevron();
-                UpdateTaskbarIcon();
-                UpdateWindowTitle();
-                NotifyAllBadges();
-                ApplyGroupFilter();
-                RebuildLog();   // re-resolve brush colours after accent/theme change
-                RefreshInfoSection();   // re-derive timeline colours from the new theme
-                RefreshThemeIcons();    // swap in / out any custom section icons
-                RefreshSectionToggleButtons();  // re-resolve the toggle glyph colours + slash state
+                // Icons first, each step isolated: they used to run last, so any exception in the
+                // heavy rebuilds below skipped them and the previous theme's icons stayed on screen
+                // after switching to a theme that has none.
+                void Step(Action a) { try { a(); } catch (Exception ex) { LogSvc.Debug($"[Theme] refresh step failed: {ex.Message}"); } }
+                Step(RefreshThemeIcons);          // swap in / out any custom section icons
+                Step(RefreshSectionToggleButtons);// re-resolve the toggle glyph colours + slash state
+                Step(UpdateTaskbarIcon);
+                Step(UpdateWindowTitle);
+
+                Step(_vm.RebuildTunnelList);
+                Step(RebuildTunnelGroups);
+                Step(RefreshWifiRulesPanel);
+                Step(UpdateStatusBarCentre);
+                Step(UpdateFooterLabel);
+                Step(UpdateAdminLabel);
+                Step(UpdateShieldChevron);
+                Step(NotifyAllBadges);
+                Step(ApplyGroupFilter);
+                Step(RebuildLog);   // re-resolve brush colours after accent/theme change
+                Step(() => RefreshInfoSection());   // re-derive timeline colours from the new theme
             });
 
             // Theme: apply on startup based on UseCustomTheme + SystemThemeMode
@@ -6726,6 +6731,11 @@ namespace MasselGUARD
             if (!_rulesColShown) DnsColDef3.MaxWidth = 0;
             double reserved = 50 + (_rulesColShown ? 40 : 0) + 60;   // Type + Rules + Enable minimums
             DnsColDef0.MaxWidth = Math.Max(60, total - reserved);
+            // A Name width saved from a wider window (or theme layout) must not push Type / Action out of a
+            // narrower panel: when the fixed columns no longer fit beside it, Name goes back to flexible.
+            double fixedW = DnsColDef1.Width.Value + (_rulesColShown ? DnsColDef3.Width.Value : 0) + DnsColDef4.MinWidth;
+            if (!DnsColDef0.Width.IsStar && DnsColDef0.Width.Value + fixedW > total)
+                DnsColDef0.Width = new GridLength(2.4, GridUnitType.Star);
             if (DnsColDef0.ActualWidth > 0 && DnsColDef0.ActualWidth < 60)
                 DnsColDef0.Width = new GridLength(60);
         }
