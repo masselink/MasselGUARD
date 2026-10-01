@@ -34,6 +34,41 @@ namespace MasselGUARD.Services
             return string.Join(":", Enumerable.Range(0, 6).Select(i => h.Substring(i * 2, 2)));
         }
 
+        /// <summary>The alternatives of a device condition: split on comma, semicolon or a new line (NOT on
+        /// spaces, adapter names contain them), trimmed, empty ones dropped.</summary>
+        public static List<string> SplitAlternatives(string? value) =>
+            (value ?? "").Split(new[] { ',', ';', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                         .Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+
+        /// <summary>Canonical alternatives list joined with ", ", each entry run through <paramref name="normalize"/>
+        /// (null = keep trimmed). Null when empty or when an entry is invalid.</summary>
+        public static string? NormalizeAlternatives(string? value, Func<string, string?>? normalize = null)
+        {
+            var parts = SplitAlternatives(value);
+            if (parts.Count == 0) return null;
+            var norm = new List<string>(parts.Count);
+            foreach (var p in parts)
+            {
+                var n = normalize == null ? p : normalize(p);
+                if (n == null) return null;
+                if (!norm.Contains(n, StringComparer.OrdinalIgnoreCase)) norm.Add(n);
+            }
+            return string.Join(", ", norm);
+        }
+
+        /// <summary>"wifi" / "wi-fi" / "wireless" to "wifi"; "wired" / "ethernet" / "cable" / "lan" to "wired";
+        /// anything else to null.</summary>
+        public static string? NormalizeConnectionType(string? s)
+        {
+            var t = (s ?? "").Trim().ToLowerInvariant().Replace("-", "").Replace(" ", "");
+            return t switch
+            {
+                "wifi" or "wireless" or "wlan"          => NetworkIdentity.KindWifi,
+                "wired" or "ethernet" or "cable" or "lan" => NetworkIdentity.KindWired,
+                _                                        => null,
+            };
+        }
+
         /// <summary>The individual subnets of a rule value: one or several CIDRs separated by comma,
         /// semicolon or whitespace ("10.20.0.0/16, fd00:1::/64").</summary>
         public static List<string> SplitCidrs(string? value) =>
@@ -90,6 +125,28 @@ namespace MasselGUARD.Services
                     var want = NormalizeMac(value);
                     var have = NormalizeMac(id.GatewayMac);
                     return want != null && have != null && want == have;
+                }
+
+                // The device conditions accept a comma-separated list: ANY of the alternatives matches
+                // ("Ethernet, Ethernet 2" = either adapter).
+                case NetworkMatchBy.AdapterName:
+                    return !string.IsNullOrEmpty(id.AdapterName)
+                        && SplitAlternatives(value).Any(v => string.Equals(id.AdapterName, v, StringComparison.OrdinalIgnoreCase));
+
+                case NetworkMatchBy.AdapterDesc:
+                    return !string.IsNullOrEmpty(id.AdapterDescription)
+                        && SplitAlternatives(value).Any(v => id.AdapterDescription.Contains(v, StringComparison.OrdinalIgnoreCase));
+
+                case NetworkMatchBy.AdapterMac:
+                {
+                    var have = NormalizeMac(id.AdapterMac);
+                    return have != null && SplitAlternatives(value).Any(v => NormalizeMac(v) == have);
+                }
+
+                case NetworkMatchBy.ConnectionType:
+                {
+                    var want = NormalizeConnectionType(value);
+                    return want != null && string.Equals(id.Kind, want, StringComparison.OrdinalIgnoreCase);
                 }
 
                 case NetworkMatchBy.Subnet:
@@ -170,6 +227,10 @@ namespace MasselGUARD.Services
                 case NetworkMatchBy.Ssid:       return string.IsNullOrEmpty(a.Ssid) ? new() : new() { a.Ssid! };
                 case NetworkMatchBy.DnsSuffix:  return string.IsNullOrEmpty(a.DnsSuffix) ? new() : new() { a.DnsSuffix! };
                 case NetworkMatchBy.GatewayMac: return string.IsNullOrEmpty(a.GatewayMac) ? new() : new() { a.GatewayMac! };
+                case NetworkMatchBy.ConnectionType: return new() { a.Kind };
+                case NetworkMatchBy.AdapterName:    return string.IsNullOrEmpty(a.AdapterName) ? new() : new() { a.AdapterName };
+                case NetworkMatchBy.AdapterDesc:    return string.IsNullOrEmpty(a.AdapterDescription) ? new() : new() { a.AdapterDescription! };
+                case NetworkMatchBy.AdapterMac:     return string.IsNullOrEmpty(a.AdapterMac) ? new() : new() { a.AdapterMac! };
                 case NetworkMatchBy.Subnet:
                     return a.Subnets.OrderBy(s => s.Contains(':') ? 1 : 0).ToList();
                 default: return new();
@@ -336,6 +397,44 @@ namespace MasselGUARD.Services
             Eq("trusted-format-ssid",  FormatTrustedEntry(NetworkMatchBy.Ssid, " Home "), "Home");
             Eq("trusted-format-cidr",  FormatTrustedEntry(NetworkMatchBy.Subnet, "10.20.4.17/16"), "subnet:10.20.0.0/16");
 
+            // 3a. Connection type (Wi-Fi vs wired), with normalisation and negation.
+            Check("conntype-wifi-matches",     Matches(NetworkMatchBy.ConnectionType, "wifi", cafe));
+            Check("conntype-wifi-not-wired",   !Matches(NetworkMatchBy.ConnectionType, "wifi", office));
+            Check("conntype-wired-matches",    Matches(NetworkMatchBy.ConnectionType, "Wired", office));
+            Check("conntype-aliases",          Matches(NetworkMatchBy.ConnectionType, "Wi-Fi", cafe) && Matches(NetworkMatchBy.ConnectionType, "ethernet", office));
+            Check("conntype-garbage-never",    !Matches(NetworkMatchBy.ConnectionType, "satellite", office));
+            Eq("conntype-normalize",           NormalizeConnectionType(" Wi-Fi "), "wifi");
+            Eq("conntype-normalize-cable",     NormalizeConnectionType("Cable"), "wired");
+            Eq("conntype-normalize-bad",       NormalizeConnectionType("x"), (string?)null);
+            Eq("conntype-values",              string.Join(",", ValuesFor(office, NetworkMatchBy.ConnectionType)), "wired");
+            Check("conntype-known",            NetworkMatchBy.IsKnown("conntype"));
+
+            // 3a'. The device itself: adapter name (exact), description (contains), own MAC (exact).
+            var dock = office with { AdapterDescription = "Realtek USB GbE Family Controller", AdapterMac = "00:e0:4c:68:01:2a" };
+            Check("adapter-name-exact",        Matches(NetworkMatchBy.AdapterName, "ETH", dock));
+            Check("adapter-name-not-partial",  !Matches(NetworkMatchBy.AdapterName, "et", dock));
+            Check("adapter-desc-contains",     Matches(NetworkMatchBy.AdapterDesc, "realtek", dock) && Matches(NetworkMatchBy.AdapterDesc, "USB GbE", dock));
+            Check("adapter-desc-other",        !Matches(NetworkMatchBy.AdapterDesc, "intel", dock));
+            Check("adapter-desc-null-never",   !Matches(NetworkMatchBy.AdapterDesc, "realtek", office));
+            Check("adapter-mac-normalised",    Matches(NetworkMatchBy.AdapterMac, "00-E0-4C-68-01-2A", dock));
+            Check("adapter-mac-other",         !Matches(NetworkMatchBy.AdapterMac, "00:e0:4c:68:01:2b", dock));
+            Check("adapter-mac-null-never",    !Matches(NetworkMatchBy.AdapterMac, "00:e0:4c:68:01:2a", office));
+            Check("adapter-own-mac-not-gateway-mac", !Matches(NetworkMatchBy.GatewayMac, "00:e0:4c:68:01:2a", dock));
+            Eq("adapter-values-name",          string.Join(",", ValuesFor(dock, NetworkMatchBy.AdapterName)), "eth");
+            Eq("adapter-values-desc",          string.Join(",", ValuesFor(dock, NetworkMatchBy.AdapterDesc)), "Realtek USB GbE Family Controller");
+            Eq("adapter-values-mac",           string.Join(",", ValuesFor(dock, NetworkMatchBy.AdapterMac)), "00:e0:4c:68:01:2a");
+            Check("adapter-known-types",       NetworkMatchBy.IsKnown("adaptername") && NetworkMatchBy.IsKnown("adapterdesc") && NetworkMatchBy.IsKnown("adaptermac"));
+            Check("adapter-fingerprint-differs", office.Fingerprint() != dock.Fingerprint());
+            // comma-separated alternatives: any of them matches
+            Check("adapter-name-list",         Matches(NetworkMatchBy.AdapterName, "Ethernet, eth", dock) && !Matches(NetworkMatchBy.AdapterName, "Ethernet, Ethernet 2", dock));
+            Check("adapter-desc-list",         Matches(NetworkMatchBy.AdapterDesc, "Intel; Realtek", dock) && !Matches(NetworkMatchBy.AdapterDesc, "Intel, Broadcom", dock));
+            Check("adapter-mac-list",          Matches(NetworkMatchBy.AdapterMac, "00:11:22:33:44:55, 00-E0-4C-68-01-2A", dock));
+            Check("adapter-name-with-space",   Matches(NetworkMatchBy.AdapterName, "Wi-Fi 2, Ethernet 2", dock with { AdapterName = "Ethernet 2" }));
+            Eq("alt-normalize",                NormalizeAlternatives(" Ethernet ,Ethernet 2;ethernet"), "Ethernet, Ethernet 2");
+            Eq("alt-normalize-mac",            NormalizeAlternatives("00-E0-4C-68-01-2A, 00:11:22:33:44:55", NormalizeMac), "00:e0:4c:68:01:2a, 00:11:22:33:44:55");
+            Eq("alt-normalize-mac-bad",        NormalizeAlternatives("00-E0-4C-68-01-2A, nope", NormalizeMac), (string?)null);
+            Eq("alt-normalize-empty",          NormalizeAlternatives("  , ;"), (string?)null);
+
             // 3b. Conditions: AND, NOT, unresolved-MAC negation, legacy single match.
             RuleCondition Cnd(string by, string v, bool not = false) => new() { By = by, Value = v, Not = not };
             TunnelRule Multi(params RuleCondition[] cs) { var r = new TunnelRule { Kind = "network" }; r.SetConditions(cs); return r; }
@@ -349,6 +448,14 @@ namespace MasselGUARD.Services
             Check("cond-not-mac-own",     !RuleMatches(Multi(Cnd("gatewaymac", "aa:bb:cc:00:11:22", true)), office));
             Check("cond-not-mac-unresolved-false", !RuleMatches(Multi(Cnd("gatewaymac", "aa:bb:cc:99:99:99", true)), officeMacLess));
             Check("cond-not-ssid-on-wired", RuleMatches(Multi(Cnd("ssid", "Home", true)), office));
+            Check("cond-router-over-wifi-only", RuleMatches(Multi(Cnd("gatewaymac", "aa:bb:cc:00:11:22"), Cnd("conntype", "wired")), office)
+                                                && !RuleMatches(Multi(Cnd("gatewaymac", "aa:bb:cc:00:11:22"), Cnd("conntype", "wifi")), office));
+            Check("cond-any-wifi-except-home", RuleMatches(Multi(Cnd("conntype", "wifi"), Cnd("ssid", "Home", true)), cafe)
+                                               && !RuleMatches(Multi(Cnd("conntype", "wifi"), Cnd("ssid", "Cafe-Free", true)), cafe)
+                                               && !RuleMatches(Multi(Cnd("conntype", "wifi"), Cnd("ssid", "Home", true)), office));
+            Check("cond-dock-nic-and-subnet", RuleMatches(Multi(Cnd("adapterdesc", "Realtek"), Cnd("subnet", "10.0.0.0/8")), dock)
+                                              && !RuleMatches(Multi(Cnd("adapterdesc", "Realtek"), Cnd("subnet", "10.0.0.0/8")), office));
+            Check("cond-not-this-adapter", RuleMatches(Multi(Cnd("adaptername", "Wi-Fi", true), Cnd("dnssuffix", "corp.example.com")), office));
             Check("cond-none-never",      !RuleMatches(new TunnelRule { Kind = "network" }, office));
             Check("cond-null-identity",   !RuleMatches(Multi(Cnd("ssid", "x")), null));
             // legacy single match still works (rule saved before conditions existed)

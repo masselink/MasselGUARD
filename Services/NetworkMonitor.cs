@@ -103,7 +103,39 @@ namespace MasselGUARD.Services
         {
             kind = "";
             if (n.OperationalStatus != OperationalStatus.Up) return false;
+            if (!IsPhysicalKind(n, out kind)) return false;
 
+            try { return n.GetIPProperties().UnicastAddresses.Any(a => IsUsableAddr(a.Address)); }
+            catch { return false; }
+        }
+
+        /// <summary>Every physical Wi-Fi / Ethernet adapter on this PC, connected or not (a docking-station card
+        /// that is unplugged still counts). Lightweight identities with only the device facts (name, description,
+        /// adapter MAC, kind): what the Fetch menu offers for the adapter conditions.</summary>
+        public static IReadOnlyList<NetworkIdentity> ListPhysicalAdapters()
+        {
+            var list = new List<NetworkIdentity>();
+            try
+            {
+                foreach (var n in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (!IsPhysicalKind(n, out var kind)) continue;
+                    list.Add(new NetworkIdentity(n.Id, n.Name, kind, null, false, null, null, null,
+                        Array.Empty<string>(), null, int.MaxValue, false)
+                    {
+                        AdapterDescription = string.IsNullOrWhiteSpace(n.Description) ? null : n.Description.Trim(),
+                        AdapterMac         = NetworkMatcher.NormalizeMac(n.GetPhysicalAddress()?.ToString()),
+                    });
+                }
+            }
+            catch { /* nothing to list */ }
+            return list.OrderBy(a => a.AdapterName, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        /// <summary>Wi-Fi or Ethernet hardware (no tunnel / virtual adapters), up or down.</summary>
+        private static bool IsPhysicalKind(NetworkInterface n, out string kind)
+        {
+            kind = "";
             switch (n.NetworkInterfaceType)
             {
                 case NetworkInterfaceType.Wireless80211:
@@ -120,10 +152,7 @@ namespace MasselGUARD.Services
             var text = n.Name + " " + n.Description;
             string[] virtualMarkers =
                 { "WireGuard", "Hyper-V", "vEthernet", "VMware", "VirtualBox", "TAP-", "Bluetooth", "Virtual", "Loopback" };
-            if (virtualMarkers.Any(m => text.Contains(m, StringComparison.OrdinalIgnoreCase))) return false;
-
-            try { return n.GetIPProperties().UnicastAddresses.Any(a => IsUsableAddr(a.Address)); }
-            catch { return false; }
+            return !virtualMarkers.Any(m => text.Contains(m, StringComparison.OrdinalIgnoreCase));
         }
 
         private static bool IsUsableAddr(IPAddress a)
@@ -213,7 +242,11 @@ namespace MasselGUARD.Services
                 Subnets:    subnets,
                 DhcpServer: ip.DhcpServerAddresses.FirstOrDefault()?.ToString(),
                 RouteMetric: metric,
-                IsPrimary:  false);
+                IsPrimary:  false)
+            {
+                AdapterDescription = string.IsNullOrWhiteSpace(n.Description) ? null : n.Description.Trim(),
+                AdapterMac         = NetworkMatcher.NormalizeMac(n.GetPhysicalAddress()?.ToString()),
+            };
         }
     }
 }

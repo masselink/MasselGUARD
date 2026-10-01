@@ -1142,5 +1142,17 @@
   "RuleCondHint": "Toutes les conditions doivent être vraies sur le même réseau. Utilisez 'n'est pas' pour exclure un réseau. Pour un OU, ajoutez une autre règle : la première ligne correspondante du tableau l'emporte.",
   "RuleColOrderTip": "Ordre des règles : si plusieurs règles réseau correspondent, le numéro le plus bas l'emporte. Faites glisser les lignes pour changer l'ordre. Trier le tableau ne change pas ce numéro.",
   "FetchAllSubnets": "Tous les sous-réseaux ensemble",
-  "FetchSingleSubnet": "Ou un seul sous-réseau"
+  "FetchSingleSubnet": "Ou un seul sous-réseau",
+  "DiagConnType": "Type de connexion",
+  "RuleMatchHintConnType": "Correspond à la façon dont le réseau est connecté : en Wi-Fi ou par câble (Ethernet). Combinez-le avec une autre condition, par exemple un routeur qui ne compte qu'en Wi-Fi.",
+  "DiagAdapterName": "Nom de l'adaptateur",
+  "DiagAdapterDesc": "Description de l'adaptateur",
+  "DiagAdapterMac": "MAC de l'adaptateur",
+  "RuleMatchHintAdapterName": "Le nom de l'adaptateur dans Windows, comme Ethernet, Ethernet 2 ou Wi-Fi (l'équivalent Windows de eth0 sous Linux). Correspondance exacte. Plusieurs noms séparés par des virgules correspondent si l'un d'eux correspond. Windows peut renommer un adaptateur, par exemple quand une station d'accueil passe sur un autre port.",
+  "RuleMatchHintAdapterDesc": "Une partie de la description matérielle de l'adaptateur, comme Realtek ou USB GbE. Pratique pour distinguer la carte réseau d'une station d'accueil de celle intégrée. Correspond si la description contient votre texte. Plusieurs textes séparés par des virgules correspondent si l'un d'eux correspond.",
+  "RuleMatchHintAdapterMac": "L'adresse matérielle propre de l'adaptateur (pas celle du routeur) : la façon la plus stable de désigner une carte réseau précise. Plusieurs adresses séparées par des virgules correspondent si l'une d'elles correspond. Propre à ce PC, donc non transférable à une autre machine.",
+  "FetchConnectedNow": "Connecté maintenant",
+  "FetchOtherAdapters": "Autres adaptateurs de ce PC (non connectés)",
+  "FetchRecent": "Connecté récemment",
+  "FetchShiftHint": "Maj+clic ajoute à la liste au lieu de remplacer"
 }

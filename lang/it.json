@@ -1142,5 +1142,17 @@
   "RuleCondHint": "Tutte le condizioni devono valere sulla stessa rete. Usa 'non è' per escludere una rete. Per OR aggiungi un'altra regola: vince la prima riga corrispondente della tabella.",
   "RuleColOrderTip": "Ordine delle regole: se più regole di rete corrispondono, vince il numero più basso. Trascina le righe per cambiare l'ordine. Ordinare la tabella non cambia questo numero.",
   "FetchAllSubnets": "Tutte le sottoreti insieme",
-  "FetchSingleSubnet": "Oppure una sola sottorete"
+  "FetchSingleSubnet": "Oppure una sola sottorete",
+  "DiagConnType": "Tipo di connessione",
+  "RuleMatchHintConnType": "Corrisponde a come è connessa la rete: via Wi-Fi o via cavo (Ethernet). Combinalo con un'altra condizione, ad esempio un router valido solo via Wi-Fi.",
+  "DiagAdapterName": "Nome adattatore",
+  "DiagAdapterDesc": "Descrizione adattatore",
+  "DiagAdapterMac": "MAC adattatore",
+  "RuleMatchHintAdapterName": "Il nome dell'adattatore in Windows, come Ethernet, Ethernet 2 o Wi-Fi (l'equivalente Windows di eth0 su Linux). Corrispondenza esatta. Più nomi separati da virgole corrispondono se ne corrisponde uno. Windows può rinominare un adattatore, ad esempio quando una dock passa a un'altra porta.",
+  "RuleMatchHintAdapterDesc": "Parte della descrizione hardware dell'adattatore, come Realtek o USB GbE. Utile per distinguere la scheda di rete di una dock da quella integrata. Corrisponde se la descrizione contiene il testo. Più testi separati da virgole corrispondono se ne corrisponde uno.",
+  "RuleMatchHintAdapterMac": "L'indirizzo hardware proprio dell'adattatore (non quello del router): il modo più stabile per indicare una specifica scheda di rete. Più indirizzi separati da virgole corrispondono se ne corrisponde uno. Specifico di questo PC, quindi non si trasferisce a un altro computer.",
+  "FetchConnectedNow": "Connesso ora",
+  "FetchOtherAdapters": "Altri adattatori di questo PC (non connessi)",
+  "FetchRecent": "Connesso di recente",
+  "FetchShiftHint": "Maiusc+clic aggiunge all'elenco invece di sostituire"
 }

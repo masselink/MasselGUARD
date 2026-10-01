@@ -25,6 +25,10 @@ namespace MasselGUARD.Models
             NetworkMatchBy.DnsSuffix  => "DNS suffix",
             NetworkMatchBy.GatewayMac => "gateway MAC",
             NetworkMatchBy.Subnet     => "subnet",
+            NetworkMatchBy.ConnectionType => "connection type",
+            NetworkMatchBy.AdapterName    => "adapter name",
+            NetworkMatchBy.AdapterDesc    => "adapter description",
+            NetworkMatchBy.AdapterMac     => "adapter MAC",
             _                         => "SSID",
         };
 

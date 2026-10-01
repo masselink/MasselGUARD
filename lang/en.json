@@ -1142,5 +1142,17 @@
   "RuleCondHint": "All conditions must hold on the same network. Use 'is not' to exclude a network. For OR, add another rule: the first matching row in the table wins.",
   "RuleColOrderTip": "Rule order: when several network rules match, the lowest number wins. Drag rows to change it. Sorting the table does not change this number.",
   "FetchAllSubnets": "All subnets together",
-  "FetchSingleSubnet": "Or just one subnet"
+  "FetchSingleSubnet": "Or just one subnet",
+  "DiagConnType": "Connection type",
+  "RuleMatchHintConnType": "Matches how the network is connected: over Wi-Fi or over a cable (Ethernet). Combine it with another condition, for example a router that only counts over Wi-Fi.",
+  "DiagAdapterName": "Adapter name",
+  "DiagAdapterDesc": "Adapter description",
+  "DiagAdapterMac": "Adapter MAC",
+  "RuleMatchHintAdapterName": "The adapter's name in Windows, such as Ethernet, Ethernet 2 or Wi-Fi (the Windows counterpart of Linux eth0). Exact match. Several names separated by commas match any of them. Windows can rename an adapter, for example when a dock lands on another port.",
+  "RuleMatchHintAdapterDesc": "Part of the adapter's hardware description, such as Realtek or USB GbE. Handy to tell a dock's network card from the built-in one. Matches when the description contains your text. Several texts separated by commas match any of them.",
+  "RuleMatchHintAdapterMac": "The adapter's own hardware address (not the router's): the most stable way to name one specific network card. Several addresses separated by commas match any of them. Specific to this PC, so it does not carry over to another machine.",
+  "FetchConnectedNow": "Connected now",
+  "FetchOtherAdapters": "Other adapters on this PC (not connected)",
+  "FetchRecent": "Recently connected",
+  "FetchShiftHint": "Shift+click adds to the list instead of replacing it"
 }

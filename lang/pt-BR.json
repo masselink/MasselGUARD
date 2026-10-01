@@ -1142,5 +1142,17 @@
   "RuleCondHint": "Todas as condições devem valer na mesma rede. Use 'não é' para excluir uma rede. Para OU, adicione outra regra: vence a primeira linha correspondente da tabela.",
   "RuleColOrderTip": "Ordem das regras: se várias regras de rede correspondem, vence o menor número. Arraste as linhas para mudar a ordem. Ordenar a tabela não muda este número.",
   "FetchAllSubnets": "Todas as sub-redes juntas",
-  "FetchSingleSubnet": "Ou apenas uma sub-rede"
+  "FetchSingleSubnet": "Ou apenas uma sub-rede",
+  "DiagConnType": "Tipo de conexão",
+  "RuleMatchHintConnType": "Corresponde a como a rede está conectada: por Wi-Fi ou por cabo (Ethernet). Combine com outra condição, por exemplo um roteador que só vale por Wi-Fi.",
+  "DiagAdapterName": "Nome do adaptador",
+  "DiagAdapterDesc": "Descrição do adaptador",
+  "DiagAdapterMac": "MAC do adaptador",
+  "RuleMatchHintAdapterName": "O nome do adaptador no Windows, como Ethernet, Ethernet 2 ou Wi-Fi (o equivalente do eth0 do Linux). Correspondência exata. Vários nomes separados por vírgulas correspondem se algum deles corresponder. O Windows pode renomear um adaptador, por exemplo quando uma dock vai para outra porta.",
+  "RuleMatchHintAdapterDesc": "Parte da descrição de hardware do adaptador, como Realtek ou USB GbE. Útil para distinguir a placa de rede de uma dock da embutida. Corresponde quando a descrição contém seu texto. Vários textos separados por vírgulas correspondem se algum deles corresponder.",
+  "RuleMatchHintAdapterMac": "O endereço de hardware próprio do adaptador (não o do roteador): a forma mais estável de nomear uma placa de rede específica. Vários endereços separados por vírgulas correspondem se algum deles corresponder. É específico deste PC, então não vale para outra máquina.",
+  "FetchConnectedNow": "Conectado agora",
+  "FetchOtherAdapters": "Outros adaptadores deste PC (não conectados)",
+  "FetchRecent": "Conectado recentemente",
+  "FetchShiftHint": "Shift+clique adiciona à lista em vez de substituir"
 }

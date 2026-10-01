@@ -147,6 +147,8 @@ namespace MasselGUARD.Views
                     $"{a.AdapterName}  ·  {kind.En}" + (a.IsPrimary ? $"  ·  {tag.En}" : ""));
                 var body = AddSection(title);
 
+                AddKv(body, L("DiagAdapterDesc"), a.AdapterDescription ?? "-");
+                AddKv(body, L("DiagAdapterMac"), a.AdapterMac ?? "-", mono: true);
                 if (a.IsWifi) AddKv(body, L("DiagSsid"), a.Ssid ?? "-");
                 AddKv(body, L("DiagDnsSuffix"), a.DnsSuffix ?? "-");
                 AddKv(body, L("DiagGateway"), a.Gateway ?? "-", mono: true);

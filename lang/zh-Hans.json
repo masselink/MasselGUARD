@@ -1142,5 +1142,17 @@
   "RuleCondHint": "所有条件必须在同一网络上满足。使用「不是」可排除某个网络。若需要「或」关系,请再添加一条规则:表中第一条匹配的行生效。",
   "RuleColOrderTip": "规则顺序:当多条网络规则匹配时,编号最小的生效。拖动行可更改顺序。对表格排序不会改变此编号。",
   "FetchAllSubnets": "所有子网一起",
-  "FetchSingleSubnet": "或仅一个子网"
+  "FetchSingleSubnet": "或仅一个子网",
+  "DiagConnType": "连接类型",
+  "RuleMatchHintConnType": "匹配网络的连接方式:通过 Wi-Fi 或通过网线(以太网)。可与其他条件组合,例如仅在 Wi-Fi 下才算数的路由器。",
+  "DiagAdapterName": "适配器名称",
+  "DiagAdapterDesc": "适配器描述",
+  "DiagAdapterMac": "适配器 MAC",
+  "RuleMatchHintAdapterName": "适配器在 Windows 中的名称,例如 Ethernet、Ethernet 2 或 Wi-Fi(相当于 Linux 的 eth0)。精确匹配。用逗号分隔的多个名称,任意一个匹配即可。Windows 可能会重命名适配器,例如扩展坞换到另一个端口时。",
+  "RuleMatchHintAdapterDesc": "适配器硬件描述的一部分,例如 Realtek 或 USB GbE。便于区分扩展坞网卡与内置网卡。描述包含您输入的文字即匹配。用逗号分隔的多个文字,任意一个包含即可。",
+  "RuleMatchHintAdapterMac": "适配器自身的硬件地址(不是路由器的):指定某一块网卡最稳定的方式。用逗号分隔的多个地址,任意一个匹配即可。仅限这台电脑,无法带到其他机器。",
+  "FetchConnectedNow": "当前已连接",
+  "FetchOtherAdapters": "这台电脑上的其他适配器(未连接)",
+  "FetchRecent": "最近连接过",
+  "FetchShiftHint": "按住 Shift 点击可添加到列表,而不是替换"
 }

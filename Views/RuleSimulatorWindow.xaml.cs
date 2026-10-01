@@ -73,6 +73,9 @@ namespace MasselGUARD.Views
             SuffixBox.Text = a.DnsSuffix ?? "";
             MacBox.Text    = a.GatewayMac ?? "";
             SubnetsBox.Text = string.Join(", ", a.Subnets);
+            AdapterNameBox.Text = a.AdapterName;
+            AdapterDescBox.Text = a.AdapterDescription ?? "";
+            AdapterMacBox.Text  = a.AdapterMac ?? "";
         }
 
         // ── Run the test ──────────────────────────────────────────────────────────────
@@ -91,8 +94,12 @@ namespace MasselGUARD.Views
                 subnets = NetworkMatcher.SplitCidrs(norm);
             }
 
+            string adMac = AdapterMacBox.Text.Trim();
+            if (adMac.Length > 0 && NetworkMatcher.NormalizeMac(adMac) == null) { Notice(Lang.T("RuleMacInvalid")); AdapterMacBox.Focus(); return; }
+
             var net = RuleSimulator.Describe(IsWired, SsidBox.Text, OpenCheck.IsChecked == true,
-                                             SuffixBox.Text, mac, subnets);
+                                             SuffixBox.Text, mac, subnets,
+                                             AdapterNameBox.Text, AdapterDescBox.Text, adMac);
             var result = RuleSimulator.Run(_main.ConfigSvc.Config, net, DateTime.Now);
             Render(result);
         }

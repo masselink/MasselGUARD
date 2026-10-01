@@ -52,11 +52,15 @@ namespace MasselGUARD.Views
                           bool dnsEnabled = true,
                           bool tunnelsEnabled = true,
                           IReadOnlyList<RuleCondition>? existingConditions = null,
-                          Func<NetworkSnapshot>? captureNetwork = null)
+                          Func<NetworkSnapshot>? captureNetwork = null,
+                          Func<IReadOnlyList<NetworkIdentity>>? listAdapters = null,
+                          Func<IReadOnlyList<WifiHistoryEntry>>? recentNetworks = null)
         {
             InitializeComponent();
             LocalizeDayButtons();
             _captureNetwork = captureNetwork;
+            _listAdapters   = listAdapters;
+            _recentNetworks = recentNetworks;
 
             // Condition rows: the rule's own (edit), or one empty row (add).
             _loadingConditions = true;
@@ -321,6 +325,8 @@ namespace MasselGUARD.Views
         // ── Network conditions: rows of [is / is not] [SSID / DNS suffix / gateway MAC / subnet] [value] ───
 
         private readonly Func<NetworkSnapshot>? _captureNetwork;
+        private readonly Func<IReadOnlyList<NetworkIdentity>>? _listAdapters;
+        private readonly Func<IReadOnlyList<WifiHistoryEntry>>? _recentNetworks;
         private readonly List<CondRow> _rows = new();
         private bool _loadingConditions;
 
@@ -328,11 +334,16 @@ namespace MasselGUARD.Views
         private sealed class CondRow
         {
             public Grid Root = null!;
-            public ComboBox OpBox = null!, ByBox = null!;
+            public ComboBox OpBox = null!, ByBox = null!, TypeBox = null!;
             public TextBox ValueBox = null!;
             public Button FetchBtn = null!, RemoveBtn = null!;
             public string By => (ByBox.SelectedItem as ComboBoxItem)?.Tag as string ?? NetworkMatchBy.Ssid;
             public bool Not   => (OpBox.SelectedItem as ComboBoxItem)?.Tag is true;
+            public bool IsType => By == NetworkMatchBy.ConnectionType;
+            /// <summary>What the user entered: the typed text, or "wifi" / "wired" for a connection-type row.</summary>
+            public string Raw => IsType ? (TypeBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "wifi" : ValueBox.Text.Trim();
+            /// <summary>The same, as shown to the user (for the automatic rule name).</summary>
+            public string Display => IsType ? (TypeBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "" : ValueBox.Text.Trim();
         }
 
         private static string HintKey(string by) => by switch
@@ -340,6 +351,10 @@ namespace MasselGUARD.Views
             NetworkMatchBy.DnsSuffix  => "RuleMatchHintSuffix",
             NetworkMatchBy.GatewayMac => "RuleMatchHintMac",
             NetworkMatchBy.Subnet     => "RuleMatchHintSubnet",
+            NetworkMatchBy.ConnectionType => "RuleMatchHintConnType",
+            NetworkMatchBy.AdapterName => "RuleMatchHintAdapterName",
+            NetworkMatchBy.AdapterDesc => "RuleMatchHintAdapterDesc",
+            NetworkMatchBy.AdapterMac  => "RuleMatchHintAdapterMac",
             _                         => "RuleMatchHintSsid",
         };
 
@@ -348,6 +363,10 @@ namespace MasselGUARD.Views
             NetworkMatchBy.DnsSuffix  => "RuleMatchValueSuffix",
             NetworkMatchBy.GatewayMac => "RuleMatchValueMac",
             NetworkMatchBy.Subnet     => "RuleMatchValueSubnet",
+            NetworkMatchBy.ConnectionType => "DiagConnType",
+            NetworkMatchBy.AdapterName => "DiagAdapterName",
+            NetworkMatchBy.AdapterDesc => "DiagAdapterDesc",
+            NetworkMatchBy.AdapterMac  => "DiagAdapterMac",
             _                         => "RuleDialogSsidLabel",
         };
 
@@ -371,16 +390,28 @@ namespace MasselGUARD.Views
             {
                 (NetworkMatchBy.Ssid, "DiagSsid"), (NetworkMatchBy.DnsSuffix, "DiagDnsSuffix"),
                 (NetworkMatchBy.GatewayMac, "DiagGatewayMac"), (NetworkMatchBy.Subnet, "DiagSubnet"),
+                (NetworkMatchBy.ConnectionType, "DiagConnType"),
+                (NetworkMatchBy.AdapterName, "DiagAdapterName"), (NetworkMatchBy.AdapterDesc, "DiagAdapterDesc"),
+                (NetworkMatchBy.AdapterMac, "DiagAdapterMac"),
             })
                 row.ByBox.Items.Add(new ComboBoxItem { Content = Lang.T(key), Tag = by });
             string startBy = init != null && NetworkMatchBy.IsKnown(init.By) ? init.By : NetworkMatchBy.Ssid;
             row.ByBox.SelectedIndex = startBy switch
             {
-                NetworkMatchBy.DnsSuffix => 1, NetworkMatchBy.GatewayMac => 2, NetworkMatchBy.Subnet => 3, _ => 0,
+                NetworkMatchBy.DnsSuffix => 1, NetworkMatchBy.GatewayMac => 2, NetworkMatchBy.Subnet => 3,
+                NetworkMatchBy.ConnectionType => 4, NetworkMatchBy.AdapterName => 5,
+                NetworkMatchBy.AdapterDesc => 6, NetworkMatchBy.AdapterMac => 7, _ => 0,
             };
 
-            row.ValueBox = new TextBox { Margin = new Thickness(0, 0, 6, 0), Text = init?.Value ?? "" };
+            bool startType = startBy == NetworkMatchBy.ConnectionType;
+            row.ValueBox = new TextBox { Margin = new Thickness(0, 0, 6, 0), Text = startType ? "" : init?.Value ?? "" };
             row.ValueBox.ToolTip = Lang.T(PlaceholderKey(startBy));
+
+            // A connection-type row picks Wi-Fi or Wired from a list instead of typing a value.
+            row.TypeBox = new ComboBox { Margin = new Thickness(0, 0, 6, 0) };
+            row.TypeBox.Items.Add(new ComboBoxItem { Content = Lang.T("DiagKindWifi"),  Tag = NetworkIdentity.KindWifi });
+            row.TypeBox.Items.Add(new ComboBoxItem { Content = Lang.T("DiagKindWired"), Tag = NetworkIdentity.KindWired });
+            row.TypeBox.SelectedIndex = startType && NetworkMatcher.NormalizeConnectionType(init?.Value) == NetworkIdentity.KindWired ? 1 : 0;
 
             row.FetchBtn = new Button
             {
@@ -395,16 +426,29 @@ namespace MasselGUARD.Views
             };
 
             Grid.SetColumn(row.OpBox, 0); Grid.SetColumn(row.ByBox, 1); Grid.SetColumn(row.ValueBox, 2);
+            Grid.SetColumn(row.TypeBox, 2);
             Grid.SetColumn(row.FetchBtn, 3); Grid.SetColumn(row.RemoveBtn, 4);
-            foreach (UIElement el in new UIElement[] { row.OpBox, row.ByBox, row.ValueBox, row.FetchBtn, row.RemoveBtn })
+            foreach (UIElement el in new UIElement[] { row.OpBox, row.ByBox, row.ValueBox, row.TypeBox, row.FetchBtn, row.RemoveBtn })
                 row.Root.Children.Add(el);
+
+            // Show the value box (or the Wi-Fi/Wired list) and the Fetch button that fit the chosen match type.
+            void ApplyKind()
+            {
+                bool type = row.IsType;
+                row.ValueBox.Visibility = type ? Visibility.Collapsed : Visibility.Visible;
+                row.FetchBtn.Visibility = type ? Visibility.Collapsed : Visibility.Visible;
+                row.TypeBox.Visibility  = type ? Visibility.Visible   : Visibility.Collapsed;
+            }
+            ApplyKind();
 
             row.ByBox.SelectionChanged += (_, _) =>
             {
+                ApplyKind();
                 row.ValueBox.ToolTip = Lang.T(PlaceholderKey(row.By));
                 if (MatchHint != null) MatchHint.Text = Lang.T(HintKey(row.By));
                 if (!_loadingConditions) AutoGenerateName();
             };
+            row.TypeBox.SelectionChanged += (_, _) => { if (!_loadingConditions) AutoGenerateName(); };
             row.OpBox.SelectionChanged += (_, _) => { if (!_loadingConditions) AutoGenerateName(); };
             row.ValueBox.TextChanged   += (_, _) => { if (!_loadingConditions) AutoGenerateName(); };
             row.ValueBox.GotKeyboardFocus += (_, _) => { if (MatchHint != null) MatchHint.Text = Lang.T(HintKey(row.By)); };
@@ -437,7 +481,7 @@ namespace MasselGUARD.Views
 
         /// <summary>The values of the conditions joined for the automatic rule name ("Home + NOT 10.0.0.0/8").</summary>
         private string ConditionNamePart() =>
-            string.Join(" + ", _rows.Select(r => (r.Not ? "NOT " : "") + r.ValueBox.Text.Trim())
+            string.Join(" + ", _rows.Select(r => (r.Not ? "NOT " : "") + r.Display)
                                     .Where(s => s.Length > 0 && s != "NOT "));
 
         /// <summary>A themed one-button notice owned by this dialog (the system MessageBox ignores the theme).</summary>
@@ -445,6 +489,18 @@ namespace MasselGUARD.Views
         {
             if (Owner is MainWindow main) main.ShowThemedInfo(message, title, this);
             else MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>Puts a fetched value into the row. For types that take a list (subnets, device conditions), holding
+        /// Shift adds it to the existing list instead of replacing it.</summary>
+        private static void ApplyFetched(CondRow row, string value, bool listable)
+        {
+            string current = row.ValueBox.Text.Trim();
+            bool add = listable && current.Length > 0 && (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+            if (!add) { row.ValueBox.Text = value; return; }
+            var have = row.By == NetworkMatchBy.Subnet ? NetworkMatcher.SplitCidrs(current) : NetworkMatcher.SplitAlternatives(current);
+            if (!have.Contains(value, StringComparer.OrdinalIgnoreCase))
+                row.ValueBox.Text = current.TrimEnd(',', ';', ' ') + ", " + value;
         }
 
         /// <summary>Fetch: read the value of this row's match type from a connected network. One hit fills
@@ -461,22 +517,74 @@ namespace MasselGUARD.Views
                 finally { row.FetchBtn.IsEnabled = true; }
             }
 
-            // One group per connected network: its name as a header, then what it offers for this match type.
             var entries = new List<FetchEntry>();
-            if (snap != null)
-                foreach (var a in snap.Adapters.OrderByDescending(x => x.IsPrimary))
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);   // a value is offered once
+
+            void AddGroup(string header, List<FetchEntry> group)
+            {
+                if (!group.Any(e => e.Kind == FetchEntryKind.Item)) return;
+                if (entries.Count > 0) entries.Add(FetchEntry.Separator());
+                entries.Add(FetchEntry.Header(header));
+                entries.AddRange(group);
+            }
+
+            bool deviceType = by is NetworkMatchBy.AdapterName or NetworkMatchBy.AdapterDesc or NetworkMatchBy.AdapterMac;
+            var connected   = snap?.Adapters.OrderByDescending(x => x.IsPrimary).ToList() ?? new List<NetworkIdentity>();
+
+            if (deviceType)
+            {
+                // The device conditions describe hardware, so offer EVERY adapter of this PC, not only the
+                // connected one: a docking-station card that is unplugged right now is still a valid rule target.
+                string Sub(NetworkIdentity a) => by switch
+                {
+                    NetworkMatchBy.AdapterName => a.AdapterDescription ?? "",
+                    NetworkMatchBy.AdapterDesc => a.AdapterName,
+                    _                          => $"{a.AdapterName}  {a.AdapterDescription}".Trim(),
+                };
+                List<FetchEntry> Rows(IEnumerable<NetworkIdentity> adapters, bool primaryTag)
+                {
+                    var rows = new List<FetchEntry>();
+                    foreach (var a in adapters)
+                        foreach (var v in NetworkMatcher.ValuesFor(a, by))
+                            if (seen.Add(v))
+                                rows.Add(FetchEntry.Item(v, v, Sub(a) is { Length: > 0 } s && !s.Equals(v, StringComparison.OrdinalIgnoreCase) ? s : null,
+                                                         emphasis: primaryTag && a.IsPrimary));
+                    return rows;
+                }
+                AddGroup(Lang.T("FetchConnectedNow"), Rows(connected, true));
+                var connectedIds = new HashSet<string>(connected.Select(a => a.AdapterId), StringComparer.OrdinalIgnoreCase);
+                var others = (_listAdapters?.Invoke() ?? Array.Empty<NetworkIdentity>()).Where(a => !connectedIds.Contains(a.AdapterId));
+                AddGroup(Lang.T("FetchOtherAdapters"), Rows(others, false));
+            }
+            else
+            {
+                // One group per connected network: its name as a header, then what it offers for this match type.
+                foreach (var a in connected)
                 {
                     var values = NetworkMatcher.ValuesFor(a, by);
                     if (values.Count == 0) continue;
-                    if (entries.Count > 0) entries.Add(FetchEntry.Separator());
-                    entries.Add(FetchEntry.Header($"{a.AdapterName}{(a.IsPrimary ? $" ({Lang.T("DiagPrimaryTag")})" : "")}"));
-                    if (by == NetworkMatchBy.Subnet)
-                        entries.AddRange(FetchMenu.SubnetEntries(values));
-                    else
-                        foreach (var v in values) entries.Add(FetchEntry.Item(v, v));
+                    var group = new List<FetchEntry>();
+                    if (by == NetworkMatchBy.Subnet) group.AddRange(FetchMenu.SubnetEntries(values));
+                    else foreach (var v in values) group.Add(FetchEntry.Item(v, v));
+                    foreach (var v in values) seen.Add(v);
+                    AddGroup($"{a.AdapterName}{(a.IsPrimary ? $" ({Lang.T("DiagPrimaryTag")})" : "")}", group);
                 }
-            if (!entries.Any(e => e.Kind == FetchEntryKind.Item) && by == NetworkMatchBy.Ssid && !string.IsNullOrEmpty(_currentSsid))
-                entries = new() { FetchEntry.Item(_currentSsid!, _currentSsid!) };
+                if (!entries.Any(e => e.Kind == FetchEntryKind.Item) && by == NetworkMatchBy.Ssid && !string.IsNullOrEmpty(_currentSsid))
+                { entries.Add(FetchEntry.Item(_currentSsid!, _currentSsid!)); seen.Add(_currentSsid!); }
+
+                // Recently connected networks (from the history): SSIDs, DNS suffixes and gateway MACs seen before.
+                var recent = _recentNetworks?.Invoke() ?? Array.Empty<WifiHistoryEntry>();
+                IEnumerable<(string value, string sub)> past = by switch
+                {
+                    NetworkMatchBy.Ssid       => recent.Where(e => !e.IsWired && !string.IsNullOrEmpty(e.Ssid)).Select(e => (e.Ssid, e.ConnectedAt.ToLocalTime().ToString("yyyy-MM-dd"))),
+                    NetworkMatchBy.DnsSuffix  => recent.Where(e => !string.IsNullOrEmpty(e.DnsSuffix)).Select(e => (e.DnsSuffix!, e.Ssid)),
+                    NetworkMatchBy.GatewayMac => recent.Where(e => !string.IsNullOrEmpty(e.GatewayMac)).Select(e => (e.GatewayMac!, e.Ssid)),
+                    _                         => Array.Empty<(string, string)>(),
+                };
+                AddGroup(Lang.T("FetchRecent"),
+                    past.Where(p => seen.Add(p.value)).Take(10)
+                        .Select(p => FetchEntry.Item(p.value, p.value, string.IsNullOrEmpty(p.sub) ? null : p.sub)).ToList());
+            }
 
             var items = entries.Where(e => e.Kind == FetchEntryKind.Item).ToList();
             if (items.Count == 0)
@@ -484,9 +592,11 @@ namespace MasselGUARD.Views
                 Notice(Lang.T("RuleFetchNone"), Lang.T("BtnFetchNetwork"));
                 return;
             }
-            if (items.Count == 1) { row.ValueBox.Text = items[0].Value; return; }
+            bool listable = deviceType || by == NetworkMatchBy.Subnet;
+            if (items.Count == 1) { ApplyFetched(row, items[0].Value, listable); return; }
 
-            FetchMenu.Show(row.FetchBtn, entries, v => row.ValueBox.Text = v);
+            if (listable) { entries.Add(FetchEntry.Separator()); entries.Add(FetchEntry.Section(Lang.T("FetchShiftHint"))); }
+            FetchMenu.Show(row.FetchBtn, entries, v => ApplyFetched(row, v, listable));
         }
 
         /// <summary>Weekday buttons show the UI language's abbreviated day names (Tag = DayOfWeek).</summary>
@@ -572,7 +682,7 @@ namespace MasselGUARD.Views
             foreach (var r in _rows)
             {
                 string by  = r.By;
-                string raw = r.ValueBox.Text.Trim();
+                string raw = r.Raw;
                 if (raw.Length == 0) continue;                      // an empty row is ignored
 
                 string? canonical = by switch
@@ -580,11 +690,14 @@ namespace MasselGUARD.Views
                     NetworkMatchBy.GatewayMac => NetworkMatcher.NormalizeMac(raw),
                     NetworkMatchBy.Subnet     => NetworkMatcher.NormalizeCidrList(raw),
                     NetworkMatchBy.DnsSuffix  => NetworkMatcher.NormalizeSuffix(raw),
-                    _                         => raw,
+                    NetworkMatchBy.ConnectionType => NetworkMatcher.NormalizeConnectionType(raw),
+                    NetworkMatchBy.AdapterMac => NetworkMatcher.NormalizeAlternatives(raw, NetworkMatcher.NormalizeMac),
+                    NetworkMatchBy.AdapterName or NetworkMatchBy.AdapterDesc => NetworkMatcher.NormalizeAlternatives(raw),
+                    _                         => raw,                       // SSID
                 };
                 if (canonical == null)
                 {
-                    Notice(Lang.T(by == NetworkMatchBy.GatewayMac ? "RuleMacInvalid"
+                    Notice(Lang.T(by is NetworkMatchBy.GatewayMac or NetworkMatchBy.AdapterMac ? "RuleMacInvalid"
                                 : by == NetworkMatchBy.Subnet     ? "RuleSubnetInvalid" : "RuleValueRequired"),
                            Lang.T("RuleDialogValidationTitle"));
                     r.ValueBox.Focus();
@@ -604,7 +717,7 @@ namespace MasselGUARD.Views
             var name = NameBox.Text.Trim();
             if (string.IsNullOrEmpty(name))
             {
-                string part = string.Join(" + ", conditions.Select(c => (c.Not ? "NOT " : "") + c.Value));
+                string part = ConditionNamePart();
                 name = string.IsNullOrEmpty(ResultTunnel) ? $"{part} → disconnect" : $"{part} → {ResultTunnel}";
             }
             ResultName   = name;

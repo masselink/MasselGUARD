@@ -11,9 +11,17 @@ namespace MasselGUARD.Models
         public const string DnsSuffix  = "dnssuffix";
         public const string GatewayMac = "gatewaymac";
         public const string Subnet     = "subnet";
+        /// <summary>How the network is connected: value "wifi" or "wired" (<see cref="NetworkIdentity.Kind"/>).</summary>
+        public const string ConnectionType = "conntype";
+        /// <summary>The adapter's name in Windows ("Ethernet 2", "Wi-Fi"): the closest thing to Linux eth0. Exact match.</summary>
+        public const string AdapterName = "adaptername";
+        /// <summary>The adapter's hardware description ("Realtek USB GbE Family Controller"). "Contains" match.</summary>
+        public const string AdapterDesc = "adapterdesc";
+        /// <summary>The adapter's OWN MAC address (not the router's). Exact match.</summary>
+        public const string AdapterMac  = "adaptermac";
 
         public static bool IsKnown(string? v) =>
-            v is Ssid or DnsSuffix or GatewayMac or Subnet;
+            v is Ssid or DnsSuffix or GatewayMac or Subnet or ConnectionType or AdapterName or AdapterDesc or AdapterMac;
     }
 
     /// <summary>String values for <c>AppConfig.PrimaryNetworkMode</c>.</summary>
@@ -48,6 +56,13 @@ namespace MasselGUARD.Models
         public const string KindWifi  = "wifi";
         public const string KindWired = "wired";
 
+        /// <summary>The adapter's hardware description (e.g. "Intel(R) Ethernet Connection I219-V"). Init-only
+        /// (not positional) so existing constructors keep working.</summary>
+        public string? AdapterDescription { get; init; }
+
+        /// <summary>The adapter's own MAC, normalised "aa:bb:cc:dd:ee:ff". Not the gateway's.</summary>
+        public string? AdapterMac { get; init; }
+
         public bool IsWifi  => Kind == KindWifi;
         public bool IsWired => Kind == KindWired;
 
@@ -55,7 +70,7 @@ namespace MasselGUARD.Models
         /// snapshot is identical to the previous one (no action, no log noise).</summary>
         public string Fingerprint() => string.Join("|",
             AdapterId, Kind, Ssid ?? "", IsOpen ? "1" : "0", DnsSuffix ?? "", GatewayMac ?? "",
-            Gateway ?? "", string.Join(",", Subnets), IsPrimary ? "P" : "-");
+            Gateway ?? "", string.Join(",", Subnets), IsPrimary ? "P" : "-", AdapterDescription ?? "", AdapterMac ?? "");
     }
 
     /// <summary>The connected physical adapters at one moment, with the primary one flagged.</summary>

@@ -1142,5 +1142,17 @@
   "RuleCondHint": "Todas las condiciones deben cumplirse en la misma red. Usa 'no es' para excluir una red. Para O, añade otra regla: gana la primera fila coincidente de la tabla.",
   "RuleColOrderTip": "Orden de reglas: si varias reglas de red coinciden, gana el número más bajo. Arrastra las filas para cambiar el orden. Ordenar la tabla no cambia este número.",
   "FetchAllSubnets": "Todas las subredes juntas",
-  "FetchSingleSubnet": "O solo una subred"
+  "FetchSingleSubnet": "O solo una subred",
+  "DiagConnType": "Tipo de conexión",
+  "RuleMatchHintConnType": "Coincide con cómo está conectada la red: por Wi-Fi o por cable (Ethernet). Combínalo con otra condición, por ejemplo un router que solo cuenta por Wi-Fi.",
+  "DiagAdapterName": "Nombre del adaptador",
+  "DiagAdapterDesc": "Descripción del adaptador",
+  "DiagAdapterMac": "MAC del adaptador",
+  "RuleMatchHintAdapterName": "El nombre del adaptador en Windows, como Ethernet, Ethernet 2 o Wi-Fi (el equivalente en Windows de eth0 en Linux). Coincidencia exacta. Varios nombres separados por comas coinciden si lo hace alguno. Windows puede renombrar un adaptador, por ejemplo si una base de conexión pasa a otro puerto.",
+  "RuleMatchHintAdapterDesc": "Parte de la descripción de hardware del adaptador, como Realtek o USB GbE. Útil para distinguir la tarjeta de red de una base de la integrada. Coincide si la descripción contiene tu texto. Varios textos separados por comas coinciden si lo hace alguno.",
+  "RuleMatchHintAdapterMac": "La dirección de hardware propia del adaptador (no la del router): la forma más estable de nombrar una tarjeta de red concreta. Varias direcciones separadas por comas coinciden si lo hace alguna. Es específica de este PC, así que no pasa a otro equipo.",
+  "FetchConnectedNow": "Conectado ahora",
+  "FetchOtherAdapters": "Otros adaptadores de este PC (sin conexión)",
+  "FetchRecent": "Conectado recientemente",
+  "FetchShiftHint": "Mayús+clic añade a la lista en lugar de reemplazar"
 }

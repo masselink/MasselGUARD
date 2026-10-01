@@ -38,6 +38,7 @@ namespace MasselGUARD.Services
             S($"Testing {RuleTester.Label(net)}" + (net.IsOpen ? " (open network)" : ""), SimLevel.Info);
             S($"DNS suffix: {net.DnsSuffix ?? "-"}   gateway MAC: {net.GatewayMac ?? "-"}   " +
               $"subnets: {(net.Subnets.Count == 0 ? "-" : string.Join(", ", net.Subnets))}", SimLevel.Muted, 1);
+            S($"Adapter: {net.AdapterName}   description: {net.AdapterDescription ?? "-"}   adapter MAC: {net.AdapterMac ?? "-"}", SimLevel.Muted, 1);
 
             // ── 1. Automation switches ────────────────────────────────────────
             S("1. Automation", SimLevel.Info);
@@ -152,8 +153,11 @@ namespace MasselGUARD.Services
 
         /// <summary>Builds the tested network from typed values. Null value fields are simply absent.</summary>
         public static NetworkIdentity Describe(bool wired, string? ssid, bool open, string? dnsSuffix,
-                                               string? gatewayMac, IEnumerable<string>? subnets) =>
-            new("simulated", wired ? "Wired (simulated)" : "Wi-Fi (simulated)",
+                                               string? gatewayMac, IEnumerable<string>? subnets,
+                                               string? adapterName = null, string? adapterDescription = null,
+                                               string? adapterMac = null) =>
+            new("simulated",
+                string.IsNullOrWhiteSpace(adapterName) ? (wired ? "Wired (simulated)" : "Wi-Fi (simulated)") : adapterName.Trim(),
                 wired ? NetworkIdentity.KindWired : NetworkIdentity.KindWifi,
                 wired || string.IsNullOrWhiteSpace(ssid) ? null : ssid!.Trim(),
                 !wired && open,
@@ -161,7 +165,11 @@ namespace MasselGUARD.Services
                 NetworkMatcher.NormalizeMac(gatewayMac),
                 null,
                 (subnets ?? Array.Empty<string>()).ToList(),
-                null, 25, true);
+                null, 25, true)
+            {
+                AdapterDescription = string.IsNullOrWhiteSpace(adapterDescription) ? null : adapterDescription.Trim(),
+                AdapterMac         = NetworkMatcher.NormalizeMac(adapterMac),
+            };
 
         // ── Self-test (run via `MasselGUARDcli selftest`) ─────────────────────
 
@@ -218,6 +226,13 @@ namespace MasselGUARD.Services
             // Describe normalises
             var d = Describe(false, " Home ", true, ".Corp.Example.com.", "AA-BB-CC-00-11-22", null);
             Check("sim-describe-normalises", d.Ssid == "Home" && d.IsOpen && d.DnsSuffix == "corp.example.com" && d.GatewayMac == "aa:bb:cc:00:11:22");
+            var dd = Describe(true, null, false, null, null, null, "Ethernet 3", " Realtek USB GbE ", "00-E0-4C-68-01-2A");
+            Check("sim-describe-adapter", dd.AdapterName == "Ethernet 3" && dd.AdapterDescription == "Realtek USB GbE" && dd.AdapterMac == "00:e0:4c:68:01:2a");
+            var adapterCfg = new AppConfig { EnableTunnels = true };
+            var rAd = Net("DockVPN", "Dock NIC", C("adapterdesc", "Realtek"), C("adaptername", "Wi-Fi", true));
+            adapterCfg.Rules.Add(rAd);
+            Check("sim-adapter-rule-wins", Run(adapterCfg, dd, now).Winner == rAd);
+            Check("sim-adapter-other-nic", Run(adapterCfg, Describe(true, null, false, null, null, null, "Ethernet", "Intel I219", null), now).Winner == null);
             var dw = Describe(true, "Ignored", true, null, null, null);
             Check("sim-describe-wired-no-ssid", dw.Ssid == null && !dw.IsOpen && dw.IsWired);
 

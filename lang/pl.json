@@ -1142,5 +1142,17 @@
   "RuleCondHint": "Wszystkie warunki muszą być spełnione w tej samej sieci. Użyj 'nie jest', aby wykluczyć sieć. Dla LUB dodaj kolejną regułę: wygrywa pierwszy pasujący wiersz tabeli.",
   "RuleColOrderTip": "Kolejność reguł: gdy pasuje kilka reguł sieciowych, wygrywa najniższy numer. Przeciągaj wiersze, aby zmienić kolejność. Sortowanie tabeli nie zmienia tego numeru.",
   "FetchAllSubnets": "Wszystkie podsieci razem",
-  "FetchSingleSubnet": "Lub tylko jedna podsieć"
+  "FetchSingleSubnet": "Lub tylko jedna podsieć",
+  "DiagConnType": "Typ połączenia",
+  "RuleMatchHintConnType": "Pasuje do sposobu połączenia z siecią: przez Wi-Fi lub kablem (Ethernet). Połącz z innym warunkiem, na przykład router liczony tylko przez Wi-Fi.",
+  "DiagAdapterName": "Nazwa adaptera",
+  "DiagAdapterDesc": "Opis adaptera",
+  "DiagAdapterMac": "MAC adaptera",
+  "RuleMatchHintAdapterName": "Nazwa adaptera w systemie Windows, na przykład Ethernet, Ethernet 2 lub Wi-Fi (odpowiednik eth0 z Linuksa). Dokładne dopasowanie. Kilka nazw oddzielonych przecinkami pasuje, gdy pasuje którakolwiek. Windows może zmienić nazwę adaptera, na przykład gdy stacja dokująca trafi na inny port.",
+  "RuleMatchHintAdapterDesc": "Fragment opisu sprzętowego adaptera, na przykład Realtek lub USB GbE. Przydatne do odróżnienia karty sieciowej stacji dokującej od wbudowanej. Pasuje, gdy opis zawiera podany tekst. Kilka tekstów oddzielonych przecinkami pasuje, gdy pasuje którykolwiek.",
+  "RuleMatchHintAdapterMac": "Własny adres sprzętowy adaptera (nie routera): najstabilniejszy sposób wskazania konkretnej karty sieciowej. Kilka adresów oddzielonych przecinkami pasuje, gdy pasuje którykolwiek. Dotyczy tylko tego komputera, więc nie przenosi się na inny.",
+  "FetchConnectedNow": "Połączone teraz",
+  "FetchOtherAdapters": "Inne adaptery w tym komputerze (niepołączone)",
+  "FetchRecent": "Ostatnio połączone",
+  "FetchShiftHint": "Shift+klik dodaje do listy zamiast zastępować"
 }

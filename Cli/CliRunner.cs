@@ -230,7 +230,8 @@ namespace MasselGUARD.Cli
                     primary_mode   = cfg.PrimaryNetworkMode,
                     networks = snap.Adapters.Select(a => new
                     {
-                        adapter = a.AdapterName, kind = a.Kind, primary = a.IsPrimary, ssid = a.Ssid, open = a.IsOpen,
+                        adapter = a.AdapterName, adapter_description = a.AdapterDescription, adapter_mac = a.AdapterMac,
+                        kind = a.Kind, primary = a.IsPrimary, ssid = a.Ssid, open = a.IsOpen,
                         dns_suffix = a.DnsSuffix, gateway = a.Gateway, gateway_mac = a.GatewayMac,
                         subnets = a.Subnets, dhcp_server = a.DhcpServer,
                         route_metric = a.RouteMetric == int.MaxValue ? (int?)null : a.RouteMetric,
@@ -251,6 +252,7 @@ namespace MasselGUARD.Cli
                 foreach (var a in snap.Adapters.OrderByDescending(x => x.IsPrimary))
                 {
                     CliOutput.Info($"  {(a.IsPrimary ? "*" : "-")} {a.AdapterName} ({a.Kind}{(a.IsPrimary ? ", primary" : "")})");
+                    CliOutput.Info($"      Device:       {a.AdapterDescription ?? "-"}  (adapter MAC {a.AdapterMac ?? "-"})");
                     if (a.IsWifi)          CliOutput.Info($"      SSID:         {a.Ssid ?? "(unknown)"}{(a.IsOpen ? " (open)" : "")}");
                     CliOutput.Info($"      DNS suffix:   {a.DnsSuffix ?? "-"}");
                     CliOutput.Info($"      Gateway:      {a.Gateway ?? "-"}{(a.GatewayMac != null ? $"  ({a.GatewayMac})" : "")}");

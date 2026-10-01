@@ -1142,5 +1142,17 @@
   "RuleCondHint": "Alle voorwaarden moeten op hetzelfde netwerk gelden. Gebruik 'is niet' om een netwerk uit te sluiten. Voor OF voeg je nog een regel toe: de eerste passende rij in de tabel wint.",
   "RuleColOrderTip": "Regelvolgorde: als meerdere netwerkregels overeenkomen, wint het laagste nummer. Sleep rijen om de volgorde te wijzigen. Sorteren van de tabel verandert dit nummer niet.",
   "FetchAllSubnets": "Alle subnetten samen",
-  "FetchSingleSubnet": "Of slechts één subnet"
+  "FetchSingleSubnet": "Of slechts één subnet",
+  "DiagConnType": "Verbindingstype",
+  "RuleMatchHintConnType": "Komt overeen met hoe het netwerk verbonden is: via wifi of via een kabel (Ethernet). Combineer het met een andere voorwaarde, bijvoorbeeld een router die alleen via wifi telt.",
+  "DiagAdapterName": "Adaptername",
+  "DiagAdapterDesc": "Adapterbeschrijving",
+  "DiagAdapterMac": "Adapter-MAC",
+  "RuleMatchHintAdapterName": "De naam van de adapter in Windows, zoals Ethernet, Ethernet 2 of Wi-Fi (het Windows-equivalent van Linux eth0). Exacte overeenkomst. Meerdere namen gescheiden door komma's komen overeen als er een past. Windows kan een adapter hernoemen, bijvoorbeeld als een dock op een andere poort terechtkomt.",
+  "RuleMatchHintAdapterDesc": "Een deel van de hardwarebeschrijving van de adapter, zoals Realtek of USB GbE. Handig om de netwerkkaart van een dock te onderscheiden van de ingebouwde. Komt overeen als de beschrijving je tekst bevat. Meerdere teksten gescheiden door komma's komen overeen als er een past.",
+  "RuleMatchHintAdapterMac": "Het eigen hardwareadres van de adapter (niet dat van de router): de stabielste manier om één specifieke netwerkkaart aan te wijzen. Meerdere adressen gescheiden door komma's komen overeen als er een past. Specifiek voor deze pc, dus niet overdraagbaar naar een andere machine.",
+  "FetchConnectedNow": "Nu verbonden",
+  "FetchOtherAdapters": "Andere adapters in deze pc (niet verbonden)",
+  "FetchRecent": "Onlangs verbonden",
+  "FetchShiftHint": "Shift+klik voegt toe aan de lijst in plaats van te vervangen"
 }

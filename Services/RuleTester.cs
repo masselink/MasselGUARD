@@ -102,6 +102,10 @@ namespace MasselGUARD.Services
             {
                 NetworkMatchBy.DnsSuffix  => a.DnsSuffix,
                 NetworkMatchBy.GatewayMac => a.GatewayMac,
+                NetworkMatchBy.ConnectionType => a.Kind,
+                NetworkMatchBy.AdapterName    => a.AdapterName,
+                NetworkMatchBy.AdapterDesc    => a.AdapterDescription,
+                NetworkMatchBy.AdapterMac     => a.AdapterMac,
                 _                         => a.Subnets.Count == 0 ? null : string.Join("/", a.Subnets),
             }).Where(s => !string.IsNullOrEmpty(s)).ToList();
             return (false, have.Count == 0

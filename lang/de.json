@@ -1142,5 +1142,17 @@
   "RuleCondHint": "Alle Bedingungen müssen im selben Netzwerk gelten. Mit 'ist nicht' schließen Sie ein Netzwerk aus. Für ODER fügen Sie eine weitere Regel hinzu: Die erste passende Zeile der Tabelle gewinnt.",
   "RuleColOrderTip": "Regelreihenfolge: Passen mehrere Netzwerkregeln, gewinnt die niedrigste Nummer. Ziehen Sie Zeilen, um die Reihenfolge zu ändern. Sortieren der Tabelle ändert diese Nummer nicht.",
   "FetchAllSubnets": "Alle Subnetze zusammen",
-  "FetchSingleSubnet": "Oder nur ein Subnetz"
+  "FetchSingleSubnet": "Oder nur ein Subnetz",
+  "DiagConnType": "Verbindungsart",
+  "RuleMatchHintConnType": "Passt auf die Art der Verbindung: über WLAN oder per Kabel (Ethernet). Kombinieren Sie es mit einer weiteren Bedingung, zum Beispiel ein Router, der nur über WLAN gilt.",
+  "DiagAdapterName": "Adaptername",
+  "DiagAdapterDesc": "Adapterbeschreibung",
+  "DiagAdapterMac": "Adapter-MAC",
+  "RuleMatchHintAdapterName": "Der Name des Adapters in Windows, etwa Ethernet, Ethernet 2 oder Wi-Fi (das Windows-Gegenstück zu Linux eth0). Genaue Übereinstimmung. Mehrere durch Komma getrennte Namen passen, wenn einer davon passt. Windows kann einen Adapter umbenennen, zum Beispiel wenn eine Dockingstation an einem anderen Port landet.",
+  "RuleMatchHintAdapterDesc": "Teil der Hardwarebeschreibung des Adapters, etwa Realtek oder USB GbE. Praktisch, um die Netzwerkkarte einer Dockingstation von der eingebauten zu unterscheiden. Passt, wenn die Beschreibung Ihren Text enthält. Mehrere durch Komma getrennte Texte passen, wenn einer davon passt.",
+  "RuleMatchHintAdapterMac": "Die eigene Hardwareadresse des Adapters (nicht die des Routers): die stabilste Möglichkeit, eine bestimmte Netzwerkkarte zu benennen. Mehrere durch Komma getrennte Adressen passen, wenn eine davon passt. Gilt nur für diesen PC und lässt sich nicht auf einen anderen Rechner übertragen.",
+  "FetchConnectedNow": "Jetzt verbunden",
+  "FetchOtherAdapters": "Weitere Adapter in diesem PC (nicht verbunden)",
+  "FetchRecent": "Zuletzt verbunden",
+  "FetchShiftHint": "Umschalt+Klick fügt zur Liste hinzu, statt zu ersetzen"
 }

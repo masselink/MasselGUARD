@@ -20,12 +20,15 @@ rem   BUILD.bat                  -> builds all supported arches (x64 + arm64) + 
 rem   BUILD.bat x64 | arm64      -> that arch only (all = both)
 rem   nozip                      -> skip the release zip (quick test build; removes a stale zip)
 rem   run                        -> after a successful build, start MasselGUARD.exe for this
-rem                                 PC's architecture and don't wait for a key press
-rem   noui                       -> build only the CLI (MasselGUARDcli.exe)
+rem                                 PC's architecture and don't wait for a key press. With no arch
+rem                                 given, "run" builds (and starts) just this PC's arch (x64 on
+rem                                 an x64 PC) instead of all arches.
+rem   noui (alias nogui)         -> build only the CLI (MasselGUARDcli.exe). Together with "run" it
+rem                                 starts the LATEST GUI already in dist\<arch>\ (not rebuilt).
 rem   nocli                      -> build only the GUI (MasselGUARD.exe)
 rem                                 A partial build replaces just that exe in dist\<arch>\ and
 rem                                 never packages a zip (a release zip needs both from one build).
-rem   e.g.  BUILD.bat x64 nozip run      BUILD.bat x64 nocli run      BUILD.bat noui
+rem   e.g.  BUILD.bat x64 nozip run      BUILD.bat x64 nocli run      BUILD.bat noui run
 rem Each arch is published natively (framework-dependent single-file) into
 rem dist\<arch>\ with its matching wireguard-deps\<arch>\ DLLs, then zipped to
 rem dist\MasselGUARD-<arch>.zip for release. ARM64 native DLLs must be built
@@ -50,12 +53,14 @@ if /I "%~1"=="x64" (
     set RUN=1
 ) else if /I "%~1"=="noui" (
     set NOUI=1
+) else if /I "%~1"=="nogui" (
+    set NOUI=1
 ) else if /I "%~1"=="nocli" (
     set NOCLI=1
 ) else (
     echo.
     echo  ERROR: unknown argument "%~1".
-    echo  Usage: BUILD.bat [x64^|arm64^|all] [nozip] [run] [noui^|nocli]
+    echo  Usage: BUILD.bat [x64^|arm64^|all] [nozip] [run] [noui^|nogui^|nocli]
     echo.
     pause & exit /b 1
 )
@@ -68,7 +73,14 @@ if "%NOUI%%NOCLI%"=="11" (
     echo.
     pause & exit /b 1
 )
-if "%ARCHES%"=="" set ARCHES=x64 arm64
+rem This PC's architecture (what "run" starts). x64 unless the PC is ARM64.
+set HOSTARCH=x64
+if /I "%PROCESSOR_ARCHITECTURE%"=="ARM64" set HOSTARCH=arm64
+if /I "%PROCESSOR_ARCHITEW6432%"=="ARM64" set HOSTARCH=arm64
+rem No arch given: "run" is a quick test, so build just this PC's arch; otherwise build both.
+if "%ARCHES%"=="" (
+    if "%RUN%"=="1" (set ARCHES=%HOSTARCH%) else set ARCHES=x64 arm64
+)
 rem A partial build never makes a release zip - it would pair a fresh exe with an older one.
 set PARTIAL=0
 if "%NOUI%"=="1"  set PARTIAL=1
@@ -139,21 +151,16 @@ echo   https://dotnet.microsoft.com/download/dotnet/10.0
 echo.
 
 rem ── Optional: start the build for this PC's architecture ────────────────────
-if "%RUN%"=="1" if "%NOUI%"=="1" (
-    echo   NOTE: run skipped - the GUI was not built ^(noui^).
-    echo.
-    set RUN=0
-)
 if "%RUN%"=="1" (
-    set RUNARCH=x64
-    if /I "%PROCESSOR_ARCHITECTURE%"=="ARM64" set RUNARCH=arm64
-    if /I "%PROCESSOR_ARCHITEW6432%"=="ARM64" set RUNARCH=arm64
+    set RUNARCH=%HOSTARCH%
     if exist "%DIST%\!RUNARCH!\MasselGUARD.exe" (
+        rem With noui the GUI was not rebuilt: this starts the latest one already in dist\<arch>\.
+        if "%NOUI%"=="1" echo   noui: starting the latest GUI already in dist\!RUNARCH!\ ^(not rebuilt^)
         echo   Starting dist\!RUNARCH!\MasselGUARD.exe ...
         start "" "%DIST%\!RUNARCH!\MasselGUARD.exe"
         exit /b 0
     )
-    echo   NOTE: run skipped - no !RUNARCH! build for this PC ^(add !RUNARCH! to the arguments^).
+    echo   NOTE: run skipped - there is no dist\!RUNARCH!\MasselGUARD.exe yet ^(build the GUI once, without noui^).
     echo.
 )
 pause

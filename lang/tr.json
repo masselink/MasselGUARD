@@ -1142,5 +1142,17 @@
   "RuleCondHint": "Tüm koşullar aynı ağda sağlanmalıdır. Bir ağı dışlamak için 'şu değildir' kullanın. VEYA için başka bir kural ekleyin: tablodaki ilk eşleşen satır kazanır.",
   "RuleColOrderTip": "Kural sırası: birden çok ağ kuralı eşleşirse en düşük numara kazanır. Sırayı değiştirmek için satırları sürükleyin. Tabloyu sıralamak bu numarayı değiştirmez.",
   "FetchAllSubnets": "Tüm alt ağlar birlikte",
-  "FetchSingleSubnet": "Ya da yalnızca bir alt ağ"
+  "FetchSingleSubnet": "Ya da yalnızca bir alt ağ",
+  "DiagConnType": "Bağlantı türü",
+  "RuleMatchHintConnType": "Ağın nasıl bağlandığıyla eşleşir: Wi-Fi ile veya kabloyla (Ethernet). Başka bir koşulla birleştirin, örneğin yalnızca Wi-Fi üzerinden geçerli olan bir yönlendirici.",
+  "DiagAdapterName": "Bağdaştırıcı adı",
+  "DiagAdapterDesc": "Bağdaştırıcı açıklaması",
+  "DiagAdapterMac": "Bağdaştırıcı MAC",
+  "RuleMatchHintAdapterName": "Bağdaştırıcının Windows'taki adı; Ethernet, Ethernet 2 veya Wi-Fi gibi (Linux eth0'ın Windows karşılığı). Tam eşleşme. Virgülle ayrılmış birkaç ad, biri eşleşirse eşleşir. Windows bir bağdaştırıcıyı yeniden adlandırabilir, örneğin bir yuva başka bir bağlantı noktasına geçtiğinde.",
+  "RuleMatchHintAdapterDesc": "Bağdaştırıcının donanım açıklamasının bir parçası; Realtek veya USB GbE gibi. Yuvanın ağ kartını yerleşik karttan ayırmak için kullanışlı. Açıklama metninizi içeriyorsa eşleşir. Virgülle ayrılmış birkaç metin, biri eşleşirse eşleşir.",
+  "RuleMatchHintAdapterMac": "Bağdaştırıcının kendi donanım adresi (yönlendiricinin değil): belirli bir ağ kartını adlandırmanın en kararlı yolu. Virgülle ayrılmış birkaç adres, biri eşleşirse eşleşir. Bu bilgisayara özeldir, başka bir makineye taşınmaz.",
+  "FetchConnectedNow": "Şu anda bağlı",
+  "FetchOtherAdapters": "Bu bilgisayardaki diğer bağdaştırıcılar (bağlı değil)",
+  "FetchRecent": "Son zamanlarda bağlanılan",
+  "FetchShiftHint": "Shift+tıklama değiştirmek yerine listeye ekler"
 }

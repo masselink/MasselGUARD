@@ -1142,5 +1142,17 @@
   "RuleCondHint": "すべての条件が同じネットワークで満たされる必要があります。ネットワークを除外するには「ではない」を使います。ORにしたい場合は別のルールを追加してください。表の最初に一致した行が優先されます。",
   "RuleColOrderTip": "ルールの順序: 複数のネットワークルールが一致した場合、最も小さい番号が優先されます。行をドラッグして順序を変更できます。表の並べ替えではこの番号は変わりません。",
   "FetchAllSubnets": "すべてのサブネットをまとめて",
-  "FetchSingleSubnet": "または1つのサブネットのみ"
+  "FetchSingleSubnet": "または1つのサブネットのみ",
+  "DiagConnType": "接続の種類",
+  "RuleMatchHintConnType": "ネットワークの接続方法(Wi-Fiか有線のEthernet)に一致します。別の条件と組み合わせて使います。たとえば、Wi-Fi経由のときだけ有効なルーターなどです。",
+  "DiagAdapterName": "アダプター名",
+  "DiagAdapterDesc": "アダプターの説明",
+  "DiagAdapterMac": "アダプターのMAC",
+  "RuleMatchHintAdapterName": "Windowsでのアダプター名(Ethernet、Ethernet 2、Wi-Fiなど。Linuxのeth0に相当)。完全一致です。カンマで区切った複数の名前は、どれかに一致すれば一致します。ドックが別のポートに移ったときなど、Windowsが名前を変えることがあります。",
+  "RuleMatchHintAdapterDesc": "アダプターのハードウェア説明の一部(RealtekやUSB GbEなど)。ドックのネットワークカードと内蔵のものを区別するのに便利です。説明に入力した文字が含まれていれば一致します。カンマで区切った複数の文字は、どれかが含まれていれば一致します。",
+  "RuleMatchHintAdapterMac": "アダプター自身のハードウェアアドレス(ルーターのものではありません)。特定のネットワークカードを指定する最も安定した方法です。カンマで区切った複数のアドレスは、どれかに一致すれば一致します。このPC固有なので、別のマシンには引き継げません。",
+  "FetchConnectedNow": "現在接続中",
+  "FetchOtherAdapters": "このPCの他のアダプター(未接続)",
+  "FetchRecent": "最近接続したもの",
+  "FetchShiftHint": "Shiftキーを押しながらクリックすると、置き換えずに一覧へ追加します"
 }

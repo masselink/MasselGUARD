@@ -3130,7 +3130,9 @@ namespace MasselGUARD
                 dnsProfiles: DnsProfileChoices(),
                 dnsEnabled: ConfigSvc.Config.EnableDns,
                 tunnelsEnabled: ConfigSvc.Config.EnableTunnels,
-                captureNetwork: CaptureNetworkSnapshot)
+                captureNetwork: CaptureNetworkSnapshot,
+                listAdapters:   NetworkMonitor.ListPhysicalAdapters,
+                recentNetworks: () => HistorySvc.SsidEntries)
                 { Owner = this };
             if (dlg.ShowDialog() != true) return;
             var rule = new Models.TunnelRule
@@ -3175,7 +3177,9 @@ namespace MasselGUARD
                 dnsEnabled:     ConfigSvc.Config.EnableDns,
                 tunnelsEnabled: ConfigSvc.Config.EnableTunnels,
                 existingConditions: rule.EffectiveConditions.Select(c => c.Clone()).ToList(),
-                captureNetwork: CaptureNetworkSnapshot)
+                captureNetwork: CaptureNetworkSnapshot,
+                listAdapters:   NetworkMonitor.ListPhysicalAdapters,
+                recentNetworks: () => HistorySvc.SsidEntries)
                 { Owner = this };
             if (dlg.ShowDialog() != true) return;
             rule.Kind        = dlg.ResultKind;
