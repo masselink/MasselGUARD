@@ -98,6 +98,7 @@ namespace MasselGUARD.ViewModels
         // ── Column widths (pixel, bound by DataTemplate ColumnDefinitions) ─────
         private double _tunCol0W = 160; public double TunCol0W { get => _tunCol0W; set => SetField(ref _tunCol0W, value); }
         private double _tunCol1W = 180; public double TunCol1W { get => _tunCol1W; set => SetField(ref _tunCol1W, value); }
+        private double _tunStatusW = 120;   public double TunStatusW { get => _tunStatusW; set => SetField(ref _tunStatusW, value); }
         private double _tunCol2W = 60;  public double TunCol2W { get => _tunCol2W; set => SetField(ref _tunCol2W, value); }
         private double _tunCol3W = 90;  public double TunCol3W { get => _tunCol3W; set => SetField(ref _tunCol3W, value); }
         private double _wifCol0W = 160; public double WifCol0W { get => _wifCol0W; set => SetField(ref _wifCol0W, value); }

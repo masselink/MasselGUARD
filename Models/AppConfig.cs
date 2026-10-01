@@ -311,6 +311,8 @@ namespace MasselGUARD.Models
         public double TunColStatusW  { get; set; } = 0;
         public double TunColRulesW   { get; set; } = 0;
         public double TunColActionW  { get; set; } = 0;
+        /// <summary>Width of the Status part of the Status / Data usage column (the bars start after it).</summary>
+        public double TunStatusInnerW { get; set; } = 120;
         public double WifiColNameW   { get; set; } = 0;
         public double WifiColSsidW   { get; set; } = 0;
         public double WifiColActionW { get; set; } = 0;

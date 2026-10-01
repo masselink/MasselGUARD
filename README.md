@@ -26,9 +26,9 @@ MasselGUARD is a WireGuard client that also controls your DNS, and switches **bo
 
 Every panel - **WireGuard**, **DNS**, **Automation**, **Activity log** and **History** - can be shown, hidden or fully disabled from the title-bar buttons or Settings. The window scales from a full network dashboard down to a single tunnel list.
 
-| Tunnels and activity log, on the Glass theme | Minimal - just your tunnels (light) |
+| Tunnels and activity log, on the Glass theme | Minimal - just your tunnels, Flat theme (light) |
 |---|---|
-| ![Tunnels and activity log, Glass theme](docs/images/MasselGUARD-glass-tunnels-log.png) | ![Minimal view, light](docs/images/MasselGUARD-4.5.0-light-minimal.png) |
+| ![Tunnels and activity log, Glass theme](docs/images/MasselGUARD-glass-tunnels-log.png) | ![Minimal view, Flat theme, light](docs/images/MasselGUARD-flat-minimal-light.png) |
 
 Light and dark are both built in, and colours and section icons are themeable. Install community themes from the in-app Theme Browser or make your own; the signature **Resolving Raven** theme ships a full custom icon set.
 

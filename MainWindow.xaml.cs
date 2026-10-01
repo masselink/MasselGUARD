@@ -2464,6 +2464,11 @@ namespace MasselGUARD
         private void ApplyRulesColumnLayout()
         {
             _rulesColShown = _vm.RulesColumnVisibility == Visibility.Visible;
+            // Resize handles: the splitters need the Rules column beside them, the thumb works without it.
+            if (TunSplitStatus != null) TunSplitStatus.Visibility = _rulesColShown ? Visibility.Visible : Visibility.Collapsed;
+            if (TunSplitAction != null) TunSplitAction.Visibility = _rulesColShown ? Visibility.Visible : Visibility.Collapsed;
+            if (TunActionThumb != null) TunActionThumb.Visibility = _rulesColShown ? Visibility.Collapsed : Visibility.Visible;
+            if (DnsRulesThumb  != null) DnsRulesThumb.Visibility  = _rulesColShown ? Visibility.Visible : Visibility.Collapsed;
             if (!_colInitDone) return;
             if (!_rulesColShown)
             {
@@ -6590,7 +6595,11 @@ namespace MasselGUARD
             if (WifTunnelHeaderBtn != null) WifTunnelHeaderBtn.Visibility = tunVis;
             if (WifTunnelSplitter  != null) WifTunnelSplitter.Visibility  = tunVis;
             if (WifDnsHeaderBtn    != null) WifDnsHeaderBtn.Visibility     = dnsVis;
-            if (WifDnsSplitter     != null) WifDnsSplitter.Visibility      = dnsVis;
+            // With the Tunnel column hidden the DNS splitter has a zero-width neighbour and does nothing:
+            // the thumb (Action <-> DNS) takes over.
+            bool dnsViaThumb = _wifDnsCol && !_wifTunnelCol;
+            if (WifDnsSplitter     != null) WifDnsSplitter.Visibility      = _wifDnsCol && !dnsViaThumb ? Visibility.Visible : Visibility.Collapsed;
+            if (WifDnsThumb        != null) WifDnsThumb.Visibility         = dnsViaThumb ? Visibility.Visible : Visibility.Collapsed;
 
             if (!_colInitDone) return;   // widths get set by InitColumnWidths, which re-calls this
 
@@ -6667,6 +6676,7 @@ namespace MasselGUARD
                 _vm.DnsCol3W = cfg.DnsColRulesW;
                 _vm.DnsCol4W = cfg.DnsColEnableW;
             }
+            if (cfg.TunStatusInnerW >= 90 && cfg.TunStatusInnerW <= 240) _vm.TunStatusW = cfg.TunStatusInnerW;
             _colInitDone = true;
             ApplyWifiColVisibility();   // apply feature-based column drops now that widths are live
             ApplyRulesColumnLayout();
@@ -6816,6 +6826,48 @@ namespace MasselGUARD
             _vm.DnsCol4W = Math.Max(DnsColDef4.MinWidth, w4);
         }
 
+        // Handle between Status and Data usage: moves where the bars start, in the header and every row.
+        private void TunStatusThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+            => _vm.TunStatusW = Math.Clamp(_vm.TunStatusW + e.HorizontalChange, 90, 240);
+
+        // Rules column hidden: the splitters next to the zero-width column can't move anything, so this
+        // handle trades width directly between the Status/Data usage column and the Action column.
+        private void TunActionThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+        {
+            double w1 = TunColDef1.ActualWidth, w3 = TunColDef3.ActualWidth;
+            double dx = Math.Clamp(e.HorizontalChange, TunColDef1.MinWidth - w1, w3 - TunColDef3.MinWidth);
+            if (Math.Abs(dx) < 0.5) return;
+            TunColDef1.Width = new GridLength(w1 + dx);
+            TunColDef3.Width = new GridLength(w3 - dx);
+        }
+
+        private void WifDnsThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+            => TradeWidth(WifColDef2, WifColDef5, e.HorizontalChange);
+
+        // DNS list: Type | Rules (or Type | Action while Rules is hidden) and Rules | Action.
+        private void DnsTypeThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+            => TradeWidth(DnsColDef1, _rulesColShown ? DnsColDef3 : DnsColDef4, e.HorizontalChange);
+
+        private void DnsRulesThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+            => TradeWidth(DnsColDef3, DnsColDef4, e.HorizontalChange);
+
+        /// <summary>Moves the boundary between two neighbouring columns by <paramref name="dx"/>: the left one
+        /// grows by what the right one gives up, within both minimums (the total never changes).</summary>
+        private static void TradeWidth(ColumnDefinition left, ColumnDefinition right, double dx)
+        {
+            double wl = left.ActualWidth, wr = right.ActualWidth;
+            dx = Math.Clamp(dx, left.MinWidth - wl, wr - right.MinWidth);
+            if (Math.Abs(dx) < 0.5) return;
+            left.Width  = new GridLength(wl + dx);
+            right.Width = new GridLength(wr - dx);
+        }
+
+        private void ColThumb_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+        {
+            _colSaveTimer?.Stop();
+            SaveColumnWidths();
+        }
+
         // ColSplitter_MouseUp fires when a drag ends - immediate save (skip debounce).
         private void ColSplitter_MouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
@@ -6840,8 +6892,9 @@ namespace MasselGUARD
             var cfg = ConfigSvc.Config;
             cfg.TunColNameW    = _vm.TunCol0W;
             cfg.TunColStatusW  = _vm.TunCol1W;
-            cfg.TunColRulesW   = _vm.TunCol2W;
+            if (_rulesColShown) cfg.TunColRulesW = _vm.TunCol2W;   // 0 while the column is hidden: keep the real width
             cfg.TunColActionW  = _vm.TunCol3W;
+            cfg.TunStatusInnerW = _vm.TunStatusW;
             cfg.WifiColNameW   = _vm.WifCol0W;
             cfg.WifiColSsidW   = _vm.WifCol1W;
             cfg.WifiColActionW = _vm.WifCol2W;
@@ -6851,7 +6904,7 @@ namespace MasselGUARD
             cfg.DnsColNameW    = _vm.DnsCol0W;
             cfg.DnsColTypeW    = _vm.DnsCol1W;
             cfg.DnsColServerW  = _vm.DnsCol2W;
-            cfg.DnsColRulesW   = _vm.DnsCol3W;
+            if (_rulesColShown) cfg.DnsColRulesW = _vm.DnsCol3W;
             cfg.DnsColEnableW  = _vm.DnsCol4W;
             ConfigSvc.Save();
         }

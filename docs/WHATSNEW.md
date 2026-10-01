@@ -1,6 +1,14 @@
 ## Next version (number and codename to be decided)
 
-Automation now understands **wired networks**, not just Wi-Fi. Rules can match a network by more than its name, several conditions can be combined, and you can see exactly why a rule did (or did not) fire.
+Automation now understands **wired networks**, not just Wi-Fi. Rules can match a network by more than its name, several conditions can be combined, and you can see exactly why a rule did (or did not) fire. The app is also noticeably lighter on memory, and saving settings is much quicker.
+
+**Highlights**
+- Rules for **cable and Wi-Fi**, matching on SSID, DNS suffix, gateway MAC, subnet, connection type or the adapter itself
+- **Several conditions per rule** (all must hold, any can be negated), with a visible **top-down rule order**
+- **Test rule** and **Advanced test** show which rule fires and why, without touching anything
+- **Simple Wi-Fi mode** for people who only want the classic SSID rules
+- **Network-change notifications** and a **DNS servers** entry in the footer
+- A lot **less memory** and faster saves; resizable list columns
 
 ### Wired networks and Wi-Fi, side by side
 
@@ -45,6 +53,7 @@ Automation now understands **wired networks**, not just Wi-Fi. Rules can match a
 - **DNS servers in the footer** - a new `🌐` entry between the network and the default-tunnel items shows the DNS servers in use right now: the connected tunnel's own servers, otherwise those of the primary network's adapter (which already carries any DNS-automation override). It shows the first two, with `…` when there are more; hover for the full list and where it comes from. Hidden when no servers are known.
 - **"Data usage" column header** - the usage bars or rings of every tunnel row now have a header, lined up with the bars.
 - **The Rules column really hides** - turning off **Show Rules column** now removes the column in both the tunnel list and the DNS profile list (before, only the tunnel list lost its numbers, and the empty column left the Connect button partly cut off). The freed space goes to the other columns, and the Connect button is always fully visible.
+- **Resize every list column** - in the tunnel list the Status / Data usage and Action columns can be dragged again (also with the Rules column hidden, when the usual drag handles had nothing to grab), and a new handle between **Status** and **Data usage** moves where the usage bars start. The DNS profile list got handles between Type, Rules and Action as well. Widths are remembered.
 - **Bars or rings moved** - the choice now sits in **Settings > WireGuard > Display**, with the other tunnel-list display options, instead of under Appearance.
 - **Tunnel groups explain themselves** - the Tunnel groups section has a short description of what groups are, and every control (name box, colour, up, down, delete) has a tooltip.
 - **Clearer toggle names** - the Automation panel, the DNS feature and DNS automation switches have reworded names and descriptions, so it is clear which one does what.
@@ -55,6 +64,16 @@ Automation now understands **wired networks**, not just Wi-Fi. Rules can match a
 - **The chart no longer redraws every second** - it is rebuilt only every few seconds, which saves processor time and memory churn. **Settings > History > Activity chart** has two settings: seconds between redraws **while nothing is connected** (5 to 60, default 10) and **while a tunnel is connected** (1 to 10, default 2). Values outside the limits are corrected, also when typed into `config.json` or imported from a preset. Resizing the window or changing the range or theme still redraws at once.
 - **Free memory while in the tray** (Settings > Startup, on by default) - when the window is closed to the tray, MasselGUARD compacts its memory and returns the unused part to Windows, so Task Manager shows the real footprint. The first redraw after reopening can be a little slower.
 - Background garbage collection and tiered PGO are switched off, which lowers the idle memory of this small desktop app.
+
+### Fixes
+
+- **Rules hidden in Simple Wi-Fi mode** - trusted-network and schedule rules were shown dimmed as "not used" in Simple Wi-Fi mode even though they still work. Only network rules with other conditions than a single SSID are dimmed now.
+- **Cut-off buttons in the lists** - the Connect button (tunnel list), the Enable button (DNS profiles) and the last cell of the Automation table could be clipped by the list's scrollbar. The last column now takes the remaining width.
+- **DNS profile list in narrow panels** - a column width saved from a wider window could push Type and Action out of view. Name now goes back to flexible when the other columns no longer fit beside it.
+- **Rules column** - hiding it left an empty column behind in the tunnel list and did nothing in the DNS list (see Main window above).
+- **Drag handles** - columns next to a hidden column could not be resized (see Main window above).
+- **Theme change** - the refresh of the title-bar section icons, taskbar icon and window title now runs first and cannot be skipped by an error in a later step, so icons from the previous theme no longer stay when you switch to a theme without its own.
+- **Slow settings save** - see Lighter and faster above.
 
 ### Also in this release
 
