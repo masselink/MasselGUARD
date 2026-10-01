@@ -239,6 +239,12 @@ namespace MasselGUARD.Services
 
         // ── Rule selection ────────────────────────────────────────────────────
 
+        /// <summary>Is this network rule used under the current settings? Always, except in Simple Wi-Fi mode, where
+        /// only plain "SSID is X" rules are (the others stay in the list, dimmed, but never fire).</summary>
+        public static bool IsRuleUsed(AppConfig cfg, TunnelRule rule) =>
+            !cfg.SimpleWifiMode || !rule.IsNetworkKind || rule.IsSimpleSsidRule;   // only NETWORK rules are restricted:
+                                                                                  // trusted-network and schedule rules always work
+
         /// <summary>Enabled network rules (<see cref="TunnelRule.IsNetworkKind"/>) that match this network,
         /// in the order of the rules table (top-down): the FIRST entry is the one that wins. There is no
         /// second ordering: the user arranges the table (drag and drop) and that order decides.

@@ -221,7 +221,8 @@ namespace MasselGUARD.ViewModels
                 guid => guid == _wifi.CurrentInterfaceGuid
                     ? (_wifi.CurrentSsid, _wifi.IsOpenNetwork)
                     : (null, false),
-                resolveGatewayMac: forceMac || NeedsGatewayMac());
+                resolveGatewayMac: forceMac || NeedsGatewayMac(),
+                wifiOnly: _config.Config.SimpleWifiMode);
 
         /// <summary>Snapshot for the settle path: when a MAC rule exists and a gateway MAC is still
         /// unresolved right after a link came up, retry at +1 s and +3 s before deciding (design 6.3).</summary>
@@ -271,7 +272,8 @@ namespace MasselGUARD.ViewModels
             _networkEvaluatedOnce = true;
 
             string histKey = NetworkMatcher.HistoryKey(snap.Primary);
-            if (histKey != _lastHistoryKey)
+            bool primaryChanged = histKey != _lastHistoryKey;     // the network we are "on" really changed
+            if (primaryChanged)
             {
                 _lastHistoryKey = histKey;
                 try { PrimaryNetworkChanged?.Invoke(snap.Primary); } catch { /* history must never break rules */ }
@@ -298,6 +300,7 @@ namespace MasselGUARD.ViewModels
             {
                 // ── Tunnel: follows the primary network ─────────────────────────────
                 string primaryKey = snap.Primary?.Fingerprint() ?? "";
+                RuleEngine.RuleResult? tunnelResult = null;
                 if (snap.IsEmpty)
                 {
                     // Was connected, now nothing: the classic "on disconnect" default action.
@@ -313,6 +316,7 @@ namespace MasselGUARD.ViewModels
                 {
                     _lastPrimaryKey = primaryKey;
                     var r = _rules.EvaluateNetwork(cfg, snap.Primary);
+                    tunnelResult = r;
                     ApplyRuleResult(r);
                     if (r.Details != null)
                         foreach (var line in r.Details) _log.Info(line);
@@ -339,12 +343,74 @@ namespace MasselGUARD.ViewModels
                 }
 
                 if (changed.Count > 0) ApplyPendingDns(changed);
+
+                // ── Optional pop-up: "you are now on network X" (never at startup) ───
+                if (primaryChanged && !firstEvaluation && snap.Primary != null)
+                    MaybeNotifyNetworkChange(snap.Primary, tunnelResult);
             }
             finally
             {
                 _coalesceToasts = false;
                 FlushCoalescedToasts();
             }
+        }
+
+        /// <summary>
+        /// Settings > Notifications > "Notify on network changes" ("off" default | "nomatch" | "always"). Shows the
+        /// network you just joined (name, open or not), the DNS in use, the tunnel state and which automation, if any,
+        /// applied. "nomatch" only fires when NO automation applied to the new network (no tunnel rule/default and no
+        /// DNS rule), which is exactly the case where nothing else would have told you the network changed.
+        /// </summary>
+        private void MaybeNotifyNetworkChange(NetworkIdentity primary, RuleEngine.RuleResult? tunnelResult)
+        {
+            string mode = _config.Config.NetworkChangeNotify;
+            if (mode is not ("nomatch" or "always")) return;
+
+            DnsPolicy.DnsResult? dnsResult = null;
+            if (Guid.TryParse(primary.AdapterId, out var g) && _pendingDnsByGuid.TryGetValue(g, out var d)) dnsResult = d;
+
+            bool automationApplied = (tunnelResult != null && tunnelResult.Action != RuleEngine.ActionKind.None)
+                                  || (dnsResult != null && dnsResult.Action != DnsPolicy.DnsActionKind.None);
+            if (mode == "nomatch" && automationApplied) return;
+
+            string icon = primary.IsWired ? "🔌" : "📶";
+            var lines = new List<string>();
+            if (primary.IsOpen) lines.Add("⚠ " + Lang.T("ToastNetOpen"));
+
+            // DNS in use: the applied profile (or "network default") plus the servers the adapter really uses.
+            string profile = _appliedDnsProfileId != null
+                ? _config.Config.DnsProfiles.FirstOrDefault(p => p.Id == _appliedDnsProfileId)?.Name ?? Lang.T("ToastNetDnsDefault")
+                : Lang.T("ToastNetDnsDefault");
+            string servers = CurrentInterfaceDnsServers(primary);
+            lines.Add(Lang.T("ToastNetDns", servers.Length > 0 ? $"{profile} ({servers})" : profile));
+
+            var active = TunnelList.Where(t => t.IsActive).Select(t => t.Name).ToList();
+            lines.Add(active.Count > 0 ? Lang.T("ToastNetTunnel", string.Join(", ", active)) : Lang.T("ToastNetNoTunnel"));
+
+            lines.Add(automationApplied
+                ? LocalizeReason(tunnelResult is { Action: not RuleEngine.ActionKind.None } ? tunnelResult.Reason : dnsResult!.Reason)
+                : Lang.T("ToastNetNoRule"));
+
+            EmitToast(new Views.ToastNotification
+            {
+                Category   = Lang.T("ToastCatNetwork"),
+                Primary    = $"{icon} {NetworkMatcher.HistoryLabel(primary)}",
+                Secondary  = string.Join("\n", lines),
+                StripColor = primary.IsOpen ? "Warning" : "Accent",
+                DurationMs = _config.Config.NotificationDurationSeconds * 1000,
+            });
+        }
+
+        /// <summary>The DNS servers the primary adapter currently uses (first two), "" when unknown.</summary>
+        private static string CurrentInterfaceDnsServers(NetworkIdentity primary)
+        {
+            try
+            {
+                var ni = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                    .FirstOrDefault(n => string.Equals(n.Id, primary.AdapterId, StringComparison.OrdinalIgnoreCase));
+                return ni == null ? "" : string.Join(", ", ni.GetIPProperties().DnsAddresses.Select(a => a.ToString()).Take(2));
+            }
+            catch { return ""; }
         }
 
         /// <summary>A rule that matches a secondary network is ignored for the tunnel (the primary decides);
@@ -354,7 +420,8 @@ namespace MasselGUARD.ViewModels
             var cfg  = _config.Config;
             foreach (var other in snap.Adapters.Where(a => !a.IsPrimary))
             {
-                var hit = NetworkMatcher.MatchingRules(cfg.Rules, other, r => !DnsPolicy.IsDnsOnly(r)).FirstOrDefault();
+                var hit = NetworkMatcher.MatchingRules(cfg.Rules, other,
+                    r => !DnsPolicy.IsDnsOnly(r) && NetworkMatcher.IsRuleUsed(cfg, r)).FirstOrDefault();
                 if (hit != null)
                     _log.Info($"Rule \"{hit.RuleName}\" matches {RuleTester.Label(other)} but " +
                               $"{RuleTester.Label(snap.Primary)} is the primary network; the tunnel follows the primary network");

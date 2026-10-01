@@ -29,8 +29,10 @@ namespace MasselGUARD.Services
         {
             var sim    = cfg.DeepClone();                 // the real engine increments ExecutionCount: do it on a copy
             var engine = new RuleEngine();
-            var tunnel = engine.EvaluateNetwork(sim, net);
-            var dns    = DnsPolicy.Evaluate(sim, net, now);
+            // Simple Wi-Fi mode never even sees a wired network, so it is evaluated as "no network".
+            bool ignored = cfg.SimpleWifiMode && net.IsWired;
+            var tunnel = engine.EvaluateNetwork(sim, ignored ? null : net);
+            var dns    = DnsPolicy.Evaluate(sim, ignored ? null : net, now);
             var steps  = new List<SimStep>();
             void S(string t, SimLevel l = SimLevel.Info, int i = 0) => steps.Add(new SimStep(t, l, i));
 
@@ -43,7 +45,8 @@ namespace MasselGUARD.Services
             // ── 1. Automation switches ────────────────────────────────────────
             S("1. Automation", SimLevel.Info);
             bool tunnelAxis = true;
-            if (cfg.ManualMode)        { S("Manual mode is ON: all automation is off, nothing would happen.", SimLevel.Bad, 1); tunnelAxis = false; }
+            if (ignored)               { S("Simple Wi-Fi mode is ON: wired networks are ignored, so this network would not be considered at all.", SimLevel.Bad, 1); tunnelAxis = false; }
+            else if (cfg.ManualMode)   { S("Manual mode is ON: all automation is off, nothing would happen.", SimLevel.Bad, 1); tunnelAxis = false; }
             else if (!cfg.EnableTunnels) { S("The WireGuard feature is OFF: tunnel rules are inert (DNS rules can still apply).", SimLevel.Bad, 1); tunnelAxis = false; }
             else S("Automation is on and tunnels are enabled.", SimLevel.Good, 1);
 
@@ -71,6 +74,7 @@ namespace MasselGUARD.Services
                         any = true;
                         string head = $"#{i + 1} \"{r.RuleName}\"";
                         if (!r.Enabled) { S($"{head}: disabled, skipped.", SimLevel.Muted, 1); continue; }
+                        if (!NetworkMatcher.IsRuleUsed(cfg, r)) { S($"{head}: not used in Simple Wi-Fi mode (more than a plain SSID condition), skipped.", SimLevel.Muted, 1); continue; }
                         var conds = r.EffectiveConditions;
                         if (conds.Count == 0) { S($"{head}: has no conditions, never matches.", SimLevel.Muted, 1); continue; }
 
@@ -222,6 +226,16 @@ namespace MasselGUARD.Services
             Check("sim-trusted-decides", rt.Winner != null && rt.Tunnel.TunnelName == "Full" && rt.Steps.Any(s => s.Text.Contains("this rule decides")));
             var rd = Run(tc, Describe(false, "Home", false, null, null, null), now);
             Check("sim-default-action", rd.Winner == null && rd.Tunnel.Action == RuleEngine.ActionKind.Disconnect && rd.Steps.Any(s => s.Text.Contains("default action is DISCONNECT")));
+
+            // Simple Wi-Fi mode: wired networks are ignored, only plain SSID rules are used
+            var simple = cfg.DeepClone(); simple.SimpleWifiMode = true;
+            var rsw = Run(simple, office, now);
+            Check("sim-simple-wired-ignored", rsw.Tunnel.Action == RuleEngine.ActionKind.None && rsw.Steps.Any(s => s.Text.Contains("wired networks are ignored")));
+            var simpleSsid = Net("SsidVPN", "Plain SSID", C("ssid", "Guest"));
+            simple.Rules.Insert(0, simpleSsid);
+            var rss = Run(simple, guestOk, now);
+            Check("sim-simple-plain-ssid-wins", rss.Winner?.Name == "Plain SSID");
+            Check("sim-simple-skips-advanced", rss.Steps.Any(s => s.Text.Contains("not used in Simple Wi-Fi mode")));
 
             // Describe normalises
             var d = Describe(false, " Home ", true, ".Corp.Example.com.", "AA-BB-CC-00-11-22", null);

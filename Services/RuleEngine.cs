@@ -71,7 +71,8 @@ namespace MasselGUARD.Services
             //    policy in step 3 below.) The Tunnel field alone decides the tunnel action: an empty
             //    Tunnel disconnects, even when the rule also carries a DNS profile (DNS applies in
             //    parallel via DnsPolicy).
-            var matches = NetworkMatcher.MatchingRules(cfg.Rules, primary);   // table order: first hit wins
+            var matches = NetworkMatcher.MatchingRules(cfg.Rules, primary,    // table order: first hit wins
+                r => NetworkMatcher.IsRuleUsed(cfg, r));
 
             if (matches.Count > 0)
             {
@@ -249,6 +250,33 @@ namespace MasselGUARD.Services
             Check("office-counts-winner-only", rSub.ExecutionCount == 1 && rSuffix.ExecutionCount == 0);
             office.Rules.Reverse();        // the user drags the suffix row to the top
             Check("office-reordered-suffix-wins", engine.EvaluateNetwork(office, eth).Action == ActionKind.Disconnect);
+
+            // 2b. Simple Wi-Fi mode: only plain "SSID is X" rules are used; advanced ones stay but never fire.
+            var sw = Cfg(); sw.SimpleWifiMode = true;
+            var swAdv   = new TunnelRule { Kind = "network", MatchBy = "dnssuffix", MatchValue = "corp.example.com", Tunnel = "Advanced" };
+            var swPlain = new TunnelRule { Kind = "network", Ssid = "Home", Tunnel = "Plain" };
+            sw.Rules.Add(swAdv); sw.Rules.Add(swPlain);
+            var swWifi = Id("wifi", "wlan", ssid: "Home", suffix: "corp.example.com");
+            Eq("simple-mode-plain-rule-used", engine.EvaluateNetwork(sw, swWifi).TunnelName, "Plain");
+            sw.SimpleWifiMode = false;
+            Eq("normal-mode-first-row-wins", engine.EvaluateNetwork(sw, swWifi).TunnelName, "Advanced");
+            Check("simple-mode-rule-flags", swPlain.IsSimpleSsidRule && !swAdv.IsSimpleSsidRule
+                  && NetworkMatcher.IsRuleUsed(new AppConfig { SimpleWifiMode = true }, swPlain)
+                  && !NetworkMatcher.IsRuleUsed(new AppConfig { SimpleWifiMode = true }, swAdv)
+                  && NetworkMatcher.IsRuleUsed(new AppConfig(), swAdv));
+            // trusted-network and schedule rules are NOT restricted by Simple Wi-Fi mode
+            var simpleOn = new AppConfig { SimpleWifiMode = true };
+            Check("simple-mode-trusted-rule-used",  NetworkMatcher.IsRuleUsed(simpleOn, new TunnelRule { Kind = "trusted" }));
+            Check("simple-mode-schedule-rule-used", NetworkMatcher.IsRuleUsed(simpleOn, new TunnelRule { Kind = "schedule" }));
+            var swTrusted = Cfg(); swTrusted.SimpleWifiMode = true;
+            swTrusted.TrustedNetworks.Add("Home");
+            swTrusted.Rules.Add(new TunnelRule { Kind = "trusted", TrustedWhen = "untrusted", Tunnel = "Full" });
+            Eq("simple-mode-trusted-rule-fires", engine.EvaluateNetwork(swTrusted, Id("wifi", "wlan", ssid: "Cafe")).TunnelName, "Full");
+            var swNeg = new TunnelRule { Kind = "network" }; swNeg.SetConditions(new[] { new RuleCondition { By = "ssid", Value = "Home", Not = true } });
+            Check("simple-mode-negated-ssid-is-advanced", !swNeg.IsSimpleSsidRule);
+            var sw2 = Cfg(); sw2.SimpleWifiMode = true; sw2.Rules.Add(swAdv);
+            Check("simple-mode-dns-skips-advanced", DnsPolicy.Evaluate(new AppConfig { DnsAutomationEnabled = true, SimpleWifiMode = true,
+                Rules = { new TunnelRule { Kind = "network", MatchBy = "dnssuffix", MatchValue = "corp.example.com", DnsProfileId = "x" } } }, swWifi, now).Action == DnsPolicy.DnsActionKind.None);
 
             // 3. Gateway MAC vs SSID: no match-type ranking - whichever row is higher wins.
             var prio = Cfg();

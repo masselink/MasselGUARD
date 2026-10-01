@@ -54,7 +54,8 @@ namespace MasselGUARD.Views
                           IReadOnlyList<RuleCondition>? existingConditions = null,
                           Func<NetworkSnapshot>? captureNetwork = null,
                           Func<IReadOnlyList<NetworkIdentity>>? listAdapters = null,
-                          Func<IReadOnlyList<WifiHistoryEntry>>? recentNetworks = null)
+                          Func<IReadOnlyList<WifiHistoryEntry>>? recentNetworks = null,
+                          bool simpleMode = false)
         {
             InitializeComponent();
             LocalizeDayButtons();
@@ -69,6 +70,23 @@ namespace MasselGUARD.Views
             else
                 AddConditionRow(null);
             _loadingConditions = false;
+
+            // Simple Wi-Fi mode: a new rule (or an existing plain SSID rule) is just "SSID is X". A rule that
+            // already has more than that is edited with the full controls so it can still be changed or fixed.
+            bool plainSsid = existingConditions == null || existingConditions.Count == 0
+                || (existingConditions.Count == 1 && !existingConditions[0].Not && existingConditions[0].By == NetworkMatchBy.Ssid);
+            if (simpleMode && plainSsid)
+            {
+                var row = _rows[0];
+                row.Root.ColumnDefinitions[0].Width = new GridLength(0);   // hide "is / is not"
+                row.Root.ColumnDefinitions[1].Width = new GridLength(0);   // hide the match-by list: SSID only
+                row.OpBox.Visibility = Visibility.Collapsed;
+                row.ByBox.Visibility = Visibility.Collapsed;
+                row.RemoveBtn.Visibility = Visibility.Collapsed;
+                AddConditionBtn.Visibility = Visibility.Collapsed;
+                CondHintText.Visibility    = Visibility.Collapsed;
+                SimpleModeNote.Visibility  = Visibility.Visible;
+            }
 
             // Hide the DNS picker when the DNS module is off (tunnels-only); hide the tunnel
             // picker when the tunnel module is off (DNS-only → the rule is trigger → DNS).

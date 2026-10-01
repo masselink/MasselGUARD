@@ -79,7 +79,7 @@ namespace MasselGUARD.Services
             if (network != null)
             {
                 var m = NetworkMatcher.MatchingRules(cfg.Rules, network,
-                            r => !string.IsNullOrEmpty(r.DnsProfileId)).FirstOrDefault();   // table order: first hit wins
+                            r => !string.IsNullOrEmpty(r.DnsProfileId) && NetworkMatcher.IsRuleUsed(cfg, r)).FirstOrDefault();   // table order: first hit wins
                 if (m != null)
                     return Resolve(cfg, m.DnsProfileId, $"Rule: {NetworkMatcher.NetName(network)}");
             }

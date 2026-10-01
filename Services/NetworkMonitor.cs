@@ -175,10 +175,13 @@ namespace MasselGUARD.Services
         /// <param name="wifiLookup">Optional: adapter GUID to (SSID, isOpen). The GUI passes its
         /// <c>WiFiService</c>; without it Wi-Fi adapters have no SSID (the CLI has no WLAN handle).</param>
         /// <param name="resolveGatewayMac">Set false to skip the ARP lookup (faster, MAC stays null).</param>
+        /// <param name="wifiOnly">Simple Wi-Fi mode: only Wi-Fi adapters are considered, so a docked cable can never
+        /// become the primary network.</param>
         public static NetworkSnapshot Capture(
             string? primaryMode = null,
             Func<Guid, (string? ssid, bool isOpen)>? wifiLookup = null,
-            bool resolveGatewayMac = true)
+            bool resolveGatewayMac = true,
+            bool wifiOnly = false)
         {
             NetworkInterface[] all;
             try { all = NetworkInterface.GetAllNetworkInterfaces(); }
@@ -190,6 +193,7 @@ namespace MasselGUARD.Services
             foreach (var n in all)
             {
                 if (!IsCandidate(n, out var kind)) continue;
+                if (wifiOnly && kind != NetworkIdentity.KindWifi) continue;
                 try { list.Add(Describe(n, kind, metrics, wifiLookup, resolveGatewayMac)); }
                 catch { /* skip an adapter that vanished mid-read */ }
             }

@@ -497,6 +497,30 @@
                                 </Grid>
                             </Border>
 
+                            <!-- Trim memory while hidden in the tray -->
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,4,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding [SettingsTrimTray], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Text="{Binding [SettingsTrimTrayDesc], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                                   Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <ToggleButton Grid.Column="1" x:Name="TrimTrayToggle"
+                                                  Style="{StaticResource ToggleSwitch}"
+                                                  Checked="TrimTray_Changed"
+                                                  Unchecked="TrimTray_Changed"
+                                                  VerticalAlignment="Center"/>
+                                </Grid>
+                            </Border>
+
                             <!-- Confirm on close toggle -->
                             <Border Style="{StaticResource SettingsCard}" Margin="0,4,0,16">
                                 <Grid>
@@ -587,6 +611,10 @@
                             <!-- Group list + add row (top) -->
                             <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,12">
                                 <StackPanel>
+                                    <!-- What groups are and what each control in a row does -->
+                                    <TextBlock Text="{Binding [SettingsGroupsDesc], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,0,0,10"/>
                                     <!-- Add new group row at top -->
                                     <Grid Margin="0,0,0,10">
                                         <Grid.ColumnDefinitions>
@@ -594,6 +622,7 @@
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <TextBox Grid.Column="0" x:Name="NewGroupNameBox"
+                                                 ToolTip="{Binding [SettingsGroupNewTip], Source={x:Static local:Lang.Instance}}"
                                                  FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
                                                  Padding="8,5" Margin="0,0,6,0">
                                             <TextBox.Resources>
@@ -735,6 +764,32 @@
                                 </Grid>
                             </Border>
 
+                            <!-- Data-cap usage indicator: rings (compact) vs bars (taller), last card of
+                                 the Display section (it is a look-of-the-tunnel-list choice). -->
+                            <StackPanel x:Name="CapIndicatorSection">
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding [SettingsCapIndicatorTitle], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                               Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Text="{Binding [SettingsCapIndicatorDesc], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,2,0,8"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton x:Name="CapStyleRings" GroupName="CapStyle" Tag="rings"
+                                                     Content="{Binding [SettingsCapIndicatorRings], Source={x:Static local:Lang.Instance}}"
+                                                     Style="{StaticResource PillRadio}"
+                                                     Checked="CapStyle_Changed"/>
+                                        <RadioButton x:Name="CapStyleBars" GroupName="CapStyle" Tag="bars"
+                                                     Content="{Binding [SettingsCapIndicatorBars], Source={x:Static local:Lang.Instance}}"
+                                                     Style="{StaticResource PillRadio}" Margin="6,0,0,0"
+                                                     Checked="CapStyle_Changed"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            </StackPanel>
+
                             </StackPanel>
                             <!-- /TunnelsFeatureContent -->
 
@@ -763,6 +818,28 @@
 
                             <!-- Real Automation settings (hidden while the stub shows) -->
                             <StackPanel x:Name="AutoFeatureContent">
+
+                            <!-- Simple (classic) Wi-Fi mode: the toggle with what it does written next to it -->
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding [SettingsSimpleWifiLabel], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                                   FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Text="{Binding [SettingsSimpleWifiDesc], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                    <ToggleButton Grid.Column="1" x:Name="SimpleWifiModeToggle"
+                                                  Width="44" Height="22" Margin="16,0,0,0" VerticalAlignment="Top"
+                                                  Style="{StaticResource ToggleSwitch}"
+                                                  Checked="SimpleWifiMode_Changed" Unchecked="SimpleWifiMode_Changed"/>
+                                </Grid>
+                            </Border>
 
                             <!-- Tunnel-only WiFi sections - hidden in DNS-only mode (see ApplyFeatureSectionVisibility) -->
                             <StackPanel x:Name="WifiTunnelOnlySections">
@@ -1483,33 +1560,6 @@
 
                             <!-- Notifications moved to the "Notifications & history" tab -->
 
-                            <!-- Data-cap usage indicator: rings (compact) vs bars (taller). A display
-                                 choice for the tunnel list - placed under Notifications. Tunnel-only:
-                                 hidden in DNS-only mode (see ApplyFeatureSectionVisibility). -->
-                            <StackPanel x:Name="CapIndicatorSection">
-                            <TextBlock Text="{Binding [SettingsCapIndicatorTitle], Source={x:Static local:Lang.Instance}}"
-                                       Style="{StaticResource SettingsSectionHeader}"
-                                       Margin="0,16,0,4"/>
-                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,4">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding [SettingsCapIndicatorDesc], Source={x:Static local:Lang.Instance}}"
-                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
-                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
-                                               Margin="0,0,0,8"/>
-                                    <StackPanel Orientation="Horizontal">
-                                        <RadioButton x:Name="CapStyleRings" GroupName="CapStyle" Tag="rings"
-                                                     Content="{Binding [SettingsCapIndicatorRings], Source={x:Static local:Lang.Instance}}"
-                                                     Style="{StaticResource PillRadio}"
-                                                     Checked="CapStyle_Changed"/>
-                                        <RadioButton x:Name="CapStyleBars" GroupName="CapStyle" Tag="bars"
-                                                     Content="{Binding [SettingsCapIndicatorBars], Source={x:Static local:Lang.Instance}}"
-                                                     Style="{StaticResource PillRadio}" Margin="6,0,0,0"
-                                                     Checked="CapStyle_Changed"/>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-                            </StackPanel>
-
 
                         </StackPanel>
 
@@ -1693,6 +1743,25 @@
                                                   VerticalAlignment="Center"
                                                   Style="{StaticResource ToggleSwitch}"
                                                   Checked="TrayPopup_Changed" Unchecked="TrayPopup_Changed"/>
+                                </Grid>
+                            </Border>
+                            <!-- Network-change pop-up: off / only when no rule matched / always -->
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,4,0,4">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding [SettingsNetNotifyLabel], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Text="{Binding [SettingsNetNotifyDesc], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                    <ComboBox Grid.Column="1" x:Name="NetNotifyPicker"
+                                              MinWidth="190" FontSize="11" Margin="16,0,0,0" VerticalAlignment="Top"
+                                              SelectionChanged="NetNotify_Changed"/>
                                 </Grid>
                             </Border>
                             <!-- Notification duration -->
@@ -1905,6 +1974,41 @@
                                                      Foreground="{DynamicResource TextPrimary}"
                                                      Checked="InfoTimeRange_Changed"/>
                                     </WrapPanel>
+
+                                    <!-- Redraw rates: the chart is rebuilt from scratch each time, so a slower
+                                         rate saves CPU and memory churn. Values are clamped (5-60 / 1-10). -->
+                                    <TextBlock Text="{Binding [HistoryRefreshLabel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                               FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"
+                                               Margin="0,14,0,2"/>
+                                    <TextBlock Text="{Binding [HistoryRefreshDesc], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                               Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"
+                                               Margin="0,0,0,8"/>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                                                   Text="{Binding [HistoryRefreshIdle], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBox Grid.Column="1" x:Name="ChartRefreshIdleBox" Width="70" FontSize="11" Padding="6,4"
+                                                 VerticalAlignment="Center" LostFocus="ChartRefresh_Changed"/>
+                                    </Grid>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                                                   Text="{Binding [HistoryRefreshActive], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBox Grid.Column="1" x:Name="ChartRefreshActiveBox" Width="70" FontSize="11" Padding="6,4"
+                                                 VerticalAlignment="Center" LostFocus="ChartRefresh_Changed"/>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
 

@@ -103,9 +103,14 @@
                                FontFamily="{DynamicResource Theme.FontFamily}"
                                FontSize="9" Foreground="{DynamicResource TextMuted}"
                                TextWrapping="Wrap" Margin="0,0,0,4"/>
-                    <TextBlock Text="{Binding [RuleCondHint], Source={x:Static local:Lang.Instance}}"
+                    <TextBlock x:Name="CondHintText" Text="{Binding [RuleCondHint], Source={x:Static local:Lang.Instance}}"
                                FontFamily="{DynamicResource Theme.FontFamily}"
                                FontSize="9" Foreground="{DynamicResource TextMuted}"
+                               TextWrapping="Wrap" Margin="0,0,0,12"/>
+                    <TextBlock x:Name="SimpleModeNote" Visibility="Collapsed"
+                               Text="{Binding [RuleSimpleModeNote], Source={x:Static local:Lang.Instance}}"
+                               FontFamily="{DynamicResource Theme.FontFamily}"
+                               FontSize="9" Foreground="{DynamicResource Accent}"
                                TextWrapping="Wrap" Margin="0,0,0,12"/>
                 </StackPanel>
 

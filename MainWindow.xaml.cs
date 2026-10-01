@@ -1889,7 +1889,7 @@ namespace MasselGUARD
             string? serviceSsid = WifiSvc.CurrentSsid;
             UpdateWifiLabel(serviceSsid);
             UpdateTunnelLabel();
-            RefreshInfoSection();
+            RefreshInfoSection(force: false);
 
             // Only redraw tray icon when active tunnel count actually changes
             int activeCount = _vm.TunnelList.Count(t => t.IsActive);
@@ -2244,6 +2244,31 @@ namespace MasselGUARD
 
             e.Cancel = true;
             Hide();
+            TrimMemoryIfEnabled();
+        }
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        private static extern bool SetProcessWorkingSetSize(IntPtr process, IntPtr min, IntPtr max);
+
+        /// <summary>When the window goes to the tray: compact the managed heap and hand the freed pages
+        /// back to Windows (Task Manager then shows the real footprint). Opt-out: TrimMemoryInTray.
+        /// Runs at idle priority; the cost is a slightly slower first redraw after reopening.</summary>
+        private void TrimMemoryIfEnabled()
+        {
+            if (!ConfigSvc.Config.TrimMemoryInTray) return;
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, new Action(() =>
+            {
+                if (IsVisible) return;   // reopened in the meantime
+                try
+                {
+                    System.Runtime.GCSettings.LargeObjectHeapCompactionMode =
+                        System.Runtime.GCLargeObjectHeapCompactionMode.CompactOnce;
+                    GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+                    GC.WaitForPendingFinalizers();
+                    SetProcessWorkingSetSize(System.Diagnostics.Process.GetCurrentProcess().Handle, (IntPtr)(-1), (IntPtr)(-1));
+                }
+                catch { }
+            }));
         }
 
         private void CloseBtn_Click(object sender, RoutedEventArgs e)
@@ -2253,7 +2278,10 @@ namespace MasselGUARD
                  System.Windows.Input.ModifierKeys.Shift) != 0)
                 ((App)Application.Current).TryExit();
             else
+            {
                 Hide();
+                TrimMemoryIfEnabled();
+            }
         }
 
         private void DismissBanner_Click(object sender, RoutedEventArgs e)
@@ -2426,8 +2454,27 @@ namespace MasselGUARD
             return false;
         }
 
+        /// <summary>Collapses (or restores) the Rules column of the tunnel and DNS lists: the header,
+        /// the cells AND the column width, so the freed space goes to the other columns.</summary>
+        private void ApplyRulesColumnLayout()
+        {
+            _rulesColShown = _vm.RulesColumnVisibility == Visibility.Visible;
+            if (!_colInitDone) return;
+            if (!_rulesColShown)
+            {
+                TunColDef2.MinWidth = 0; TunColDef2.MaxWidth = 0; TunColDef2.Width = new GridLength(0); _vm.TunCol2W = 0;
+                DnsColDef3.MinWidth = 0; DnsColDef3.MaxWidth = 0; DnsColDef3.Width = new GridLength(0); _vm.DnsCol3W = 0;
+            }
+            else
+            {
+                TunColDef2.MaxWidth = double.PositiveInfinity; TunColDef2.MinWidth = 30; TunColDef2.Width = new GridLength(50);
+                DnsColDef3.MaxWidth = double.PositiveInfinity; DnsColDef3.MinWidth = 40; DnsColDef3.Width = new GridLength(52);
+            }
+        }
+
         public void UpdateRulesColumnVisibility()
         {
+            ApplyRulesColumnLayout();
             bool show = ConfigSvc.Config.ShowTunnelRulesColumn;
             var vis   = show ? Visibility.Visible : Visibility.Collapsed;
 
@@ -3132,7 +3179,8 @@ namespace MasselGUARD
                 tunnelsEnabled: ConfigSvc.Config.EnableTunnels,
                 captureNetwork: CaptureNetworkSnapshot,
                 listAdapters:   NetworkMonitor.ListPhysicalAdapters,
-                recentNetworks: () => HistorySvc.SsidEntries)
+                recentNetworks: () => HistorySvc.SsidEntries,
+                simpleMode:     ConfigSvc.Config.SimpleWifiMode)
                 { Owner = this };
             if (dlg.ShowDialog() != true) return;
             var rule = new Models.TunnelRule
@@ -3179,7 +3227,8 @@ namespace MasselGUARD
                 existingConditions: rule.EffectiveConditions.Select(c => c.Clone()).ToList(),
                 captureNetwork: CaptureNetworkSnapshot,
                 listAdapters:   NetworkMonitor.ListPhysicalAdapters,
-                recentNetworks: () => HistorySvc.SsidEntries)
+                recentNetworks: () => HistorySvc.SsidEntries,
+                simpleMode:     ConfigSvc.Config.SimpleWifiMode)
                 { Owner = this };
             if (dlg.ShowDialog() != true) return;
             rule.Kind        = dlg.ResultKind;
@@ -3484,6 +3533,42 @@ namespace MasselGUARD
             foreach (var t in _vm.TunnelList) t.NotifyBadgesChanged();
         }
 
+        private DateTime _footerDnsAt = DateTime.MinValue;
+        private List<string> _footerDns = new();
+
+        /// <summary>The DNS servers in use right now: the active tunnel's own (full-tunnel DNS), else the
+        /// primary network adapter's (which already carries any DNS-automation override). Cached for 3 s
+        /// because the footer refreshes every second.</summary>
+        private List<string> FooterDnsServers()
+        {
+            if ((DateTime.UtcNow - _footerDnsAt).TotalSeconds < 3) return _footerDns;
+            _footerDnsAt = DateTime.UtcNow;
+            var result = new List<string>();
+            try
+            {
+                var nics = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces();
+                static List<string> Servers(System.Net.NetworkInformation.NetworkInterface? ni) =>
+                    ni == null ? new() : ni.GetIPProperties().DnsAddresses
+                        .Where(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork || !a.IsIPv6LinkLocal && !a.IsIPv6SiteLocal)
+                        .Select(a => a.ToString()).Distinct().ToList();
+
+                foreach (var t in _vm.TunnelList.Where(t => t.IsActive))
+                {
+                    var s = Servers(nics.FirstOrDefault(n => n.Name.Equals(t.Name, StringComparison.OrdinalIgnoreCase)));
+                    if (s.Count > 0) { result = s; break; }
+                }
+                if (result.Count == 0)
+                {
+                    var id = _vm.CurrentNetwork.Primary?.AdapterId;
+                    if (!string.IsNullOrEmpty(id))
+                        result = Servers(nics.FirstOrDefault(n => string.Equals(n.Id, id, StringComparison.OrdinalIgnoreCase)));
+                }
+            }
+            catch { }
+            _footerDns = result;
+            return result;
+        }
+
         public void UpdateStatusBarCentre()
         {
             var def  = ConfigSvc.Config.DefaultTunnel;
@@ -3496,8 +3581,15 @@ namespace MasselGUARD
             bool showWifi = footerNet != null;
             WifiFooterLabel.Text       = showWifi ? $"{(footerNet!.Value.wired ? "🔌" : "📶")} {footerNet.Value.label}" : "";
             WifiFooterLabel.Visibility = showWifi ? Visibility.Visible : Visibility.Collapsed;
+            // DNS servers in use right now
+            var dnsServers = FooterDnsServers();
+            bool showDns = dnsServers.Count > 0;
+            DnsFooterLabel.Text       = showDns ? "🌐 " + string.Join(", ", dnsServers.Take(2)) + (dnsServers.Count > 2 ? " …" : "") : "";
+            DnsFooterLabel.ToolTip    = showDns ? Lang.T("FooterDnsTip", string.Join("\n", dnsServers)) : null;
+            DnsFooterLabel.Visibility = showDns ? Visibility.Visible : Visibility.Collapsed;
+            DnsFooterSep.Visibility   = showDns && (showDef || showOpen) ? Visibility.Visible : Visibility.Collapsed;
             // Separator between WiFi and the other items - only when something follows
-            WifiFooterSep.Visibility   = showWifi && (showDef || showOpen)
+            WifiFooterSep.Visibility   = showWifi && (showDns || showDef || showOpen)
                 ? Visibility.Visible : Visibility.Collapsed;
 
             DefaultTunnelLabel.Text        = showDef  ? $"⚡ {def}"  : "";
@@ -3618,6 +3710,12 @@ namespace MasselGUARD
             /// rules match: the lowest number wins. It follows drag and drop, not the display sorting.</summary>
             public int    OrderNumber { get; }
 
+            /// <summary>Simple Wi-Fi mode: a network rule with more than a plain SSID condition stays in the list
+            /// but is not used, so it is dimmed and marked.</summary>
+            public bool   NotUsed { get; }
+            /// <summary>Extra dimming for an unused rule; it multiplies with the rule's own enabled/disabled opacity.</summary>
+            public double NotUsedOpacity => NotUsed ? 0.55 : 1.0;
+
             // Separate columns: Tunnel (🔒) and DNS profile (🌐). Each hides when its value is empty.
             public Visibility TunnelVisibility =>
                 string.IsNullOrEmpty(TunnelName) ? Visibility.Collapsed : Visibility.Visible;
@@ -3675,7 +3773,8 @@ namespace MasselGUARD
                 OrderNumber    = main.ConfigSvc.Config.Rules.IndexOf(r) + 1;
                 // Kind-aware display comes straight from the rule (handles wifi / schedule / trusted).
                 RuleName       = r.RuleName;
-                Ssid           = r.SsidDisplay;
+                NotUsed        = !NetworkMatcher.IsRuleUsed(main.ConfigSvc.Config, r);
+                Ssid           = r.SsidDisplay + (NotUsed ? "   ⊘ " + Lang.T("RuleNotUsedSimple") : "");
                 TunnelName     = string.IsNullOrEmpty(r.Tunnel) ? "" : r.Tunnel;
                 // The tunnel action depends only on the Tunnel field - an empty tunnel disconnects,
                 // whether or not the rule also sets a DNS profile (DNS is a separate column/axis).
@@ -4840,9 +4939,21 @@ namespace MasselGUARD
             => RefreshInfoSection();
 
         /// <summary>Called each second from OnStatusTick when the info section is visible.</summary>
-        private void RefreshInfoSection()
+        private DateTime _lastInfoRender = DateTime.MinValue;
+
+        /// <param name="force">false for the 1 s tick: the whole chart is rebuilt (hundreds of shapes), so it
+        /// is only redrawn every <c>ChartRefreshIdleSec</c> (nothing connected) / <c>ChartRefreshActiveSec</c>
+        /// (a tunnel is up, live bytes). Resizes, range/mode changes and theme changes force an immediate redraw.</param>
+        private void RefreshInfoSection(bool force = true)
         {
             if (InfoSectionBorder.Visibility != Visibility.Visible) return;
+            if (!force)
+            {
+                double minGap = _vm.TunnelList.Any(t => t.IsActive)
+                    ? ConfigSvc.Config.ChartRefreshActiveSec : ConfigSvc.Config.ChartRefreshIdleSec;
+                if ((DateTime.UtcNow - _lastInfoRender).TotalSeconds < minGap) return;
+            }
+            _lastInfoRender = DateTime.UtcNow;
 
             // Update live KB/s snapshots for active tunnels
             foreach (var tvm in _vm.TunnelList.Where(t => t.IsActive))
@@ -6458,6 +6569,7 @@ namespace MasselGUARD
 
         private System.Windows.Threading.DispatcherTimer? _colSaveTimer;
         private bool _colInitDone;
+        private bool _rulesColShown = true;   // Rules column of the tunnel + DNS lists shown
         private bool _wifTunnelCol = true;   // WiFi-rules Tunnel column shown (tunnels feature on)
         private bool _wifDnsCol    = true;   // WiFi-rules DNS column shown (DNS feature on)
 
@@ -6552,6 +6664,11 @@ namespace MasselGUARD
             }
             _colInitDone = true;
             ApplyWifiColVisibility();   // apply feature-based column drops now that widths are live
+            ApplyRulesColumnLayout();
+            _vm.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(MainViewModel.RulesColumnVisibility)) ApplyRulesColumnLayout();
+            };
         }
 
         private void TunnelColGrid_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -6559,17 +6676,17 @@ namespace MasselGUARD
             double total = e.NewSize.Width;
             double min   = Math.Floor(total * 0.10);
             TunColDef0.MinWidth = min; TunColDef1.MinWidth = min;
-            TunColDef2.MinWidth = min; TunColDef3.MinWidth = min;
+            TunColDef2.MinWidth = _rulesColShown ? min : 0; TunColDef3.MinWidth = min;
             // MaxWidth: no column can grow past total minus the other columns' minimums
             TunColDef0.MaxWidth = total - min - min - min;
             TunColDef1.MaxWidth = total - min - min - min;
-            TunColDef2.MaxWidth = total - min - min - min;
+            TunColDef2.MaxWidth = _rulesColShown ? total - min - min - min : 0;
             TunColDef3.MaxWidth = total - min - min - min;
             if (TunColDef0.ActualWidth > 0)
             {
                 if (TunColDef0.ActualWidth < min) TunColDef0.Width = new GridLength(min);
                 if (TunColDef1.ActualWidth < min) TunColDef1.Width = new GridLength(min);
-                if (TunColDef2.ActualWidth < min) TunColDef2.Width = new GridLength(min);
+                if (_rulesColShown && TunColDef2.ActualWidth < min) TunColDef2.Width = new GridLength(min);
                 if (TunColDef3.ActualWidth < min) TunColDef3.Width = new GridLength(min);
             }
         }
@@ -6605,8 +6722,9 @@ namespace MasselGUARD
             // The Server column (2) is removed - pinned to zero width.
             DnsColDef0.MinWidth = 60; DnsColDef1.MinWidth = 50;
             DnsColDef2.MinWidth = 0; DnsColDef2.MaxWidth = 0; DnsColDef2.Width = new GridLength(0);
-            DnsColDef3.MinWidth = 40; DnsColDef4.MinWidth = 60;
-            double reserved = 50 + 40 + 60;   // Type + Rules + Enable minimums
+            DnsColDef3.MinWidth = _rulesColShown ? 40 : 0; DnsColDef4.MinWidth = 60;
+            if (!_rulesColShown) DnsColDef3.MaxWidth = 0;
+            double reserved = 50 + (_rulesColShown ? 40 : 0) + 60;   // Type + Rules + Enable minimums
             DnsColDef0.MaxWidth = Math.Max(60, total - reserved);
             if (DnsColDef0.ActualWidth > 0 && DnsColDef0.ActualWidth < 60)
                 DnsColDef0.Width = new GridLength(60);

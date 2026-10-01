@@ -9,6 +9,7 @@ Automation now understands **wired networks**, not just Wi-Fi. Rules can match a
 - **Fetch instead of typing** - every value has a **Fetch** button that opens a list to pick from: the networks you are connected to **right now**, and, depending on the condition, **other adapters on this PC that are not connected** (a docking-station card that is unplugged is still a valid target) or **recently connected** networks from your history (SSIDs, DNS suffixes, gateway MACs). The three device conditions accept a **comma-separated list** ("any of"), and **Shift+click** in the Fetch list adds a value to the list instead of replacing it. Each network is a group with its own header; for subnets, the bold **All subnets together** row fills in every subnet at once and single IPv4 / IPv6 subnets are listed below it.
 - **Trusted networks accept more than SSIDs** - the list can hold `suffix:corp.example.com`, `mac:aa:bb:cc:00:11:22` and `subnet:10.20.0.0/16` entries next to plain Wi-Fi names, and has a Fetch button too.
 - **Wi-Fi and cable at the same time** - when both are connected, one network is the **primary network** and it decides which tunnel is used. By default it follows Windows (whichever connection Windows actually uses); in **Settings > Automation > Network matching** you can prefer wired or prefer Wi-Fi. DNS rules are applied to every connected adapter, so nothing is left unprotected when Windows switches between them.
+- **Simple Wi-Fi mode** (Settings > Automation, with its explanation next to the switch) - the classic behaviour for people who only use Wi-Fi names. Only Wi-Fi networks are considered, so a docked cable never takes over, and only rules that match a single Wi-Fi name (SSID) are used. Rules with other conditions stay in the list, dimmed and marked "not used in simple mode", but do not fire; the rule dialog offers only the SSID, and the primary-network setting is greyed out. Off by default.
 - **Quiet and stable** - bursts of network events (plugging in a dock, a DHCP renewal) are combined into one check, and a change that does not affect your rules does nothing. A Wi-Fi that is connected but still waiting for an address is not treated as a disconnect. The gateway MAC is only looked up when you actually use a MAC rule.
 
 ### More than one condition
@@ -39,8 +40,25 @@ Automation now understands **wired networks**, not just Wi-Fi. Rules can match a
 - **Command line** - new `network status` shows the same picture (read-only, no administrator rights needed) plus what the rules would do, and `wifi-history` also answers to `network-history` and now has a Type column. Add `--json` for scripts.
 - The **setup wizard** has a short card about wired and Wi-Fi matching.
 
+### Main window
+
+- **DNS servers in the footer** - a new `🌐` entry between the network and the default-tunnel items shows the DNS servers in use right now: the connected tunnel's own servers, otherwise those of the primary network's adapter (which already carries any DNS-automation override). It shows the first two, with `…` when there are more; hover for the full list and where it comes from. Hidden when no servers are known.
+- **"Data usage" column header** - the usage bars or rings of every tunnel row now have a header, lined up with the bars.
+- **The Rules column really hides** - turning off **Show Rules column** now removes the column in both the tunnel list and the DNS profile list (before, only the tunnel list lost its numbers, and the empty column left the Connect button partly cut off). The freed space goes to the other columns, and the Connect button is always fully visible.
+- **Bars or rings moved** - the choice now sits in **Settings > WireGuard > Display**, with the other tunnel-list display options, instead of under Appearance.
+- **Tunnel groups explain themselves** - the Tunnel groups section has a short description of what groups are, and every control (name box, colour, up, down, delete) has a tooltip.
+- **Clearer toggle names** - the Automation panel, the DNS feature and DNS automation switches have reworded names and descriptions, so it is clear which one does what.
+
+### Lighter and faster
+
+- **Saving settings is much quicker** - the theme used to be loaded twice on every save, and each load rebuilt the whole main window. It is now applied once, and only when the theme, light/dark mode or font actually changed.
+- **The chart no longer redraws every second** - it is rebuilt only every few seconds, which saves processor time and memory churn. **Settings > History > Activity chart** has two settings: seconds between redraws **while nothing is connected** (5 to 60, default 10) and **while a tunnel is connected** (1 to 10, default 2). Values outside the limits are corrected, also when typed into `config.json` or imported from a preset. Resizing the window or changing the range or theme still redraws at once.
+- **Free memory while in the tray** (Settings > Startup, on by default) - when the window is closed to the tray, MasselGUARD compacts its memory and returns the unused part to Windows, so Task Manager shows the real footprint. The first redraw after reopening can be a little slower.
+- Background garbage collection and tiered PGO are switched off, which lowers the idle memory of this small desktop app.
+
 ### Also in this release
 
+- **Notify on network changes** (Settings > Notifications) - a pop-up when the network you are on changes: the new network, whether it is open (with a warning colour), the DNS in use, whether a tunnel is up, and which automation, if any, applied. Choose **Off** (default), **Only when no rule matched** (the networks nothing else would have told you about) or **Always**. It follows the primary network, so dock plug-ins and lease renewals do not repeat it, and it never fires at startup.
 - **Themed Fetch menu and dialogs** - the Fetch drop-downs and the validation messages in the rule dialog now follow the theme instead of using plain Windows boxes.
 - **Managed presets** can lock the primary-network setting together with the other Automation settings.
 - Translated in all 12 languages (the activity-log lines and the Advanced test reasoning stay in English so they are easy to share for support).

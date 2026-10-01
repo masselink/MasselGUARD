@@ -77,6 +77,26 @@ namespace MasselGUARD.Models
         /// <summary>Max size of the persisted log file in KB; oldest lines are dropped past it.
         /// 0 = unlimited.</summary>
         public int     MaxLogSizeKB       { get; set; } = 512;
+        // Performance. The setters clamp, so a hand-edited config.json or an imported preset can't
+        // spin the UI thread (0 s) or freeze the chart (hours).
+        public const int ChartRefreshIdleMin = 5,   ChartRefreshIdleMax = 60,  ChartRefreshIdleDefault = 10;
+        public const int ChartRefreshActiveMin = 1, ChartRefreshActiveMax = 10, ChartRefreshActiveDefault = 2;
+        private int _chartRefreshIdleSec   = ChartRefreshIdleDefault;
+        private int _chartRefreshActiveSec = ChartRefreshActiveDefault;
+        /// <summary>Seconds between chart redraws while no tunnel is connected (5-60).</summary>
+        public int     ChartRefreshIdleSec
+        {
+            get => _chartRefreshIdleSec;
+            set => _chartRefreshIdleSec = Math.Clamp(value, ChartRefreshIdleMin, ChartRefreshIdleMax);
+        }
+        /// <summary>Seconds between chart redraws while a tunnel is connected (1-10).</summary>
+        public int     ChartRefreshActiveSec
+        {
+            get => _chartRefreshActiveSec;
+            set => _chartRefreshActiveSec = Math.Clamp(value, ChartRefreshActiveMin, ChartRefreshActiveMax);
+        }
+        /// <summary>Give memory back to Windows when the window is hidden to the tray (default on).</summary>
+        public bool    TrimMemoryInTray   { get; set; } = true;
         public bool    ShowTrayPopupOnSwitch { get; set; } = true;
         public int     NotificationDurationSeconds { get; set; } = 5;
         public bool    SuppressPortableUpdatePrompt { get; set; } = false;
@@ -227,6 +247,16 @@ namespace MasselGUARD.Models
 
         /// <summary>Debounce window (ms) for bursts of network-change events (dock plug-in, DHCP renew).</summary>
         public int NetworkSettleMs { get; set; } = 2000;
+
+        /// <summary>Simple (classic) Wi-Fi mode: only Wi-Fi networks are considered (a docked cable never becomes
+        /// "the network") and only rules that match a single Wi-Fi name (SSID) are used. Other network rules stay in
+        /// the list but are not used; the rule dialog offers only the SSID. Off by default.</summary>
+        public bool SimpleWifiMode { get; set; } = false;
+
+        /// <summary>Pop-up when the primary network changes: "off" (default) | "nomatch" (only when no automation
+        /// applied to the new network) | "always". Shows the network, whether it is open, the DNS in use and the
+        /// tunnel state.</summary>
+        public string NetworkChangeNotify { get; set; } = "off";
 
         // (No match-type priority setting: when several network rules match, the FIRST one in the rules
         //  table, top-down, wins. The user arranges the table by drag and drop.)

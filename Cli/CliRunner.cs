@@ -208,7 +208,8 @@ namespace MasselGUARD.Cli
             wifi.Start();
             wifi.QueryCurrentSsid();
             var snap = Services.NetworkMonitor.Capture(cfg.PrimaryNetworkMode,
-                guid => guid == wifi.CurrentInterfaceGuid ? (wifi.CurrentSsid, wifi.IsOpenNetwork) : (null, false));
+                guid => guid == wifi.CurrentInterfaceGuid ? (wifi.CurrentSsid, wifi.IsOpenNetwork) : (null, false),
+                wifiOnly: cfg.SimpleWifiMode);
 
             var now    = DateTime.Now;
             var engine = new Services.RuleEngine();
@@ -244,6 +245,7 @@ namespace MasselGUARD.Cli
             }
 
             CliOutput.Info($"Primary mode:   {cfg.PrimaryNetworkMode}");
+            CliOutput.Info($"Simple Wi-Fi:   {(cfg.SimpleWifiMode ? "ON - only Wi-Fi networks and plain SSID rules are used" : "off")}");
             CliOutput.Info("Rule order:     first matching rule in the rules table, top-down");
             if (snap.IsEmpty) CliOutput.Info("Networks:       none connected");
             else

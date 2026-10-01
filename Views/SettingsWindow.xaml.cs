@@ -176,10 +176,10 @@ namespace MasselGUARD.Views
             ApplyFeatureStubs();
 
             if (tab == "General")    { RefreshFeatureControls(); RefreshGroupList(); }
-            if (tab == "Tunnels")    { RefreshGroupList(); SyncArMode(); SyncKsMode(); SyncSkipTunnelValidation(); }
+            if (tab == "Tunnels")    { RefreshGroupList(); SyncArMode(); SyncKsMode(); SyncSkipTunnelValidation(); SyncCapStyle(); }
             if (tab == "Wifi")       { RefreshAutomationControls(); ApplyFeatureSectionVisibility(); }
             if (tab == "Dns")        { RefreshDnsControls(); RefreshDnsLeakSection(); }
-            if (tab == "Appearance") { PopulateThemePicker(); SyncCapStyle(); ApplyFeatureSectionVisibility(); }
+            if (tab == "Appearance") { PopulateThemePicker(); }
             if (tab == "Notifications") PopulateNotifSettings();
             if (tab == "History")    RefreshHistoryTab();
             if (tab == "Log")        { PopulateLogLevelPicker(); PopulateLogSettings(); }
@@ -239,6 +239,7 @@ namespace MasselGUARD.Views
             L(OpenWifiTunnelBox, "OpenWifiTunnel");
             L(TrustedNetworksBox, "TrustedNetworks"); D(AddCurrentTrustedBtn, "TrustedNetworks");
             L(PrimaryNetworkBox, "PrimaryNetworkMode");
+            L(SimpleWifiModeToggle, "SimpleWifiMode");
             // (WiFi rules list moved to the main window - no rule buttons to gate here.)
 
             // Tunnels
@@ -263,6 +264,7 @@ namespace MasselGUARD.Views
             // Notifications
             L(TrayPopupToggle, "ShowTrayPopupOnSwitch");
             L(NotifDurationPicker, "NotificationDurationSeconds");
+            L(NetNotifyPicker, "NetworkChangeNotify");
 
             // Display
             L(HideWifiRulesToggle, "ShowWifiRulesOnMainWindow");
@@ -593,6 +595,7 @@ namespace MasselGUARD.Views
                     Background      = (System.Windows.Media.Brush)FindResource("CardBg"),
                     Foreground      = (System.Windows.Media.Brush)FindResource("TextPrimary"),
                     BorderBrush     = (System.Windows.Media.Brush)FindResource("BorderColor"),
+                    ToolTip         = Lang.T("GroupColorTip"),
                 };
                 foreach (var (hex, label) in themePresets)
                 {
@@ -643,22 +646,23 @@ namespace MasselGUARD.Views
                 if (canReorder && listIdx.HasValue)
                 {
                     int idx = listIdx.Value;
-                    void MakeBtn(string label, Action click)
+                    void MakeBtn(string label, string tipKey, Action click)
                     {
                         var b = new Button
                         {
                             Content = label, Style=(Style)FindResource("FlatBtn"),
                             FontSize=11, Padding=new Thickness(5,2,5,2), Margin=new Thickness(4,0,0,0),
+                            ToolTip = Lang.T(tipKey),
                         };
                         b.Click += (_,_) => click();
                         row.Children.Add(b);
                     }
                     if (idx > 0)
-                        MakeBtn("↑", () => { var t=groups[idx]; groups.RemoveAt(idx); groups.Insert(idx-1,t); RefreshGroupList(); });
+                        MakeBtn("↑", "GroupMoveUpTip", () => { var t=groups[idx]; groups.RemoveAt(idx); groups.Insert(idx-1,t); RefreshGroupList(); });
                     if (idx < groups.Count - 1)
-                        MakeBtn("↓", () => { var t=groups[idx]; groups.RemoveAt(idx); groups.Insert(idx+1,t); RefreshGroupList(); });
+                        MakeBtn("↓", "GroupMoveDownTip", () => { var t=groups[idx]; groups.RemoveAt(idx); groups.Insert(idx+1,t); RefreshGroupList(); });
                     if (canDelete)
-                        MakeBtn("✕", () => { groups.RemoveAt(idx); hidden.Remove(groupKey); RefreshGroupList(); });
+                        MakeBtn("✕", "GroupDeleteTip", () => { groups.RemoveAt(idx); hidden.Remove(groupKey); RefreshGroupList(); });
                 }
 
                 GroupListPanel.Items.Add(row);
@@ -713,8 +717,8 @@ namespace MasselGUARD.Views
         private void HideWifiRules_Changed(object sender, System.Windows.RoutedEventArgs e)
         {
             if (_loading) return;
-            _draft.ShowWifiRulesOnMainWindow =
-                !(HideWifiRulesToggle?.IsChecked == true);
+            // The switch now reads "Show the Automation panel" (on = shown), so it maps straight to the setting.
+            _draft.ShowWifiRulesOnMainWindow = HideWifiRulesToggle?.IsChecked == true;
             _main.RefreshWifiRulesPanel();
         }
 
@@ -919,6 +923,13 @@ namespace MasselGUARD.Views
             if (_loading) return;
             if (NotifDurationPicker?.SelectedItem is System.Windows.Controls.ComboBoxItem ci)
                 _draft.NotificationDurationSeconds = (int)ci.Tag;
+        }
+
+        private void NetNotify_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_loading) return;
+            if ((NetNotifyPicker?.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag is string mode)
+                _draft.NetworkChangeNotify = mode;
         }
 
         private void TrayPopup_Changed(object sender, RoutedEventArgs e)
@@ -1173,7 +1184,7 @@ namespace MasselGUARD.Views
 
             // Rules visibility toggles (moved here from General)
             if (HideWifiRulesToggle != null)
-                HideWifiRulesToggle.IsChecked = !cfg.ShowWifiRulesOnMainWindow;
+                HideWifiRulesToggle.IsChecked = cfg.ShowWifiRulesOnMainWindow;
             if (ShowRulesColumnToggle != null)
                 ShowRulesColumnToggle.IsChecked = cfg.ShowTunnelRulesColumn;
 
@@ -1240,6 +1251,24 @@ namespace MasselGUARD.Views
                 }
                 if (PrimaryNetworkBox.SelectedItem == null) PrimaryNetworkBox.SelectedIndex = 0;
             }
+            if (SimpleWifiModeToggle != null) SimpleWifiModeToggle.IsChecked = _draft.SimpleWifiMode;
+            ApplySimpleModeEnabling();
+        }
+
+        /// <summary>In Simple Wi-Fi mode only Wi-Fi counts as "the network", so choosing which network is primary
+        /// (Windows / wired / Wi-Fi) has no meaning and is greyed out.</summary>
+        private void ApplySimpleModeEnabling()
+        {
+            if (PrimaryNetworkBox == null) return;
+            bool locked = _main.ConfigSvc.IsLocked("PrimaryNetworkMode");
+            PrimaryNetworkBox.IsEnabled = !_draft.SimpleWifiMode && !locked;
+        }
+
+        private void SimpleWifiMode_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.SimpleWifiMode = SimpleWifiModeToggle?.IsChecked == true;
+            ApplySimpleModeEnabling();
         }
 
         private void PrimaryNetwork_Changed(object sender, SelectionChangedEventArgs e)
@@ -1809,6 +1838,20 @@ namespace MasselGUARD.Views
             {
                 _loading = true;
                 TrayPopupToggle.IsChecked = _draft.ShowTrayPopupOnSwitch;
+                _loading = false;
+            }
+
+            if (NetNotifyPicker != null)
+            {
+                _loading = true;
+                NetNotifyPicker.Items.Clear();
+                foreach (var (mode, key) in new[] { ("off", "SettingsNetNotifyOff"), ("nomatch", "SettingsNetNotifyNoRule"), ("always", "SettingsNetNotifyAlways") })
+                {
+                    var item = new System.Windows.Controls.ComboBoxItem { Content = Lang.T(key), Tag = mode };
+                    NetNotifyPicker.Items.Add(item);
+                    if (mode == _draft.NetworkChangeNotify) NetNotifyPicker.SelectedItem = item;
+                }
+                if (NetNotifyPicker.SelectedItem == null) NetNotifyPicker.SelectedIndex = 0;
                 _loading = false;
             }
 
@@ -2445,6 +2488,7 @@ namespace MasselGUARD.Views
             if (StartMinimizedToggle == null) return;
             _loading = true;
             StartMinimizedToggle.IsChecked = _draft.StartMinimized;
+            if (TrimTrayToggle != null) TrimTrayToggle.IsChecked = _draft.TrimMemoryInTray;
             _loading = false;
         }
 
@@ -2452,6 +2496,23 @@ namespace MasselGUARD.Views
         {
             if (_loading) return;
             _draft.StartMinimized = StartMinimizedToggle?.IsChecked == true;
+        }
+
+        private void TrimTray_Changed(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.TrimMemoryInTray = TrimTrayToggle?.IsChecked == true;
+        }
+
+        /// <summary>Chart redraw rates: out-of-range or non-numeric input is clamped / reverted
+        /// (AppConfig's setters hold the limits).</summary>
+        private void ChartRefresh_Changed(object sender, System.Windows.RoutedEventArgs e)
+        {
+            if (_loading) return;
+            if (int.TryParse(ChartRefreshIdleBox?.Text, out int idle))   _draft.ChartRefreshIdleSec   = idle;
+            if (int.TryParse(ChartRefreshActiveBox?.Text, out int act))  _draft.ChartRefreshActiveSec = act;
+            if (ChartRefreshIdleBox   != null) ChartRefreshIdleBox.Text   = _draft.ChartRefreshIdleSec.ToString();
+            if (ChartRefreshActiveBox != null) ChartRefreshActiveBox.Text = _draft.ChartRefreshActiveSec.ToString();
         }
 
         private void SyncArMode()
@@ -2809,6 +2870,9 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.SystemThemeMode     = _draft.SystemThemeMode;
             _main.ConfigSvc.Config.ConfirmOnClose      = _draft.ConfirmOnClose;
             _main.ConfigSvc.Config.StartMinimized      = _draft.StartMinimized;
+            _main.ConfigSvc.Config.TrimMemoryInTray    = _draft.TrimMemoryInTray;
+            _main.ConfigSvc.Config.ChartRefreshIdleSec   = _draft.ChartRefreshIdleSec;
+            _main.ConfigSvc.Config.ChartRefreshActiveSec = _draft.ChartRefreshActiveSec;
             _main.ConfigSvc.Config.AutoReconnectMode   = _draft.AutoReconnectMode;
             _main.ConfigSvc.Config.ShowDnsIndicator    = _draft.ShowDnsIndicator;
             _main.ConfigSvc.Config.DnsLeakWarnLog      = _draft.DnsLeakWarnLog;
@@ -2818,6 +2882,8 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.CapIndicatorStyle   = _draft.CapIndicatorStyle;
             _main.ConfigSvc.Config.TrustedNetworks     = _draft.TrustedNetworks;
             _main.ConfigSvc.Config.PrimaryNetworkMode  = _draft.PrimaryNetworkMode;
+            _main.ConfigSvc.Config.SimpleWifiMode      = _draft.SimpleWifiMode;
+            _main.ConfigSvc.Config.NetworkChangeNotify = _draft.NetworkChangeNotify;
             _main.ConfigSvc.Config.FontOverrideEnabled    = _draft.FontOverrideEnabled;
             _main.ConfigSvc.Config.FontOverrideFamily    = _draft.FontOverrideFamily;
             _main.ConfigSvc.Config.FontOverrideSize      = _draft.FontOverrideSize;
@@ -2831,10 +2897,10 @@ namespace MasselGUARD.Views
             if (_main.LogSvc.IsExtended)
                 LogChangedSettings(before, _main.ConfigSvc.Config);
 
-            _vm.DoSave();
+            _vm.DoSave(applyTheme: false);   // the theme is applied once, below, and only when it changed
 
             // A different primary-network mode can change which network decides the tunnel right now.
-            if (before.PrimaryNetworkMode != _draft.PrimaryNetworkMode)
+            if (before.PrimaryNetworkMode != _draft.PrimaryNetworkMode || before.SimpleWifiMode != _draft.SimpleWifiMode)
                 _main._vm.EvaluateNetworkNow();
 
             // Apply side effects immediately
@@ -2845,8 +2911,16 @@ namespace MasselGUARD.Views
             _main.RebuildTunnelGroupsPublic();
             _main._vm.NotifyRulesColumnChanged();
             _main.RefreshWifiRulesPanel();
-            // Apply the correct theme based on the new settings (overrides DoSave preview)
-            _main.ApplyThemeFromConfig();
+            // Re-apply the theme only when it (or the font) changed or a live preview is running.
+            // A theme load fires ThemeChanged, which rebuilds the tunnel list, groups, log and
+            // charts and redraws the tray icon: far too heavy to repeat on every save.
+            bool themeTouched = _themePreviewActive || _fontPreviewActive
+                || before.ActiveTheme != _draft.ActiveTheme
+                || before.SystemThemeMode != _draft.SystemThemeMode
+                || before.FontOverrideEnabled != _draft.FontOverrideEnabled
+                || before.FontOverrideFamily != _draft.FontOverrideFamily
+                || before.FontOverrideSize != _draft.FontOverrideSize;
+            if (themeTouched) _main.ApplyThemeFromConfig();
             _main.ApplyInfoSectionMode();
         }
 
@@ -2914,6 +2988,8 @@ namespace MasselGUARD.Views
             if (StoreDnsHistoryToggle        != null) StoreDnsHistoryToggle.IsChecked        = _draft.StoreDnsHistory;
             if (ShowDnsInChartToggle         != null) ShowDnsInChartToggle.IsChecked         = _draft.ShowDnsInChart;
             if (ShowTimelineToggle           != null) ShowTimelineToggle.IsChecked           = _draft.ShowTimeline;
+            if (ChartRefreshIdleBox          != null) ChartRefreshIdleBox.Text               = _draft.ChartRefreshIdleSec.ToString();
+            if (ChartRefreshActiveBox        != null) ChartRefreshActiveBox.Text             = _draft.ChartRefreshActiveSec.ToString();
             if (StoreConnectionHistoryToggle != null) StoreConnectionHistoryToggle.IsChecked = _draft.StoreConnectionHistory;
             _loading = false;
             UpdateTimelineShowEnabled();

@@ -35,7 +35,7 @@ namespace MasselGUARD.Services
             "Language", "StartWithWindows", "ConfirmOnClose",
             "Rules", "TunnelGroups", "DefaultGroup",
             "DefaultAction", "DefaultTunnel", "OpenWifiTunnel", "TrustedNetworks", "ManualMode",
-            "PrimaryNetworkMode",
+            "PrimaryNetworkMode", "SimpleWifiMode", "NetworkChangeNotify",
             "AutoReconnectMode", "KillSwitchMode", "SkipTunnelValidation",
             "ShowDnsIndicator", "DnsLeakWarnLog", "DnsLeakWarnToast",
             "UpdateCheckFrequency",
@@ -44,6 +44,7 @@ namespace MasselGUARD.Services
             "ShowWifiRulesOnMainWindow", "ShowTunnelRulesColumn", "ShowActivityLog",
             "ShowTimeline", "StoreConnectionHistory", "StoreWifiHistory", "ShowWifiInChart", "InfoTimeRangeDays",
             "AlwaysHideTunnelCount", "HideEmptyGroups",
+            "ChartRefreshIdleSec", "ChartRefreshActiveSec", "TrimMemoryInTray",
         };
 
         /// <summary>A lockable section → the AppConfig fields it covers. Used to expand a locked
@@ -53,7 +54,7 @@ namespace MasselGUARD.Services
             ("language",      new[] { "Language" }),
             ("startup",       new[] { "StartWithWindows", "ConfirmOnClose" }),
             ("automation",    new[] { "Rules", "DefaultAction", "DefaultTunnel", "OpenWifiTunnel", "TrustedNetworks", "ManualMode",
-                                      "PrimaryNetworkMode" }),
+                                      "PrimaryNetworkMode", "SimpleWifiMode" }),
             ("autoReconnect", new[] { "AutoReconnectMode" }),
             ("killSwitch",    new[] { "KillSwitchMode" }),
             ("validation",    new[] { "SkipTunnelValidation" }),

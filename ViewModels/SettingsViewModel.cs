@@ -261,7 +261,11 @@ namespace MasselGUARD.ViewModels
 
         // ── Immediate save ────────────────────────────────────────────────────
 
-        public void DoSave()
+        /// <param name="applyTheme">false when the caller applies the theme itself (Settings save does):
+        /// a theme load fires ThemeChanged, which rebuilds the whole main window.</param>
+        public void DoSave() => DoSave(true);
+
+        public void DoSave(bool applyTheme)
         {
             _config.Config.Language              = _language;
             _config.Config.DefaultAction         = _defaultAction;
@@ -276,6 +280,7 @@ namespace MasselGUARD.ViewModels
             _config.Save();
 
             // Ensure the saved theme is applied (in case preview changed it mid-session)
+            if (applyTheme)
             {
                 bool isDark = ThemeManager.GetSystemIsDark();
                 ThemeManager.Instance.Load(_activeTheme, isDark);

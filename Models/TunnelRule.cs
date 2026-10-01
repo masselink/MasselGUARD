@@ -137,6 +137,19 @@ namespace MasselGUARD.Models
             set { SetField(ref _conditions, value); OnPropertyChanged(nameof(SsidDisplay)); OnPropertyChanged(nameof(RuleName)); OnPropertyChanged(nameof(ConditionsPlain)); }
         }
 
+        /// <summary>A plain "SSID is X" rule: a network rule with exactly one positive SSID condition. These are the
+        /// only network rules used in Simple Wi-Fi mode.</summary>
+        [JsonIgnore]
+        public bool IsSimpleSsidRule
+        {
+            get
+            {
+                if (!IsNetworkKind) return false;
+                var c = EffectiveConditions;
+                return c.Count == 1 && !c[0].Not && c[0].By == NetworkMatchBy.Ssid;
+            }
+        }
+
         /// <summary>The conditions in force: <see cref="Conditions"/> when set, else the legacy single match
         /// (none when that has no value).</summary>
         [JsonIgnore]

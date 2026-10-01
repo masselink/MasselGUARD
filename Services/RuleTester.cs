@@ -33,6 +33,8 @@ namespace MasselGUARD.Services
                 notes.Add("The rule is disabled: the engine ignores it.");
             if (cfg.ManualMode)
                 notes.Add("Manual mode is on: all automation is off.");
+            if (cfg.SimpleWifiMode && rule.IsNetworkKind && !rule.IsSimpleSsidRule)
+                notes.Add("Simple Wi-Fi mode is on: this rule is more than a plain SSID rule, so it is not used.");
             if (!DnsPolicy.IsDnsOnly(rule) && !cfg.EnableTunnels)
                 notes.Add("Tunnel automation is off (WireGuard feature disabled): the tunnel action would not run.");
             if (!string.IsNullOrEmpty(rule.DnsProfileId) && (!cfg.EnableDns || !cfg.DnsAutomationEnabled))
@@ -211,6 +213,11 @@ namespace MasselGUARD.Services
             Check("cond-tester-same-network", !Test(Conds(C("ssid", "Home"), C("dnssuffix", "corp.example.com")),
                                                    cfg, Snap(Wifi("Home", true), Wired("corp.example.com", false)), monday).Met);   // conditions split over two adapters
             Check("cond-tester-none",        !Test(new TunnelRule { Kind = "network" }, cfg, Snap(office), monday).Met);
+
+            // Simple Wi-Fi mode note
+            var simpleCfg = new AppConfig { EnableTunnels = true, SimpleWifiMode = true };
+            Check("note-simple-mode-advanced-rule", Test(andRule, simpleCfg, Snap(office), monday).Notes.Any(n => n.Contains("Simple Wi-Fi mode")));
+            Check("note-simple-mode-plain-ssid-clean", !Test(home, simpleCfg, Snap(Wifi("Home", true)), monday).Notes.Any(n => n.Contains("Simple Wi-Fi mode")));
 
             // Trusted rule (uses the primary network)
             var cfgT = new AppConfig { EnableTunnels = true };

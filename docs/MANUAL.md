@@ -352,7 +352,7 @@ The CLI command `MasselGUARDcli dns status` shows the configuration and each int
 
 ### Usage bars and rings
 
-Every tunnel row shows its usage for **today**, **this week** and **this month**, as slim **bars** or compact **rings** (Settings → Appearance → *Data-cap usage indicator*), also while disconnected. Each period measures against one of two references, set per period in the tunnel editor → **Options** → **DATA USAGE**:
+Every tunnel row shows its usage for **today**, **this week** and **this month**, as slim **bars** or compact **rings** (Settings → WireGuard → Display → *Data-cap usage indicator*), also while disconnected. Each period measures against one of two references, set per period in the tunnel editor → **Options** → **DATA USAGE**:
 
 - **Use history** (the default) - the tunnel's **typical usage**: its average over the last 365 days (or over all of its history when that is shorter), scaled to a day, a week or a month. This is informational only: the bar is drawn in the accent colour, with no warnings and no *Kill at cap*. While ticked, the MB box is greyed and shows that typical value. A tunnel with no history yet shows an empty track.
 - **Your own cap** - untick *Use history* and type a limit in MB (0 = none). The box starts from the typical value, so a cap based on your real usage is one click. The bar turns amber near the limit and red once over.
@@ -406,6 +406,7 @@ One card per feature - **WireGuard**, **DNS**, **Automation**, **Activity log**,
 
 - **Start with Windows** - a Scheduled Task at `RunLevel=Highest`, so MasselGUARD starts elevated without a UAC prompt
 - **Start minimized** - launch straight to the tray
+- **Free memory while hidden in the tray** - when the window is closed to the tray, MasselGUARD compacts its memory and returns the unused part to Windows (default on). The first redraw after reopening can be slightly slower
 - **Confirm disconnect on exit** - ask before disconnecting active tunnels when exiting (default on)
 - **Installation** - run mode, **Install** / **Uninstall**, and *Don't ask to update the installed version at startup*
 
@@ -494,7 +495,7 @@ The rules themselves are on the main window; this page holds the settings around
 - **Default Action** - Do nothing / Disconnect all tunnels / Activate tunnel
 - **Open Network Protection** - the tunnel for passwordless Wi-Fi
 - **Trusted networks (SSIDs)** - one SSID per line; **Add current WiFi network** appends the one you're on. Used by *Trusted networks* rules
-- **Display** - *Hide WiFi rules on main window*, *Show Rules column* in the tunnel list
+- **Display** - the switch that shows the Automation panel on the main window, and *Show Rules column*, which removes the Rules column from both the tunnel list and the DNS profile list
 
 ---
 
@@ -523,6 +524,8 @@ Whether the **Tunnel connections**, **WiFi (SSID)** and **DNS** layers are drawn
 ### Activity chart
 
 **Time range:** Last 24 hours · Last 7 days · Last 31 days (also switchable in the chart itself).
+
+**Refresh rate:** the chart is rebuilt from scratch on every refresh, so longer intervals use less CPU and memory. Two settings, in seconds: **while nothing is connected** (5 to 60, default 10) and **while a tunnel is connected** (1 to 10, default 2). Values outside the limits are corrected. Resizing the window or changing the range or theme always redraws at once.
 
 ### Connection history
 

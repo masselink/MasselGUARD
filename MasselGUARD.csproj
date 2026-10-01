@@ -28,6 +28,10 @@
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
+    <!-- A small desktop app: no background-GC thread + its extra heap, no tiered-PGO instrumentation
+         overhead. Lowers the idle working set; the heap is far too small for blocking GCs to be felt. -->
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
     <ApplicationIcon>MasselGUARD.ico</ApplicationIcon>
     <!-- Default versions for IDE / dotnet build without BUILD.bat.
          BUILD.bat overrides these via -p:Version / -p:InformationalVersion. -->
