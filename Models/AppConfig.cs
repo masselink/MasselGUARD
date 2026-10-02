@@ -311,6 +311,10 @@ namespace MasselGUARD.Models
         public double TunColStatusW  { get; set; } = 0;
         public double TunColRulesW   { get; set; } = 0;
         public double TunColActionW  { get; set; } = 0;
+        /// <summary>Column widths of the main-window lists as shares of the header width, per list and layout
+        /// mode: keys "tun|dns|wif" + ".narrow" (list shares its row with another panel) or ".wide" (alone on
+        /// its row); one value per column, hidden columns keep their last share. Replaces the pixel fields.</summary>
+        public Dictionary<string, double[]> ColumnLayouts { get; set; } = new();
         /// <summary>Width of the Status part of the Status / Data usage column (the bars start after it).</summary>
         public double TunStatusInnerW { get; set; } = 120;
         public double WifiColNameW   { get; set; } = 0;

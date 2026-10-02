@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -2480,6 +2480,7 @@ namespace MasselGUARD
                 TunColDef2.MaxWidth = double.PositiveInfinity; TunColDef2.MinWidth = 30; TunColDef2.Width = new GridLength(50);
                 DnsColDef3.MaxWidth = double.PositiveInfinity; DnsColDef3.MinWidth = 40; DnsColDef3.Width = new GridLength(52);
             }
+            ApplyColumnLayouts();
         }
 
         public void UpdateRulesColumnVisibility()
@@ -2802,9 +2803,9 @@ namespace MasselGUARD
             if (!tunnelsOn && ModeUsageBtn?.IsChecked == true) ModeUsageBtn.IsChecked = false;
 
             if (dnsOn) RebuildDnsPanel(); else _vm.RestoreDnsOverrides();
-            if (_colInitDone) { ResetTunnelColsToStars(); ResetWifiColsToStars(); ResetDnsColsToStars(); }
             RefreshSectionToggleButtons();
             ApplyWifiColVisibility();   // drop the Tunnel/DNS columns when their feature is off
+            ApplyColumnLayouts();       // the panels may now share (or no longer share) a row: pick that mode's widths
         }
 
         /// <summary>
@@ -6607,6 +6608,7 @@ namespace MasselGUARD
             else if (WifColDef4.Width.Value == 0) WifColDef4.Width = new GridLength(2, GridUnitType.Star);
             if (!_wifDnsCol)    { WifColDef5.MinWidth = 0; WifColDef5.Width = new GridLength(0); _vm.WifCol5W = 0; }
             else if (WifColDef5.Width.Value == 0) WifColDef5.Width = new GridLength(2, GridUnitType.Star);
+            ApplyColumnLayouts();
         }
 
         private void InitColumnWidths()
@@ -6630,56 +6632,14 @@ namespace MasselGUARD
                 ConfigSvc.Save();
             }
 
-            if (cfg.TunColNameW > 0)
-            {
-                TunColDef0.Width = new GridLength(cfg.TunColNameW);
-                TunColDef1.Width = new GridLength(cfg.TunColStatusW);
-                TunColDef2.Width = new GridLength(cfg.TunColRulesW);
-                TunColDef3.Width = new GridLength(cfg.TunColActionW);
-                _vm.TunCol0W = cfg.TunColNameW;
-                _vm.TunCol1W = cfg.TunColStatusW;
-                _vm.TunCol2W = cfg.TunColRulesW;
-                _vm.TunCol3W = cfg.TunColActionW;
-            }
-            // Discard saved WiFi widths from before the DNS column existed (5-column layout).
-            if (cfg.WifiColNameW > 0 && cfg.WifiColDnsW <= 0)
-            {
-                cfg.WifiColNameW = cfg.WifiColSsidW = cfg.WifiColActionW =
-                    cfg.WifiColCountW = cfg.WifiColTunnelW = 0;
-                ConfigSvc.Save();
-            }
-            if (cfg.WifiColNameW > 0)
-            {
-                WifColDef0.Width = new GridLength(cfg.WifiColNameW);
-                WifColDef1.Width = new GridLength(cfg.WifiColSsidW);
-                WifColDef2.Width = new GridLength(cfg.WifiColActionW);
-                WifColDef3.Width = new GridLength(cfg.WifiColCountW);
-                WifColDef4.Width = new GridLength(cfg.WifiColTunnelW);
-                WifColDef5.Width = new GridLength(cfg.WifiColDnsW);
-                _vm.WifCol0W = cfg.WifiColNameW;
-                _vm.WifCol1W = cfg.WifiColSsidW;
-                _vm.WifCol2W = cfg.WifiColActionW;
-                _vm.WifCol3W = cfg.WifiColCountW;
-                _vm.WifCol4W = cfg.WifiColTunnelW;
-                _vm.WifCol5W = cfg.WifiColDnsW;
-            }
-            if (cfg.DnsColNameW > 0)
-            {
-                DnsColDef0.Width = new GridLength(cfg.DnsColNameW);
-                DnsColDef1.Width = new GridLength(cfg.DnsColTypeW);
-                DnsColDef2.Width = new GridLength(0);   // Server column removed
-                DnsColDef3.Width = new GridLength(cfg.DnsColRulesW);
-                DnsColDef4.Width = new GridLength(cfg.DnsColEnableW);
-                _vm.DnsCol0W = cfg.DnsColNameW;
-                _vm.DnsCol1W = cfg.DnsColTypeW;
-                _vm.DnsCol2W = 0;
-                _vm.DnsCol3W = cfg.DnsColRulesW;
-                _vm.DnsCol4W = cfg.DnsColEnableW;
-            }
+            // (The old per-column PIXEL widths TunCol*W / WifiCol*W / DnsCol*W are no longer applied: column
+            //  widths are stored as shares per list and layout mode in AppConfig.ColumnLayouts, see
+            //  ApplyColumnLayouts. The old fields stay in the config for downgrade compatibility only.)
             if (cfg.TunStatusInnerW >= 90 && cfg.TunStatusInnerW <= 240) _vm.TunStatusW = cfg.TunStatusInnerW;
             _colInitDone = true;
             ApplyWifiColVisibility();   // apply feature-based column drops now that widths are live
             ApplyRulesColumnLayout();
+            ApplyColumnLayouts();
             _vm.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName == nameof(MainViewModel.RulesColumnVisibility)) ApplyRulesColumnLayout();
@@ -6864,16 +6824,12 @@ namespace MasselGUARD
 
         private void ColThumb_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
         {
-            _colSaveTimer?.Stop();
-            SaveColumnWidths();
+            FinishColumnDrag();
         }
 
         // ColSplitter_MouseUp fires when a drag ends - immediate save (skip debounce).
         private void ColSplitter_MouseUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        {
-            _colSaveTimer?.Stop();
-            SaveColumnWidths();
-        }
+            => FinishColumnDrag();
 
         private void ScheduleColSave()
         {
@@ -6890,23 +6846,105 @@ namespace MasselGUARD
         private void SaveColumnWidths()
         {
             var cfg = ConfigSvc.Config;
-            cfg.TunColNameW    = _vm.TunCol0W;
-            cfg.TunColStatusW  = _vm.TunCol1W;
-            if (_rulesColShown) cfg.TunColRulesW = _vm.TunCol2W;   // 0 while the column is hidden: keep the real width
-            cfg.TunColActionW  = _vm.TunCol3W;
             cfg.TunStatusInnerW = _vm.TunStatusW;
-            cfg.WifiColNameW   = _vm.WifCol0W;
-            cfg.WifiColSsidW   = _vm.WifCol1W;
-            cfg.WifiColActionW = _vm.WifCol2W;
-            cfg.WifiColCountW  = _vm.WifCol3W;
-            cfg.WifiColTunnelW = _vm.WifCol4W;
-            cfg.WifiColDnsW    = _vm.WifCol5W;
-            cfg.DnsColNameW    = _vm.DnsCol0W;
-            cfg.DnsColTypeW    = _vm.DnsCol1W;
-            cfg.DnsColServerW  = _vm.DnsCol2W;
-            if (_rulesColShown) cfg.DnsColRulesW = _vm.DnsCol3W;
-            cfg.DnsColEnableW  = _vm.DnsCol4W;
+            foreach (var list in ColumnLists) SaveColumnLayout(list);
             ConfigSvc.Save();
+        }
+
+        // ── Column widths as shares, per list and layout mode ─────────────────
+        // A list is in NARROW mode while it shares its row with another panel (WireGuard beside DNS,
+        // DNS beside WireGuard, Automation beside the activity log) and in WIDE mode when it has the row
+        // to itself. Each mode keeps its own shares (AppConfig.ColumnLayouts["tun.narrow"] etc.): a fraction
+        // of the header width per column, hidden columns keeping their last share. They are applied as star
+        // weights, so a resized window scales the columns proportionally and the two modes never overwrite
+        // each other.
+        private static readonly string[] ColumnLists = { "tun", "dns", "wif" };
+
+        private ColumnDefinition[] ColDefs(string list) => list switch
+        {
+            "tun" => new[] { TunColDef0, TunColDef1, TunColDef2, TunColDef3 },
+            "dns" => new[] { DnsColDef0, DnsColDef1, DnsColDef2, DnsColDef3, DnsColDef4 },
+            _     => new[] { WifColDef0, WifColDef1, WifColDef2, WifColDef3, WifColDef4, WifColDef5 },
+        };
+
+        /// <summary>Columns that currently have no width (feature off / column hidden / removed).</summary>
+        private bool[] ColHidden(string list) => list switch
+        {
+            "tun" => new[] { false, false, !_rulesColShown, false },
+            "dns" => new[] { false, false, true, !_rulesColShown, false },
+            _     => new[] { false, false, false, false, !_wifTunnelCol, !_wifDnsCol },
+        };
+
+        private string ColLayoutKey(string list)
+        {
+            var cfg = ConfigSvc.Config;
+            bool narrow = list switch
+            {
+                "tun" => cfg.EnableDns && cfg.DnsSectionVisible && cfg.EnableTunnels && cfg.TunnelsSectionVisible,
+                "dns" => cfg.EnableDns && cfg.DnsSectionVisible && cfg.EnableTunnels && cfg.TunnelsSectionVisible,
+                _     => cfg.ActivityLogEnabled && _logPanelVisible && !cfg.ManualMode && cfg.ShowWifiRulesOnMainWindow,
+            };
+            return $"{list}.{(narrow ? "narrow" : "wide")}";
+        }
+
+        private const double HiddenColumnShare = 0.08;   // stand-in share for a column that was never visible
+
+        /// <summary>Applies the saved shares of the current mode as star weights; with nothing saved the
+        /// list falls back to the default proportions.</summary>
+        private void ApplyColumnLayouts()
+        {
+            if (!_colInitDone) return;
+            foreach (var list in ColumnLists)
+            {
+                var defs = ColDefs(list);
+                var hidden = ColHidden(list);
+                if (ConfigSvc.Config.ColumnLayouts.TryGetValue(ColLayoutKey(list), out var shares) && shares.Length == defs.Length)
+                {
+                    for (int i = 0; i < defs.Length; i++)
+                        if (!hidden[i]) defs[i].Width = new GridLength(Math.Max(shares[i], 0.04), GridUnitType.Star);
+                }
+                else
+                {
+                    if (list == "tun") ResetTunnelColsToStars();
+                    else if (list == "dns") ResetDnsColsToStars();
+                    else ResetWifiColsToStars();
+                }
+            }
+        }
+
+        /// <summary>Stores the visible columns' current shares under the list's mode key.</summary>
+        private void SaveColumnLayout(string list)
+        {
+            var defs = ColDefs(list);
+            var hidden = ColHidden(list);
+            double visibleSum = 0;
+            for (int i = 0; i < defs.Length; i++) if (!hidden[i]) visibleSum += defs[i].ActualWidth;
+            if (visibleSum < 50) return;   // not laid out yet (collapsed panel)
+
+            var key = ColLayoutKey(list);
+            ConfigSvc.Config.ColumnLayouts.TryGetValue(key, out var old);
+            if (old == null || old.Length != defs.Length) old = null;
+
+            double hiddenSum = 0;
+            for (int i = 0; i < defs.Length; i++)
+                if (hidden[i]) hiddenSum += old != null && old[i] > 0 ? old[i] : HiddenColumnShare;
+            double visibleShare = Math.Max(0.2, 1 - hiddenSum);
+
+            var arr = new double[defs.Length];
+            for (int i = 0; i < defs.Length; i++)
+                arr[i] = hidden[i]
+                    ? (old != null && old[i] > 0 ? old[i] : HiddenColumnShare)
+                    : Math.Round(defs[i].ActualWidth / visibleSum * visibleShare, 4);
+            ConfigSvc.Config.ColumnLayouts[key] = arr;
+        }
+
+        /// <summary>After a drag the two traded columns hold pixel widths; save the shares, then turn every
+        /// column back into a star weight so the list keeps scaling with the window.</summary>
+        private void FinishColumnDrag()
+        {
+            _colSaveTimer?.Stop();
+            SaveColumnWidths();
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(ApplyColumnLayouts));
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────

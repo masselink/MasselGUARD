@@ -114,7 +114,7 @@ On Windows-on-ARM the ARM64 build is required for local tunnels. Not sure which 
 
 `MasselGUARDcli.exe` covers everything you need for scripting: `list`, `status`, `connect`, `disconnect`, `disconnect-all`, `info`, `import`, `delete`, `log`, `tunnel-history`, `wifi-history` / `network-history`, `check-update`, `version` and `help`. The read-only `dns status`, `network status` and `selftest` also run in a non-elevated terminal; everything that touches a tunnel needs Administrator. Flags: `--json`, `--quiet` / `-q`, `--group <name>`, `--active`. Exit codes: `0` success, `1` error, `2` already in the desired state.
 
-Full reference: [`docs/CLIManual.md`](docs/CLIManual.md).
+Full reference: [`docs/CLIManual.md`](docs/CLIManual.md). What `selftest` checks: [`docs/CliSelfTest.md`](docs/CliSelfTest.md).
 
 ---
 
