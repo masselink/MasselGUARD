@@ -1,6 +1,6 @@
 # MasselGUARD - User Manual
 
-**Version 4.5.0 - Resolving Raven**
+**Version 4.6.0 - Wired Weasel**
 
 ---
 
@@ -452,7 +452,7 @@ Notifications raised together (e.g. Wi-Fi and DNS at start-up) are combined into
 
 ## 17. Settings: About
 
-A header card shows the theme's logo, **MasselGUARD**, the version and codename (e.g. `v4.5.0 · Resolving Raven`), the build stamp, the last update check and an update **status pill**:
+A header card shows the theme's logo, **MasselGUARD**, the version and codename (e.g. `v4.6.0 · Wired Weasel`), the build stamp, the last update check and an update **status pill**:
 
 - `↑` update available - **Update** installs it (download → extract → replace → relaunch)
 - `🚀` running ahead of the latest release (a development build)

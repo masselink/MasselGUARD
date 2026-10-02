@@ -1,4 +1,4 @@
-## Next version (number and codename to be decided)
+## v4.6.0 - Wired Weasel
 
 Automation now understands **wired networks**, not just Wi-Fi. Rules can match a network by more than its name, several conditions can be combined, and you can see exactly why a rule did (or did not) fire. The app is also noticeably lighter on memory, and saving settings is much quicker.
 

@@ -19,6 +19,17 @@
         <local:PixelGridLengthConverter x:Key="PixelGL"/>
         <!-- Proxy carries the window DataContext into ColumnDefinition bindings inside DataTemplates -->
         <local:BindingProxy x:Key="ColProxy" Data="{Binding}"/>
+        <!-- Column resize handle: invisible but hit-testable (the default Thumb draws a glyph) -->
+        <Style x:Key="HandleThumb" TargetType="Thumb">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Thumb">
+                        <Border Background="Transparent"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Border x:Name="OuterBorder" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"
@@ -513,7 +524,7 @@
                                                        VerticalAlignment="Center" Margin="14,0,2,0"
                                                        TextTrimming="CharacterEllipsis"/>
                                             <!-- Drag handle between Status and Data usage (moves the bars' start in every row) -->
-                                            <Thumb Grid.Column="0" x:Name="TunStatusThumb" Width="5" HorizontalAlignment="Right"
+                                            <Thumb Style="{StaticResource HandleThumb}" Grid.Column="0" x:Name="TunStatusThumb" Width="5" HorizontalAlignment="Right"
                                                    Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
                                                    DragDelta="TunStatusThumb_DragDelta" DragCompleted="ColThumb_DragCompleted"/>
                                         </Grid>
@@ -524,7 +535,7 @@
                                                       PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
                                         <Button Grid.Column="2" x:Name="RulesColHeader"
                                                 Style="{StaticResource SortHeaderBtn}" Click="TunSort_Rules"
-                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                                                 Visibility="{Binding DataContext.RulesColumnVisibility, RelativeSource={RelativeSource AncestorType=Window}}">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{Binding [TunnelColRules], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
@@ -536,10 +547,10 @@
                                                       Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
                                                       PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
                                         <!-- Rules hidden: resizes Status/Data usage against Action directly -->
-                                        <Thumb Grid.Column="3" x:Name="TunActionThumb" Width="5" HorizontalAlignment="Left"
+                                        <Thumb Style="{StaticResource HandleThumb}" Grid.Column="3" x:Name="TunActionThumb" Width="5" HorizontalAlignment="Left"
                                                Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10" Visibility="Collapsed"
                                                DragDelta="TunActionThumb_DragDelta" DragCompleted="ColThumb_DragCompleted"/>
-                                        <Button Grid.Column="3" Style="{StaticResource SortHeaderBtn}" Click="TunSort_Action" HorizontalAlignment="Right">
+                                        <Button Grid.Column="3" Style="{StaticResource SortHeaderBtn}" Click="TunSort_Action" HorizontalAlignment="Left">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{Binding [TunnelColAction], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
                                                 <TextBlock x:Name="TunArrowAction" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
@@ -700,7 +711,7 @@
                                                         <!-- Bars variant - same data, taller layout; shown when CapIndicatorStyle = bars. -->
                                                         <views:CapBars Grid.Column="2"
                                                                        Margin="14,0,2,0"
-                                                                       HorizontalAlignment="Stretch"
+                                                                       HorizontalAlignment="Left"
                                                                        MinWidth="120" MaxWidth="300"
                                                                        VerticalAlignment="Center"
                                                                        Visibility="{Binding CapBarsVisibility}"
@@ -733,7 +744,7 @@
                                                                MouseLeftButtonDown="RuleCount_Click"/>
                                                     <!-- Connect / Disconnect button + cap-kill marker -->
                                                     <StackPanel Grid.Column="3" Orientation="Horizontal"
-                                                                HorizontalAlignment="Right"
+                                                                HorizontalAlignment="Left"
                                                                 VerticalAlignment="Center">
                                                         <Button Content="{Binding ButtonLabel}"
                                                                 IsEnabled="{Binding ButtonEnabled}"
@@ -892,7 +903,7 @@
                                         <GridSplitter Grid.Column="2" Width="5" HorizontalAlignment="Right"
                                                       Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
                                                       PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
-                                        <Button Grid.Column="3" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Count" HorizontalAlignment="Center">
+                                        <Button Grid.Column="3" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Count" HorizontalAlignment="Left">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{Binding [RuleColCount], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
                                                 <TextBlock x:Name="RuleArrowCount" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
@@ -914,7 +925,7 @@
                                                       PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
                                         <!-- Tunnel column hidden (zero width): the splitter above cannot move anything, so this
                                              handle trades width between Action and DNS instead -->
-                                        <Thumb x:Name="WifDnsThumb" Grid.Column="5" Width="5" HorizontalAlignment="Left"
+                                        <Thumb Style="{StaticResource HandleThumb}" x:Name="WifDnsThumb" Grid.Column="5" Width="5" HorizontalAlignment="Left"
                                                Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10" Visibility="Collapsed"
                                                DragDelta="WifDnsThumb_DragDelta" DragCompleted="ColThumb_DragCompleted"/>
                                         <Button x:Name="WifDnsHeaderBtn" Grid.Column="5" Style="{StaticResource SortHeaderBtn}" Click="RuleSort_Dns">
@@ -1164,10 +1175,10 @@
                                                       PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
                                         <!-- The splitters beside the zero-width Server column cannot move anything, so these
                                              handles trade width directly between the visible neighbours. -->
-                                        <Thumb Grid.Column="1" x:Name="DnsTypeThumb" Width="5" HorizontalAlignment="Right"
+                                        <Thumb Style="{StaticResource HandleThumb}" Grid.Column="1" x:Name="DnsTypeThumb" Width="5" HorizontalAlignment="Right"
                                                Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
                                                DragDelta="DnsTypeThumb_DragDelta" DragCompleted="ColThumb_DragCompleted"/>
-                                        <Thumb Grid.Column="3" x:Name="DnsRulesThumb" Width="5" HorizontalAlignment="Right"
+                                        <Thumb Style="{StaticResource HandleThumb}" Grid.Column="3" x:Name="DnsRulesThumb" Width="5" HorizontalAlignment="Right"
                                                Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
                                                DragDelta="DnsRulesThumb_DragDelta" DragCompleted="ColThumb_DragCompleted"/>
                                         <!-- Server column removed (pinned to zero width) -->
@@ -1180,7 +1191,7 @@
                                         <GridSplitter Grid.Column="2" Width="5" HorizontalAlignment="Right" Visibility="Collapsed"
                                                       Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
                                                       PreviewMouseLeftButtonUp="ColSplitter_MouseUp"/>
-                                        <Button Grid.Column="3" x:Name="DnsRulesColHeader" Style="{StaticResource SortHeaderBtn}" Click="DnsSort_Rules" HorizontalAlignment="Center"
+                                        <Button Grid.Column="3" x:Name="DnsRulesColHeader" Style="{StaticResource SortHeaderBtn}" Click="DnsSort_Rules" HorizontalAlignment="Left"
                                                 Visibility="{Binding DataContext.RulesColumnVisibility, RelativeSource={RelativeSource AncestorType=Window}}">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{Binding [DnsColRules], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
@@ -1190,7 +1201,7 @@
                                         <TextBlock Grid.Column="4" Text="{Binding [RuleColAction], Source={x:Static local:Lang.Instance}}"
                                                    FontSize="{DynamicResource Theme.FontSize.Tiny}"
                                                    Foreground="{DynamicResource TextMuted}"
-                                                   HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                   HorizontalAlignment="Left" VerticalAlignment="Center"/>
                                     </Grid>
                                 </Border>
 
@@ -1281,7 +1292,7 @@
                                                 <Button Grid.Column="4" Content="{Binding EnableLabel}"
                                                         Click="DnsRowEnable_Click"
                                                         FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="8,2"
-                                                        HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                        HorizontalAlignment="Left" VerticalAlignment="Center">
                                                     <Button.Style>
                                                         <Style TargetType="Button" BasedOn="{StaticResource FlatBtn}">
                                                             <Style.Triggers>

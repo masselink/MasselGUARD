@@ -1,6 +1,6 @@
 # MasselGUARD - Technical reference
 
-Developer/technical reference for v4.5.0 - Resolving Raven. For end-user instructions see [`MANUAL.md`](MANUAL.md).
+Developer/technical reference for v4.6.0 - Wired Weasel. For end-user instructions see [`MANUAL.md`](MANUAL.md).
 
 ---
 

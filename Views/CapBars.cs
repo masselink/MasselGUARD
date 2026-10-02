@@ -71,7 +71,10 @@ namespace MasselGUARD.Views
         {
             int n = (DaySet ? 1 : 0) + (WeekSet ? 1 : 0) + (MonthSet ? 1 : 0);
             if (n == 0) return new Size(0, 0);
-            return new Size(BarWidth, n * BarHeight + (n - 1) * BarGap);
+            // Fill the offered width (the XAML Min/MaxWidth bound it) so a Left-aligned control starts at
+            // the cell edge, in line with the column title, instead of being centred when capped.
+            double w = double.IsInfinity(availableSize.Width) ? BarWidth : Math.Max(BarWidth, availableSize.Width);
+            return new Size(w, n * BarHeight + (n - 1) * BarGap);
         }
 
         protected override void OnRender(DrawingContext dc)

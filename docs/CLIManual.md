@@ -1,6 +1,6 @@
 # MasselGUARD - CLI Manual
 
-**Version 4.5.0 - Resolving Raven**
+**Version 4.6.0 - Wired Weasel**
 
 MasselGUARD includes a full command-line interface for scripting, automation, and headless operation. The CLI and the GUI share the same WireGuard kernel driver and the same configuration - any change made via CLI is reflected in the GUI within ~1 second, and vice versa.
 
