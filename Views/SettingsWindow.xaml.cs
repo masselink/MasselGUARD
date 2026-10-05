@@ -1421,6 +1421,9 @@ namespace MasselGUARD.Views
 
             PopulateDnsProfileCombo(DnsDefaultBox, cfg.DefaultDnsProfileId);
             PopulateDnsProfileCombo(DnsOpenBox,    cfg.OpenWifiDnsProfileId);
+            PopulateBypassCombo(cfg.BypassDnsProfileId);
+            if (DnsTempToggle != null) DnsTempToggle.IsChecked = cfg.DnsTempOverrideEnabled;
+            if (DnsShellToggle != null) DnsShellToggle.IsChecked = cfg.ShellBypassMenuEnabled;
 
             if (DnsFamiliesBox != null)
             {
@@ -1444,6 +1447,40 @@ namespace MasselGUARD.Views
             foreach (var p in _main.ConfigSvc.Config.DnsProfiles)
                 box.Items.Add(new ComboBoxItem { Content = p.Name, Tag = p.Id });
             SelectComboByTag(box, selectedId ?? "");
+        }
+
+        /// <summary>Bypass profile picker: none + the profiles (no "automatic": a bypass must be a real resolver).</summary>
+        private void PopulateBypassCombo(string? selectedId)
+        {
+            if (DnsBypassBox == null) return;
+            DnsBypassBox.Items.Clear();
+            DnsBypassBox.Items.Add(new ComboBoxItem { Content = Lang.T("DnsProfileNone"), Tag = "" });
+            foreach (var p in _main.ConfigSvc.Config.DnsProfiles)
+                DnsBypassBox.Items.Add(new ComboBoxItem { Content = p.Name, Tag = p.Id });
+            SelectComboByTag(DnsBypassBox, selectedId ?? "");
+        }
+
+        private void DnsBypass_Changed(object sender, SelectionChangedEventArgs e)
+        {
+            if (_dnsLoading) return;
+            _main.ConfigSvc.Config.BypassDnsProfileId = (DnsBypassBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
+            _main.ConfigSvc.Save();
+            _main.RebuildDnsPanel();   // moves the bypass marker in the main-window list
+        }
+
+        private void DnsShell_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_dnsLoading) return;
+            _main.ConfigSvc.Config.ShellBypassMenuEnabled = DnsShellToggle?.IsChecked == true;
+            _main.ConfigSvc.Save();
+            _main.RefreshShellMenu();   // writes or removes the Explorer right-click entries
+        }
+
+        private void DnsTemp_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_dnsLoading) return;
+            _main.ConfigSvc.Config.DnsTempOverrideEnabled = DnsTempToggle?.IsChecked == true;
+            _main.ConfigSvc.Save();
         }
 
         private static void SelectComboByTag(ComboBox box, string tag)
@@ -1542,6 +1579,7 @@ namespace MasselGUARD.Views
             // Clear any references so nothing points at a deleted profile.
             if (cfg.DefaultDnsProfileId  == selected.Id) cfg.DefaultDnsProfileId  = "";
             if (cfg.OpenWifiDnsProfileId == selected.Id) cfg.OpenWifiDnsProfileId = "";
+            if (cfg.BypassDnsProfileId   == selected.Id) cfg.BypassDnsProfileId   = "";
             foreach (var r in cfg.Rules) if (r.DnsProfileId == selected.Id) r.DnsProfileId = "";
             _main.ConfigSvc.Save();
             RefreshDnsControls();

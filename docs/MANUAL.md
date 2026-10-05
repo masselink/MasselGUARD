@@ -144,6 +144,12 @@ Title **DNS PROFILES**. Columns: **DNS profile name** | **Type** | **Rules** | *
 
 **Toolbar:** Revert to default | Add… | Edit… | Remove | **More…** (Add presets, Import, Export). Drag rows to reorder.
 
+**Use a profile for a moment.** Right-click a profile and choose **For 10 seconds / 1 minute / 5 minutes / 15 minutes**: the profile applies right away and MasselGUARD goes back to automatic DNS by itself when the time is up (for example, Google DNS for a minute to get past a DNS ad-block). The footer shows a countdown (`Google · 0:42`); click it to stop at once. **Shift+Enter** on the selected profile repeats the last length. The same lengths are in the tray icon's right-click menu (see below). Browsers with their own encrypted DNS (Secure DNS in Chrome and Edge, DoH in Firefox) ignore the Windows resolver, so turn that setting off in the browser for this to work there.
+
+**Bypass profile.** Right-click a profile and choose **Mark as bypass profile** (or pick it in *Settings > DNS > Bypass profile*). It gets a `⏱` mark, and the footer shows **DNS Bypass: <name>**. Click that footer item, press **Ctrl+Shift+B**, or right-click the tray icon and choose **Bypass: <name>** (just above DNS) to switch to it for the last chosen time; use it again while it runs to stop. Switch the whole feature off with *Settings > DNS > Timed DNS override*.
+
+**From Windows Explorer.** Turn on *Settings > DNS > Windows right-click menu* and right-click the desktop, the empty space of a folder, or a folder: **DNS bypass (MasselGUARD)** offers the same lengths and **Stop now**, with no UAC prompt. MasselGUARD must be running. On Windows 11 the entry is under **Show more options** (Shift+F10). The command-line equivalent is `MasselGUARDcli dns bypass [seconds|stop|toggle]` (see the [CLI manual](CLIManual.md)).
+
 ### Automation panel
 
 Title **AUTOMATION**. Columns: **Name** | **Network (SSID)** | **Action** | **Hits** | **WireGuard tunnel** | **DNS**.
@@ -264,6 +270,15 @@ Connects one tunnel automatically when MasselGUARD starts, after the first rule 
 ## 8. Automation rules
 
 Rules live in the **Automation** panel on the main window. Every add / edit / delete / enable saves immediately. Automation needs the **Automation** feature on and is paused while **Manual mode** is active.
+
+### Create a rule from the network you are on
+
+Right-click the **network name in the footer**, or click the **From network** button next to **+ Add** in the Automation panel. For each connected network (Wi-Fi and cable) the menu offers **Create rule from this network…**, which opens the rule dialog already filled in with the one condition that identifies it best: the **SSID** on Wi-Fi; on a cable the **DNS suffix**, else the **gateway MAC**, else the **subnet**. A line in the dialog says what was added, and **+ Add condition** combines it with more. You only choose the tunnel and/or DNS profile and press OK.
+
+- If a rule **already matches** the network, the menu offers **Edit rule "X" (position N)…** instead, plus **Create another rule anyway…**.
+- After saving, a note appears when an **earlier** rule also matches that network and so wins (first match wins, top-down); drag the new rule above it to change that.
+- In **Simple Wi-Fi mode** only Wi-Fi networks with a name get a suggestion; wired networks are shown with a short explanation.
+- The menu is not offered when a managed policy locks the rules.
 
 ### Rule dialog fields
 
@@ -480,7 +495,9 @@ Below: **Credits & license**, and **What's New** - the release notes, fetched li
 ## 19. Settings: DNS
 
 - **Enable DNS automation** - the master switch (off by default; nothing changes until you turn it on)
-- **Default DNS**, **Open-network DNS**, **Address families** (IPv4, IPv6 or both)
+- **Default DNS**, **Open-network DNS**, **Bypass profile** (the resolver for the quick bypass, see [DNS panel](#dns-panel)), **Address families** (IPv4, IPv6 or both)
+- **Windows right-click menu** - adds the DNS bypass to Windows Explorer's right-click menu (off by default)
+- **Timed DNS override** - the right-click lengths, the tray bypass entry and the keyboard shortcuts (on by default; the override always ends by itself)
 - **DNS profiles** - Add…, **Add presets**, Edit…, Remove
 - **DNS leak protection** - Smart multi-homed name resolution, Parallel A / AAAA queries, and the possible-leak alerts (status icon, activity-log warning, tray notification)
 

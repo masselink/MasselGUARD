@@ -279,6 +279,32 @@ namespace MasselGUARD.Services
             return id.AdapterName;
         }
 
+        /// <summary>The conditions a new rule should start with for this network ("Create a rule from this network").
+        /// Deliberately ONE condition, the least brittle identifier: the SSID on Wi-Fi; on a cable the DNS suffix, else
+        /// the gateway MAC, else the first IPv4 subnet (then any subnet). Never an adapter MAC or a rotating address.
+        /// In Simple Wi-Fi mode only the plain SSID rule exists, so a wired network (or a Wi-Fi without a name)
+        /// suggests nothing. Pure.</summary>
+        public static List<RuleCondition> SuggestConditions(NetworkIdentity? id, bool simpleMode)
+        {
+            var list = new List<RuleCondition>();
+            if (id == null) return list;
+            if (id.IsWifi && !string.IsNullOrEmpty(id.Ssid))
+            { list.Add(new RuleCondition { By = NetworkMatchBy.Ssid, Value = id.Ssid! }); return list; }
+            if (simpleMode) return list;
+
+            if (!string.IsNullOrEmpty(id.DnsSuffix))
+                list.Add(new RuleCondition { By = NetworkMatchBy.DnsSuffix, Value = id.DnsSuffix! });
+            else if (!string.IsNullOrEmpty(NormalizeMac(id.GatewayMac)))
+                list.Add(new RuleCondition { By = NetworkMatchBy.GatewayMac, Value = NormalizeMac(id.GatewayMac)! });
+            else
+            {
+                var subnet = id.Subnets.FirstOrDefault(s => !s.Contains(':')) ?? id.Subnets.FirstOrDefault();
+                if (!string.IsNullOrEmpty(subnet))
+                    list.Add(new RuleCondition { By = NetworkMatchBy.Subnet, Value = subnet });
+            }
+            return list;
+        }
+
         /// <summary>Identity of "the network the history is following": changes when the primary network
         /// really changes (kind, label or open flag), not when a MAC resolves or a lease renews.</summary>
         public static string HistoryKey(NetworkIdentity? id) =>
@@ -530,6 +556,29 @@ namespace MasselGUARD.Services
             Check("hist-key-stable-mac", HistoryKey(office) == HistoryKey(office with { GatewayMac = null, Subnets = new[] { "10.9.9.0/24" } }));
             Check("hist-key-differs-label", HistoryKey(office) != HistoryKey(Id("wired", "eth", suffix: "hotel.example")));
             Check("hist-key-differs-kind",  HistoryKey(Id("wired", "x", ssid: "A")) != HistoryKey(Id("wifi", "x", ssid: "A")));
+
+            // 5c. Suggested conditions for "Create a rule from this network".
+            var sugWifi = SuggestConditions(cafe, false);
+            Check("sug-wifi-one-ssid",  sugWifi.Count == 1 && sugWifi[0].By == NetworkMatchBy.Ssid && sugWifi[0].Value == "Cafe-Free" && !sugWifi[0].Not);
+            Check("sug-wifi-simple",    SuggestConditions(cafe, true) is { Count: 1 } sw && sw[0].By == NetworkMatchBy.Ssid);
+            var sugOffice = SuggestConditions(office, false);
+            Check("sug-wired-suffix",   sugOffice.Count == 1 && sugOffice[0].By == NetworkMatchBy.DnsSuffix && sugOffice[0].Value == "corp.example.com");
+            var sugMac = SuggestConditions(Id("wired", "eth", mac: "AA-BB-CC-00-11-22", subnets: new[] { "10.20.4.0/24" }), false);
+            Check("sug-wired-mac",      sugMac.Count == 1 && sugMac[0].By == NetworkMatchBy.GatewayMac && sugMac[0].Value == "aa:bb:cc:00:11:22");
+            var sugSub = SuggestConditions(Id("wired", "eth", subnets: new[] { "fd00:1::/64", "10.20.4.0/24" }), false);
+            Check("sug-wired-subnet-v4-first", sugSub.Count == 1 && sugSub[0].By == NetworkMatchBy.Subnet && sugSub[0].Value == "10.20.4.0/24");
+            var sugV6 = SuggestConditions(Id("wired", "eth", subnets: new[] { "fd00:1::/64" }), false);
+            Check("sug-wired-subnet-v6-fallback", sugV6.Count == 1 && sugV6[0].Value == "fd00:1::/64");
+            Check("sug-wired-simple-none", SuggestConditions(office, true).Count == 0);
+            Check("sug-wired-bare-none",   SuggestConditions(Id("wired", "eth"), false).Count == 0);
+            Check("sug-wifi-no-ssid-simple-none", SuggestConditions(Id("wifi", "wlan", subnets: new[] { "192.168.1.0/24" }), true).Count == 0);
+            Check("sug-null-none",      SuggestConditions(null, false).Count == 0);
+            // The suggestion must match the network it came from (and not an unrelated one).
+            var ruleFromOffice = new TunnelRule { Kind = "network", Tunnel = "T" }; ruleFromOffice.SetConditions(sugOffice);
+            Check("sug-matches-source", RuleMatches(ruleFromOffice, office));
+            Check("sug-not-other",      !RuleMatches(ruleFromOffice, cafe));
+            var ruleFromWifi = new TunnelRule { Kind = "network", Tunnel = "T" }; ruleFromWifi.SetConditions(sugWifi);
+            Check("sug-wifi-matches-source", RuleMatches(ruleFromWifi, cafe));
 
             // 6. Snapshot fingerprint: identical = same, any identity change = different.
             var s1 = new NetworkSnapshot(SelectPrimary(new[] { eth, wifi }, "windows"));

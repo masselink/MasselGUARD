@@ -107,6 +107,10 @@
                                FontFamily="{DynamicResource Theme.FontFamily}"
                                FontSize="9" Foreground="{DynamicResource TextMuted}"
                                TextWrapping="Wrap" Margin="0,0,0,12"/>
+                    <TextBlock x:Name="PrefillNote" Visibility="Collapsed"
+                               FontFamily="{DynamicResource Theme.FontFamily}"
+                               FontSize="9" Foreground="{DynamicResource Accent}"
+                               TextWrapping="Wrap" Margin="0,0,0,8"/>
                     <TextBlock x:Name="SimpleModeNote" Visibility="Collapsed"
                                Text="{Binding [RuleSimpleModeNote], Source={x:Static local:Lang.Instance}}"
                                FontFamily="{DynamicResource Theme.FontFamily}"

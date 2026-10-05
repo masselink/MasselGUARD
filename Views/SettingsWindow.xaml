@@ -1088,6 +1088,9 @@
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding [SettingsDnsDefaultLabel], Source={x:Static local:Lang.Instance}}"
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextMuted}"
@@ -1099,11 +1102,37 @@
                                                VerticalAlignment="Center" Margin="0,0,10,6"/>
                                     <ComboBox Grid.Row="1" Grid.Column="1" x:Name="DnsOpenBox" FontSize="11" Margin="0,0,0,6"
                                               SelectionChanged="DnsOpen_Changed"/>
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{Binding [SettingsDnsFamiliesLabel], Source={x:Static local:Lang.Instance}}"
+                                    <!-- Bypass profile: the resolver for the quick "bypass for N minutes" action -->
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="{Binding [SettingsDnsBypassLabel], Source={x:Static local:Lang.Instance}}"
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextMuted}"
-                                               VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                    <ComboBox Grid.Row="2" Grid.Column="1" x:Name="DnsFamiliesBox" FontSize="11"
+                                               VerticalAlignment="Center" Margin="0,0,10,6"
+                                               ToolTip="{Binding [SettingsDnsBypassTip], Source={x:Static local:Lang.Instance}}"/>
+                                    <ComboBox Grid.Row="2" Grid.Column="1" x:Name="DnsBypassBox" FontSize="11" Margin="0,0,0,6"
+                                              ToolTip="{Binding [SettingsDnsBypassTip], Source={x:Static local:Lang.Instance}}"
+                                              SelectionChanged="DnsBypass_Changed"/>
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="{Binding [SettingsDnsFamiliesLabel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextMuted}"
+                                               VerticalAlignment="Center" Margin="0,0,10,6"/>
+                                    <ComboBox Grid.Row="3" Grid.Column="1" x:Name="DnsFamiliesBox" FontSize="11" Margin="0,0,0,6"
                                               SelectionChanged="DnsFamilies_Changed"/>
+                                    <!-- Optional: timed override menu items (right-click a profile, tray, Shift+Enter, Ctrl+Shift+B) -->
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="{Binding [SettingsDnsTempLabel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextMuted}"
+                                               VerticalAlignment="Center" Margin="0,0,10,0" TextWrapping="Wrap"
+                                               ToolTip="{Binding [SettingsDnsTempDesc], Source={x:Static local:Lang.Instance}}"/>
+                                    <ToggleButton Grid.Row="4" Grid.Column="1" x:Name="DnsTempToggle" HorizontalAlignment="Left"
+                                                  Style="{StaticResource ToggleSwitch}"
+                                                  ToolTip="{Binding [SettingsDnsTempDesc], Source={x:Static local:Lang.Instance}}"
+                                                  Checked="DnsTemp_Changed" Unchecked="DnsTemp_Changed"/>
+                                    <!-- Optional: DNS bypass in the Windows Explorer right-click menu -->
+                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="{Binding [SettingsDnsShellLabel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextMuted}"
+                                               VerticalAlignment="Center" Margin="0,6,10,0" TextWrapping="Wrap"
+                                               ToolTip="{Binding [SettingsDnsShellDesc], Source={x:Static local:Lang.Instance}}"/>
+                                    <ToggleButton Grid.Row="5" Grid.Column="1" x:Name="DnsShellToggle" HorizontalAlignment="Left" Margin="0,6,0,0"
+                                                  Style="{StaticResource ToggleSwitch}"
+                                                  ToolTip="{Binding [SettingsDnsShellDesc], Source={x:Static local:Lang.Instance}}"
+                                                  Checked="DnsShell_Changed" Unchecked="DnsShell_Changed"/>
                                 </Grid>
                             </Border>
 

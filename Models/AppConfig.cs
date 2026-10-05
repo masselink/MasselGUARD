@@ -201,6 +201,12 @@ namespace MasselGUARD.Models
         /// inline next to each active tunnel's status.
         /// </summary>
         public bool ShowDnsIndicator { get; set; } = true;
+        /// <summary>Offer "use this DNS profile for 10 s / 1 / 5 / 15 min" (right-click a profile, the tray
+        /// DNS menu, Shift+Enter). The override reverts by itself. Optional: off removes the menu items.</summary>
+        public bool DnsTempOverrideEnabled { get; set; } = true;
+        /// <summary>Show a "DNS bypass" cascade in Windows Explorer's right-click menu (desktop and folders).
+        /// Per-user registry entries that run the CLI; off by default.</summary>
+        public bool ShellBypassMenuEnabled { get; set; } = false;
 
         // ── Possible-DNS-leak alerts ──────────────────────────────────────────
         // Three independent delivery channels for "this active tunnel may be leaking
@@ -235,6 +241,11 @@ namespace MasselGUARD.Models
         /// <see cref="OpenWifiTunnel"/>). Lets "any open Wi-Fi → encrypted DoH" work with no
         /// per-SSID rule.</summary>
         public string OpenWifiDnsProfileId { get; set; } = "";
+
+        /// <summary>The "bypass profile": the one resolver you reach for to get past a DNS block (for example
+        /// Google DNS to get around the ad-block). Used by the quick bypass action (tray DNS menu, Ctrl+Shift+B,
+        /// Shift+Enter with nothing selected) for a timed override. "" = none marked.</summary>
+        public string BypassDnsProfileId { get; set; } = "";
 
         /// <summary>Which address families a DNS profile touches: "both" | "v4" | "v6".
         /// Default both (setting only v4 leaves v6 resolving via the network resolver).</summary>

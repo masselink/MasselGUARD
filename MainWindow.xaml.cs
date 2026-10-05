@@ -199,7 +199,6 @@ namespace MasselGUARD
                     {
                         ApplyThemeFromConfig();
                         // Re-colour footer labels - Accent may have changed
-                        UpdateAdminLabel();
                         UpdateFooterLabel();
                     });
                 }
@@ -258,16 +257,15 @@ namespace MasselGUARD
 
             // Restore or initialise column widths
             InitColumnWidths();
+            PreviewKeyDown += MainWindow_PreviewKeyDown;   // Ctrl+Shift+B = quick DNS bypass
 
             // Update footer
-            UpdateAdminLabel();
             UpdateFooterLabel();
 
             // Apply language-change refresh
             Lang.Instance.LanguageChanged += (_, _) => Dispatcher.BeginInvoke(() =>
             {
                 _vm.RebuildTunnelList();
-                UpdateAdminLabel();
                 UpdateFooterLabel();
                 UpdateWindowTitle();
                 UpdateTunnelLabel();
@@ -301,7 +299,6 @@ namespace MasselGUARD
                 Step(RefreshWifiRulesPanel);
                 Step(UpdateStatusBarCentre);
                 Step(UpdateFooterLabel);
-                Step(UpdateAdminLabel);
                 Step(UpdateShieldChevron);
                 Step(NotifyAllBadges);
                 Step(ApplyGroupFilter);
@@ -1061,6 +1058,7 @@ namespace MasselGUARD
         {
             if (AddTunnelBtn  != null && ConfigSvc.TunnelsLocked)  AddTunnelBtn.IsEnabled  = false;
             if (WifiRuleAddBtn != null && ConfigSvc.IsLocked("Rules")) WifiRuleAddBtn.IsEnabled = false;
+            if (WifiRuleAddMenuBtn != null && ConfigSvc.IsLocked("Rules")) WifiRuleAddMenuBtn.IsEnabled = false;
         }
 
         private void TunnelsListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1469,6 +1467,8 @@ namespace MasselGUARD
             public string Server { get; init; } = "";
             public string Rules  { get; init; } = "";
             public bool   Enabled { get; init; }         // this profile is the manually-enabled one
+            public bool   IsBypass { get; init; }        // marked as the bypass profile
+            public Visibility BypassBadgeVis => IsBypass ? Visibility.Visible : Visibility.Collapsed;
             public string EnableLabel { get; init; } = "";   // per-row button: Enable / Disable
             public Visibility EnabledDot => Enabled ? Visibility.Visible : Visibility.Collapsed;
             public int    RulesCount { get; init; }      // numeric, for sorting
@@ -1501,6 +1501,7 @@ namespace MasselGUARD
                     Rules  = cnt.ToString(),
                     RulesCount = cnt,
                     Enabled = on,
+                    IsBypass = p.Id == ConfigSvc.Config.BypassDnsProfileId,
                     EnableLabel = Lang.T(on ? "BtnDnsDisable" : "BtnDnsEnable"),
                 };
             });
@@ -1624,6 +1625,137 @@ namespace MasselGUARD
             if (DnsArrowType   != null) DnsArrowType.Text   = _dnsSortCol == "Type"   ? (_dnsSortAsc ? asc : desc) : "";
             if (DnsArrowServer != null) DnsArrowServer.Text = _dnsSortCol == "Server" ? (_dnsSortAsc ? asc : desc) : "";
             if (DnsArrowRules  != null) DnsArrowRules.Text  = _dnsSortCol == "Rules"  ? (_dnsSortAsc ? asc : desc) : "";
+        }
+
+        // ── Timed DNS override (optional: Settings > DNS) ─────────────────────
+        private int _lastDnsTempSeconds = 60;   // Shift+Enter repeats the last chosen length
+
+        /// <summary>Right-click a DNS profile: use it for 10 s / 1 / 5 / 15 minutes, then back to automatic.</summary>
+        private void DnsList_RightClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (!ConfigSvc.Config.DnsTempOverrideEnabled || !ConfigSvc.Config.EnableDns) return;
+            if ((e.OriginalSource as FrameworkElement)?.DataContext is not DnsProfileRow row) return;
+            DnsProfilesPanelList.SelectedItem = row;
+            e.Handled = true;
+
+            var entries = new List<Views.FetchEntry> { Views.FetchEntry.Header(row.Name) };
+            foreach (var s in Models.TempOverride.PresetSeconds)
+                entries.Add(Views.FetchEntry.Item(Lang.T(Models.TempOverride.LabelKey(s)), s.ToString()));
+            if (_vm.DnsTempActive)
+            {
+                entries.Add(Views.FetchEntry.Separator());
+                entries.Add(Views.FetchEntry.Item(Lang.T("DnsTempStop"), "stop"));
+            }
+            entries.Add(Views.FetchEntry.Separator());
+            bool isBypass = ConfigSvc.Config.BypassDnsProfileId == row.Id;
+            entries.Add(Views.FetchEntry.Item(Lang.T(isBypass ? "DnsBypassClear" : "DnsBypassMark"), "bypassmark"));
+            Views.FetchMenu.Show(DnsProfilesPanelList, entries, v =>
+            {
+                if (v == "bypassmark")
+                {
+                    ConfigSvc.Config.BypassDnsProfileId = isBypass ? "" : row.Id;
+                    ConfigSvc.Save();
+                }
+                else if (v == "stop") _vm.ManualDisable();
+                else if (int.TryParse(v, out int sec)) UseDnsTemporarily(row.Id, sec);
+                RebuildDnsPanel();
+            });
+        }
+
+        /// <summary>Shift+Enter on the selected DNS profile repeats the last timed override.</summary>
+        private void DnsList_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key != System.Windows.Input.Key.Enter
+                || (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Shift) == 0) return;
+            if (!ConfigSvc.Config.DnsTempOverrideEnabled) return;
+            e.Handled = true;
+            if (DnsProfilesPanelList.SelectedItem is DnsProfileRow row) UseDnsTemporarily(row.Id, _lastDnsTempSeconds);
+            else BypassDnsNow();   // nothing selected: the marked bypass profile
+            RebuildDnsPanel();
+        }
+
+        /// <summary>Handles a bypass request that arrived through the command pipe (Explorer right-click ->
+        /// CLI). Runs on the UI thread; returns the one-line reply for the CLI.</summary>
+        public string RunBypassCommand(string action, int seconds)
+        {
+            var cfg = ConfigSvc.Config;
+            if (!cfg.EnableDns) return "error: the DNS feature is switched off.";
+            if (!cfg.DnsTempOverrideEnabled) return "error: the timed DNS override is switched off in Settings > DNS.";
+
+            if (action == "toggle") action = _vm.DnsTempActive ? "stop" : "start";
+            if (action == "stop")
+            {
+                if (!_vm.DnsTempActive) return "ok: no DNS bypass is running.";
+                _vm.ManualDisable();
+                RebuildDnsPanel();
+                return "ok: DNS bypass stopped, back to automatic.";
+            }
+
+            var p = cfg.DnsProfiles.FirstOrDefault(x => x.Id == cfg.BypassDnsProfileId);
+            if (p == null) return "error: no bypass profile is marked (right-click a DNS profile > Mark as bypass profile).";
+            int secs = seconds > 0 ? seconds : _lastDnsTempSeconds;
+            _lastDnsTempSeconds = secs;
+            if (!_vm.UseDnsTemporarily(p, TimeSpan.FromSeconds(secs))) return "error: could not switch DNS.";
+            RebuildDnsPanel();
+            return $"ok: using '{p.Name}' for {secs} seconds, then back to automatic.";
+        }
+
+        /// <summary>Writes or removes the Explorer right-click entries to match Settings. Called at startup (so a
+        /// moved install or a changed language is picked up) and when the Settings toggle changes.</summary>
+        public void RefreshShellMenu()
+        {
+            try
+            {
+                if (!ConfigSvc.Config.ShellBypassMenuEnabled) { Services.ShellMenuService.Unregister(); return; }
+                var exe = Environment.ProcessPath ?? "";
+                var cli = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(exe) ?? AppContext.BaseDirectory, "MasselGUARDcli.exe");
+                if (!System.IO.File.Exists(cli)) { LogSvc.Warn("Explorer menu: MasselGUARDcli.exe not found next to the app, entries not added."); return; }
+                Services.ShellMenuService.Register(cli, exe, k => Lang.T(k));
+            }
+            catch (Exception ex) { LogSvc.Warn($"Explorer menu: {ex.Message}"); }
+        }
+
+        /// <summary>Quick bypass: the profile marked as bypass profile, for the last chosen length. Used again
+        /// while it is running it stops the override (so one key press toggles it).</summary>
+        public void BypassDnsNow(int? seconds = null)
+        {
+            var cfg = ConfigSvc.Config;
+            if (!cfg.DnsTempOverrideEnabled || !cfg.EnableDns) return;
+            if (_vm.DnsTempActive && seconds == null) { _vm.ManualDisable(); RebuildDnsPanel(); return; }
+            if (string.IsNullOrEmpty(cfg.BypassDnsProfileId)) { ShowThemedInfo(Lang.T("DnsBypassNoneSet"), Lang.T("DnsBypassBadgeTip"), this); return; }
+            UseDnsTemporarily(cfg.BypassDnsProfileId, seconds ?? _lastDnsTempSeconds);
+            RebuildDnsPanel();
+        }
+
+        /// <summary>Ctrl+Shift+B anywhere in the main window: quick bypass (press again to stop).</summary>
+        private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            var mods = System.Windows.Input.Keyboard.Modifiers;
+            if (e.Key == System.Windows.Input.Key.B
+                && (mods & System.Windows.Input.ModifierKeys.Control) != 0
+                && (mods & System.Windows.Input.ModifierKeys.Shift) != 0)
+            {
+                e.Handled = true;
+                BypassDnsNow();
+            }
+        }
+
+        public void UseDnsTemporarily(string profileId, int seconds)
+        {
+            var p = ConfigSvc.Config.DnsProfiles.FirstOrDefault(x => x.Id == profileId);
+            if (p == null) return;
+            _lastDnsTempSeconds = seconds;
+            _vm.UseDnsTemporarily(p, TimeSpan.FromSeconds(seconds));
+        }
+
+        /// <summary>Clicking the footer "DNS Bypass: X" item runs the quick bypass (again = stop).</summary>
+        private void DnsBypassFooter_Click(object sender, System.Windows.Input.MouseButtonEventArgs e) => BypassDnsNow();
+
+        /// <summary>Clicking the footer countdown ends the timed override at once.</summary>
+        private void DnsTempFooter_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            _vm.ManualDisable();
+            RebuildDnsPanel();
         }
 
         /// <summary>Per-row Enable/Disable button: enable this profile (only one at a time - enabling
@@ -2113,19 +2245,6 @@ namespace MasselGUARD
             };
             FooterLabel.Text = $"{Lang.T("FooterMode")}: {modeText}";
             FooterLabel.SetResourceReference(ForegroundProperty, "TextMuted");  // always grey
-        }
-
-        private void UpdateAdminLabel()
-        {
-            bool isAdmin = new System.Security.Principal.WindowsPrincipal(
-                System.Security.Principal.WindowsIdentity.GetCurrent())
-                .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
-
-            AdminLabel.Text = isAdmin ? Lang.T("AdminYes") : Lang.T("AdminNo");
-            // Admin → Windows accent colour (theme colour); not admin → muted grey
-            AdminLabel.Foreground = isAdmin
-                ? (Brush)FindResource("Accent")
-                : (Brush)FindResource("TextMuted");
         }
 
         // ── Theme application ─────────────────────────────────────────────────
@@ -3112,6 +3231,7 @@ namespace MasselGUARD
             cfg.DnsProfiles.RemoveAll(p => p.Id == sel.Id);
             if (cfg.DefaultDnsProfileId  == sel.Id) cfg.DefaultDnsProfileId  = "";
             if (cfg.OpenWifiDnsProfileId == sel.Id) cfg.OpenWifiDnsProfileId = "";
+            if (cfg.BypassDnsProfileId   == sel.Id) cfg.BypassDnsProfileId   = "";
             foreach (var r in cfg.Rules) if (r.DnsProfileId == sel.Id) r.DnsProfileId = "";
             ConfigSvc.Save();
             LogSvc.Ok($"DNS profile removed: {sel.Name}");
@@ -3180,8 +3300,16 @@ namespace MasselGUARD
             catch (Exception ex) { LogSvc.Warn($"DNS import failed: {ex.Message}"); }
         }
 
-        private void WifiRuleAdd_Click(object sender, RoutedEventArgs e)
+        private void WifiRuleAdd_Click(object sender, RoutedEventArgs e) => AddRuleFromDialog();
+
+        // ── Create a rule from this network ───────────────────────────────────
+        /// <summary>Opens the rule dialog for a NEW rule. With <paramref name="source"/> the dialog starts with the
+        /// conditions that identify that network (<see cref="NetworkMatcher.SuggestConditions"/>); afterwards a note
+        /// says when an earlier rule also matches that network and so wins (first match wins, top-down).</summary>
+        private void AddRuleFromDialog(NetworkIdentity? source = null)
         {
+            var prefill = source != null ? NetworkMatcher.SuggestConditions(source, ConfigSvc.Config.SimpleWifiMode) : null;
+            var label   = source != null ? NetworkMatcher.HistoryLabel(source) : null;
             var dlg = new Views.RuleDialog(
                 WifiSvc.CurrentSsid,
                 tunnels: GetTunnelNames(),
@@ -3191,7 +3319,9 @@ namespace MasselGUARD
                 captureNetwork: CaptureNetworkSnapshot,
                 listAdapters:   NetworkMonitor.ListPhysicalAdapters,
                 recentNetworks: () => HistorySvc.SsidEntries,
-                simpleMode:     ConfigSvc.Config.SimpleWifiMode)
+                simpleMode:     ConfigSvc.Config.SimpleWifiMode,
+                prefillConditions: prefill,
+                prefillNetworkLabel: label)
                 { Owner = this };
             if (dlg.ShowDialog() != true) return;
             var rule = new Models.TunnelRule
@@ -3209,7 +3339,86 @@ namespace MasselGUARD
             ConfigSvc.Config.Rules.Add(rule);
             LogSvc.Ok($"Rule added: {rule.RuleName}");
             OnRulesChanged();
+
+            if (source != null && rule.IsNetworkKind)
+            {
+                var cfg = ConfigSvc.Config;
+                var hits = NetworkMatcher.MatchingRules(cfg.Rules, source, r => NetworkMatcher.IsRuleUsed(cfg, r));
+                if (hits.Count > 0 && !ReferenceEquals(hits[0], rule) && hits.Contains(rule))
+                    ShowThemedInfo(Lang.T("RuleShadowNote", hits[0].RuleName), Lang.T("RuleShadowTitle"), this);
+            }
         }
+
+        /// <summary>Right-click menu on the footer network label and the "▾" next to Add: create a rule from a
+        /// connected network, or - when a rule already matches it - edit that rule (or create another anyway).</summary>
+        private void ShowNetworkRuleMenu(FrameworkElement target)
+        {
+            var cfg = ConfigSvc.Config;
+            if (ConfigSvc.IsLocked("Rules")) return;   // a managed policy owns the rules
+            var nets = _vm.CurrentNetwork.Adapters.OrderByDescending(a => a.IsPrimary).ToList();
+            var entries = new List<Views.FetchEntry>();
+            var actions = new Dictionary<string, Action>();
+
+            if (nets.Count == 0)
+                entries.Add(Views.FetchEntry.Header(Lang.T("RuleNetMenuNone")));
+
+            int n = 0;
+            foreach (var net in nets)
+            {
+                var id = net;
+                entries.Add(Views.FetchEntry.Header((id.IsWired ? "🔌 " : "📶 ") + NetworkMatcher.HistoryLabel(id)));
+                if (NetworkMatcher.SuggestConditions(id, cfg.SimpleWifiMode).Count == 0)
+                {
+                    entries.Add(Views.FetchEntry.Section(Lang.T(cfg.SimpleWifiMode && id.IsWired ? "RuleNetMenuSimpleWired" : "RuleNetMenuNoDetails")));
+                    continue;
+                }
+                var hits = NetworkMatcher.MatchingRules(cfg.Rules, id, r => NetworkMatcher.IsRuleUsed(cfg, r));
+                string createKey = $"new{n}";
+                if (hits.Count > 0)
+                {
+                    var first = hits[0];
+                    string editKey = $"edit{n}";
+                    entries.Add(Views.FetchEntry.Item(Lang.T("RuleNetMenuEdit", first.RuleName, cfg.Rules.IndexOf(first) + 1), editKey));
+                    actions[editKey] = () => EditRuleFromMenu(first);
+                    entries.Add(Views.FetchEntry.Item(Lang.T("RuleNetMenuAnother"), createKey));
+                }
+                else
+                    entries.Add(Views.FetchEntry.Item(Lang.T("RuleNetMenuCreate"), createKey));
+                actions[createKey] = () => _ = CreateRuleFromNetworkAsync(id);
+                n++;
+            }
+            Views.FetchMenu.Show(target, entries, v => { if (actions.TryGetValue(v, out var a)) a(); });
+        }
+
+        /// <summary>Re-reads the network with the gateway MAC resolved (an ARP lookup, off the UI thread), so a wired
+        /// network without a DNS suffix can still be identified by its router, then opens the pre-filled dialog.</summary>
+        private async System.Threading.Tasks.Task CreateRuleFromNetworkAsync(NetworkIdentity id)
+        {
+            NetworkIdentity fresh = id;
+            try
+            {
+                var snap = await System.Threading.Tasks.Task.Run(CaptureNetworkSnapshot);
+                fresh = snap.Adapters.FirstOrDefault(a => string.Equals(a.AdapterId, id.AdapterId, StringComparison.OrdinalIgnoreCase)) ?? id;
+            }
+            catch { }
+            AddRuleFromDialog(fresh);
+        }
+
+        private void EditRuleFromMenu(TunnelRule rule)
+        {
+            var row = WifiRulesListView?.Items.OfType<WifiRuleRow>().FirstOrDefault(r => ReferenceEquals(r.Rule, rule));
+            if (row != null) { WifiRulesListView!.SelectedItem = row; WifiRuleEdit_Click(this, new RoutedEventArgs()); }
+            else EditRulePublic(rule);   // Automation panel hidden: the simple editor
+        }
+
+        private void WifiFooter_RightClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            e.Handled = true;
+            ShowNetworkRuleMenu(WifiFooterLabel);
+        }
+
+        private void WifiRuleAddMenu_Click(object sender, RoutedEventArgs e)
+            => ShowNetworkRuleMenu((FrameworkElement)sender);
 
         private void WifiRuleEdit_Click(object sender, RoutedEventArgs e)
         {
@@ -3592,15 +3801,34 @@ namespace MasselGUARD
             bool showWifi = footerNet != null;
             WifiFooterLabel.Text       = showWifi ? $"{(footerNet!.Value.wired ? "🔌" : "📶")} {footerNet.Value.label}" : "";
             WifiFooterLabel.Visibility = showWifi ? Visibility.Visible : Visibility.Collapsed;
+            // Timed DNS override countdown (click = stop now)
+            bool showTemp = _vm.DnsTempActive;
+            if (showTemp)
+            {
+                var tp = ConfigSvc.Config.DnsProfiles.FirstOrDefault(p => p.Id == _vm.DnsTempProfileId);
+                DnsTempFooterLabel.Text    = $"⏳ {tp?.Name ?? "DNS"} · {_vm.DnsTempRemainingText}";
+                DnsTempFooterLabel.ToolTip = Lang.T("DnsTempFooterTip");
+            }
+            DnsTempFooterLabel.Visibility = showTemp ? Visibility.Visible : Visibility.Collapsed;
+
             // DNS servers in use right now
             var dnsServers = FooterDnsServers();
             bool showDns = dnsServers.Count > 0;
             DnsFooterLabel.Text       = showDns ? "🌐 " + string.Join(", ", dnsServers.Take(2)) + (dnsServers.Count > 2 ? " …" : "") : "";
             DnsFooterLabel.ToolTip    = showDns ? Lang.T("FooterDnsTip", string.Join("\n", dnsServers)) : null;
             DnsFooterLabel.Visibility = showDns ? Visibility.Visible : Visibility.Collapsed;
-            DnsFooterSep.Visibility   = showDns && (showDef || showOpen) ? Visibility.Visible : Visibility.Collapsed;
+            // DNS bypass profile (marked in the DNS list / Settings > DNS); click = quick bypass
+            var bypassProfile = ConfigSvc.Config.EnableDns
+                ? ConfigSvc.Config.DnsProfiles.FirstOrDefault(p => p.Id == ConfigSvc.Config.BypassDnsProfileId) : null;
+            bool showBypass = bypassProfile != null;
+            DnsBypassFooterLabel.Text       = showBypass ? "⏱ " + Lang.T("DnsBypassFooter", bypassProfile!.Name) : "";
+            DnsBypassFooterLabel.ToolTip    = showBypass ? Lang.T(ConfigSvc.Config.DnsTempOverrideEnabled ? "DnsBypassFooterTip" : "DnsBypassFooterTipOff") : null;
+            DnsBypassFooterLabel.Visibility = showBypass ? Visibility.Visible : Visibility.Collapsed;
+            DnsBypassFooterSep.Visibility   = showBypass && (showDef || showOpen) ? Visibility.Visible : Visibility.Collapsed;
+            DnsFooterSep.Visibility   = showDns && (showBypass || showDef || showOpen) ? Visibility.Visible : Visibility.Collapsed;
+            DnsTempFooterSep.Visibility = showTemp && (showDns || showBypass || showDef || showOpen) ? Visibility.Visible : Visibility.Collapsed;
             // Separator between WiFi and the other items - only when something follows
-            WifiFooterSep.Visibility   = showWifi && (showDns || showDef || showOpen)
+            WifiFooterSep.Visibility   = showWifi && (showTemp || showDns || showBypass || showDef || showOpen)
                 ? Visibility.Visible : Visibility.Collapsed;
 
             DefaultTunnelLabel.Text        = showDef  ? $"⚡ {def}"  : "";
@@ -4504,6 +4732,7 @@ namespace MasselGUARD
             {
                 LogSvc.Info("Uninstalling...");
                 RunPS("Unregister-ScheduledTask -TaskName 'MasselGUARD' -Confirm:$false -ErrorAction SilentlyContinue");
+                try { Services.ShellMenuService.Unregister(); } catch { }   // Explorer right-click entries
                 var startMenuDir = System.IO.Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
                     InstallFolderName);
@@ -4713,6 +4942,7 @@ namespace MasselGUARD
             else
             {
                 RunPS("Unregister-ScheduledTask -TaskName 'MasselGUARD' -Confirm:$false -ErrorAction SilentlyContinue");
+                try { Services.ShellMenuService.Unregister(); } catch { }   // Explorer right-click entries
             }
             ConfigSvc.Config.StartWithWindows = enable;
             ConfigSvc.Save();

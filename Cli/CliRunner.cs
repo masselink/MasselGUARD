@@ -130,12 +130,38 @@ namespace MasselGUARD.Cli
         /// <summary>`dns status` - shows the DNS-automation config (enabled, default/open
         /// profiles, families, profiles) plus each active interface's current resolvers.
         /// Read-only; needs no elevation. Applying DNS is GUI-only in this release.</summary>
+        /// <summary>dns bypass [seconds|stop|toggle]: asks the RUNNING MasselGUARD window to switch to the bypass
+        /// profile for a short time (the window owns the timer and the DNS change). Needs no elevation, which is
+        /// what lets the Windows right-click menu call it without a UAC prompt.</summary>
+        private static int CmdDnsBypass(string[] args, bool json)
+        {
+            string arg = args.Length > 2 ? args[2] : "";
+            var req = Services.CommandPipe.ParseBypass("bypass " + arg);
+            if (req.Action == "invalid")
+            {
+                CliOutput.Error($"Usage: {ExeName} dns bypass [seconds|stop|toggle]   (seconds {Services.CommandPipe.MinSeconds}-{Services.CommandPipe.MaxSeconds})");
+                return 1;
+            }
+            var reply = Services.CommandPipe.Send(("bypass " + arg).Trim());
+            if (reply == null)
+            {
+                CliOutput.Error("MasselGUARD is not running (start it first), so there is no window to switch DNS.");
+                return 1;
+            }
+            bool ok = reply.StartsWith("ok", StringComparison.OrdinalIgnoreCase);
+            if (json) CliOutput.PrintJson(new { ok, message = reply });
+            else if (ok) CliOutput.Ok(reply);
+            else CliOutput.Error(reply);
+            return ok ? 0 : 1;
+        }
+
         private static int CmdDns(string[] args, AppConfig cfg, bool json)
         {
             string sub = args.Length > 1 ? args[1].ToLowerInvariant() : "status";
+            if (sub == "bypass") return CmdDnsBypass(args, json);
             if (sub != "status")
             {
-                CliOutput.Error($"Unknown dns subcommand: '{sub}'. Use: dns status");
+                CliOutput.Error($"Unknown dns subcommand: '{sub}'. Use: dns status | dns bypass [seconds|stop|toggle]");
                 return 1;
             }
 
@@ -293,6 +319,8 @@ namespace MasselGUARD.Cli
             var (rtPass,   rtFail,   rtFailures)   = Services.RuleTester.RunSelfTest();
             var (rePass,   reFail,   reFailures)   = Services.RuleEngine.RunSelfTest();
             var (smPass,   smFail,   smFailures)   = Services.RuleSimulator.RunSelfTest();
+            var (toPass,   toFail,   toFailures)   = Models.TempOverride.RunSelfTest();
+            var (cpPass,   cpFail,   cpFailures)   = Services.CommandPipe.RunSelfTest();
 
             foreach (var f in cidrFailures) CliOutput.Error($"FAIL CidrMath {f}");
             foreach (var f in backFailures) CliOutput.Error($"FAIL Backend {f}");
@@ -302,10 +330,12 @@ namespace MasselGUARD.Cli
             foreach (var f in rtFailures)   CliOutput.Error($"FAIL RuleTester {f}");
             foreach (var f in reFailures)   CliOutput.Error($"FAIL RuleEngine {f}");
             foreach (var f in smFailures)   CliOutput.Error($"FAIL RuleSimulator {f}");
+            foreach (var f in toFailures)   CliOutput.Error($"FAIL TempOverride {f}");
+            foreach (var f in cpFailures)   CliOutput.Error($"FAIL CommandPipe {f}");
 
-            int pass = cidrPass + backPass + expPass + dnsPass + netPass + rtPass + rePass + smPass;
-            int fail = cidrFail + backFail + expFail + dnsFail + netFail + rtFail + reFail + smFail;
-            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}, NetworkMatcher {netPass}, RuleTester {rtPass}, RuleEngine {rePass}, RuleSimulator {smPass}).");
+            int pass = cidrPass + backPass + expPass + dnsPass + netPass + rtPass + rePass + smPass + toPass + cpPass;
+            int fail = cidrFail + backFail + expFail + dnsFail + netFail + rtFail + reFail + smFail + toFail + cpFail;
+            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}, NetworkMatcher {netPass}, RuleTester {rtPass}, RuleEngine {rePass}, RuleSimulator {smPass}, TempOverride {toPass}, CommandPipe {cpPass}).");
             else           CliOutput.Error($"Self-test: {pass} passed, {fail} failed.");
             return fail == 0 ? 0 : 1;
         }
@@ -1244,6 +1274,7 @@ namespace MasselGUARD.Cli
             CliOutput.Info("  disconnect-all             Disconnect all active tunnels");
             CliOutput.Info("  info <name>                Detailed status for one tunnel");
             CliOutput.Info("  dns status                 Show DNS-automation config + live resolvers");
+            CliOutput.Info("  dns bypass [seconds|stop]  Use the bypass DNS profile for a short time (needs the running window)");
             CliOutput.Info("  network status             Show connected networks (Wi-Fi + wired), the primary one, and what the rules would do");
             CliOutput.Info("  log [n]                    Recent connections (default 20)");
             CliOutput.Info("  tunnel-history [n]         Connection history with source and traffic (default 20)");

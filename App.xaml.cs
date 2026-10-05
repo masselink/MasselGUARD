@@ -25,6 +25,8 @@ namespace MasselGUARD
         private WinForms.ToolStripMenuItem? _tunnelMenuHeader;
         private WinForms.ToolStripMenuItem? _dnsMenuHeader;
         private WinForms.ToolStripSeparator? _dnsMenuSeparator;
+        private Services.CommandPipe.Server? _commandPipe;   // lets the non-elevated CLI (Explorer right-click) trigger the DNS bypass
+        private WinForms.ToolStripMenuItem? _bypassMenuItem;   // top-level "Bypass: <profile>" entry (tray right-click)
         private WinForms.ToolStripMenuItem? _traySysDiagItem;
         private WinForms.ToolStripMenuItem? _trayShowItem;
         private WinForms.ToolStripMenuItem? _trayExitItem;
@@ -319,6 +321,14 @@ namespace MasselGUARD
 
             // ── 3. Launch main window ────────────────────────────────────────
             _mainWindow = new MainWindow();
+            _commandPipe = new Services.CommandPipe.Server(line =>
+            {
+                var req = Services.CommandPipe.ParseBypass(line);
+                if (req.Action == "invalid") return "error: unknown command";
+                return _mainWindow.Dispatcher.Invoke(() => _mainWindow.RunBypassCommand(req.Action, req.Seconds));
+            });
+            _commandPipe.Start();
+            _mainWindow.RefreshShellMenu();   // keep the Explorer menu entries pointing at this install
 
             bool startMinimized = _mainWindow.ConfigSvc.Config.StartMinimized;
 
@@ -981,6 +991,8 @@ namespace MasselGUARD
         {
             if (_dnsMenuHeader == null || _mainWindow == null) return;
             _dnsMenuHeader.DropDownItems.Clear();
+            // The quick-bypass entry lives at the top level of the tray menu; drop the previous one, it is rebuilt below.
+            if (_bypassMenuItem != null) { _trayMenu?.Items.Remove(_bypassMenuItem); _bypassMenuItem.Dispose(); _bypassMenuItem = null; }
 
             // Gather profile + active-override data on the WPF UI thread.
             List<Models.DnsProfile> profiles = new();
@@ -1042,6 +1054,49 @@ namespace MasselGUARD
                 };
                 _dnsMenuHeader.DropDownItems.Add(revert);
                 _dnsMenuHeader.DropDownItems.Add(new WinForms.ToolStripSeparator());
+            }
+
+            // ── Quick bypass: the marked bypass profile for 10 s / 1 / 5 / 15 min, then back to automatic.
+            //    Only when the option is on and a profile is marked. ──
+            bool tempOn = false; Models.DnsProfile? bypass = null; bool tempRunning = false;
+            _mainWindow.Dispatcher.Invoke(() =>
+            {
+                var c = _mainWindow.ConfigSvc.Config;
+                tempOn = c.DnsTempOverrideEnabled && c.EnableDns;
+                bypass = profiles.FirstOrDefault(p => p.Id == c.BypassDnsProfileId);
+                tempRunning = _mainWindow._vm.DnsTempActive;
+            });
+            if (tempOn && bypass != null)
+            {
+                var head = new WinForms.ToolStripMenuItem(Lang.T("DnsBypassTray", bypass.Name));
+                head.Font      = GetTrayFont(bold: true);
+                head.ForeColor = accentColor;
+                foreach (var secs in Models.TempOverride.PresetSeconds)
+                {
+                    int s = secs;
+                    var sub = new WinForms.ToolStripMenuItem(Lang.T(Models.TempOverride.LabelKey(s)));
+                    sub.Font = GetTrayFont(); sub.ForeColor = mutedColor;
+                    sub.Click += (_, _) => _mainWindow?.Dispatcher.Invoke(() => _mainWindow.BypassDnsNow(s));
+                    head.DropDownItems.Add(sub);
+                }
+                if (tempRunning)
+                {
+                    head.DropDownItems.Add(new WinForms.ToolStripSeparator());
+                    var stop = new WinForms.ToolStripMenuItem(Lang.T("DnsTempStop"));
+                    stop.Font = GetTrayFont(); stop.ForeColor = accentColor;
+                    stop.Click += (_, _) => _mainWindow?.Dispatcher.Invoke(() =>
+                    {
+                        _mainWindow._vm.ManualDisable();
+                        _mainWindow.RebuildDnsPanel();
+                    });
+                    head.DropDownItems.Add(stop);
+                }
+                ApplyDropDownStyle(head, bgColor);
+                head.Image = DrawMenuIcon(MenuIconKind.Dns);
+                head.Click += (_, _) => _mainWindow?.Dispatcher.Invoke(() => _mainWindow.BypassDnsNow());   // click = bypass now / stop
+                _bypassMenuItem = head;
+                int at = _trayMenu != null ? _trayMenu.Items.IndexOf(_dnsMenuHeader) : -1;
+                if (_trayMenu != null) _trayMenu.Items.Insert(at >= 0 ? at : _trayMenu.Items.Count, head);
             }
 
             foreach (var profile in profiles)
@@ -1155,6 +1210,7 @@ namespace MasselGUARD
             // Stop all active local tunnel services before the process exits.
             // This prevents orphaned WireGuardTunnel$ services remaining in the SCM.
             try { TunnelDll.DisconnectAll(); } catch { }
+            try { _commandPipe?.Dispose(); } catch { }
             _trayIcon?.Dispose();
             // Wake the show-request listener so it observes IsShuttingDown and exits, then dispose.
             try { _showEvent?.Set(); } catch { }

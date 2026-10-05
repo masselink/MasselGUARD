@@ -40,6 +40,7 @@
     <Compile Include="..\Models\*.cs" />
     <Compile Include="..\Infrastructure\*.cs" />
     <Compile Include="..\Services\CidrMath.cs" />
+    <Compile Include="..\Services\CommandPipe.cs" />
     <Compile Include="..\Services\SplitTunnelBackend.cs" />
     <Compile Include="..\Services\DnsPolicy.cs" />
     <Compile Include="..\Services\NetworkMatcher.cs" />

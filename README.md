@@ -45,6 +45,7 @@ Light and dark are both built in, and colours and section icons are themeable. I
 - **Other triggers** - schedule windows (overnight supported) and a directional **trusted-networks** list (connect on untrusted, or only on trusted).
 - **Default action** and **open-network protection** (force a tunnel on passwordless Wi-Fi before any rule fires).
 - **Simple Wi-Fi mode** - only Wi-Fi networks and plain SSID rules are used, for people who just want the classic behaviour.
+- **Create a rule from the network you are on** - right-click the network name in the footer, or use **From network** next to **+ Add**: the rule dialog opens already filled in with the condition that identifies that network best.
 - **Test it** - **Test rule** checks one rule against the current network; **Advanced test** lets you describe any network and shows which rule fires and why, step by step. Nothing is connected or changed.
 - **Fetch, don't type** - every value has a Fetch button that lists the connected networks, the PC's adapters and recently seen networks.
 - **Network-change notifications** - an optional pop-up with the new network, its DNS and which automation applied.
@@ -53,6 +54,7 @@ Light and dark are both built in, and colours and section icons are themeable. I
 - **A resolver per network, with or without a tunnel**, on its own axis next to the tunnel rules.
 - **Profiles manager** - IPv4/IPv6 profiles, plain or DoH, one-click presets (Cloudflare, Google, Quad9, AdGuard, OpenDNS, NextDNS template), and **Require encryption** to fail closed.
 - **DNS panel** on the main window with per-row Enable and a clickable rules count; a manual choice overrides the tunnel's DNS until you revert it.
+- **Timed DNS bypass** - use a profile (mark one as your bypass profile, for example Google DNS) for 10 seconds up to 15 minutes to get past a DNS ad-block, then go back to automatic. From the DNS list, the tray menu, **Ctrl+Shift+B**, the footer, or an optional entry in Windows Explorer's right-click menu; MasselGUARDcli dns bypass does the same from a terminal.
 - **Leak protection** for the two Windows split-tunnel DNS-leak gaps. Your original DNS is saved before the first override and restored on exit or after a crash.
 
 ### Tunnels
@@ -112,7 +114,7 @@ On Windows-on-ARM the ARM64 build is required for local tunnels. Not sure which 
 
 ## Command line
 
-`MasselGUARDcli.exe` covers everything you need for scripting: `list`, `status`, `connect`, `disconnect`, `disconnect-all`, `info`, `import`, `delete`, `log`, `tunnel-history`, `wifi-history` / `network-history`, `check-update`, `version` and `help`. The read-only `dns status`, `network status` and `selftest` also run in a non-elevated terminal; everything that touches a tunnel needs Administrator. Flags: `--json`, `--quiet` / `-q`, `--group <name>`, `--active`. Exit codes: `0` success, `1` error, `2` already in the desired state.
+`MasselGUARDcli.exe` covers everything you need for scripting: `list`, `status`, `connect`, `disconnect`, `disconnect-all`, `info`, `import`, `delete`, `log`, `tunnel-history`, `wifi-history` / `network-history`, `check-update`, `version` and `help`. The read-only `dns status`, `network status` and `selftest`, and `dns bypass` (which hands the request to the running window), also run in a non-elevated terminal; everything that touches a tunnel needs Administrator. Flags: `--json`, `--quiet` / `-q`, `--group <name>`, `--active`. Exit codes: `0` success, `1` error, `2` already in the desired state.
 
 Full reference: [`docs/CLIManual.md`](docs/CLIManual.md). What `selftest` checks: [`docs/CliSelfTest.md`](docs/CliSelfTest.md).
 

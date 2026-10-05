@@ -327,7 +327,7 @@ The `Split:` line appears only when the tunnel has a route-based split configure
 
 ### dns
 
-Shows the DNS-automation configuration (whether it's enabled, the default and open-network profiles, the address families, and the defined profiles) plus each active interface's current resolvers. **Read-only** and needs **no Administrator rights** - applying DNS is done from the GUI in this release.
+Shows the DNS-automation configuration (whether it's enabled, the default and open-network profiles, the address families, and the defined profiles) plus each active interface's current resolvers. `dns status` is **read-only** and needs **no Administrator rights**. `dns bypass` (below) does not change DNS itself either: it asks the running MasselGUARD window to do it.
 
 ```
 MasselGUARD dns status
@@ -354,7 +354,21 @@ Active interface resolvers:
   • Wi-Fi: 1.1.1.1, 1.0.0.1
 ```
 
-**JSON output:**
+**dns bypass** - switch to the *bypass profile* for a short time, then back to automatic (the same as the footer item, Ctrl+Shift+B and the Windows right-click menu):
+
+```
+MasselGUARD dns bypass [seconds|stop|toggle]
+```
+
+| Argument | Meaning |
+|---|---|
+| *(none)* / `toggle` | start with the last chosen length, or stop when one is running |
+| `<seconds>` | use the bypass profile for that many seconds (5 to 3600) |
+| `stop` | end a running bypass now |
+
+It needs **no Administrator rights**: the CLI sends the request over a local pipe to the running MasselGUARD window (which owns the timer and the DNS change), so MasselGUARD must be running and a bypass profile must be marked (DNS panel, right-click > *Mark as bypass profile*). Exit code `0` on success, `1` otherwise (not running, no bypass profile, feature switched off, bad argument). The pipe is open to the current user only and accepts nothing but this command.
+
+**JSON output (dns status):**
 ```json
 {
   "automation_enabled": true,

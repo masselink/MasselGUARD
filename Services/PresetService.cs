@@ -37,7 +37,7 @@ namespace MasselGUARD.Services
             "DefaultAction", "DefaultTunnel", "OpenWifiTunnel", "TrustedNetworks", "ManualMode",
             "PrimaryNetworkMode", "SimpleWifiMode", "NetworkChangeNotify",
             "AutoReconnectMode", "KillSwitchMode", "SkipTunnelValidation",
-            "ShowDnsIndicator", "DnsLeakWarnLog", "DnsLeakWarnToast",
+            "ShowDnsIndicator", "DnsLeakWarnLog", "DnsLeakWarnToast", "DnsTempOverrideEnabled",
             "UpdateCheckFrequency",
             "ActiveTheme", "SystemThemeMode", "SharedThemesRepoUrl",
             "ShowTrayPopupOnSwitch", "NotificationDurationSeconds", "LogLevelSetting",
@@ -58,7 +58,7 @@ namespace MasselGUARD.Services
             ("autoReconnect", new[] { "AutoReconnectMode" }),
             ("killSwitch",    new[] { "KillSwitchMode" }),
             ("validation",    new[] { "SkipTunnelValidation" }),
-            ("dns",           new[] { "ShowDnsIndicator", "DnsLeakWarnLog", "DnsLeakWarnToast" }),
+            ("dns",           new[] { "ShowDnsIndicator", "DnsLeakWarnLog", "DnsLeakWarnToast", "DnsTempOverrideEnabled" }),
             ("updates",       new[] { "UpdateCheckFrequency" }),
             ("themes",        new[] { "ActiveTheme", "SystemThemeMode", "SharedThemesRepoUrl" }),
         };

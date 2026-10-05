@@ -150,7 +150,7 @@ namespace MasselGUARD.ViewModels
 
             // Status poll
             _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            _timer.Tick += (_, _) => { RefreshTunnelStatus(); CheckSchedules(); StatusTick?.Invoke(); };
+            _timer.Tick += (_, _) => { RefreshTunnelStatus(); CheckSchedules(); CheckDnsTemp(); StatusTick?.Invoke(); };
             _timer.Start();
 
             // WiFi events are handled by MainWindow which calls InitialWifiCheck()
@@ -1225,16 +1225,59 @@ namespace MasselGUARD.ViewModels
         /// tunnel's own DNS) until Disable / Revert-to-default.</summary>
         public bool ManualApplyDns(DnsProfile profile)
         {
+            _dnsTemp = TempOverride.None;   // a plain Enable is sticky: it cancels any running timed override
             _manualDnsProfileId = profile.Id;
             _log.Ok($"DNS: manually enabled '{profile.Name}' (overrides tunnel).");
             ApplyPendingDns();
             return true;
         }
 
+        // ── Timed DNS override ("use Google for 1 minute") ────────────────────
+        // A manual Enable that reverts by itself. Runtime only, absolute UTC end time (Models.TempOverride).
+        private TempOverride _dnsTemp = TempOverride.None;
+
+        /// <summary>True while a timed DNS override is running.</summary>
+        public bool DnsTempActive => _dnsTemp.IsActive(DateTime.UtcNow);
+
+        /// <summary>Id of the profile under a timed override, or null.</summary>
+        public string? DnsTempProfileId => DnsTempActive ? _dnsTemp.Id : null;
+
+        /// <summary>"0:42" - the time left, for the footer chip.</summary>
+        public string DnsTempRemainingText => _dnsTemp.FormatRemaining(DateTime.UtcNow);
+
+        /// <summary>Use <paramref name="profile"/> for <paramref name="duration"/>, then return to what
+        /// automation would apply. Same effect as Enable (overrides rules and a tunnel's DNS) plus the timer.
+        /// Does nothing when the option is switched off in Settings.</summary>
+        public bool UseDnsTemporarily(DnsProfile profile, TimeSpan duration)
+        {
+            if (!_config.Config.DnsTempOverrideEnabled || !_config.Config.EnableDns) return false;
+            if (!ManualApplyDns(profile)) return false;   // (this clears any earlier timer)
+            _dnsTemp = TempOverride.Start(profile.Id, duration, DateTime.UtcNow);
+            _log.Ok($"DNS: using '{profile.Name}' for {FormatDuration(duration)} (until {DateTime.Now.Add(duration):HH:mm:ss}), then back to automatic.");
+            return true;
+        }
+
+        /// <summary>Called every second: ends an expired timed override by clearing the manual choice, which
+        /// restores the interface and lets automation re-apply its own profile.</summary>
+        private void CheckDnsTemp()
+        {
+            if (!_dnsTemp.HasExpired(DateTime.UtcNow)) return;
+            var name = _config.Config.DnsProfiles.FirstOrDefault(p => p.Id == _dnsTemp.Id)?.Name ?? "profile";
+            ManualDisable();   // also clears _dnsTemp
+            _log.Ok($"DNS: temporary override of '{name}' ended, back to automatic.");
+            (Application.Current as App)?.OnDnsStateChanged();
+        }
+
+        private static string FormatDuration(TimeSpan d) =>
+            d.TotalSeconds < 60 ? $"{(int)d.TotalSeconds} seconds"
+            : d.TotalMinutes < 2 ? "1 minute"
+            : $"{(int)d.TotalMinutes} minutes";
+
         /// <summary>Disable: clear the manual override so automation takes back over (or, when
         /// automation is off, restores the network's own resolver).</summary>
         public void ManualDisable()
         {
+            _dnsTemp = TempOverride.None;
             _manualDnsProfileId = null;
             _log.Ok("DNS: manual override cleared - following automation.");
             // Undo what the manual override wrote to the physical NIC first - it forces a static
@@ -1258,6 +1301,7 @@ namespace MasselGUARD.ViewModels
         /// override must be undone regardless of tunnel ownership.</summary>
         public void ManualRevertToDefault()
         {
+            _dnsTemp = TempOverride.None;
             _manualDnsProfileId = null;   // stop forcing anything
             _pendingDnsByGuid.Clear();    // and don't let a stale rule result re-apply on the next poll
             foreach (var guid in DnsTargets())

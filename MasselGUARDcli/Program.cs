@@ -68,8 +68,9 @@ namespace MasselGUARD
             "help" or "--help" or "-h" or "-?"     => true,
             "version" or "--version" or "-v"       => true,
             "selftest"                             => true,
-            // `dns` is read-only (status) in this release - no driver/service access.
-            // If a write subcommand (e.g. `dns set`) is added later, gate it inside the command.
+            // `dns status` is read-only; `dns bypass` only asks the RUNNING (elevated) window to switch to the
+            // user's own bypass profile through CommandPipe, so it needs no elevation either (it is what the
+            // Explorer right-click menu calls). A subcommand that writes DNS itself must be gated inside the command.
             "dns"                                  => true,
             // `network status` is read-only too: adapter properties + a what-would-the-rules-do report.
             "network"                              => true,

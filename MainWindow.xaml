@@ -735,7 +735,7 @@
                                                                Foreground="{Binding RuleCountColor}"
                                                                TextDecorations="{Binding RuleCountDecoration}"
                                                                FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                               HorizontalAlignment="Center"
+                                                               HorizontalAlignment="Left"
                                                                VerticalAlignment="Center"
                                                                Cursor="Hand"
                                                                Padding="4,0"
@@ -1018,7 +1018,7 @@
                                                                Text="{Binding ExecutionCountText}"
                                                                Foreground="{Binding ExecutionCountColor}"
                                                                FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                               HorizontalAlignment="Center"
+                                                               HorizontalAlignment="Left"
                                                                VerticalAlignment="Center"/>
                                                     <!-- Tunnel target (🔒) -->
                                                     <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center"
@@ -1062,6 +1062,13 @@
                                     Content="{Binding [BtnAddRule], Source={x:Static local:Lang.Instance}}"
                                     Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
                                     Click="WifiRuleAdd_Click"/>
+                            <!-- "From network": create a rule from a connected network (same menu as right-clicking the footer network) -->
+                            <Button x:Name="WifiRuleAddMenuBtn"
+                                    Content="{Binding [BtnAddFromNetwork], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Margin="6,0,0,0"
+                                    ToolTip="{Binding [RuleNetMenuTip], Source={x:Static local:Lang.Instance}}"
+                                    Click="WifiRuleAddMenu_Click"/>
                             <Button x:Name="WifiRuleEditBtn"
                                     Content="{Binding [BtnEditRule], Source={x:Static local:Lang.Instance}}"
                                     Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
@@ -1207,6 +1214,8 @@
 
                                 <!-- Profile rows -->
                                 <ListView Grid.Row="1" x:Name="DnsProfilesPanelList"
+                                          PreviewMouseRightButtonUp="DnsList_RightClick"
+                                          PreviewKeyDown="DnsList_KeyDown"
                                           Background="Transparent" BorderThickness="0"
                                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                           ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -1257,6 +1266,11 @@
                                                                FontSize="{DynamicResource Theme.FontSize}"
                                                                VerticalAlignment="Center"
                                                                TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text=" ⏱" Foreground="{DynamicResource Accent}"
+                                                               FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                               VerticalAlignment="Center"
+                                                               ToolTip="{Binding [DnsBypassBadgeTip], Source={x:Static local:Lang.Instance}}"
+                                                               Visibility="{Binding BypassBadgeVis}"/>
                                                 </StackPanel>
                                                 <TextBlock Grid.Column="1" Text="{Binding Type}"
                                                            Foreground="{DynamicResource TextMuted}"
@@ -1269,7 +1283,7 @@
                                                            VerticalAlignment="Center"
                                                            TextTrimming="CharacterEllipsis"/>
                                                 <TextBlock Grid.Column="3" Text="{Binding Rules}"
-                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           HorizontalAlignment="Left" VerticalAlignment="Center"
                                                            FontSize="{DynamicResource Theme.FontSize.Small}"
                                                            MouseLeftButtonUp="DnsRulesCell_Click"
                                                            Visibility="{Binding DataContext.RulesColumnVisibility, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -1740,15 +1754,25 @@
                                    VerticalAlignment="Center"/>
                         <!-- Centre: wifi · default action · open protection - truly centred -->
                         <StackPanel Orientation="Horizontal"
-                                    HorizontalAlignment="Center"
+                                    HorizontalAlignment="Right" Margin="0,0,10,0"
                                     VerticalAlignment="Center">
                             <TextBlock x:Name="WifiFooterLabel"
                                        Foreground="{DynamicResource TextMuted}"
                                        FontSize="{DynamicResource Theme.FontSize.Tiny}" VerticalAlignment="Center"
+                                       MouseRightButtonUp="WifiFooter_RightClick"
                                        Visibility="Collapsed"
                                        ToolTip="{Binding [MainWifiTip], Source={x:Static local:Lang.Instance}}"
                                        ToolTipService.InitialShowDelay="800"/>
                             <Rectangle x:Name="WifiFooterSep" Width="1" Height="12" Margin="10,0"
+                                       Fill="{DynamicResource BorderColor}" VerticalAlignment="Center"
+                                       Visibility="Collapsed"/>
+                            <TextBlock x:Name="DnsTempFooterLabel"
+                                       Foreground="{DynamicResource Accent}"
+                                       FontSize="{DynamicResource Theme.FontSize.Tiny}" VerticalAlignment="Center"
+                                       Visibility="Collapsed" Cursor="Hand"
+                                       MouseLeftButtonUp="DnsTempFooter_Click"
+                                       ToolTipService.InitialShowDelay="300"/>
+                            <Rectangle x:Name="DnsTempFooterSep" Width="1" Height="12" Margin="10,0"
                                        Fill="{DynamicResource BorderColor}" VerticalAlignment="Center"
                                        Visibility="Collapsed"/>
                             <TextBlock x:Name="DnsFooterLabel"
@@ -1757,6 +1781,15 @@
                                        Visibility="Collapsed"
                                        ToolTipService.InitialShowDelay="800"/>
                             <Rectangle x:Name="DnsFooterSep" Width="1" Height="12" Margin="10,0"
+                                       Fill="{DynamicResource BorderColor}" VerticalAlignment="Center"
+                                       Visibility="Collapsed"/>
+                            <TextBlock x:Name="DnsBypassFooterLabel"
+                                       Foreground="{DynamicResource TextMuted}"
+                                       FontSize="{DynamicResource Theme.FontSize.Tiny}" VerticalAlignment="Center"
+                                       Visibility="Collapsed" Cursor="Hand"
+                                       MouseLeftButtonUp="DnsBypassFooter_Click"
+                                       ToolTipService.InitialShowDelay="500"/>
+                            <Rectangle x:Name="DnsBypassFooterSep" Width="1" Height="12" Margin="10,0"
                                        Fill="{DynamicResource BorderColor}" VerticalAlignment="Center"
                                        Visibility="Collapsed"/>
                             <TextBlock x:Name="DefaultTunnelLabel"
@@ -1773,9 +1806,6 @@
                                        Visibility="Collapsed"
                                        ToolTipService.InitialShowDelay="800"/>
                         </StackPanel>
-                        <TextBlock x:Name="AdminLabel"
-                                   HorizontalAlignment="Right" FontSize="{DynamicResource Theme.FontSize.Tiny}"
-                                   VerticalAlignment="Center"/>
                     </Grid>
                 </Border>
 

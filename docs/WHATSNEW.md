@@ -5,10 +5,11 @@ Automation now understands **wired networks**, not just Wi-Fi. Rules can match a
 **Highlights**
 - Rules for **cable and Wi-Fi**, matching on SSID, DNS suffix, gateway MAC, subnet, connection type or the adapter itself
 - **Several conditions per rule** (all must hold, any can be negated), with a visible **top-down rule order**
-- **Test rule** and **Advanced test** show which rule fires and why, without touching anything
+- **Create a rule from the network you are on** with one click, and **Test rule** / **Advanced test** to see which rule fires and why, without touching anything
 - **Simple Wi-Fi mode** for people who only want the classic SSID rules
+- **Timed DNS bypass** - use a profile such as Google DNS for 10 seconds up to 15 minutes, from the DNS list, the tray menu, a keyboard shortcut or the Windows right-click menu, then go back to automatic
 - **Network-change notifications** and a **DNS servers** entry in the footer
-- A lot **less memory** and faster saves; resizable list columns
+- A lot **less memory**, faster saves, and list columns that remember their widths per layout
 
 ### Wired networks and Wi-Fi, side by side
 
@@ -35,6 +36,11 @@ Automation now understands **wired networks**, not just Wi-Fi. Rules can match a
 - **New `#` column** - the first column shows each rule's position, updates when you drag, and stays the same when you sort the list by another column. The lowest number wins.
 - The decision log says which rule won, at which position, and lists any other rules that also matched.
 
+### Create a rule from the network you are on
+
+- **Footer and Add menu** - right-click the network name in the footer, or use the **From network** button next to **+ Add**: **Create rule from this network…** opens the rule dialog pre-filled with the condition that identifies that network best (SSID on Wi-Fi; on a cable the DNS suffix, else the gateway MAC, else the subnet) and a suggested name. You only pick the tunnel and/or DNS profile.
+- **Already covered?** If a rule already matches that network the menu offers **Edit rule "X" (position N)…** instead, with **Create another rule anyway…** next to it. After saving, a note says when an earlier rule also matches and so wins.
+
 ### Test your rules
 
 - **Test rule** (the old Test button, now enabled only when a rule is selected) checks whether the selected rule's requirements are met right now. The activity log shows `Test: <rule>` followed by the result, including when the requirement is not met, and notes such as "rule is disabled" or "manual mode is on".
@@ -57,6 +63,14 @@ Automation now understands **wired networks**, not just Wi-Fi. Rules can match a
 - **Bars or rings moved** - the choice now sits in **Settings > WireGuard > Display**, with the other tunnel-list display options, instead of under Appearance.
 - **Tunnel groups explain themselves** - the Tunnel groups section has a short description of what groups are, and every control (name box, colour, up, down, delete) has a tooltip.
 - **Clearer toggle names** - the Automation panel, the DNS feature and DNS automation switches have reworded names and descriptions, so it is clear which one does what.
+- **Tidier footer** - the status items now sit in the bottom-right corner, the Administrator label is gone, and a marked bypass profile shows as **DNS Bypass: <name>** (click it to use it).
+- **Left-aligned column titles** - every column title, and the Hits, Rules and action-button cells under it, line up on the left.
+
+### Use a DNS profile for a moment
+
+- **Timed DNS override** - right-click a profile in the DNS list and choose **For 10 seconds / 1 minute / 5 minutes / 15 minutes**: the profile is used right away (like **Enable**, it overrides rules and a tunnel's DNS) and MasselGUARD goes back to automatic DNS by itself when the time is up. A countdown (`Google · 0:42`) shows in the footer; click it to stop at once. Also in the tray icon's right-click menu, and **Shift+Enter** on the selected profile repeats the last length. It is **optional**: **Settings > DNS > Timed DNS override** switches the menu items off.
+- **Bypass profile** - mark one profile as the bypass profile (right-click > **Mark as bypass profile**, or **Settings > DNS > Bypass profile**), for example Google DNS to get past a DNS ad-block. It gets a `⏱` mark in the list and a **DNS Bypass: <name>** item in the footer, and one click on it, **Ctrl+Shift+B**, or the entry **Bypass: <name>** in the tray icon's right-click menu switches to it for the last chosen time; pressing it again stops. Browsers that use their own encrypted DNS (Secure DNS in Chrome and Edge, DoH in Firefox) ignore the Windows resolver, so turn that off for the bypass to work there.
+- **Windows right-click menu** (optional, **Settings > DNS > Windows right-click menu**) - adds **DNS bypass (MasselGUARD)** to Windows Explorer's right-click menu on the desktop, a folder's empty space and folders: **For 10 seconds / 1 minute / 5 minutes / 15 minutes** and **Stop now**, without opening MasselGUARD. MasselGUARD has to be running. There is no UAC prompt: the menu runs the command-line tool, which hands the request to the running window. On Windows 11 the entry is under **Show more options**. The command-line tool has the same action: `MasselGUARDcli dns bypass [seconds|stop|toggle]` (no administrator rights needed, MasselGUARD has to be running).
 
 ### Lighter and faster
 
@@ -70,8 +84,7 @@ Automation now understands **wired networks**, not just Wi-Fi. Rules can match a
 - **Rules hidden in Simple Wi-Fi mode** - trusted-network and schedule rules were shown dimmed as "not used" in Simple Wi-Fi mode even though they still work. Only network rules with other conditions than a single SSID are dimmed now.
 - **Cut-off buttons in the lists** - the Connect button (tunnel list), the Enable button (DNS profiles) and the last cell of the Automation table could be clipped by the list's scrollbar. The last column now takes the remaining width.
 - **DNS profile list in narrow panels** - a column width saved from a wider window could push Type and Action out of view. Name now goes back to flexible when the other columns no longer fit beside it.
-- **Rules column** - hiding it left an empty column behind in the tunnel list and did nothing in the DNS list (see Main window above).
-- **Drag handles** - columns next to a hidden column could not be resized (see Main window above).
+- **Rules column and drag handles** - hiding the Rules column left an empty column behind, and columns next to a hidden column could not be resized (see Main window above).
 - **Theme change** - the refresh of the title-bar section icons, taskbar icon and window title now runs first and cannot be skipped by an error in a later step, so icons from the previous theme no longer stay when you switch to a theme without its own.
 - **Slow settings save** - see Lighter and faster above.
 
@@ -80,6 +93,7 @@ Automation now understands **wired networks**, not just Wi-Fi. Rules can match a
 - **Notify on network changes** (Settings > Notifications) - a pop-up when the network you are on changes: the new network, whether it is open (with a warning colour), the DNS in use, whether a tunnel is up, and which automation, if any, applied. Choose **Off** (default), **Only when no rule matched** (the networks nothing else would have told you about) or **Always**. It follows the primary network, so dock plug-ins and lease renewals do not repeat it, and it never fires at startup.
 - **Themed Fetch menu and dialogs** - the Fetch drop-downs and the validation messages in the rule dialog now follow the theme instead of using plain Windows boxes.
 - **Managed presets** can lock the primary-network setting together with the other Automation settings.
+- **Upgrading:** column widths saved by earlier versions are not carried over and start from the defaults once (the new layout stores them per layout, as percentages). Nothing else needs migrating; existing rules, profiles and settings keep working.
 - Translated in all 12 languages (the activity-log lines and the Advanced test reasoning stay in English so they are easy to share for support).
 
 ## v4.5.0 - Resolving Raven

@@ -43,6 +43,7 @@ namespace MasselGUARD.Views
             }),
             ("PresetSecDnsLeak", new[] {
                 ("ShowDnsIndicator", "PresetItemShowDnsIndicator"),
+                ("DnsTempOverrideEnabled", "PresetItemDnsTempOverride"),
                 ("DnsLeakWarnLog", "PresetItemDnsLeakWarnLog"),
                 ("DnsLeakWarnToast", "PresetItemDnsLeakWarnToast"),
             }),

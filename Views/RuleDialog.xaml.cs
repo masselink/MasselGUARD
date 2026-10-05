@@ -55,7 +55,9 @@ namespace MasselGUARD.Views
                           Func<NetworkSnapshot>? captureNetwork = null,
                           Func<IReadOnlyList<NetworkIdentity>>? listAdapters = null,
                           Func<IReadOnlyList<WifiHistoryEntry>>? recentNetworks = null,
-                          bool simpleMode = false)
+                          bool simpleMode = false,
+                          IReadOnlyList<RuleCondition>? prefillConditions = null,
+                          string? prefillNetworkLabel = null)
         {
             InitializeComponent();
             LocalizeDayButtons();
@@ -65,8 +67,12 @@ namespace MasselGUARD.Views
 
             // Condition rows: the rule's own (edit), or one empty row (add).
             _loadingConditions = true;
+            bool prefilled = (existingConditions == null || existingConditions.Count == 0)
+                             && prefillConditions != null && prefillConditions.Count > 0;
             if (existingConditions != null && existingConditions.Count > 0)
                 foreach (var c in existingConditions) AddConditionRow(c);
+            else if (prefilled)
+                foreach (var c in prefillConditions!) AddConditionRow(c.Clone());   // "Create a rule from this network"
             else
                 AddConditionRow(null);
             _loadingConditions = false;
@@ -146,6 +152,15 @@ namespace MasselGUARD.Views
             if (editMode) DialogTitle.Text = Lang.T("RuleDialogEditTitle");
 
             TunnelBox.Text = existingTunnel;
+
+            // "Create a rule from this network": still add mode (no counter), name suggested from the conditions.
+            if (prefilled)
+            {
+                DialogTitle.Text = Lang.T("RuleDialogFromNetworkTitle", prefillNetworkLabel ?? "");
+                PrefillNote.Text = Lang.T("RulePrefillNote", string.Join(", ", prefillConditions!.Select(c => c.ToPlain())));
+                PrefillNote.Visibility = Visibility.Visible;
+                AutoGenerateName();
+            }
 
             // Show trigger counter only in edit mode
             if (executionCount >= 0)
