@@ -1659,7 +1659,7 @@ namespace MasselGUARD
                 else if (v == "stop") _vm.ManualDisable();
                 else if (int.TryParse(v, out int sec)) UseDnsTemporarily(row.Id, sec);
                 RebuildDnsPanel();
-            });
+            }, atMouse: true);
         }
 
         /// <summary>Shift+Enter on the selected DNS profile repeats the last timed override.</summary>
@@ -3351,7 +3351,7 @@ namespace MasselGUARD
 
         /// <summary>Right-click menu on the footer network label and the "▾" next to Add: create a rule from a
         /// connected network, or - when a rule already matches it - edit that rule (or create another anyway).</summary>
-        private void ShowNetworkRuleMenu(FrameworkElement target)
+        private void ShowNetworkRuleMenu(FrameworkElement target, bool atMouse = false)
         {
             var cfg = ConfigSvc.Config;
             if (ConfigSvc.IsLocked("Rules")) return;   // a managed policy owns the rules
@@ -3387,7 +3387,7 @@ namespace MasselGUARD
                 actions[createKey] = () => _ = CreateRuleFromNetworkAsync(id);
                 n++;
             }
-            Views.FetchMenu.Show(target, entries, v => { if (actions.TryGetValue(v, out var a)) a(); });
+            Views.FetchMenu.Show(target, entries, v => { if (actions.TryGetValue(v, out var a)) a(); }, atMouse);
         }
 
         /// <summary>Re-reads the network with the gateway MAC resolved (an ARP lookup, off the UI thread), so a wired
@@ -3414,7 +3414,7 @@ namespace MasselGUARD
         private void WifiFooter_RightClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             e.Handled = true;
-            ShowNetworkRuleMenu(WifiFooterLabel);
+            ShowNetworkRuleMenu(WifiFooterLabel, atMouse: true);
         }
 
         private void WifiRuleAddMenu_Click(object sender, RoutedEventArgs e)

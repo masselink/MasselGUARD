@@ -87,19 +87,20 @@ namespace MasselGUARD.Views
                 yield return FetchEntry.Item($"{Family(v)}    {v}", store(v));
         }
 
-        /// <summary>Opens the menu below <paramref name="target"/>; <paramref name="pick"/> receives the chosen item's value.</summary>
-        public static void Show(FrameworkElement target, IEnumerable<FetchEntry> entries, Action<string> pick)
+        /// <summary>Opens the menu below <paramref name="target"/> (a button), or - with <paramref name="atMouse"/> - at the
+        /// mouse pointer (a right-click menu); <paramref name="pick"/> receives the chosen item's value.</summary>
+        public static void Show(FrameworkElement target, IEnumerable<FetchEntry> entries, Action<string> pick, bool atMouse = false)
         {
             var menu = new ContextMenu
             {
                 PlacementTarget = target,
-                Placement       = PlacementMode.Bottom,
+                Placement       = atMouse ? PlacementMode.MousePoint : PlacementMode.Bottom,
                 Background      = Opaque("WindowBg", Brushes.Black),
                 BorderBrush     = B("Accent", Brushes.CornflowerBlue),
                 BorderThickness = new Thickness(1),
                 Foreground      = B("TextPrimary", Brushes.White),
                 Padding         = new Thickness(8),
-                MinWidth        = Math.Max(360, target.ActualWidth),
+                MinWidth        = atMouse ? 240 : Math.Max(360, target.ActualWidth),
             };
             menu.Resources[typeof(MenuItem)] = (Style)XamlReader.Parse(MenuItemStyleXaml);
 
