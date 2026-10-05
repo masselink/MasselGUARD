@@ -1216,5 +1216,13 @@
   "RuleNetMenuTip": "Crear una regla desde una red conectada",
   "RuleShadowNote": "La regla \"{0}\" de arriba también coincide con esta red y gana. Arrastra la nueva regla por encima para cambiarlo.",
   "RuleShadowTitle": "Orden de reglas",
-  "BtnAddFromNetwork": "Desde la red"
+  "BtnAddFromNetwork": "Desde la red",
+  "SettingsDnsShortcutLabel": "Atajo de omisión",
+  "SettingsDnsShortcutTip": "Haz clic en el cuadro y pulsa las teclas que quieras, por ejemplo Ctrl+Mayús+B. Necesita Ctrl, Alt o Win más una tecla. Borrar quita el atajo. El valor se guarda en config.json como BypassShortcut.",
+  "BtnClearShortcut": "Borrar",
+  "SettingsDnsShortcutGlobalLabel": "Funciona en cualquier aplicación",
+  "SettingsDnsShortcutGlobalDesc": "Registra también el atajo en todo el sistema, de modo que funcione en cualquier programa y mientras MasselGUARD está oculto en la bandeja. Si otro programa ya lo usa, solo funciona cuando MasselGUARD tiene el foco.",
+  "DnsBypassShortcutHint": "Atajo: {0}",
+  "PresetItemBypassShortcut": "Atajo de teclado de la omisión DNS",
+  "PresetItemBypassShortcutGlobal": "Registrar el atajo de omisión DNS en todo el sistema"
 }

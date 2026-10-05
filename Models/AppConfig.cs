@@ -207,6 +207,12 @@ namespace MasselGUARD.Models
         /// <summary>Show a "DNS bypass" cascade in Windows Explorer's right-click menu (desktop and folders).
         /// Per-user registry entries that run the CLI; off by default.</summary>
         public bool ShellBypassMenuEnabled { get; set; } = false;
+        /// <summary>The quick-bypass shortcut as text (see <see cref="Shortcut"/>): modifiers plus one key, e.g.
+        /// "Ctrl+Shift+B". Empty = no shortcut. An unusable value falls back to the default (with a log line).</summary>
+        public string BypassShortcut { get; set; } = Shortcut.DefaultText;
+        /// <summary>Register the bypass shortcut system-wide (works in every app, also while the window is hidden
+        /// in the tray). Off = it only works while the MasselGUARD window has focus.</summary>
+        public bool BypassShortcutGlobal { get; set; } = false;
 
         // ── Possible-DNS-leak alerts ──────────────────────────────────────────
         // Three independent delivery channels for "this active tunnel may be leaking

@@ -1216,5 +1216,13 @@
   "RuleNetMenuTip": "从已连接的网络创建规则",
   "RuleShadowNote": "上方的规则「{0}」也匹配此网络且优先生效。将新规则拖到它上方即可改变。",
   "RuleShadowTitle": "规则顺序",
-  "BtnAddFromNetwork": "从网络"
+  "BtnAddFromNetwork": "从网络",
+  "SettingsDnsShortcutLabel": "绕过快捷键",
+  "SettingsDnsShortcutTip": "点击输入框并按下所需的按键,例如 Ctrl+Shift+B。需要 Ctrl、Alt 或 Win 加一个按键。「清除」会移除快捷键。该值以 BypassShortcut 保存在 config.json 中。",
+  "BtnClearShortcut": "清除",
+  "SettingsDnsShortcutGlobalLabel": "在所有应用中有效",
+  "SettingsDnsShortcutGlobalDesc": "同时在系统范围内注册该快捷键,使其在任何程序中、以及 MasselGUARD 隐藏在托盘时也能使用。如果其他程序已占用它,则仅在 MasselGUARD 获得焦点时有效。",
+  "DnsBypassShortcutHint": "快捷键: {0}",
+  "PresetItemBypassShortcut": "DNS 绕过键盘快捷键",
+  "PresetItemBypassShortcutGlobal": "在系统范围内注册 DNS 绕过快捷键"
 }

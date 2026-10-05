@@ -1216,5 +1216,13 @@
   "RuleNetMenuTip": "Bağlı bir ağdan kural oluştur",
   "RuleShadowNote": "Yukarıdaki \"{0}\" kuralı da bu ağa uyuyor ve öncelikli. Bunu değiştirmek için yeni kuralı onun üstüne sürükleyin.",
   "RuleShadowTitle": "Kural sırası",
-  "BtnAddFromNetwork": "Ağdan"
+  "BtnAddFromNetwork": "Ağdan",
+  "SettingsDnsShortcutLabel": "Atlama kısayolu",
+  "SettingsDnsShortcutTip": "Kutuya tıklayın ve istediğiniz tuşlara basın, örneğin Ctrl+Shift+B. Ctrl, Alt veya Win ile bir tuş gerekir. Temizle kısayolu kaldırır. Değer config.json içinde BypassShortcut olarak saklanır.",
+  "BtnClearShortcut": "Temizle",
+  "SettingsDnsShortcutGlobalLabel": "Her uygulamada çalışır",
+  "SettingsDnsShortcutGlobalDesc": "Kısayolu sistem genelinde de kaydeder; böylece herhangi bir programda ve MasselGUARD sistem tepsisinde gizliyken çalışır. Başka bir program zaten kullanıyorsa yalnızca MasselGUARD odaktayken çalışır.",
+  "DnsBypassShortcutHint": "Kısayol: {0}",
+  "PresetItemBypassShortcut": "DNS atlama klavye kısayolu",
+  "PresetItemBypassShortcutGlobal": "DNS atlama kısayolunu sistem genelinde kaydet"
 }

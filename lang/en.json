@@ -1216,5 +1216,13 @@
   "RuleNetMenuTip": "Create a rule from a connected network",
   "RuleShadowNote": "Rule \"{0}\" above also matches this network and wins. Drag the new rule above it to change that.",
   "RuleShadowTitle": "Rule order",
-  "BtnAddFromNetwork": "From network"
+  "BtnAddFromNetwork": "From network",
+  "SettingsDnsShortcutLabel": "Bypass shortcut",
+  "SettingsDnsShortcutTip": "Click the box and press the keys you want, for example Ctrl+Shift+B. It needs Ctrl, Alt or Win plus one key. Clear removes the shortcut. The value is stored in config.json as BypassShortcut.",
+  "BtnClearShortcut": "Clear",
+  "SettingsDnsShortcutGlobalLabel": "Work in every app",
+  "SettingsDnsShortcutGlobalDesc": "Also register the shortcut system-wide, so it works in any program and while MasselGUARD is hidden in the tray. If another program already uses it, it only works while MasselGUARD has focus.",
+  "DnsBypassShortcutHint": "Shortcut: {0}",
+  "PresetItemBypassShortcut": "DNS bypass keyboard shortcut",
+  "PresetItemBypassShortcutGlobal": "Register the DNS bypass shortcut system-wide"
 }

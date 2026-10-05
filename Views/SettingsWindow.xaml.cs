@@ -1424,6 +1424,8 @@ namespace MasselGUARD.Views
             PopulateBypassCombo(cfg.BypassDnsProfileId);
             if (DnsTempToggle != null) DnsTempToggle.IsChecked = cfg.DnsTempOverrideEnabled;
             if (DnsShellToggle != null) DnsShellToggle.IsChecked = cfg.ShellBypassMenuEnabled;
+            if (DnsShortcutBox != null) DnsShortcutBox.Text = cfg.BypassShortcut ?? "";
+            if (DnsShortcutGlobalToggle != null) DnsShortcutGlobalToggle.IsChecked = cfg.BypassShortcutGlobal;
 
             if (DnsFamiliesBox != null)
             {
@@ -1466,6 +1468,35 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.BypassDnsProfileId = (DnsBypassBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
             _main.ConfigSvc.Save();
             _main.RebuildDnsPanel();   // moves the bypass marker in the main-window list
+        }
+
+        /// <summary>The shortcut box records the key combination pressed in it (Ctrl, Alt or Win plus one key).</summary>
+        private void DnsShortcutBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (Keyboard.Modifiers == ModifierKeys.None && (e.Key == Key.Tab || e.Key == Key.Escape)) return;   // keep keyboard navigation
+            e.Handled = true;   // the box only records; it never types
+            var text = Views.ShortcutKeys.FromKeyPress(e);
+            if (text == null) return;   // only modifiers so far, or not a usable shortcut: keep waiting
+            _main.ConfigSvc.Config.BypassShortcut = text;
+            _main.ConfigSvc.Save();
+            if (DnsShortcutBox != null) DnsShortcutBox.Text = text;
+            _main.RefreshBypassShortcut();
+        }
+
+        private void DnsShortcutClear_Click(object sender, RoutedEventArgs e)
+        {
+            _main.ConfigSvc.Config.BypassShortcut = "";   // empty = no shortcut
+            _main.ConfigSvc.Save();
+            if (DnsShortcutBox != null) DnsShortcutBox.Text = "";
+            _main.RefreshBypassShortcut();
+        }
+
+        private void DnsShortcutGlobal_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_dnsLoading) return;
+            _main.ConfigSvc.Config.BypassShortcutGlobal = DnsShortcutGlobalToggle?.IsChecked == true;
+            _main.ConfigSvc.Save();
+            _main.RefreshBypassShortcut();
         }
 
         private void DnsShell_Changed(object sender, RoutedEventArgs e)

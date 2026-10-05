@@ -1091,6 +1091,8 @@
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
                                     </Grid.RowDefinitions>
                                     <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding [SettingsDnsDefaultLabel], Source={x:Static local:Lang.Instance}}"
                                                FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextMuted}"
@@ -1133,6 +1135,29 @@
                                                   Style="{StaticResource ToggleSwitch}"
                                                   ToolTip="{Binding [SettingsDnsShellDesc], Source={x:Static local:Lang.Instance}}"
                                                   Checked="DnsShell_Changed" Unchecked="DnsShell_Changed"/>
+                                    <!-- Quick-bypass keyboard shortcut (config: BypassShortcut): click the box and press the keys -->
+                                    <TextBlock Grid.Row="6" Grid.Column="0" Text="{Binding [SettingsDnsShortcutLabel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextMuted}"
+                                               VerticalAlignment="Center" Margin="0,8,10,0" TextWrapping="Wrap"
+                                               ToolTip="{Binding [SettingsDnsShortcutTip], Source={x:Static local:Lang.Instance}}"/>
+                                    <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,0">
+                                        <TextBox x:Name="DnsShortcutBox" Width="170" FontSize="11" Padding="6,4" IsReadOnly="True"
+                                                 IsReadOnlyCaretVisible="False" Cursor="Arrow"
+                                                 ToolTip="{Binding [SettingsDnsShortcutTip], Source={x:Static local:Lang.Instance}}"
+                                                 PreviewKeyDown="DnsShortcutBox_PreviewKeyDown"/>
+                                        <Button x:Name="DnsShortcutClearBtn" Margin="6,0,0,0" Padding="10,3"
+                                                Content="{Binding [BtnClearShortcut], Source={x:Static local:Lang.Instance}}"
+                                                Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}"
+                                                Click="DnsShortcutClear_Click"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Row="7" Grid.Column="0" Text="{Binding [SettingsDnsShortcutGlobalLabel], Source={x:Static local:Lang.Instance}}"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextMuted}"
+                                               VerticalAlignment="Center" Margin="0,6,10,0" TextWrapping="Wrap"
+                                               ToolTip="{Binding [SettingsDnsShortcutGlobalDesc], Source={x:Static local:Lang.Instance}}"/>
+                                    <ToggleButton Grid.Row="7" Grid.Column="1" x:Name="DnsShortcutGlobalToggle" HorizontalAlignment="Left" Margin="0,6,0,0"
+                                                  Style="{StaticResource ToggleSwitch}"
+                                                  ToolTip="{Binding [SettingsDnsShortcutGlobalDesc], Source={x:Static local:Lang.Instance}}"
+                                                  Checked="DnsShortcutGlobal_Changed" Unchecked="DnsShortcutGlobal_Changed"/>
                                 </Grid>
                             </Border>
 

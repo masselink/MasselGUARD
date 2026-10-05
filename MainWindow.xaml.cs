@@ -185,10 +185,17 @@ namespace MasselGUARD
             base.OnSourceInitialized(e);
             HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)
                       ?.AddHook(WndProc);
+            RefreshBypassShortcut();   // the window handle exists now: register the system-wide hotkey if configured
         }
 
         private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
+            if (msg == WM_HOTKEY && wParam.ToInt32() == BypassHotkeyId)
+            {
+                handled = true;
+                BypassDnsNow();   // system-wide bypass shortcut (BypassShortcutGlobal)
+                return IntPtr.Zero;
+            }
             if (msg == WM_SETTINGCHANGE && lParam != IntPtr.Zero)
             {
                 string? change = Marshal.PtrToStringAuto(lParam);
@@ -1727,13 +1734,52 @@ namespace MasselGUARD
             RebuildDnsPanel();
         }
 
-        /// <summary>Ctrl+Shift+B anywhere in the main window: quick bypass (press again to stop).</summary>
+        // â”€â”€ Quick-bypass shortcut (AppConfig.BypassShortcut, default Ctrl+Shift+B) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        private Models.Shortcut _bypassShortcut;
+        private bool _bypassHotkeyRegistered;
+        private const int BypassHotkeyId = 0x4D47;   // "MG"
+        private const int WM_HOTKEY = 0x0312;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+        private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
+        [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+        /// <summary>The configured shortcut as text ("Ctrl+Shift+B"), "" when none; for tooltips and the tray menu.</summary>
+        public string BypassShortcutText => _bypassShortcut.ToString();
+
+        /// <summary>Reads <c>BypassShortcut</c> / <c>BypassShortcutGlobal</c> from the config and applies them: the in-window
+        /// key handler uses the parsed shortcut, and with the global option it is also registered system-wide. An
+        /// unusable text falls back to the default and says so in the log. Called at startup and from Settings.</summary>
+        public void RefreshBypassShortcut()
+        {
+            var cfg = ConfigSvc.Config;
+            if (!Models.Shortcut.TryParse(cfg.BypassShortcut, out var parsed))
+            {
+                LogSvc.Warn($"Bypass shortcut '{cfg.BypassShortcut}' is not usable (needs Ctrl, Alt or Win plus one key); using {Models.Shortcut.DefaultText}.");
+                parsed = Models.Shortcut.ParseOrDefault(null);
+            }
+            _bypassShortcut = parsed;
+
+            // (Re)register the system-wide hotkey.
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return;   // before the window exists: OnSourceInitialized calls this again
+            if (_bypassHotkeyRegistered) { UnregisterHotKey(hwnd, BypassHotkeyId); _bypassHotkeyRegistered = false; }
+            if (cfg.BypassShortcutGlobal && !parsed.IsEmpty)
+            {
+                int vk = Views.ShortcutKeys.ToVirtualKey(parsed);
+                _bypassHotkeyRegistered = vk != 0 && RegisterHotKey(hwnd, BypassHotkeyId,
+                    Views.ShortcutKeys.ToModifiers(parsed) | Views.ShortcutKeys.ModNoRepeat, vk);
+                if (!_bypassHotkeyRegistered)
+                    LogSvc.Warn($"Bypass shortcut {parsed} could not be registered system-wide (another program may already use it); it still works while MasselGUARD has focus.");
+            }
+            UpdateStatusBarCentre();   // the footer tooltip names the shortcut
+        }
+
+        /// <summary>The bypass shortcut pressed while the MasselGUARD window has focus: quick bypass (again = stop).</summary>
         private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
-            var mods = System.Windows.Input.Keyboard.Modifiers;
-            if (e.Key == System.Windows.Input.Key.B
-                && (mods & System.Windows.Input.ModifierKeys.Control) != 0
-                && (mods & System.Windows.Input.ModifierKeys.Shift) != 0)
+            if (Views.ShortcutKeys.Matches(_bypassShortcut, e))
             {
                 e.Handled = true;
                 BypassDnsNow();
@@ -3822,7 +3868,10 @@ namespace MasselGUARD
                 ? ConfigSvc.Config.DnsProfiles.FirstOrDefault(p => p.Id == ConfigSvc.Config.BypassDnsProfileId) : null;
             bool showBypass = bypassProfile != null;
             DnsBypassFooterLabel.Text       = showBypass ? "⏱ " + Lang.T("DnsBypassFooter", bypassProfile!.Name) : "";
-            DnsBypassFooterLabel.ToolTip    = showBypass ? Lang.T(ConfigSvc.Config.DnsTempOverrideEnabled ? "DnsBypassFooterTip" : "DnsBypassFooterTipOff") : null;
+            DnsBypassFooterLabel.ToolTip    = showBypass
+                ? Lang.T(ConfigSvc.Config.DnsTempOverrideEnabled ? "DnsBypassFooterTip" : "DnsBypassFooterTipOff")
+                  + (ConfigSvc.Config.DnsTempOverrideEnabled && !_bypassShortcut.IsEmpty ? "\n" + Lang.T("DnsBypassShortcutHint", _bypassShortcut.ToString()) : "")
+                : null;
             DnsBypassFooterLabel.Visibility = showBypass ? Visibility.Visible : Visibility.Collapsed;
             DnsBypassFooterSep.Visibility   = showBypass && (showDef || showOpen) ? Visibility.Visible : Visibility.Collapsed;
             DnsFooterSep.Visibility   = showDns && (showBypass || showDef || showOpen) ? Visibility.Visible : Visibility.Collapsed;

@@ -7,7 +7,7 @@ MasselGUARDcli selftest
 ```
 
 ```
-✓ Self-test: 335 passed (CidrMath 18, Backend 11, Export 6, DnsPolicy 20, NetworkMatcher 150, RuleTester 38, RuleEngine 37, RuleSimulator 20, TempOverride 18, CommandPipe 17).
+✓ Self-test: 366 passed (CidrMath 18, Backend 11, Export 6, DnsPolicy 20, NetworkMatcher 150, RuleTester 38, RuleEngine 37, RuleSimulator 20, TempOverride 18, CommandPipe 17, Shortcut 31).
 ```
 
 ## Running it
@@ -20,7 +20,7 @@ MasselGUARDcli selftest
 
 ## What it covers
 
-The checks are plain assertions inside the shared, WPF-free services, so the CLI and the GUI are tested with exactly the same code. They are grouped in ten suites, in the order printed:
+The checks are plain assertions inside the shared, WPF-free services, so the CLI and the GUI are tested with exactly the same code. They are grouped in eleven suites, in the order printed:
 
 | Suite | Source | What it checks |
 |---|---|---|
@@ -34,6 +34,7 @@ The checks are plain assertions inside the shared, WPF-free services, so the CLI
 | **RuleSimulator** | `Services/RuleSimulator.cs` | The reasoning behind **Advanced test**: the on/off gates, trusted rules and the default action, Simple Wi-Fi mode ignoring a wired network, and that the described network is normalised. The simulator runs the real engine on a copy of the configuration, so a simulation does not move the real hit counters. |
 | **TempOverride** | `Models/TempOverride.cs` | The timer behind the timed DNS override ("use this profile for 1 minute"): a fresh override is active until its absolute UTC end time and expired afterwards, the remaining time and the `0:42` countdown text (rounded up, hours for long ones), replacing an override restarts the clock, the 10 s / 1 / 5 / 15 minute presets and their menu label keys. |
 | **CommandPipe** | `Services/CommandPipe.cs` | The command channel behind `dns bypass` and the Windows right-click menu: parsing of `bypass`, `bypass 60`, `bypass stop`, `bypass toggle` (case, extra spaces, the 5 to 3600 second clamp, garbage and other commands rejected), and a real round trip over a private named pipe: the access-protected server starts, the same user connects, the request arrives and the reply comes back, and a missing listener returns nothing. It uses a random pipe name, so a running MasselGUARD window is never touched. |
+| **Shortcut** | `Models/Shortcut.cs` | The text form of keyboard shortcuts stored in `config.json` (the bypass shortcut): any case and the aliases (`Control`, `Windows`), spaces and modifier order normalised to `Ctrl+Alt+Shift+Win+Key`, letters, digits, F1 to F24 and the named navigation keys, empty text meaning "no shortcut", and rejection of Shift-only or modifier-less shortcuts, two keys, stray plus signs, unknown keys and F25. Also the fallback to the default for an unusable value. |
 
 ## What it does not cover
 

@@ -1216,5 +1216,13 @@
   "RuleNetMenuTip": "Regel aus einem verbundenen Netzwerk erstellen",
   "RuleShadowNote": "Die Regel \"{0}\" weiter oben passt ebenfalls auf dieses Netzwerk und gewinnt. Ziehen Sie die neue Regel darüber, um das zu ändern.",
   "RuleShadowTitle": "Regelreihenfolge",
-  "BtnAddFromNetwork": "Aus Netzwerk"
+  "BtnAddFromNetwork": "Aus Netzwerk",
+  "SettingsDnsShortcutLabel": "Bypass-Tastenkürzel",
+  "SettingsDnsShortcutTip": "Klicken Sie in das Feld und drücken Sie die gewünschten Tasten, zum Beispiel Strg+Umschalt+B. Es wird Strg, Alt oder Win plus eine Taste benötigt. Löschen entfernt das Kürzel. Der Wert steht in config.json als BypassShortcut.",
+  "BtnClearShortcut": "Löschen",
+  "SettingsDnsShortcutGlobalLabel": "In jeder App wirksam",
+  "SettingsDnsShortcutGlobalDesc": "Das Kürzel zusätzlich systemweit registrieren, sodass es in jedem Programm und auch bei im Infobereich verstecktem MasselGUARD funktioniert. Verwendet es bereits ein anderes Programm, funktioniert es nur, wenn MasselGUARD den Fokus hat.",
+  "DnsBypassShortcutHint": "Tastenkürzel: {0}",
+  "PresetItemBypassShortcut": "Tastenkürzel für den DNS-Bypass",
+  "PresetItemBypassShortcutGlobal": "Das Tastenkürzel für den DNS-Bypass systemweit registrieren"
 }

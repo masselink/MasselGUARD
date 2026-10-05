@@ -1216,5 +1216,13 @@
   "RuleNetMenuTip": "Crea una regola da una rete connessa",
   "RuleShadowNote": "La regola \"{0}\" sopra corrisponde anche a questa rete e vince. Trascina la nuova regola sopra di essa per cambiarlo.",
   "RuleShadowTitle": "Ordine delle regole",
-  "BtnAddFromNetwork": "Dalla rete"
+  "BtnAddFromNetwork": "Dalla rete",
+  "SettingsDnsShortcutLabel": "Scorciatoia bypass",
+  "SettingsDnsShortcutTip": "Fai clic nella casella e premi i tasti desiderati, ad esempio Ctrl+Maiusc+B. Servono Ctrl, Alt o Win più un tasto. Cancella rimuove la scorciatoia. Il valore è salvato in config.json come BypassShortcut.",
+  "BtnClearShortcut": "Cancella",
+  "SettingsDnsShortcutGlobalLabel": "Funziona in ogni app",
+  "SettingsDnsShortcutGlobalDesc": "Registra la scorciatoia anche a livello di sistema, così funziona in qualsiasi programma e quando MasselGUARD è nascosto nell'area di notifica. Se un altro programma la usa già, funziona solo quando MasselGUARD ha il focus.",
+  "DnsBypassShortcutHint": "Scorciatoia: {0}",
+  "PresetItemBypassShortcut": "Scorciatoia da tastiera del bypass DNS",
+  "PresetItemBypassShortcutGlobal": "Registra la scorciatoia del bypass DNS a livello di sistema"
 }

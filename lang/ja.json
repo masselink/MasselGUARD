@@ -1216,5 +1216,13 @@
   "RuleNetMenuTip": "接続中のネットワークからルールを作成",
   "RuleShadowNote": "上にあるルール「{0}」もこのネットワークに一致し、優先されます。変更するには新しいルールをその上へドラッグしてください。",
   "RuleShadowTitle": "ルールの順序",
-  "BtnAddFromNetwork": "ネットワークから"
+  "BtnAddFromNetwork": "ネットワークから",
+  "SettingsDnsShortcutLabel": "バイパスのショートカット",
+  "SettingsDnsShortcutTip": "ボックスをクリックして使いたいキーを押します(例: Ctrl+Shift+B)。Ctrl、Alt、Win のいずれかと1つのキーが必要です。「クリア」でショートカットを削除します。値は config.json に BypassShortcut として保存されます。",
+  "BtnClearShortcut": "クリア",
+  "SettingsDnsShortcutGlobalLabel": "すべてのアプリで有効",
+  "SettingsDnsShortcutGlobalDesc": "ショートカットをシステム全体にも登録し、どのプログラムでも、MasselGUARDがトレイに隠れていても使えるようにします。他のプログラムがすでに使っている場合は、MasselGUARDにフォーカスがあるときだけ動作します。",
+  "DnsBypassShortcutHint": "ショートカット: {0}",
+  "PresetItemBypassShortcut": "DNSバイパスのキーボードショートカット",
+  "PresetItemBypassShortcutGlobal": "DNSバイパスのショートカットをシステム全体に登録"
 }

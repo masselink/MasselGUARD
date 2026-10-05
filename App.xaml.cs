@@ -1071,6 +1071,8 @@ namespace MasselGUARD
                 var head = new WinForms.ToolStripMenuItem(Lang.T("DnsBypassTray", bypass.Name));
                 head.Font      = GetTrayFont(bold: true);
                 head.ForeColor = accentColor;
+                var shortcutText = _mainWindow.Dispatcher.Invoke(() => _mainWindow.BypassShortcutText);
+                if (!string.IsNullOrEmpty(shortcutText)) head.ShortcutKeyDisplayString = shortcutText;   // display only
                 foreach (var secs in Models.TempOverride.PresetSeconds)
                 {
                     int s = secs;

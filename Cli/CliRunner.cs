@@ -321,6 +321,7 @@ namespace MasselGUARD.Cli
             var (smPass,   smFail,   smFailures)   = Services.RuleSimulator.RunSelfTest();
             var (toPass,   toFail,   toFailures)   = Models.TempOverride.RunSelfTest();
             var (cpPass,   cpFail,   cpFailures)   = Services.CommandPipe.RunSelfTest();
+            var (scPass,   scFail,   scFailures)   = Models.Shortcut.RunSelfTest();
 
             foreach (var f in cidrFailures) CliOutput.Error($"FAIL CidrMath {f}");
             foreach (var f in backFailures) CliOutput.Error($"FAIL Backend {f}");
@@ -332,10 +333,11 @@ namespace MasselGUARD.Cli
             foreach (var f in smFailures)   CliOutput.Error($"FAIL RuleSimulator {f}");
             foreach (var f in toFailures)   CliOutput.Error($"FAIL TempOverride {f}");
             foreach (var f in cpFailures)   CliOutput.Error($"FAIL CommandPipe {f}");
+            foreach (var f in scFailures)   CliOutput.Error($"FAIL Shortcut {f}");
 
-            int pass = cidrPass + backPass + expPass + dnsPass + netPass + rtPass + rePass + smPass + toPass + cpPass;
-            int fail = cidrFail + backFail + expFail + dnsFail + netFail + rtFail + reFail + smFail + toFail + cpFail;
-            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}, NetworkMatcher {netPass}, RuleTester {rtPass}, RuleEngine {rePass}, RuleSimulator {smPass}, TempOverride {toPass}, CommandPipe {cpPass}).");
+            int pass = cidrPass + backPass + expPass + dnsPass + netPass + rtPass + rePass + smPass + toPass + cpPass + scPass;
+            int fail = cidrFail + backFail + expFail + dnsFail + netFail + rtFail + reFail + smFail + toFail + cpFail + scFail;
+            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}, NetworkMatcher {netPass}, RuleTester {rtPass}, RuleEngine {rePass}, RuleSimulator {smPass}, TempOverride {toPass}, CommandPipe {cpPass}, Shortcut {scPass}).");
             else           CliOutput.Error($"Self-test: {pass} passed, {fail} failed.");
             return fail == 0 ? 0 : 1;
         }

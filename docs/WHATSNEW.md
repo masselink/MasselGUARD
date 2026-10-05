@@ -1,3 +1,11 @@
+## Next version (number and codename to be decided)
+
+### Bypass shortcut you can change
+
+- **Configurable shortcut** - the quick DNS bypass shortcut is no longer fixed to **Ctrl+Shift+B**. Set it in **Settings > DNS > Bypass shortcut** (click the box and press the keys; **Clear** removes it) or in `config.json` as `BypassShortcut` (for example `Ctrl+Alt+F9`). It needs Ctrl, Alt or Win plus one key; an unusable value falls back to the default and says so in the activity log.
+- **Work in every app** (optional) - register the shortcut system-wide, so it also works in other programs and while MasselGUARD is hidden in the tray. If another program already uses the combination, it still works with the MasselGUARD window focused.
+- The shortcut is shown in the footer tooltip and next to **Bypass** in the tray menu.
+
 ## v4.6.0 - Wired Weasel
 
 Automation now understands **wired networks**, not just Wi-Fi. Rules can match a network by more than its name, several conditions can be combined, and you can see exactly why a rule did (or did not) fire. The app is also noticeably lighter on memory, and saving settings is much quicker.

@@ -1216,5 +1216,13 @@
   "RuleNetMenuTip": "Создать правило из подключённой сети",
   "RuleShadowNote": "Правило «{0}» выше тоже подходит этой сети и имеет приоритет. Перетащите новое правило выше, чтобы изменить это.",
   "RuleShadowTitle": "Порядок правил",
-  "BtnAddFromNetwork": "Из сети"
+  "BtnAddFromNetwork": "Из сети",
+  "SettingsDnsShortcutLabel": "Сочетание клавиш обхода",
+  "SettingsDnsShortcutTip": "Щёлкните поле и нажмите нужные клавиши, например Ctrl+Shift+B. Нужны Ctrl, Alt или Win и одна клавиша. «Очистить» убирает сочетание. Значение хранится в config.json как BypassShortcut.",
+  "BtnClearShortcut": "Очистить",
+  "SettingsDnsShortcutGlobalLabel": "Работает в любом приложении",
+  "SettingsDnsShortcutGlobalDesc": "Регистрировать сочетание во всей системе, чтобы оно работало в любой программе и когда MasselGUARD скрыт в трее. Если его уже использует другая программа, оно работает только при фокусе на MasselGUARD.",
+  "DnsBypassShortcutHint": "Сочетание: {0}",
+  "PresetItemBypassShortcut": "Сочетание клавиш обхода DNS",
+  "PresetItemBypassShortcutGlobal": "Регистрировать сочетание обхода DNS во всей системе"
 }

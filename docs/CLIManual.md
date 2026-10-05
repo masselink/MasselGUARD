@@ -354,7 +354,7 @@ Active interface resolvers:
   • Wi-Fi: 1.1.1.1, 1.0.0.1
 ```
 
-**dns bypass** - switch to the *bypass profile* for a short time, then back to automatic (the same as the footer item, Ctrl+Shift+B and the Windows right-click menu):
+**dns bypass** - switch to the *bypass profile* for a short time, then back to automatic (the same as the footer item, the bypass keyboard shortcut and the Windows right-click menu):
 
 ```
 MasselGUARD dns bypass [seconds|stop|toggle]

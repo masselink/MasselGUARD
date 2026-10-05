@@ -1216,5 +1216,13 @@
   "RuleNetMenuTip": "Créer une règle depuis un réseau connecté",
   "RuleShadowNote": "La règle \"{0}\" au-dessus correspond aussi à ce réseau et l'emporte. Faites glisser la nouvelle règle au-dessus pour changer cela.",
   "RuleShadowTitle": "Ordre des règles",
-  "BtnAddFromNetwork": "Depuis le réseau"
+  "BtnAddFromNetwork": "Depuis le réseau",
+  "SettingsDnsShortcutLabel": "Raccourci de contournement",
+  "SettingsDnsShortcutTip": "Cliquez dans le champ et appuyez sur les touches voulues, par exemple Ctrl+Maj+B. Il faut Ctrl, Alt ou Win plus une touche. Effacer supprime le raccourci. La valeur est stockée dans config.json sous BypassShortcut.",
+  "BtnClearShortcut": "Effacer",
+  "SettingsDnsShortcutGlobalLabel": "Fonctionne dans toutes les applications",
+  "SettingsDnsShortcutGlobalDesc": "Enregistre aussi le raccourci à l'échelle du système, pour qu'il fonctionne dans n'importe quel programme et quand MasselGUARD est masqué dans la zone de notification. Si un autre programme l'utilise déjà, il ne fonctionne que lorsque MasselGUARD a le focus.",
+  "DnsBypassShortcutHint": "Raccourci : {0}",
+  "PresetItemBypassShortcut": "Raccourci clavier du contournement DNS",
+  "PresetItemBypassShortcutGlobal": "Enregistrer le raccourci du contournement DNS à l'échelle du système"
 }

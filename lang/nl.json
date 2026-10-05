@@ -1216,5 +1216,13 @@
   "RuleNetMenuTip": "Een regel maken van een verbonden netwerk",
   "RuleShadowNote": "Regel \"{0}\" hierboven past ook op dit netwerk en wint. Sleep de nieuwe regel erboven om dat te veranderen.",
   "RuleShadowTitle": "Regelvolgorde",
-  "BtnAddFromNetwork": "Van netwerk"
+  "BtnAddFromNetwork": "Van netwerk",
+  "SettingsDnsShortcutLabel": "Bypass-sneltoets",
+  "SettingsDnsShortcutTip": "Klik in het vak en druk op de gewenste toetsen, bijvoorbeeld Ctrl+Shift+B. Er is Ctrl, Alt of Win plus een toets nodig. Wissen verwijdert de sneltoets. De waarde staat in config.json als BypassShortcut.",
+  "BtnClearShortcut": "Wissen",
+  "SettingsDnsShortcutGlobalLabel": "Werkt in elke app",
+  "SettingsDnsShortcutGlobalDesc": "Registreer de sneltoets ook systeembreed, zodat hij in elk programma werkt en ook als MasselGUARD in het systeemvak verborgen is. Gebruikt een ander programma hem al, dan werkt hij alleen als MasselGUARD de focus heeft.",
+  "DnsBypassShortcutHint": "Sneltoets: {0}",
+  "PresetItemBypassShortcut": "Sneltoets voor DNS-bypass",
+  "PresetItemBypassShortcutGlobal": "De sneltoets voor DNS-bypass systeembreed registreren"
 }

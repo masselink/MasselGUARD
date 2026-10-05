@@ -1216,5 +1216,13 @@
   "RuleNetMenuTip": "Criar uma regra a partir de uma rede conectada",
   "RuleShadowNote": "A regra \"{0}\" acima também corresponde a esta rede e vence. Arraste a nova regra para cima dela para mudar isso.",
   "RuleShadowTitle": "Ordem das regras",
-  "BtnAddFromNetwork": "Da rede"
+  "BtnAddFromNetwork": "Da rede",
+  "SettingsDnsShortcutLabel": "Atalho de contorno",
+  "SettingsDnsShortcutTip": "Clique na caixa e pressione as teclas desejadas, por exemplo Ctrl+Shift+B. É preciso Ctrl, Alt ou Win mais uma tecla. Limpar remove o atalho. O valor fica em config.json como BypassShortcut.",
+  "BtnClearShortcut": "Limpar",
+  "SettingsDnsShortcutGlobalLabel": "Funciona em qualquer aplicativo",
+  "SettingsDnsShortcutGlobalDesc": "Registra também o atalho em todo o sistema, para funcionar em qualquer programa e com o MasselGUARD oculto na bandeja. Se outro programa já o usa, só funciona quando o MasselGUARD tem o foco.",
+  "DnsBypassShortcutHint": "Atalho: {0}",
+  "PresetItemBypassShortcut": "Atalho de teclado do contorno DNS",
+  "PresetItemBypassShortcutGlobal": "Registrar o atalho do contorno DNS em todo o sistema"
 }
