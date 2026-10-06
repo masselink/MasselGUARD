@@ -421,7 +421,7 @@ One card per feature - **WireGuard**, **DNS**, **Automation**, **Activity log**,
 
 ## 13. Settings: Startup
 
-- **Start with Windows** - a Scheduled Task at `RunLevel=Highest`, so MasselGUARD starts elevated without a UAC prompt
+- **Start with Windows** - with the MasselGUARD service installed, a per-user startup entry (no administrator rights needed; MasselGUARD starts unelevated and the service does the privileged work). Without the service, a Scheduled Task at `RunLevel=Highest`, so MasselGUARD starts elevated without a UAC prompt
 - **Start minimized** - launch straight to the tray
 - **Free memory while hidden in the tray** - when the window is closed to the tray, MasselGUARD compacts its memory and returns the unused part to Windows (default on). The first redraw after reopening can be slightly slower
 - **Confirm disconnect on exit** - ask before disconnecting active tunnels when exiting (default on)

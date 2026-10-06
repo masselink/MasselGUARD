@@ -1242,5 +1242,10 @@
   "ServiceTitle": "MasselGUARD サービス",
   "ElevationNeededMsg": "この操作には管理者権限が必要です。今すぐ MasselGUARD を管理者として再起動しますか?再起動後に操作をやり直してください。",
   "ElevationNeededTitle": "管理者権限が必要です",
-  "ElevationCancelled": "管理者の承認がキャンセルされました。"
+  "ElevationCancelled": "管理者の承認がキャンセルされました。",
+  "SettingsHeadlessLabel": "MasselGUARD を閉じても自動化を続ける",
+  "SettingsHeadlessDesc": "MasselGUARD サービスがインストールされていれば、ウィンドウを閉じている間(サインイン前など)も、サービスがネットワークルール(トンネルの接続・切断、DNS の切り替え)を適用し続けます。MasselGUARD が最後にサービスへ送った設定で動作し、ウィンドウが再び開くと制御を戻します。MasselGUARD を閉じても、トンネルとキルスイッチはそのまま残ります。既定ではオフです。",
+  "SettingsHeadlessNeedsService": "これには MasselGUARD サービスが必要です。先にインストールしてください(設定 > 起動 > バックグラウンドサービス)。",
+  "PresetItemHeadlessAutomation": "ウィンドウを閉じても自動化をサービスで継続する",
+  "SettingsHeadlessLimits": "ウィンドウを閉じている間、サービスは次を行いません: 履歴の記録、通知、データ上限、スケジュールルール、接続前後のスクリプト。"
 }

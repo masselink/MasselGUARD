@@ -136,6 +136,7 @@ namespace MasselGUARD
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                     "MasselGUARD", "masselguard.log");
                 LogSvc.InitPersistence(logPath, ConfigSvc.Config.MaxLogSizeKB, ConfigSvc.Config.ClearLogOnStart);
+                System.Threading.Tasks.Task.Run(() => Services.InstallFiles.CleanupOld(AppContext.BaseDirectory));   // leftovers of an install that replaced files in use
             }
             catch { /* logging must never break startup */ }
 
@@ -161,6 +162,8 @@ namespace MasselGUARD
             _vm.AddTunnelRequested    += OnAddTunnel;
             _vm.EditTunnelRequested   += OnEditTunnel;
             _vm.DeleteTunnelRequested += OnDeleteTunnel;
+            System.Threading.Tasks.Task.Run(PruneServiceStore);   // drop stored configs of tunnels that no longer exist
+            StartAutomationSync();
             _vm.QuickConnectRequested += OnQuickConnect;
             _vm.OpenSettingsRequested += OnOpenSettings;
             _vm.StatusTick            += OnStatusTick;
@@ -1421,6 +1424,91 @@ namespace MasselGUARD
             LogSvc.Ok($"Tunnel updated: {stored.Name}");
         }
 
+        // ── Snapshot handover (service mode): the window owns the config, the service may run the rules when it is closed ──
+
+        private System.Threading.Timer? _leaseTimer;
+        private System.Windows.Threading.DispatcherTimer? _pushDebounce;
+        private readonly Dictionary<string, string> _pushedTunnelHashes = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>True when closing the window should leave tunnels and the kill switch in place because the
+        /// service continues the automation.</summary>
+        public bool ServiceKeepsAutomation => Backend.IsService && Backend.Automation != null && ConfigSvc.Config.HeadlessAutomation;
+
+        private void StartAutomationSync()
+        {
+            var auto = Backend.Automation;
+            if (auto == null) return;
+            int misses = 0;
+            _leaseTimer = new System.Threading.Timer(_ =>
+            {
+                bool ok = false;
+                try { ok = auto.RenewLease(); } catch { }
+                if (ok) { if (misses >= 3) LogSvc.Info("MasselGUARD service reachable again."); misses = 0; }
+                else if (++misses == 3)
+                    LogSvc.Warn("The MasselGUARD service does not answer. Tunnel, DNS and kill-switch actions will fail until it runs again " +
+                                "(start the service, or restart MasselGUARD to fall back to direct mode).");
+            }, null, 0, 5000);
+            ConfigSvc.ConfigChanged += () =>
+            {
+                _pushDebounce ??= new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+                _pushDebounce.Tick -= PushDebounceTick; _pushDebounce.Tick += PushDebounceTick;
+                _pushDebounce.Stop(); _pushDebounce.Start();
+            };
+            PushAutomationNow();
+        }
+
+        private void PushDebounceTick(object? s, EventArgs e) { _pushDebounce?.Stop(); PushAutomationNow(); }
+
+        /// <summary>Serialises the config and (when the feature is on) the tunnel configs on the UI thread, sends them in the background.</summary>
+        public void PushAutomationNow()
+        {
+            var auto = Backend.Automation;
+            if (auto == null) return;
+            try
+            {
+                var cfg = ConfigSvc.Config;
+                string json = Services.AutomationSnapshot.Serialize(cfg);
+                var tunnels = new List<(string name, string conf, string hash)>();
+                if (cfg.HeadlessAutomation)
+                    foreach (var t in cfg.Tunnels.Where(t => string.IsNullOrEmpty(t.Source) || t.Source == "local"))
+                    {
+                        var conf = TunnelService.DecryptConfig(t);
+                        if (string.IsNullOrEmpty(conf)) continue;
+                        var h = Services.FileTunnelStore.HashOf(conf);
+                        if (_pushedTunnelHashes.TryGetValue(t.Name, out var old) && old == h) continue;
+                        tunnels.Add((t.Name, conf, h));
+                    }
+                System.Threading.Tasks.Task.Run(() =>
+                {
+                    try
+                    {
+                        foreach (var (name, conf, hash) in tunnels)
+                            if (auto.PushTunnel(name, conf)) lock (_pushedTunnelHashes) _pushedTunnelHashes[name] = hash;
+                        auto.PushSnapshot(json);
+                    }
+                    catch { /* the next change pushes again */ }
+                });
+            }
+            catch (Exception ex) { LogSvc.Debug($"Automation push failed: {ex.Message}"); }
+        }
+
+        /// <summary>Called at exit: lets the service take over at once.</summary>
+        public void ReleaseAutomationLease()
+        {
+            try { _leaseTimer?.Dispose(); Backend.Automation?.ReleaseLease(); } catch { }
+        }
+
+        /// <summary>Service mode: keeps the service's encrypted tunnel store in step with the tunnel list.</summary>
+        private void PruneServiceStore()
+        {
+            try
+            {
+                if (Backend.Tunnels is Services.IStoredConnectOps store)
+                    store.PruneStored(ConfigSvc.Config.Tunnels.Where(t => string.IsNullOrEmpty(t.Source) || t.Source == "local").Select(t => t.Name).ToList());
+            }
+            catch { /* best effort */ }
+        }
+
         private void OnDeleteTunnel(StoredTunnel stored)
         {
             var msg   = stored.Source == "local"
@@ -1438,6 +1526,7 @@ namespace MasselGUARD
             ConfigSvc.Config.Tunnels.Remove(stored);
             ConfigSvc.Save();
             LogSvc.Ok($"Tunnel removed: {stored.Name}");
+            System.Threading.Tasks.Task.Run(PruneServiceStore);
             _vm.RebuildTunnelList();
             RebuildTunnelGroups();
         }
@@ -4720,6 +4809,8 @@ namespace MasselGUARD
                 return;
             }
             LogSvc.Ok("MasselGUARD service installed.");
+            // Start with Windows moves from the elevated task to the per-user entry.
+            if (ConfigSvc.Config.StartWithWindows) ApplyAutostart(true, exe);
             if (ShowThemedYesNo(Lang.T("ServiceInstallDone"), Lang.T("ServiceTitle"))) RestartApp();
         }
 
@@ -4736,6 +4827,8 @@ namespace MasselGUARD
                 return;
             }
             LogSvc.Ok("MasselGUARD service removed.");
+            // Back to the elevated task when this process may create it (else the Run entry stays and UAC asks at logon).
+            if (ConfigSvc.Config.StartWithWindows && Services.ServiceInstaller.IsElevated()) ApplyAutostart(true, exe);
             if (Backend.IsService && ShowThemedYesNo(Lang.T("ServiceRemoveDone"), Lang.T("ServiceTitle"))) RestartApp();
         }
 
@@ -4798,7 +4891,11 @@ namespace MasselGUARD
                 {
                     var src = System.IO.Path.Combine(sourceDir, name);
                     if (System.IO.File.Exists(src))
-                        System.IO.File.Copy(src, System.IO.Path.Combine(installDir, name), overwrite: true);
+                    {
+                        // A running service / tunnel / window holds the installed file: move it aside if needed.
+                        if (Services.InstallFiles.CopyOverwriting(src, System.IO.Path.Combine(installDir, name)))
+                            LogSvc.Info($"Install: {name} was in use - the old copy was renamed aside and is removed later.");
+                    }
                 }
                 var langSrc = System.IO.Path.Combine(sourceDir, "lang");
                 if (System.IO.Directory.Exists(langSrc))
@@ -4858,17 +4955,15 @@ namespace MasselGUARD
                 {
                     if (ShowThemedYesNo(Lang.T("InstallAutostart"), Lang.T("InstallAutostartTitle")))
                     {
-                        RunPS($@"$a=New-ScheduledTaskAction -Execute '{installedExe}';$t=New-ScheduledTaskTrigger -AtLogOn;$p=New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest;Register-ScheduledTask -TaskName 'MasselGUARD' -Action $a -Trigger $t -Principal $p -Force");
+                        ApplyAutostart(true, installedExe);
                         ConfigSvc.Config.StartWithWindows = true;
                         ConfigSvc.Save();
-                        LogSvc.Ok(Lang.T("InstallScheduledOk"));
                     }
                 }
                 else
                 {
                     // Already configured - re-register with new exe path silently
-                    RunPS($@"$a=New-ScheduledTaskAction -Execute '{installedExe}';$t=New-ScheduledTaskTrigger -AtLogOn;$p=New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest;Register-ScheduledTask -TaskName 'MasselGUARD' -Action $a -Trigger $t -Principal $p -Force");
-                    LogSvc.Ok(Lang.T("InstallScheduledOk"));
+                    ApplyAutostart(true, installedExe);
                 }
 
                 // 5. Relaunch from installed location
@@ -4904,6 +4999,7 @@ namespace MasselGUARD
             try
             {
                 LogSvc.Info("Uninstalling...");
+                Services.AutostartRunKey.Disable();
                 // The service holds MasselGUARD.exe open; remove it first (asks for approval when needed).
                 if (Services.ServiceInstaller.IsInstalled())
                 {
@@ -5097,7 +5193,9 @@ namespace MasselGUARD
             }
         }
 
-        public bool GetStartWithWindows()
+        public bool GetStartWithWindows() => Services.AutostartRunKey.IsEnabled() || ScheduledTaskExists();
+
+        private static bool ScheduledTaskExists()
         {
             // Check if our scheduled task exists
             try
@@ -5113,19 +5211,45 @@ namespace MasselGUARD
 
         public void SetStartWithWindows(bool enable)
         {
-            if (!EnsureElevated()) return;   // the scheduled task is registered at the highest run level
-            if (enable)
+            // With the service the per-user Run entry is enough (no admin rights). Otherwise the elevated
+            // scheduled task is needed, and so is removing a task that is still there.
+            bool needAdmin = enable ? (!ServiceInstalled || ScheduledTaskExists()) : ScheduledTaskExists();
+            if (needAdmin && !EnsureElevated()) return;
+            var exe = Environment.ProcessPath ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "";
+            ApplyAutostart(enable, exe);
+            if (!enable)
+                try { Services.ShellMenuService.Unregister(); } catch { }   // Explorer right-click entries
+            ConfigSvc.Config.StartWithWindows = enable;
+            ConfigSvc.Save();
+        }
+
+        /// <summary>Registers or removes "start with Windows" for <paramref name="exe"/>. With the MasselGUARD
+        /// service installed it is a per-user Run entry (the app starts unelevated, the service does the
+        /// privileged work); without it, the elevated scheduled task (RunLevel Highest, needs admin).
+        /// The other mechanism is removed so the app is not started twice at logon.</summary>
+        private void ApplyAutostart(bool enable, string exe)
+        {
+            const string removeTask = "Unregister-ScheduledTask -TaskName 'MasselGUARD' -Confirm:$false -ErrorAction SilentlyContinue";
+            bool elevated = Services.ServiceInstaller.IsElevated();
+            if (!enable)
             {
-                var exe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "";
-                RunPS($@"$a=New-ScheduledTaskAction -Execute '{exe}';$t=New-ScheduledTaskTrigger -AtLogOn;$p=New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest;Register-ScheduledTask -TaskName 'MasselGUARD' -Action $a -Trigger $t -Principal $p -Force");
+                Services.AutostartRunKey.Disable();
+                if (elevated && ScheduledTaskExists()) RunPS(removeTask);
+                return;
+            }
+            if (ServiceInstalled)
+            {
+                Services.AutostartRunKey.Enable(exe);
+                if (elevated && ScheduledTaskExists()) RunPS(removeTask);
+                else if (ScheduledTaskExists()) LogSvc.Warn("The old elevated startup task is still registered; it needs administrator rights to remove.");
+                LogSvc.Ok("Start with Windows: per-user startup entry registered.");
             }
             else
             {
-                RunPS("Unregister-ScheduledTask -TaskName 'MasselGUARD' -Confirm:$false -ErrorAction SilentlyContinue");
-                try { Services.ShellMenuService.Unregister(); } catch { }   // Explorer right-click entries
+                RunPS($@"$a=New-ScheduledTaskAction -Execute '{exe}';$t=New-ScheduledTaskTrigger -AtLogOn;$p=New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest;Register-ScheduledTask -TaskName 'MasselGUARD' -Action $a -Trigger $t -Principal $p -Force");
+                Services.AutostartRunKey.Disable();
+                LogSvc.Ok(Lang.T("InstallScheduledOk"));
             }
-            ConfigSvc.Config.StartWithWindows = enable;
-            ConfigSvc.Save();
         }
 
         private static bool RunPS(string script)

@@ -1242,5 +1242,10 @@
   "ServiceTitle": "MasselGUARD-Dienst",
   "ElevationNeededMsg": "Diese Aktion erfordert Administratorrechte. MasselGUARD jetzt als Administrator neu starten? Wiederholen Sie die Aktion danach.",
   "ElevationNeededTitle": "Administratorrechte erforderlich",
-  "ElevationCancelled": "Die Administratorgenehmigung wurde abgebrochen."
+  "ElevationCancelled": "Die Administratorgenehmigung wurde abgebrochen.",
+  "SettingsHeadlessLabel": "Automatisierung weiterlaufen lassen, wenn MasselGUARD geschlossen ist",
+  "SettingsHeadlessDesc": "Ist der MasselGUARD-Dienst installiert, wendet er Ihre Netzwerkregeln (Tunnel verbinden oder trennen, DNS wechseln) auch bei geschlossenem Fenster weiter an, zum Beispiel vor der Anmeldung. Er arbeitet mit den zuletzt gesendeten Einstellungen und gibt die Kontrolle zurueck, sobald wieder ein Fenster offen ist. Beim Beenden von MasselGUARD bleiben Tunnel und Kill Switch dann bestehen. Standardmaessig aus.",
+  "SettingsHeadlessNeedsService": "Dafuer wird der MasselGUARD-Dienst benoetigt. Installieren Sie ihn zuerst (Einstellungen > Start > Hintergrunddienst).",
+  "PresetItemHeadlessAutomation": "Automatisierung laeuft im Dienst weiter, wenn das Fenster geschlossen ist",
+  "SettingsHeadlessLimits": "Vom Dienst bei geschlossenem Fenster nicht erledigt: Verlaufseintraege, Benachrichtigungen, Datenlimits, Zeitplanregeln und Ihre Skripte vor/nach dem Verbinden."
 }

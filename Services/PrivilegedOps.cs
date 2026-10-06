@@ -38,11 +38,33 @@ namespace MasselGUARD.Services
         void RestoreAll();
     }
 
+    /// <summary>Connect a tunnel by NAME from the service's own encrypted store (service mode only). The
+    /// caller passes the base config (pushed to the store when its hash differs) and the split-tunnel
+    /// intent, which the service applies itself.</summary>
+    public interface IStoredConnectOps
+    {
+        bool ConnectStored(string name, string baseConf, SplitConfig split, Action<string> log, out string error);
+        /// <summary>Drops stored tunnels that no longer exist in the window's list.</summary>
+        void PruneStored(IEnumerable<string> keepNames);
+    }
+
+    /// <summary>The window's side of the snapshot handover (service mode only): push the config, push tunnel
+    /// configs into the service's store, and renew the "a window is alive" lease.</summary>
+    public interface IAutomationOps
+    {
+        bool PushSnapshot(string json);
+        bool PushTunnel(string name, string conf);
+        bool RenewLease();
+        void ReleaseLease();
+    }
+
     /// <summary>Timed DNS override held by the service (service mode only; null in direct mode).</summary>
     public interface IDnsHoldOps
     {
         bool RegisterHold(string profileId, IReadOnlyList<Guid> interfaces, int seconds);
         void CancelHold();
+        /// <summary>Ends the hold now and restores its interfaces; true when one was running.</summary>
+        bool StopHold();
         (bool active, string profileId, int remainingSeconds) GetHold();
         /// <summary>The UI is leaving: restore every override except interfaces under a running hold.</summary>
         void ReleaseExceptHeld();
@@ -52,7 +74,25 @@ namespace MasselGUARD.Services
     public sealed class TunnelDllOps : ITunnelOps
     {
         public bool Connect(string tunnelName, string confPath, Action<string> log, out string error)
-            => TunnelDll.Connect(tunnelName, confPath, log, out error);
+        {
+            var ok = TunnelDll.Connect(tunnelName, confPath, log, out error);
+            if (ok) StampService(tunnelName);
+            return ok;
+        }
+
+        /// <summary>Marks the tunnel's service as MasselGUARD-managed so the orphan scan can recognise it.
+        /// Done here (not in the window) because only the process that connects has the rights.</summary>
+        private static void StampService(string tunnelName)
+        {
+            try
+            {
+                using var regKey = Microsoft.Win32.Registry.LocalMachine
+                    .OpenSubKey($@"SYSTEM\CurrentControlSet\Services\WireGuardTunnel${tunnelName}", writable: true);
+                regKey?.SetValue("Description", $"MasselGUARD Tunnel: {tunnelName}");
+                regKey?.SetValue("DisplayName", $"WireGuard Tunnel: MasselGUARD - {tunnelName}");
+            }
+            catch { /* non-critical */ }
+        }
         public bool Disconnect(string tunnelName, out string error)
             => TunnelDll.Disconnect(tunnelName, out error);
         public bool IsRunning(string tunnelName) => TunnelDll.IsRunning(tunnelName);

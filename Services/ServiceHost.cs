@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.ServiceProcess;
@@ -21,11 +22,16 @@ namespace MasselGUARD.Services
         private DnsService? _dns;
         private LogService? _log;
         private readonly DnsHoldKeeper _hold = new();
+        private readonly AutomationState _auto = new();
+        private HeadlessHost? _headless;
+        private static string SnapshotFile => Path.Combine(DataDir, "automation.json");
         private System.Threading.Timer? _holdTimer;
 
         public static string DataDir => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "MasselGUARD");
         private static string RunDir => Path.Combine(DataDir, "run");
+        private static string StoreDir => Path.Combine(DataDir, "tunnels");
+        private static string LogDir => Path.Combine(DataDir, "logs");
 
         public ServiceHost() { ServiceName = SvcName; CanStop = true; AutoLog = false; }
 
@@ -40,11 +46,22 @@ namespace MasselGUARD.Services
         {
             try
             {
-                SecureDirectory(DataDir, usersCanRead: true);   // service-users.txt must stay readable for diagnostics only
-                SecureDirectory(RunDir, usersCanRead: false);   // plaintext configs live here briefly: SYSTEM + Administrators only
+                // Refuse to run from a folder a standard user could write to (they could replace the exe or a DLL).
+                var exeDir = AppContext.BaseDirectory.TrimEnd('\\');
+                var exeErr = SecureFolders.CheckInstallFolder(exeDir, new[] { Environment.ProcessPath ?? "", Path.Combine(exeDir, "tunnel.dll"), Path.Combine(exeDir, "wireguard.dll") });
+                if (exeErr != null) throw new InvalidOperationException(exeErr);
+
+                // Every data folder must be created by an administrator/SYSTEM token and owned by one (a standard user
+                // may have pre-created it), with a protected DACL. The log folder is the only one users may read.
+                foreach (var (dir, usersRead) in new[] { (DataDir, false), (RunDir, false), (StoreDir, false), (LogDir, true) })
+                {
+                    var e = SecureFolders.Ensure(dir, usersRead);
+                    if (e != null) throw new InvalidOperationException(e);
+                }
 
                 _log = new LogService { Enabled = true };
-                _log.InitPersistence(Path.Combine(DataDir, "service.log"), 512, false);
+                _log.InitPersistence(Path.Combine(LogDir, "service.log"), 512, false);
+                InstallFiles.CleanupOld(exeDir);   // leftovers of an install that replaced files in use
                 _log.Info("MasselGUARD service starting.");
 
                 _ks  = new KillSwitchService(_log);
@@ -55,7 +72,14 @@ namespace MasselGUARD.Services
                 _dns.RestoreAll();
                 SweepRunDir();
 
-                var disp = new RpcDispatcher(new TunnelDllOps(), _ks, _dns, StageConf, _hold, () => _dns.OverriddenGuids);
+                var store = FileTunnelStore.ForMachine(StoreDir);
+                LoadPersistedSnapshot();
+                var disp = new RpcDispatcher(new TunnelDllOps(), _ks, _dns, StageConf, _hold, () => _dns.OverriddenGuids,
+                                             store: store, auto: _auto, persistSnapshot: PersistSnapshot,
+                                             tunnelAllowed: TunnelNameAllowed, interfaceAllowed: InterfaceAllowed, persistOwner: PersistOwner);
+                // Automation without a window (only when the window's last pushed config asks for it).
+                _headless = new HeadlessHost(_auto, new TunnelDllOps(), _ks, _dns, store, StageConf, _hold, _log);
+                _headless.Start();
                 // Backstop for timed DNS overrides: ends them when the UI is gone (see DnsHoldKeeper).
                 _holdTimer = new System.Threading.Timer(_ =>
                 {
@@ -75,12 +99,71 @@ namespace MasselGUARD.Services
 
         protected override void OnStop()
         {
+            try { _headless?.Dispose(); } catch { }
             try { _holdTimer?.Dispose(); } catch { }
             try { _server?.Dispose(); } catch { }
             // Same semantics as closing the elevated app today: put DNS and the firewall back.
             try { _dns?.RestoreAll(); } catch { }
             try { _ks?.DisableAll(); } catch { }
             try { _log?.Info("MasselGUARD service stopped."); } catch { }
+        }
+
+        // ── last pushed window config (so automation works after a reboot, before anyone signs in) ──
+
+        private void PersistSnapshot(string json)
+        {
+            var tmp = SnapshotFile + ".tmp";
+            File.WriteAllText(tmp, json, new System.Text.UTF8Encoding(false));
+            File.Move(tmp, SnapshotFile, overwrite: true);
+        }
+
+        private static string OwnerFile => Path.Combine(DataDir, "automation.owner");
+
+        private static void PersistOwner(string sid) => File.WriteAllText(OwnerFile, sid, new System.Text.UTF8Encoding(false));
+
+        /// <summary>A tunnel name may only be used when no service of that name exists, or the existing one runs OUR exe
+        /// (a service created by WireGuard for Windows, or by anything else, is not ours to stop or replace).</summary>
+        private static bool TunnelNameAllowed(string name)
+        {
+            try
+            {
+                using var k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                    @"SYSTEM\CurrentControlSet\Services\WireGuardTunnel$" + name.Replace(' ', '_'));
+                if (k == null) return true;
+                var image = k.GetValue("ImagePath") as string ?? "";
+                return image.Contains("MasselGUARD", StringComparison.OrdinalIgnoreCase);
+            }
+            catch { return false; }
+        }
+
+        /// <summary>DNS may only be changed on a real, connected adapter (not loopback or a tunnel interface).</summary>
+        private static bool InterfaceAllowed(Guid id)
+        {
+            try
+            {
+                return System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces().Any(ni =>
+                    Guid.TryParse(ni.Id, out var g) && g == id
+                    && ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up
+                    && ni.NetworkInterfaceType is not (System.Net.NetworkInformation.NetworkInterfaceType.Loopback
+                                                      or System.Net.NetworkInformation.NetworkInterfaceType.Tunnel));
+            }
+            catch { return false; }
+        }
+
+        private void LoadPersistedSnapshot()
+        {
+            try
+            {
+                if (File.Exists(OwnerFile))
+                {
+                    var o = File.ReadAllText(OwnerFile).Trim();
+                    if (o.StartsWith("S-1-")) _auto.OwnerSid = o;
+                }
+                if (!File.Exists(SnapshotFile)) return;
+                var cfg = AutomationSnapshot.TryParse(File.ReadAllText(SnapshotFile), out _);
+                if (cfg != null) _auto.Config = cfg;   // the lease stays unset: until a window shows up, the service is in charge
+            }
+            catch { }
         }
 
         // ── conf hand-off ────────────────────────────────────────────────────────
@@ -105,22 +188,6 @@ namespace MasselGUARD.Services
         {
             try { foreach (var d in Directory.GetDirectories(RunDir)) try { Directory.Delete(d, true); } catch { } }
             catch { }
-        }
-
-        private static void SecureDirectory(string dir, bool usersCanRead)
-        {
-            var di = Directory.CreateDirectory(dir);
-            var sec = new DirectorySecurity();
-            sec.SetAccessRuleProtection(true, false);   // no inheritance from ProgramData
-            var inherit = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
-            sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
-                FileSystemRights.FullControl, inherit, PropagationFlags.None, AccessControlType.Allow));
-            sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
-                FileSystemRights.FullControl, inherit, PropagationFlags.None, AccessControlType.Allow));
-            if (usersCanRead)
-                sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
-                    FileSystemRights.ReadAndExecute, inherit, PropagationFlags.None, AccessControlType.Allow));
-            di.SetAccessControl(sec);
         }
     }
 }

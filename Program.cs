@@ -94,8 +94,19 @@ namespace MasselGUARD
         {
             try
             {
-                return Services.ServiceInstaller.Status() == System.ServiceProcess.ServiceControllerStatus.Running
-                    && new Services.RpcOps(expectedServerPid: Services.ServiceInstaller.ServicePid).IsAvailable();
+                var rpc = new Services.RpcOps(expectedServerPid: Services.ServiceInstaller.ServicePid);
+                // At logon (start with Windows) the service may still be starting: give it a few seconds
+                // instead of falling back to a UAC prompt. A stopped service or a refused caller is no reason to wait.
+                for (int i = 0; i < 20; i++)
+                {
+                    var st = Services.ServiceInstaller.Status();
+                    if (st is not (System.ServiceProcess.ServiceControllerStatus.Running or System.ServiceProcess.ServiceControllerStatus.StartPending))
+                        return false;
+                    if (st == System.ServiceProcess.ServiceControllerStatus.Running && rpc.IsAvailable()) return true;
+                    if (rpc.LastError == "access denied") return false;
+                    System.Threading.Thread.Sleep(500);
+                }
+                return false;
             }
             catch { return false; }
         }

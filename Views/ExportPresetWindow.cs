@@ -30,6 +30,7 @@ namespace MasselGUARD.Views
             }),
             ("PresetSecAutomation", new[] {
                 ("ManualMode", "PresetItemManualMode"),
+                ("HeadlessAutomation", "PresetItemHeadlessAutomation"),
                 ("DefaultAction", "PresetItemDefaultAction"),
                 ("DefaultTunnel", "PresetItemDefaultTunnel"),
                 ("OpenWifiTunnel", "PresetItemOpenWifiTunnel"),

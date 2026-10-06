@@ -344,8 +344,11 @@ namespace MasselGUARD
 timeout /t 3 /nobreak >nul
 sc stop MasselGUARDsvc >nul 2>&1
 timeout /t 2 /nobreak >nul
+rem a connected tunnel (MasselGUARD.exe /service) still holds its exe: Windows allows renaming a running file, not overwriting it
+for %%f in (MasselGUARD.exe MasselGUARDcli.exe tunnel.dll wireguard.dll) do if exist ""{destDir}\%%f"" ren ""{destDir}\%%f"" ""%%f.old-%random%""
 robocopy ""{sourceDir}"" ""{destDir}"" /E /IS /IT /IM /NJH /NJS /NP >nul
 if exist ""{sourceDir}\lang"" robocopy ""{sourceDir}\lang"" ""{destDir}\lang"" /E /IS /IT /IM /NJH /NJS /NP >nul
+del ""{destDir}\*.old-*"" >nul 2>&1
 sc start MasselGUARDsvc >nul 2>&1
 start """" ""{exePath}""
 del ""%~f0""

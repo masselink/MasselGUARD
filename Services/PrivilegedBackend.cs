@@ -18,9 +18,11 @@ namespace MasselGUARD.Services
         public IDnsOps Dns { get; }
         /// <summary>Timed-DNS-override hold kept by the service; null in direct mode.</summary>
         public IDnsHoldOps? Hold { get; }
+        /// <summary>Snapshot handover to the service; null in direct mode.</summary>
+        public IAutomationOps? Automation { get; }
 
-        private PrivilegedBackend(bool isService, ITunnelOps t, IKillSwitchOps k, IDnsOps d, IDnsHoldOps? hold = null)
-        { IsService = isService; Tunnels = t; KillSwitch = k; Dns = d; Hold = hold; }
+        private PrivilegedBackend(bool isService, ITunnelOps t, IKillSwitchOps k, IDnsOps d, IDnsHoldOps? hold = null, IAutomationOps? automation = null)
+        { IsService = isService; Tunnels = t; KillSwitch = k; Dns = d; Hold = hold; Automation = automation; }
 
         public static PrivilegedBackend Select(LogService log)
         {
@@ -30,7 +32,7 @@ namespace MasselGUARD.Services
                 if (ServiceInstaller.IsInstalled() && rpc.IsAvailable())
                 {
                     log.Info("Back-end: MasselGUARD service");
-                    return new PrivilegedBackend(true, rpc, rpc, rpc, rpc);
+                    return new PrivilegedBackend(true, rpc, rpc, rpc, rpc, rpc);
                 }
             }
             catch { /* fall through to direct mode */ }

@@ -28,7 +28,9 @@ namespace MasselGUARD.Services
                     return "The service cannot run from a cloud-synced (OneDrive) folder. Copy MasselGUARD to a local folder such as C:\\MasselGUARD or Program Files first.";
             }
             if (exePath.StartsWith(@"\\")) return "The service cannot run from a network path.";
-            return null;
+            // SYSTEM runs this exe and loads the DLLs next to it: nobody but administrators may be able to change them.
+            var dir = Path.GetDirectoryName(exePath) ?? "";
+            return SecureFolders.CheckInstallFolder(dir, new[] { exePath, Path.Combine(dir, "tunnel.dll"), Path.Combine(dir, "wireguard.dll"), Path.Combine(dir, "MasselGUARDcli.exe") });
         }
 
         public static bool IsInstalled() => Status() != null;
@@ -40,8 +42,37 @@ namespace MasselGUARD.Services
         }
 
         /// <summary>Process id of the running service (from <c>sc queryex</c>, works without elevation); 0 when not running.</summary>
+        [System.Runtime.InteropServices.DllImport("advapi32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern IntPtr OpenSCManager(string? machine, string? database, uint access);
+        [System.Runtime.InteropServices.DllImport("advapi32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern IntPtr OpenService(IntPtr scm, string name, uint access);
+        [System.Runtime.InteropServices.DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool QueryServiceStatusEx(IntPtr service, int infoLevel, byte[] buffer, int size, out int needed);
+        [System.Runtime.InteropServices.DllImport("advapi32.dll")]
+        private static extern bool CloseServiceHandle(IntPtr handle);
+
+        /// <summary>The service's process id straight from the service manager (SERVICE_STATUS_PROCESS), no sc.exe parsing.</summary>
+        private static int QueryPid()
+        {
+            IntPtr scm = IntPtr.Zero, svc = IntPtr.Zero;
+            try
+            {
+                scm = OpenSCManager(null, null, 0x0001);          // SC_MANAGER_CONNECT
+                if (scm == IntPtr.Zero) return 0;
+                svc = OpenService(scm, Name, 0x0004);              // SERVICE_QUERY_STATUS
+                if (svc == IntPtr.Zero) return 0;
+                var buf = new byte[36];
+                if (!QueryServiceStatusEx(svc, 0, buf, buf.Length, out _)) return 0;   // SC_STATUS_PROCESS_INFO
+                return BitConverter.ToInt32(buf, 28);              // dwProcessId
+            }
+            catch { return 0; }
+            finally { if (svc != IntPtr.Zero) CloseServiceHandle(svc); if (scm != IntPtr.Zero) CloseServiceHandle(scm); }
+        }
+
         public static int ServicePid()
         {
+            int pid = QueryPid();
+            if (pid > 0) return pid;
             var (ok, o) = Sc($"queryex {Name}");
             if (!ok) return 0;
             foreach (var line in o.Split('\n'))
@@ -50,7 +81,7 @@ namespace MasselGUARD.Services
                 if (t.StartsWith("PID", StringComparison.OrdinalIgnoreCase))
                 {
                     var v = t[(t.IndexOf(':') + 1)..].Trim();
-                    return int.TryParse(v, out var pid) ? pid : 0;
+                    return int.TryParse(v, out var parsed) ? parsed : 0;
                 }
             }
             return 0;
@@ -66,7 +97,8 @@ namespace MasselGUARD.Services
             var me = WindowsIdentity.GetCurrent().User?.Value;
             if (me != null) sids.Add(me);
             if (allowUserSids != null) sids.AddRange(allowUserSids);
-            WriteAllowedUsers(sids);
+            var dataErr = WriteAllowedUsers(sids);
+            if (dataErr != null) return (false, dataErr);
 
             if (IsInstalled()) Uninstall();   // replace a stale registration (e.g. moved install)
 
@@ -145,19 +177,39 @@ namespace MasselGUARD.Services
             catch { return null; }
         }
 
-        private static void WriteAllowedUsers(List<string> sids)
+        private static string? WriteAllowedUsers(List<string> sids)
         {
             var dir = Path.GetDirectoryName(RpcAuth.AllowedUsersFile)!;
-            Directory.CreateDirectory(dir);
+            // The data folder must be ours (a standard user may have created it first): see SecureFolders.Ensure.
+            var err = SecureFolders.Ensure(dir, usersCanRead: false);
+            if (err != null) return "Cannot prepare the service data folder: " + err;
             var existing = RpcAuth.LoadAllowed();
-            File.WriteAllLines(RpcAuth.AllowedUsersFile, existing.Concat(sids).Distinct(StringComparer.OrdinalIgnoreCase));
+            var tmp = RpcAuth.AllowedUsersFile + ".tmp";
+            File.WriteAllLines(tmp, existing.Concat(sids).Distinct(StringComparer.OrdinalIgnoreCase));
+            File.Move(tmp, RpcAuth.AllowedUsersFile, overwrite: true);
+            return null;
+        }
+
+        /// <summary>Lets another user call the service (administrator rights needed). Returns an error text or null.</summary>
+        public static string? AllowUser(string sid) => WriteAllowedUsers(new List<string> { sid });
+
+        /// <summary>Removes a user from the list. Returns an error text or null.</summary>
+        public static string? DenyUser(string sid)
+        {
+            var keep = RpcAuth.LoadAllowed().Where(s => !string.Equals(s, sid, StringComparison.OrdinalIgnoreCase)).ToList();
+            var err = SecureFolders.Ensure(Path.GetDirectoryName(RpcAuth.AllowedUsersFile)!, usersCanRead: false);
+            if (err != null) return err;
+            var tmp = RpcAuth.AllowedUsersFile + ".tmp";
+            File.WriteAllLines(tmp, keep);
+            File.Move(tmp, RpcAuth.AllowedUsersFile, overwrite: true);
+            return null;
         }
 
         private static (bool ok, string output) Sc(string args)
         {
             try
             {
-                using var p = Process.Start(new ProcessStartInfo("sc.exe", args)
+                using var p = Process.Start(new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, "sc.exe"), args)
                 { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true })!;
                 var o = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd();
                 p.WaitForExit(15000);

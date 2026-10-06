@@ -149,6 +149,30 @@ namespace MasselGUARD.Cli
                     if (ok) CliOutput.Ok(msg); else CliOutput.Error(msg);
                     return ok ? 0 : 1;
                 }
+                case "allow":
+                case "deny":
+                {
+                    string? who = null;
+                    for (int i = 2; i < args.Length - 1; i++) if (args[i] == "--user") who = args[i + 1];
+                    var sid = who == null ? null : Services.ServiceInstaller.ResolveSid(who);
+                    if (sid == null) { CliOutput.Error($"Usage: {ExeName} service {sub} --user DOMAIN\\name   (unknown or missing user)"); return 1; }
+                    var err = sub == "allow" ? Services.ServiceInstaller.AllowUser(sid) : Services.ServiceInstaller.DenyUser(sid);
+                    if (err != null) { CliOutput.Error(err); return 1; }
+                    CliOutput.Ok(sub == "allow" ? $"{who} may now use the MasselGUARD service." : $"{who} may no longer use the MasselGUARD service.");
+                    return 0;
+                }
+                case "users":
+                {
+                    foreach (var s in Services.RpcAuth.LoadAllowed())
+                    {
+                        string name;
+                        try { name = new System.Security.Principal.SecurityIdentifier(s).Translate(typeof(System.Security.Principal.NTAccount)).Value; }
+                        catch { name = "(unknown account)"; }
+                        CliOutput.Info($"{name}  {s}");
+                    }
+                    CliOutput.Info("Administrators may always use the service.");
+                    return 0;
+                }
                 case "uninstall":
                 {
                     var (ok, msg) = Services.ServiceInstaller.Uninstall();
@@ -168,7 +192,7 @@ namespace MasselGUARD.Cli
                     return 0;
                 }
                 default:
-                    CliOutput.Error($"Unknown service subcommand: '{sub}'. Use: service install [--user name] | uninstall | status");
+                    CliOutput.Error($"Unknown service subcommand: '{sub}'. Use: service install [--user name] | uninstall | status | allow --user name | deny --user name | users");
                     return 1;
             }
         }
@@ -181,7 +205,39 @@ namespace MasselGUARD.Cli
         /// <summary>dns bypass [seconds|stop|toggle]: asks the RUNNING MasselGUARD window to switch to the bypass
         /// profile for a short time (the window owns the timer and the DNS change). Needs no elevation, which is
         /// what lets the Windows right-click menu call it without a UAC prompt.</summary>
-        private static int CmdDnsBypass(string[] args, bool json)
+        /// <summary>No window is running: do the bypass through the MasselGUARD service instead. The CLI runs as
+        /// the user, so it can read the user's config (bypass profile, address families) and the current network
+        /// adapters; the service only applies and holds what it is told, and ends it on time.</summary>
+        private static (bool ok, string message)? BypassViaService(Services.CommandPipe.BypassRequest req, AppConfig cfg)
+        {
+            if (!Services.ServiceInstaller.IsInstalled()) return null;
+            var rpc = new Services.RpcOps(expectedServerPid: Services.ServiceInstaller.ServicePid);
+            if (!rpc.IsAvailable()) return null;
+
+            string action = req.Action;
+            if (action == "toggle") action = rpc.GetHold().active ? "stop" : "start";
+            if (action == "stop")
+                return rpc.StopHold() ? (true, "ok: DNS bypass stopped (through the MasselGUARD service).")
+                                      : (true, "ok: no DNS bypass is running.");
+
+            var snap = Services.NetworkMonitor.Capture(cfg.PrimaryNetworkMode, null, resolveGatewayMac: false, wifiOnly: cfg.SimpleWifiMode);
+            var guids = snap.Adapters.Select(a => Guid.TryParse(a.AdapterId, out var g) ? g : Guid.Empty).ToList();
+            var plan = Services.BypassPlan.Build(cfg, guids, req.Seconds);
+            if (!plan.Ok) return (false, "error: " + plan.Error);
+
+            int applied = 0;
+            foreach (var g in plan.Interfaces)
+                if (rpc.ApplyProfile(g, plan.Profile!, plan.Families)) applied++;
+            if (applied == 0) return (false, "error: the service could not switch DNS.");
+            if (!rpc.RegisterHold(plan.Profile!.Id, plan.Interfaces, plan.Seconds))
+            {
+                rpc.RestoreAll();
+                return (false, "error: the service could not start the timer, DNS was put back.");
+            }
+            return (true, $"ok: using '{plan.Profile.Name}' for {plan.Seconds} seconds, then back to automatic (through the MasselGUARD service).");
+        }
+
+        private static int CmdDnsBypass(string[] args, AppConfig cfg, bool json)
         {
             string arg = args.Length > 2 ? args[2] : "";
             var req = Services.CommandPipe.ParseBypass("bypass " + arg);
@@ -193,8 +249,13 @@ namespace MasselGUARD.Cli
             var reply = Services.CommandPipe.Send(("bypass " + arg).Trim());
             if (reply == null)
             {
-                CliOutput.Error("MasselGUARD is not running (start it first), so there is no window to switch DNS.");
-                return 1;
+                var viaService = BypassViaService(req, cfg);
+                if (viaService == null)
+                {
+                    CliOutput.Error("MasselGUARD is not running and the MasselGUARD service is not available, so there is nothing to switch DNS.");
+                    return 1;
+                }
+                reply = viaService.Value.message;
             }
             bool ok = reply.StartsWith("ok", StringComparison.OrdinalIgnoreCase);
             if (json) CliOutput.PrintJson(new { ok, message = reply });
@@ -206,7 +267,7 @@ namespace MasselGUARD.Cli
         private static int CmdDns(string[] args, AppConfig cfg, bool json)
         {
             string sub = args.Length > 1 ? args[1].ToLowerInvariant() : "status";
-            if (sub == "bypass") return CmdDnsBypass(args, json);
+            if (sub == "bypass") return CmdDnsBypass(args, cfg, json);
             if (sub != "status")
             {
                 CliOutput.Error($"Unknown dns subcommand: '{sub}'. Use: dns status | dns bypass [seconds|stop|toggle]");
@@ -373,6 +434,12 @@ namespace MasselGUARD.Cli
             var (opPass,   opFail,   opFailures)   = Services.FakeOps.RunSelfTest();
             var (rpPass,   rpFail,   rpFailures)   = Services.PrivilegedRpcTests.RunSelfTest();
             var (hkPass,   hkFail,   hkFailures)   = Services.DnsHoldKeeper.RunSelfTest();
+            var (tsPass,   tsFail,   tsFailures)   = Services.FileTunnelStore.RunSelfTest();
+            var (arPass,   arFail,   arFailures)   = Services.AutostartRunKey.RunSelfTest();
+            var (bpPass,   bpFail,   bpFailures)   = Services.BypassPlan.RunSelfTest();
+            var (ifPass,   ifFail,   ifFailures)   = Services.InstallFiles.RunSelfTest();
+            var (haPass,   haFail,   haFailures)   = Services.HeadlessPlanner.RunSelfTest();
+            var (sfPass,   sfFail,   sfFailures)   = Services.SecureFolders.RunSelfTest();
 
             foreach (var f in cidrFailures) CliOutput.Error($"FAIL CidrMath {f}");
             foreach (var f in backFailures) CliOutput.Error($"FAIL Backend {f}");
@@ -388,10 +455,16 @@ namespace MasselGUARD.Cli
             foreach (var f in opFailures)   CliOutput.Error($"FAIL PrivilegedOps {f}");
             foreach (var f in rpFailures)   CliOutput.Error($"FAIL PrivilegedRpc {f}");
             foreach (var f in hkFailures)   CliOutput.Error($"FAIL DnsHoldKeeper {f}");
+            foreach (var f in tsFailures)   CliOutput.Error($"FAIL TunnelStore {f}");
+            foreach (var f in arFailures)   CliOutput.Error($"FAIL AutostartRunKey {f}");
+            foreach (var f in bpFailures)   CliOutput.Error($"FAIL BypassPlan {f}");
+            foreach (var f in ifFailures)   CliOutput.Error($"FAIL InstallFiles {f}");
+            foreach (var f in haFailures)   CliOutput.Error($"FAIL HeadlessPlanner {f}");
+            foreach (var f in sfFailures)   CliOutput.Error($"FAIL SecureFolders {f}");
 
-            int pass = cidrPass + backPass + expPass + dnsPass + netPass + rtPass + rePass + smPass + toPass + cpPass + scPass + opPass + rpPass + hkPass;
-            int fail = cidrFail + backFail + expFail + dnsFail + netFail + rtFail + reFail + smFail + toFail + cpFail + scFail + opFail + rpFail + hkFail;
-            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}, NetworkMatcher {netPass}, RuleTester {rtPass}, RuleEngine {rePass}, RuleSimulator {smPass}, TempOverride {toPass}, CommandPipe {cpPass}, Shortcut {scPass}, PrivilegedOps {opPass}, PrivilegedRpc {rpPass}, DnsHoldKeeper {hkPass}).");
+            int pass = cidrPass + backPass + expPass + dnsPass + netPass + rtPass + rePass + smPass + toPass + cpPass + scPass + opPass + rpPass + hkPass + tsPass + arPass + bpPass + ifPass + haPass + sfPass;
+            int fail = cidrFail + backFail + expFail + dnsFail + netFail + rtFail + reFail + smFail + toFail + cpFail + scFail + opFail + rpFail + hkFail + tsFail + arFail + bpFail + ifFail + haFail + sfFail;
+            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}, NetworkMatcher {netPass}, RuleTester {rtPass}, RuleEngine {rePass}, RuleSimulator {smPass}, TempOverride {toPass}, CommandPipe {cpPass}, Shortcut {scPass}, PrivilegedOps {opPass}, PrivilegedRpc {rpPass}, DnsHoldKeeper {hkPass}, TunnelStore {tsPass}, AutostartRunKey {arPass}, BypassPlan {bpPass}, InstallFiles {ifPass}, HeadlessPlanner {haPass}, SecureFolders {sfPass}).");
             else           CliOutput.Error($"Self-test: {pass} passed, {fail} failed.");
             return fail == 0 ? 0 : 1;
         }
@@ -1330,7 +1403,7 @@ namespace MasselGUARD.Cli
             CliOutput.Info("  disconnect-all             Disconnect all active tunnels");
             CliOutput.Info("  info <name>                Detailed status for one tunnel");
             CliOutput.Info("  dns status                 Show DNS-automation config + live resolvers");
-            CliOutput.Info("  service install|uninstall|status   Manage the privileged MasselGUARD service (needs admin)");
+            CliOutput.Info("  service install|uninstall|status   Manage the privileged MasselGUARD service (needs admin; allow/deny/users manage who may use it)");
             CliOutput.Info("  dns bypass [seconds|stop]  Use the bypass DNS profile for a short time (needs the running window)");
             CliOutput.Info("  network status             Show connected networks (Wi-Fi + wired), the primary one, and what the rules would do");
             CliOutput.Info("  log [n]                    Recent connections (default 20)");

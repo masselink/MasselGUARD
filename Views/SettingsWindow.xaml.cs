@@ -240,6 +240,7 @@ namespace MasselGUARD.Views
             L(TrustedNetworksBox, "TrustedNetworks"); D(AddCurrentTrustedBtn, "TrustedNetworks");
             L(PrimaryNetworkBox, "PrimaryNetworkMode");
             L(SimpleWifiModeToggle, "SimpleWifiMode");
+            L(HeadlessAutomationToggle, "HeadlessAutomation");
             // (WiFi rules list moved to the main window - no rule buttons to gate here.)
 
             // Tunnels
@@ -1252,6 +1253,7 @@ namespace MasselGUARD.Views
                 if (PrimaryNetworkBox.SelectedItem == null) PrimaryNetworkBox.SelectedIndex = 0;
             }
             if (SimpleWifiModeToggle != null) SimpleWifiModeToggle.IsChecked = _draft.SimpleWifiMode;
+            if (HeadlessAutomationToggle != null) HeadlessAutomationToggle.IsChecked = _draft.HeadlessAutomation;
             ApplySimpleModeEnabling();
         }
 
@@ -1262,6 +1264,15 @@ namespace MasselGUARD.Views
             if (PrimaryNetworkBox == null) return;
             bool locked = _main.ConfigSvc.IsLocked("PrimaryNetworkMode");
             PrimaryNetworkBox.IsEnabled = !_draft.SimpleWifiMode && !locked;
+        }
+
+        private void HeadlessAutomation_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.HeadlessAutomation = HeadlessAutomationToggle?.IsChecked == true;
+            // Needs the service: say so instead of silently doing nothing.
+            if (_draft.HeadlessAutomation && !_main.ServiceInstalled)
+                _main.ShowThemedInfo(Lang.T("SettingsHeadlessNeedsService"), Lang.T("SettingsHeadlessLabel"));
         }
 
         private void SimpleWifiMode_Changed(object sender, RoutedEventArgs e)
@@ -2971,6 +2982,7 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.TrustedNetworks     = _draft.TrustedNetworks;
             _main.ConfigSvc.Config.PrimaryNetworkMode  = _draft.PrimaryNetworkMode;
             _main.ConfigSvc.Config.SimpleWifiMode      = _draft.SimpleWifiMode;
+            _main.ConfigSvc.Config.HeadlessAutomation  = _draft.HeadlessAutomation;
             _main.ConfigSvc.Config.NetworkChangeNotify = _draft.NetworkChangeNotify;
             _main.ConfigSvc.Config.FontOverrideEnabled    = _draft.FontOverrideEnabled;
             _main.ConfigSvc.Config.FontOverrideFamily    = _draft.FontOverrideFamily;

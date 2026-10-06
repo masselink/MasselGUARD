@@ -1242,5 +1242,10 @@
   "ServiceTitle": "MasselGUARD-service",
   "ElevationNeededMsg": "Deze actie vereist beheerdersrechten. MasselGUARD nu als beheerder herstarten? Herhaal daarna de actie.",
   "ElevationNeededTitle": "Beheerdersrechten nodig",
-  "ElevationCancelled": "Beheerdersgoedkeuring is geannuleerd."
+  "ElevationCancelled": "Beheerdersgoedkeuring is geannuleerd.",
+  "SettingsHeadlessLabel": "Automatisering laten doorlopen als MasselGUARD gesloten is",
+  "SettingsHeadlessDesc": "Met de MasselGUARD-service geinstalleerd blijft de service je netwerkregels toepassen (tunnel verbinden of verbreken, DNS wisselen) terwijl het venster gesloten is, bijvoorbeeld voordat je inlogt. Hij werkt met de laatste instellingen die MasselGUARD naar de service stuurde en geeft de controle terug zodra er weer een venster open is. Bij afsluiten van MasselGUARD blijven je tunnels en de kill switch dan staan. Standaard uit.",
+  "SettingsHeadlessNeedsService": "Hiervoor is de MasselGUARD-service nodig. Installeer die eerst (Instellingen > Opstarten > Achtergrondservice).",
+  "PresetItemHeadlessAutomation": "Automatisering loopt door in de service als het venster gesloten is",
+  "SettingsHeadlessLimits": "Door de service niet gedaan terwijl het venster gesloten is: geschiedenis, meldingen, datalimieten, schemaregels en je pre/post-verbindingsscripts."
 }

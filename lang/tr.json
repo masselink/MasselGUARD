@@ -1242,5 +1242,10 @@
   "ServiceTitle": "MasselGUARD hizmeti",
   "ElevationNeededMsg": "Bu islem yonetici hakki gerektirir. MasselGUARD simdi yonetici olarak yeniden baslatilsin mi? Ardindan islemi tekrarlayin.",
   "ElevationNeededTitle": "Yonetici hakki gerekli",
-  "ElevationCancelled": "Yonetici onayi iptal edildi."
+  "ElevationCancelled": "Yonetici onayi iptal edildi.",
+  "SettingsHeadlessLabel": "MasselGUARD kapaliyken otomasyon calismaya devam etsin",
+  "SettingsHeadlessDesc": "MasselGUARD hizmeti kuruluysa, hizmet pencere kapaliyken de (ornegin oturum acmadan once) ag kurallarinizi uygulamaya devam eder (tunel baglama veya kesme, DNS degistirme). MasselGUARD'in hizmete gonderdigi son ayarlarla calisir ve bir pencere yeniden acilir acilmaz kontrolu geri verir. MasselGUARD kapatildiginda tuneller ve kill switch yerinde kalir. Varsayilan olarak kapali.",
+  "SettingsHeadlessNeedsService": "Bunun icin MasselGUARD hizmeti gerekir. Once onu kurun (Ayarlar > Baslangic > Arka plan hizmeti).",
+  "PresetItemHeadlessAutomation": "Pencere kapaliyken otomasyon hizmette calismaya devam eder",
+  "SettingsHeadlessLimits": "Pencere kapaliyken hizmet tarafindan yapilmaz: gecmis kayitlari, bildirimler, veri limitleri, zamanlama kurallari ve baglanti oncesi/sonrasi komut dosyalariniz."
 }

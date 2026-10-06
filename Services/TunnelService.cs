@@ -130,6 +130,8 @@ namespace MasselGUARD.Services
                 return false;
             }
 
+            string baseConf = plaintext;   // before the split rewrite: this is what the service stores
+
             // Split tunneling - rewrite AllowedIPs before validating/writing so wireguard-NT
             // programs the split routes. No-op unless the tunnel has a route-based split
             // configured (SplitMode != off with ranges). See docs/SplitTunneling-Design.md.
@@ -173,27 +175,34 @@ namespace MasselGUARD.Services
                 _log.Debug($"Config validation bypassed for {stored.Name} (global setting).");
             }
 
-            // Write to secure temp file
-            Directory.CreateDirectory(TempDir);
+            // Service mode connects by name from the service's own store: no plaintext temp file here.
+            var viaStore = _ops as IStoredConnectOps;
             var tempPath = Path.Combine(TempDir, stored.Name + ".conf");
-            WriteSecure(tempPath, plaintext);
-
-            // Verify the written file - log size and first line so we can diagnose parse failures.
-            try
+            if (viaStore == null)
             {
-                var raw   = File.ReadAllBytes(tempPath);
-                var check = System.Text.Encoding.UTF8.GetString(raw);
-                var first = check.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                                 .FirstOrDefault()?.Trim() ?? "(empty)";
-                bool hasBom = raw.Length >= 3 && raw[0] == 0xEF && raw[1] == 0xBB && raw[2] == 0xBF;
-                _log.Debug($"Conf written: {raw.Length} bytes, BOM={hasBom}, first line={first}");
+                // Write to secure temp file
+                Directory.CreateDirectory(TempDir);
+                WriteSecure(tempPath, plaintext);
+
+                // Verify the written file - log size and first line so we can diagnose parse failures.
+                try
+                {
+                    var raw   = File.ReadAllBytes(tempPath);
+                    var check = System.Text.Encoding.UTF8.GetString(raw);
+                    var first = check.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                                     .FirstOrDefault()?.Trim() ?? "(empty)";
+                    bool hasBom = raw.Length >= 3 && raw[0] == 0xEF && raw[1] == 0xBB && raw[2] == 0xBF;
+                    _log.Debug($"Conf written: {raw.Length} bytes, BOM={hasBom}, first line={first}");
+                }
+                catch (Exception ex) { _log.Warn($"Conf verify failed: {ex.Message}"); }
             }
-            catch (Exception ex) { _log.Warn($"Conf verify failed: {ex.Message}"); }
 
             try
             {
                 _log.Debug($"Connecting local tunnel: {stored.Name}");
-                bool ok2 = _ops.Connect(stored.Name, tempPath, msg => _log.Debug(msg), out string err);
+                bool ok2 = viaStore != null
+                    ? viaStore.ConnectStored(stored.Name, baseConf, split, msg => _log.Debug(msg), out string err)
+                    : _ops.Connect(stored.Name, tempPath, msg => _log.Debug(msg), out err);
                 if (ok2)
                 {
                     _log.Ok($"Connected: {stored.Name}");
@@ -201,16 +210,7 @@ namespace MasselGUARD.Services
                     // Snapshot initial bytes so we can compute session totals on disconnect
                     var s0 = _ops.GetTrafficStats(stored.Name);
                     _connectBytes[stored.Name] = (s0.RxBytes, s0.TxBytes);
-                    // Stamp service so orphan scan can identify it as MasselGUARD-managed
-                    try
-                    {
-                        using var regKey = Microsoft.Win32.Registry.LocalMachine
-                            .OpenSubKey($@"SYSTEM\CurrentControlSet\Services\WireGuardTunnel${stored.Name}",
-                                        writable: true);
-                        regKey?.SetValue("Description", $"MasselGUARD Tunnel: {stored.Name}");
-                        regKey?.SetValue("DisplayName", $"WireGuard Tunnel: MasselGUARD - {stored.Name}");
-                    }
-                    catch { /* non-critical */ }
+                    // (The orphan-scan stamp on the service is written by TunnelDllOps.Connect / the service.)
                     // Enable kill switch after the tunnel adapter is up. In exclude-mode split
                     // the excluded ranges must stay reachable off-tunnel, so allow them past the
                     // global block (design §6). Empty for include/off.

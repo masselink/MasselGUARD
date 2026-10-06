@@ -1224,12 +1224,22 @@ namespace MasselGUARD
             // Restore any per-interface DNS override so we never strand a resolver after exit.
             try { _mainWindow?._vm.RestoreDnsOverrides(); } catch { }
 
-            // Restore Windows Firewall policy before disconnecting tunnels.
-            try { _mainWindow?.KillSwitchSvc?.DisableAll(); } catch { }
+            // With "keep automation running" and the service installed, tunnels and the kill switch stay in
+            // place: the service continues the automation and owns them from here.
+            if (_mainWindow != null && _mainWindow.ServiceKeepsAutomation)
+            {
+                _mainWindow.ReleaseAutomationLease();
+            }
+            else
+            {
+                // Restore Windows Firewall policy before disconnecting tunnels.
+                try { _mainWindow?.KillSwitchSvc?.DisableAll(); } catch { }
 
-            // Stop all active local tunnel services before the process exits.
-            // This prevents orphaned WireGuardTunnel$ services remaining in the SCM.
-            try { if (_mainWindow != null) _mainWindow.Backend.DisconnectAll(_mainWindow.ConfigSvc.Config.Tunnels); else TunnelDll.DisconnectAll(); } catch { }
+                // Stop all active local tunnel services before the process exits.
+                // This prevents orphaned WireGuardTunnel$ services remaining in the SCM.
+                try { if (_mainWindow != null) _mainWindow.Backend.DisconnectAll(_mainWindow.ConfigSvc.Config.Tunnels); else TunnelDll.DisconnectAll(); } catch { }
+                try { _mainWindow?.ReleaseAutomationLease(); } catch { }
+            }
             try { _commandPipe?.Dispose(); } catch { }
             _trayIcon?.Dispose();
             // Wake the show-request listener so it observes IsShuttingDown and exits, then dispose.

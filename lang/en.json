@@ -1242,5 +1242,10 @@
   "ServiceTitle": "MasselGUARD service",
   "ElevationNeededMsg": "This action needs administrator rights. Restart MasselGUARD as administrator now? Afterwards, repeat the action.",
   "ElevationNeededTitle": "Administrator rights needed",
-  "ElevationCancelled": "Administrator approval was cancelled."
+  "ElevationCancelled": "Administrator approval was cancelled.",
+  "SettingsHeadlessLabel": "Keep automation running when MasselGUARD is closed",
+  "SettingsHeadlessDesc": "With the MasselGUARD service installed, the service keeps applying your network rules (connect or disconnect a tunnel, switch DNS) while the window is closed, for example before you sign in. It works from the last settings MasselGUARD sent to the service and hands control back as soon as a window is open again. Closing MasselGUARD then leaves your tunnels and the kill switch in place. Off by default.",
+  "SettingsHeadlessNeedsService": "This needs the MasselGUARD service. Install it first (Settings > Startup > Background service).",
+  "PresetItemHeadlessAutomation": "Automation keeps running in the service when the window is closed",
+  "SettingsHeadlessLimits": "Not done by the service while the window is closed: history entries, notifications, data caps, schedule rules and your pre/post connect scripts."
 }

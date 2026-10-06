@@ -1242,5 +1242,10 @@
   "ServiceTitle": "Service MasselGUARD",
   "ElevationNeededMsg": "Cette action necessite les droits administrateur. Redemarrer MasselGUARD en administrateur maintenant ? Repetez ensuite l'action.",
   "ElevationNeededTitle": "Droits administrateur requis",
-  "ElevationCancelled": "L'approbation administrateur a ete annulee."
+  "ElevationCancelled": "L'approbation administrateur a ete annulee.",
+  "SettingsHeadlessLabel": "Garder l'automatisation active quand MasselGUARD est ferme",
+  "SettingsHeadlessDesc": "Avec le service MasselGUARD installe, le service continue d'appliquer vos regles reseau (connecter ou deconnecter un tunnel, changer de DNS) fenetre fermee, par exemple avant l'ouverture de session. Il utilise les derniers parametres envoyes par MasselGUARD et rend la main des qu'une fenetre est de nouveau ouverte. Fermer MasselGUARD laisse alors les tunnels et le kill switch en place. Desactive par defaut.",
+  "SettingsHeadlessNeedsService": "Cela necessite le service MasselGUARD. Installez-le d'abord (Parametres > Demarrage > Service en arriere-plan).",
+  "PresetItemHeadlessAutomation": "L'automatisation continue dans le service quand la fenetre est fermee",
+  "SettingsHeadlessLimits": "Non gere par le service fenetre fermee : historique, notifications, limites de donnees, regles planifiees et vos scripts avant/apres connexion."
 }

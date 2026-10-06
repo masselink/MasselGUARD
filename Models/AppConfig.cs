@@ -270,6 +270,11 @@ namespace MasselGUARD.Models
         /// the list but are not used; the rule dialog offers only the SSID. Off by default.</summary>
         public bool SimpleWifiMode { get; set; } = false;
 
+        /// <summary>With the MasselGUARD service installed: keep applying the network rules (tunnel + DNS) from the
+        /// service while no window is open, e.g. before sign-in. The window pushes its config to the service and
+        /// the service hands control back when a window renews its lease. Off by default.</summary>
+        public bool HeadlessAutomation { get; set; } = false;
+
         /// <summary>Pop-up when the primary network changes: "off" (default) | "nomatch" (only when no automation
         /// applied to the new network) | "always". Shows the network, whether it is open, the DNS in use and the
         /// tunnel state.</summary>

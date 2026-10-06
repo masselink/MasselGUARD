@@ -1242,5 +1242,10 @@
   "ServiceTitle": "MasselGUARD 服务",
   "ElevationNeededMsg": "此操作需要管理员权限。现在以管理员身份重启 MasselGUARD 吗?重启后请重新执行该操作。",
   "ElevationNeededTitle": "需要管理员权限",
-  "ElevationCancelled": "管理员批准已取消。"
+  "ElevationCancelled": "管理员批准已取消。",
+  "SettingsHeadlessLabel": "MasselGUARD 关闭后继续运行自动化",
+  "SettingsHeadlessDesc": "安装 MasselGUARD 服务后,即使窗口已关闭(例如登录之前),服务也会继续应用您的网络规则(连接或断开隧道、切换 DNS)。它按 MasselGUARD 最后发送给服务的设置工作,窗口再次打开时立即交还控制权。关闭 MasselGUARD 时,隧道和断网保护会保持不变。默认关闭。",
+  "SettingsHeadlessNeedsService": "这需要 MasselGUARD 服务。请先安装(设置 > 启动 > 后台服务)。",
+  "PresetItemHeadlessAutomation": "窗口关闭时自动化继续在服务中运行",
+  "SettingsHeadlessLimits": "窗口关闭时服务不会处理:历史记录、通知、流量上限、计划规则以及您的连接前/后脚本。"
 }

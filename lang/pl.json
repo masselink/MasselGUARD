@@ -1242,5 +1242,10 @@
   "ServiceTitle": "Usluga MasselGUARD",
   "ElevationNeededMsg": "Ta czynnosc wymaga uprawnien administratora. Uruchomic MasselGUARD ponownie jako administrator? Potem powtorz czynnosc.",
   "ElevationNeededTitle": "Wymagane uprawnienia administratora",
-  "ElevationCancelled": "Zatwierdzenie administratora zostalo anulowane."
+  "ElevationCancelled": "Zatwierdzenie administratora zostalo anulowane.",
+  "SettingsHeadlessLabel": "Utrzymuj automatyzacje, gdy MasselGUARD jest zamkniety",
+  "SettingsHeadlessDesc": "Gdy usluga MasselGUARD jest zainstalowana, nadal stosuje ona reguly sieciowe (laczenie lub rozlaczanie tunelu, zmiana DNS) przy zamknietym oknie, na przyklad przed zalogowaniem. Dziala wedlug ostatnich ustawien wyslanych przez MasselGUARD i oddaje kontrole, gdy okno znow jest otwarte. Zamkniecie MasselGUARD pozostawia wtedy tunele i kill switch na miejscu. Domyslnie wylaczone.",
+  "SettingsHeadlessNeedsService": "To wymaga uslugi MasselGUARD. Zainstaluj ja najpierw (Ustawienia > Uruchamianie > Usluga w tle).",
+  "PresetItemHeadlessAutomation": "Automatyzacja trwa w usludze, gdy okno jest zamkniete",
+  "SettingsHeadlessLimits": "Usluga nie robi przy zamknietym oknie: wpisow historii, powiadomien, limitow danych, regul harmonogramu i skryptow przed/po polaczeniu."
 }

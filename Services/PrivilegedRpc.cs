@@ -32,6 +32,11 @@ namespace MasselGUARD.Services
         public List<string>? Bypass { get; set; }
         public DnsProfile? Profile  { get; set; }
         public string? ProfileId    { get; set; }
+        public string? Hash         { get; set; }
+        public string? Snapshot     { get; set; }
+        public string? SplitMode    { get; set; }
+        public List<string>? SplitRanges { get; set; }
+        public List<string>? Names  { get; set; }
         public List<string>? Guids  { get; set; }
         public int Seconds          { get; set; }
     }
@@ -51,7 +56,7 @@ namespace MasselGUARD.Services
     /// service manager without passing here.</summary>
     public static class RpcValidator
     {
-        public const int MaxLineBytes = 128 * 1024;
+        public const int MaxLineBytes = 2 * 1024 * 1024;   // a pushed config snapshot is the largest message
         public const int MaxConfBytes = 64 * 1024;
         public const int MaxBypass    = 256;
 
@@ -59,8 +64,19 @@ namespace MasselGUARD.Services
         private static readonly Regex NameRx = new(@"^[\p{L}\p{N}][\p{L}\p{N} _=+.\-]{0,62}[\p{L}\p{N}_=+.\-]?$", RegexOptions.Compiled);
         private static readonly string[] ForbiddenConfKeys = { "preup", "postup", "predown", "postdown" };
 
-        public static string? Name(string? name) =>
-            name != null && NameRx.IsMatch(name) && !name.EndsWith(' ') ? null : "invalid tunnel name";
+        private static readonly HashSet<string> ReservedDeviceNames = new(StringComparer.OrdinalIgnoreCase)
+        { "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$",
+          "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+          "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9" };
+
+        public static string? Name(string? name)
+        {
+            if (name == null || !NameRx.IsMatch(name) || name.EndsWith(' ')) return "invalid tunnel name";
+            // "con", "nul.x" ... are Windows device names whatever the extension: never a tunnel/file name.
+            var stem = name.Split('.')[0].TrimEnd(' ');
+            if (ReservedDeviceNames.Contains(stem)) return "invalid tunnel name";
+            return null;
+        }
 
         public static string? Guid(string? s, out Guid g)
         {
@@ -69,6 +85,27 @@ namespace MasselGUARD.Services
         }
 
         private static readonly Regex ProfileIdRx = new(@"^[A-Za-z0-9_\-]{1,64}$", RegexOptions.Compiled);
+
+        private static readonly Regex HashRx = new("^[0-9a-f]{64}$", RegexOptions.Compiled);
+        public static string? Hash(string? h) => h != null && HashRx.IsMatch(h) ? null : "invalid hash";
+
+        public static string? Split(string? mode, List<string>? ranges)
+        {
+            if (mode is not ("off" or "exclude" or "include")) return "invalid split mode";
+            if (ranges == null) return null;
+            if (ranges.Count > MaxBypass) return "too many split ranges";
+            foreach (var r in ranges)
+                if (r == null || r.Length > 64 || !(IPNetwork.TryParse(r, out _) || IPAddress.TryParse(r, out _))) return "invalid split range";
+            return null;
+        }
+
+        public static string? NameList(List<string>? names)
+        {
+            if (names == null) return null;
+            if (names.Count > 512) return "too many names";
+            foreach (var n in names) { var e = Name(n); if (e != null) return e; }
+            return null;
+        }
 
         public static string? ProfileId(string? id) => id != null && ProfileIdRx.IsMatch(id) ? null : "invalid profile id";
 
@@ -99,7 +136,11 @@ namespace MasselGUARD.Services
             if (ranges == null) return null;
             if (ranges.Count > MaxBypass) return "too many bypass ranges";
             foreach (var r in ranges)
-                if (r == null || r.Length > 64 || !IPNetwork.TryParse(r, out _)) return "invalid bypass range";
+            {
+                if (r == null || r.Length > 64) return "invalid bypass range";
+                if (IPNetwork.TryParse(r, out var net)) { if (net.PrefixLength == 0) return "a catch-all bypass range is not allowed"; }
+                else if (!IPAddress.TryParse(r, out _)) return "invalid bypass range";   // a single address is fine (split ranges may be plain IPs)
+            }
             return null;
         }
 
@@ -154,6 +195,13 @@ namespace MasselGUARD.Services
         private readonly IKillSwitchOps _ks;
         private readonly IDnsOps _dns;
         private readonly Func<string, string, (string path, IDisposable? cleanup)> _stageConf;
+        private readonly ITunnelStore? _store;
+        private readonly AutomationState? _auto;
+        private readonly Func<string, bool>? _tunnelAllowed;   // false = a service of that name exists that we did not create
+        private readonly Func<Guid, bool>? _ifaceAllowed;      // false = not a usable physical adapter
+        private readonly Action<string>? _persistOwner;
+        private readonly Action<string>? _persistSnapshot;
+        private readonly ISplitTunnelBackend _split = new RouteBasedBackend();
         private readonly DnsHoldKeeper? _hold;
         private readonly Func<IEnumerable<Guid>>? _overridden;
         private readonly Func<DateTime> _now;
@@ -162,13 +210,20 @@ namespace MasselGUARD.Services
         /// returns its path plus a handle that removes it again.</param>
         public RpcDispatcher(ITunnelOps tunnels, IKillSwitchOps ks, IDnsOps dns,
                              Func<string, string, (string path, IDisposable? cleanup)> stageConf,
-                             DnsHoldKeeper? hold = null, Func<IEnumerable<Guid>>? overridden = null, Func<DateTime>? now = null)
-        { _tunnels = tunnels; _ks = ks; _dns = dns; _stageConf = stageConf; _hold = hold; _overridden = overridden; _now = now ?? (() => DateTime.UtcNow); }
+                             DnsHoldKeeper? hold = null, Func<IEnumerable<Guid>>? overridden = null, Func<DateTime>? now = null, ITunnelStore? store = null,
+                             AutomationState? auto = null, Action<string>? persistSnapshot = null,
+                             Func<string, bool>? tunnelAllowed = null, Func<Guid, bool>? interfaceAllowed = null, Action<string>? persistOwner = null)
+        { _tunnels = tunnels; _ks = ks; _dns = dns; _stageConf = stageConf; _hold = hold; _overridden = overridden; _now = now ?? (() => DateTime.UtcNow); _store = store; _auto = auto; _persistSnapshot = persistSnapshot;
+          _tunnelAllowed = tunnelAllowed; _ifaceAllowed = interfaceAllowed; _persistOwner = persistOwner; }
 
-        public RpcResponse Handle(RpcRequest r)
+        public RpcResponse Handle(RpcRequest r, RpcCaller? caller = null)
         {
             string? err;
             Guid g;
+            bool admin = caller?.IsAdmin ?? true;       // no caller = an in-process call (tests): trusted
+            string sid = caller?.Sid ?? "";
+            const string NameClash = "a service with this tunnel name exists that MasselGUARD did not create";
+            const string BadAdapter = "not a usable network adapter";
             switch (r.Op)
             {
                 case "ping":
@@ -176,14 +231,65 @@ namespace MasselGUARD.Services
 
                 case "tunnel.connect":
                     if ((err = RpcValidator.Name(r.Name) ?? RpcValidator.Conf(r.Conf)) != null) return RpcResponse.Fail(err);
+                    if (_tunnelAllowed != null && !_tunnelAllowed(r.Name!)) return RpcResponse.Fail(NameClash);
                     var (confPath, cleanup) = _stageConf(r.Name!, r.Conf!);
                     using (cleanup)
                     {
                         bool ok = _tunnels.Connect(r.Name!, confPath, _ => { }, out var cerr);
                         return new RpcResponse { Ok = ok, Flag = ok, Error = cerr ?? "" };
                     }
+                case "store.put":
+                    if (_store == null) return RpcResponse.Fail("not supported");
+                    if ((err = RpcValidator.Name(r.Name) ?? RpcValidator.Conf(r.Conf)) != null) return RpcResponse.Fail(err);
+                    // A tunnel name belongs to the user who stored it first (the headless automation connects from here).
+                    var prevOwner = _store.OwnerOf(r.Name!);
+                    if (!admin && prevOwner != null && !string.Equals(prevOwner, sid, StringComparison.OrdinalIgnoreCase))
+                        return RpcResponse.Fail("this tunnel name is stored by another user");
+                    _store.Put(r.Name!, r.Conf!, prevOwner ?? (string.IsNullOrEmpty(sid) ? null : sid));
+                    return new RpcResponse { Ok = true, Flag = true, Text = FileTunnelStore.HashOf(r.Conf!) };
+                case "store.prune":
+                    if (_store == null) return RpcResponse.Fail("not supported");
+                    if ((err = RpcValidator.NameList(r.Names)) != null) return RpcResponse.Fail(err);
+                    return new RpcResponse { Ok = true, Count = _store.Prune(r.Names ?? new List<string>(), string.IsNullOrEmpty(sid) ? null : sid) };
+                case "tunnel.connectstored":
+                {
+                    if (_store == null) return RpcResponse.Fail("not supported");
+                    if ((err = RpcValidator.Name(r.Name) ?? RpcValidator.Hash(r.Hash) ?? RpcValidator.Split(r.SplitMode, r.SplitRanges)) != null) return RpcResponse.Fail(err);
+                    if (_tunnelAllowed != null && !_tunnelAllowed(r.Name!)) return RpcResponse.Fail(NameClash);
+                    // Missing or out of date ("stale"): the window pushes the current config and asks again.
+                    var sc = new SplitConfig { Mode = r.SplitMode!, Ranges = r.SplitRanges ?? new List<string>() };
+                    return StoredConnect.Run(_store, _tunnels, null, _stageConf, r.Name!, sc, r.Hash);
+                }
+                case "auto.push":
+                {
+                    if (_auto == null) return RpcResponse.Fail("not supported");
+                    // The snapshot is acted on with SYSTEM rights while nobody is signed in: it belongs to ONE user.
+                    if (!admin && _auto.OwnerSid != null && !string.Equals(_auto.OwnerSid, sid, StringComparison.OrdinalIgnoreCase))
+                        return RpcResponse.Fail("automation belongs to another user");
+                    var snap = AutomationSnapshot.TryParse(r.Snapshot, out var perr);
+                    if (snap == null) return RpcResponse.Fail(perr);
+                    if (_auto.OwnerSid == null && snap.HeadlessAutomation && sid.Length > 0)
+                    {
+                        _auto.OwnerSid = sid;
+                        try { _persistOwner?.Invoke(sid); } catch { }
+                    }
+                    _auto.Config = snap;
+                    _auto.Lease.Touch(_now());   // a push comes from a live window
+                    try { _persistSnapshot?.Invoke(r.Snapshot!); } catch { }
+                    return new RpcResponse { Ok = true, Flag = true };
+                }
+                case "auto.lease":
+                    // Only the owner (or an administrator) keeps the service from taking over, or hands it over.
+                    if (_auto != null && (admin || _auto.OwnerSid == null || string.Equals(_auto.OwnerSid, sid, StringComparison.OrdinalIgnoreCase)))
+                        _auto.Lease.Touch(_now());
+                    return new RpcResponse { Ok = true, Flag = _auto != null };
+                case "auto.release":
+                    if (_auto != null && (admin || _auto.OwnerSid == null || string.Equals(_auto.OwnerSid, sid, StringComparison.OrdinalIgnoreCase)))
+                        _auto.Lease.Release();
+                    return new RpcResponse { Ok = true };
                 case "tunnel.disconnect":
                     if ((err = RpcValidator.Name(r.Name)) != null) return RpcResponse.Fail(err);
+                    if (_tunnelAllowed != null && !_tunnelAllowed(r.Name!)) return RpcResponse.Fail(NameClash);
                     { bool ok = _tunnels.Disconnect(r.Name!, out var derr); return new RpcResponse { Ok = ok, Flag = ok, Error = derr ?? "" }; }
 
                 case "ks.enable":
@@ -199,9 +305,11 @@ namespace MasselGUARD.Services
 
                 case "dns.apply":
                     if ((err = RpcValidator.Guid(r.Guid, out g) ?? RpcValidator.Families(r.Families) ?? RpcValidator.Profile(r.Profile)) != null) return RpcResponse.Fail(err);
+                    if (_ifaceAllowed != null && !_ifaceAllowed(g)) return RpcResponse.Fail(BadAdapter);
                     { bool ok = _dns.ApplyProfile(g, r.Profile!, r.Families!); return new RpcResponse { Ok = true, Flag = ok }; }
                 case "dns.auto":
                     if ((err = RpcValidator.Guid(r.Guid, out g) ?? RpcValidator.Families(r.Families)) != null) return RpcResponse.Fail(err);
+                    if (_ifaceAllowed != null && !_ifaceAllowed(g)) return RpcResponse.Fail(BadAdapter);
                     return new RpcResponse { Ok = true, Flag = _dns.SetAutomatic(g, r.Families!) };
                 case "dns.restore":
                     if ((err = RpcValidator.Guid(r.Guid, out g)) != null) return RpcResponse.Fail(err);
@@ -215,8 +323,11 @@ namespace MasselGUARD.Services
                 case "dns.hold":
                     if (_hold == null) return RpcResponse.Fail("not supported");
                     if ((err = RpcValidator.Hold(r.ProfileId, r.Guids, r.Seconds, out var held)) != null) return RpcResponse.Fail(err);
+                    if (_ifaceAllowed != null && held.Any(x => !_ifaceAllowed(x))) return RpcResponse.Fail(BadAdapter);
                     _hold.Register(r.ProfileId!, held, r.Seconds, _now());
                     return new RpcResponse { Ok = true, Flag = true };
+                case "dns.hold.stop":
+                    return new RpcResponse { Ok = true, Flag = _hold?.Stop(g => _dns.Restore(g)) ?? false };
                 case "dns.hold.cancel":
                     _hold?.Cancel();
                     return new RpcResponse { Ok = true };
@@ -270,6 +381,9 @@ namespace MasselGUARD.Services
     }
 
     /// <summary>Who may call the service: Administrators (elevated token) or a SID listed by the installer.</summary>
+    /// <summary>Who is calling: the user SID and whether the (elevated) token is an Administrator.</summary>
+    public sealed record RpcCaller(string Sid, bool IsAdmin);
+
     public static class RpcAuth
     {
         public static string AllowedUsersFile => Path.Combine(
@@ -284,14 +398,17 @@ namespace MasselGUARD.Services
             catch { return new List<string>(); }
         }
 
-        /// <summary>Production check, run inside RunAsClient (the thread carries the caller's token).</summary>
-        public static bool IsCallerAllowed()
+        /// <summary>Production check, run inside RunAsClient (the thread carries the caller's token). Null = refused.</summary>
+        public static RpcCaller? CallerInfo()
         {
             using var id = WindowsIdentity.GetCurrent();
-            if (id.IsAnonymous || id.IsGuest) return false;
-            if (new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator)) return true;
-            return SidAllowed(id.User?.Value, LoadAllowed());
+            if (id.IsAnonymous || id.IsGuest) return null;
+            var sid = id.User?.Value ?? "";
+            if (new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator)) return new RpcCaller(sid, true);
+            return SidAllowed(sid, LoadAllowed()) ? new RpcCaller(sid, false) : null;
         }
+
+        public static bool IsCallerAllowed() => CallerInfo() != null;
     }
 
     public sealed class RpcServer : IDisposable
@@ -299,13 +416,18 @@ namespace MasselGUARD.Services
         public const string PipeName = "MasselGUARD.Service";
 
         private readonly RpcDispatcher _dispatcher;
-        private readonly Func<bool> _authorize;      // evaluated on a thread impersonating the client
+        private readonly Func<RpcCaller?> _authorize;   // evaluated on a thread impersonating the client
         private readonly string _pipeName;
         private readonly CancellationTokenSource _cts = new();
         private readonly Action<string>? _log;
 
-        public RpcServer(RpcDispatcher dispatcher, Func<bool>? authorize = null, string pipeName = PipeName, Action<string>? log = null)
-        { _dispatcher = dispatcher; _authorize = authorize ?? RpcAuth.IsCallerAllowed; _pipeName = pipeName; _log = log; }
+        public RpcServer(RpcDispatcher dispatcher, Func<bool>? authorize = null, string pipeName = PipeName, Action<string>? log = null,
+                         Func<RpcCaller?>? authorizeCaller = null)
+        {
+            _dispatcher = dispatcher; _pipeName = pipeName; _log = log;
+            _authorize = authorizeCaller
+                         ?? (authorize != null ? () => authorize() ? new RpcCaller("", true) : null : RpcAuth.CallerInfo);
+        }
 
         public void Start() => Task.Run(Loop);
         public void Dispose() => _cts.Cancel();
@@ -351,16 +473,16 @@ namespace MasselGUARD.Services
                     timeout.CancelAfter(TimeSpan.FromSeconds(10));   // a client must send its request promptly
                     var line = await RpcWire.ReadLineAsync(pipe, RpcValidator.MaxLineBytes, timeout.Token).ConfigureAwait(false);
 
-                    bool allowed = false;
-                    try { pipe.RunAsClient(() => { allowed = _authorize(); }); } catch { allowed = false; }
+                    RpcCaller? caller = null;
+                    try { pipe.RunAsClient(() => { caller = _authorize(); }); } catch { caller = null; }
 
-                    if (!allowed) { reply = RpcResponse.Fail("access denied"); _log?.Invoke("RPC: caller rejected"); }
+                    if (caller == null) { reply = RpcResponse.Fail("access denied"); _log?.Invoke("RPC: caller rejected"); }
                     else if (string.IsNullOrWhiteSpace(line)) reply = RpcResponse.Fail("empty request");
                     else
                     {
                         RpcRequest? req = null;
                         try { req = JsonSerializer.Deserialize<RpcRequest>(line, RpcWire.Json); } catch { }
-                        reply = req == null ? RpcResponse.Fail("malformed request") : Safe(req);
+                        reply = req == null ? RpcResponse.Fail("malformed request") : Safe(req, caller);
                     }
                 }
                 catch (Exception ex) { reply = RpcResponse.Fail(ex is InvalidDataException ? ex.Message : "request failed"); }
@@ -375,16 +497,16 @@ namespace MasselGUARD.Services
             }
         }
 
-        private RpcResponse Safe(RpcRequest req)
+        private RpcResponse Safe(RpcRequest req, RpcCaller? caller)
         {
-            try { return _dispatcher.Handle(req); }
+            try { return _dispatcher.Handle(req, caller); }
             catch (Exception ex) { _log?.Invoke($"RPC {req.Op} failed: {ex.Message}"); return RpcResponse.Fail("operation failed"); }
         }
     }
 
     /// <summary>Client side: the UI calls the service through this. Tunnel/DNS/kill-switch ops all
     /// implement the same interfaces as the in-process versions, so callers do not change.</summary>
-    public sealed class RpcOps : ITunnelOps, IKillSwitchOps, IDnsOps, IDnsHoldOps
+    public sealed class RpcOps : ITunnelOps, IKillSwitchOps, IDnsOps, IDnsHoldOps, IStoredConnectOps, IAutomationOps
     {
         private readonly string _pipeName;
         private readonly ITunnelOps _local;   // read-only status stays local (needs no privileges)
@@ -444,6 +566,36 @@ namespace MasselGUARD.Services
             error = resp.Error;
             return resp.Ok && resp.Flag;
         }
+        public bool ConnectStored(string name, string baseConf, SplitConfig split, Action<string> log, out string error)
+        {
+            log("Connecting through the MasselGUARD service (stored config)");
+            var hash = FileTunnelStore.HashOf(baseConf);
+            RpcResponse? Ask() => Call(new RpcRequest
+            {
+                Op = "tunnel.connectstored", Name = name, Hash = hash,
+                SplitMode = split.Mode, SplitRanges = split.Ranges.ToList(),
+            });
+            var resp = Ask();
+            if (resp is { Ok: false, Error: "stale" })
+            {
+                var put = Call(new RpcRequest { Op = "store.put", Name = name, Conf = baseConf });
+                if (put is not { Ok: true }) { error = put?.Error is { Length: > 0 } e ? e : "could not store the config in the service: " + LastError; return false; }
+                resp = Ask();
+            }
+            if (resp == null) { error = "MasselGUARD service not reachable: " + LastError; return false; }
+            error = resp.Error;
+            return resp.Ok && resp.Flag;
+        }
+
+        // snapshot handover
+        public bool PushSnapshot(string json) => Call(new RpcRequest { Op = "auto.push", Snapshot = json }, 1500, 20_000) is { Ok: true };
+        public bool PushTunnel(string name, string conf) => Call(new RpcRequest { Op = "store.put", Name = name, Conf = conf }) is { Ok: true };
+        public bool RenewLease() => Call(new RpcRequest { Op = "auto.lease" }, 1500, 5000) is { Ok: true };
+        public void ReleaseLease() => Fire(new RpcRequest { Op = "auto.release" });
+
+        public void PruneStored(IEnumerable<string> keepNames) =>
+            Fire(new RpcRequest { Op = "store.prune", Names = keepNames.ToList() });
+
         public bool Disconnect(string tunnelName, out string error)
         {
             var resp = Call(new RpcRequest { Op = "tunnel.disconnect", Name = tunnelName });
@@ -472,6 +624,7 @@ namespace MasselGUARD.Services
         public bool RegisterHold(string profileId, IReadOnlyList<Guid> interfaces, int seconds) =>
             Flag(new RpcRequest { Op = "dns.hold", ProfileId = profileId, Guids = interfaces.Select(g => g.ToString()).ToList(), Seconds = seconds });
         public void CancelHold() => Fire(new RpcRequest { Op = "dns.hold.cancel" });
+        public bool StopHold() => Flag(new RpcRequest { Op = "dns.hold.stop" });
         public (bool active, string profileId, int remainingSeconds) GetHold()
         {
             var r = Call(new RpcRequest { Op = "dns.hold.status" });
@@ -560,8 +713,143 @@ namespace MasselGUARD.Services
                 Check(f6.HasOverride(System.Guid.Parse(ga)) && !f6.HasOverride(gb), "hold: release keeps the held interface, restores the others");
                 d6.Handle(new RpcRequest { Op = "dns.hold.cancel" });
                 Check(!d6.Handle(new RpcRequest { Op = "dns.hold.status" }).Flag, "hold: cancel");
+                d6.Handle(held6);
+                Check(d6.Handle(new RpcRequest { Op = "dns.hold.stop" }).Flag && !f6.HasOverride(System.Guid.Parse(ga)) && !d6.Handle(new RpcRequest { Op = "dns.hold.status" }).Flag, "hold: stop restores the held interface and clears");
+                Check(!d6.Handle(new RpcRequest { Op = "dns.hold.stop" }).Flag, "hold: stop with nothing held");
                 var plain = new RpcDispatcher(f6, f6, f6, (n, c) => ("", null));
                 Check(!plain.Handle(held6).Ok && !plain.Handle(new RpcRequest { Op = "dns.hold.status" }).Flag, "hold: not supported without a keeper");
+            }
+
+            // stored-config connect: stale -> push -> connect, split applied by the service
+            {
+                var f7 = new FakeOps();
+                var dir7 = Path.Combine(Path.GetTempPath(), "mg-rpcstore-" + System.Guid.NewGuid().ToString("N"));
+                try
+                {
+                    byte[] Xor(byte[] b) => b.Select(x => (byte)(x ^ 0x33)).ToArray();
+                    var store7 = new FileTunnelStore(dir7, Xor, Xor);
+                    string staged7 = "";
+                    var d7 = new RpcDispatcher(f7, f7, f7, (n, c) => { staged7 = c; return (n + ".conf", null); }, store: store7);
+                    var conf7 = GoodConf.Replace("AllowedIPs = 0.0.0.0/0", "AllowedIPs = 0.0.0.0/0, ::/0");
+                    string h7 = FileTunnelStore.HashOf(conf7);
+                    var ask = new RpcRequest { Op = "tunnel.connectstored", Name = "st1", Hash = h7, SplitMode = "off" };
+                    Check(d7.Handle(ask) is { Ok: false, Error: "stale" }, "stored: unknown tunnel is stale");
+                    Check(d7.Handle(new RpcRequest { Op = "store.put", Name = "st1", Conf = conf7 }) is { Ok: true, Text: var ph } && ph == h7, "stored: put returns the hash");
+                    Check(d7.Handle(ask) is { Ok: true, Flag: true } && f7.Calls.Contains("tunnel.connect st1") && staged7 == conf7, "stored: connect uses the stored config");
+                    var ex = new RpcRequest { Op = "tunnel.connectstored", Name = "st1", Hash = h7, SplitMode = "exclude", SplitRanges = new List<string> { "10.0.0.0/8" } };
+                    d7.Handle(ex);
+                    Check(staged7 != conf7 && staged7.Contains("AllowedIPs") && !staged7.Contains("PostUp"), "stored: split rewrite applied by the service");
+                    Check(d7.Handle(new RpcRequest { Op = "tunnel.connectstored", Name = "st1", Hash = FileTunnelStore.HashOf("other"), SplitMode = "off" }) is { Ok: false, Error: "stale" }, "stored: a different hash is stale");
+                    Check(!d7.Handle(new RpcRequest { Op = "tunnel.connectstored", Name = "st1", Hash = "xyz", SplitMode = "off" }).Ok, "stored: bad hash refused");
+                    Check(!d7.Handle(new RpcRequest { Op = "tunnel.connectstored", Name = "st1", Hash = h7, SplitMode = "banana" }).Ok, "stored: bad split mode refused");
+                    Check(!d7.Handle(new RpcRequest { Op = "tunnel.connectstored", Name = "st1", Hash = h7, SplitMode = "exclude", SplitRanges = new List<string> { "10.0.0.0/8; calc" } }).Ok, "stored: bad split range refused");
+                    Check(!d7.Handle(new RpcRequest { Op = "store.put", Name = "../x", Conf = conf7 }).Ok, "stored: bad name refused on put");
+                    Check(!d7.Handle(new RpcRequest { Op = "store.put", Name = "st2", Conf = "[Interface]\nPrivateKey = a=\nPostUp = calc" }).Ok, "stored: hook config refused on put");
+                    d7.Handle(new RpcRequest { Op = "store.put", Name = "st2", Conf = conf7 });
+                    Check(d7.Handle(new RpcRequest { Op = "store.prune", Names = new List<string> { "st2" } }) is { Ok: true, Count: 1 } && store7.Get("st1") == null, "stored: prune removes tunnels not listed");
+                    Check(!new RpcDispatcher(f7, f7, f7, (n, c) => ("", null)).Handle(ask).Ok, "stored: not supported without a store");
+
+                    // through a real pipe: the proxy pushes on stale, then connects by name
+                    var pipe7 = "MasselGUARD.SelfTest.Rpc." + System.Guid.NewGuid().ToString("N");
+                    store7.Prune(new string[0]); f7.Calls.Clear();
+                    using (var srv7 = new RpcServer(d7, () => true, pipe7))
+                    {
+                        srv7.Start();
+                        var ops7 = new RpcOps(pipe7, f7);
+                        Check(ops7.ConnectStored("st3", conf7, new SplitConfig { Mode = "off" }, _ => { }, out var e7) && e7 == "", "stored pipe: first connect pushes the config, then connects");
+                        Check(store7.Get("st3") == conf7 && f7.Calls.Contains("tunnel.connect st3"), "stored pipe: config stored and connected");
+                        f7.Calls.Clear();
+                        Check(ops7.ConnectStored("st3", conf7, new SplitConfig { Mode = "off" }, _ => { }, out _) && f7.Calls.Count == 1, "stored pipe: second connect needs no push");
+                        var changed = conf7.Replace("10.0.0.2", "10.0.0.3");
+                        Check(ops7.ConnectStored("st3", changed, new SplitConfig { Mode = "off" }, _ => { }, out _) && store7.Get("st3") == changed, "stored pipe: an edited config is pushed again");
+                        ops7.PruneStored(new[] { "other" });
+                        Check(store7.Get("st3") == null, "stored pipe: prune");
+                    }
+                }
+                catch (Exception ex2) { fails.Add("stored threw: " + ex2.Message); }
+                finally { try { Directory.Delete(dir7, true); } catch { } }
+            }
+
+            // snapshot handover ops
+            {
+                var f9 = new FakeOps(); var st9 = new AutomationState(); string persisted9 = "";
+                var clock9 = new DateTime(2026, 10, 6, 12, 0, 0, DateTimeKind.Utc);
+                var d9 = new RpcDispatcher(f9, f9, f9, (n, c) => ("", null), now: () => clock9, auto: st9, persistSnapshot: s => persisted9 = s);
+                var pushCfg = new AppConfig { HeadlessAutomation = true, Tunnels = new List<StoredTunnel> { new() { Name = "T", Source = "local", Path = "C:\\x.dpapi" } } };
+                var pushJson = AutomationSnapshot.Serialize(pushCfg);
+                Check(d9.Handle(new RpcRequest { Op = "auto.push", Snapshot = pushJson }) is { Ok: true }, "auto: push accepted");
+                Check(st9.Config is { HeadlessAutomation: true } && st9.Config.Tunnels[0].Path == null, "auto: pushed config kept, file path dropped");
+                Check(persisted9 == pushJson, "auto: pushed snapshot persisted");
+                Check(st9.Lease.IsAlive(clock9), "auto: a push renews the lease");
+                st9.Lease.Release();
+                Check(d9.Handle(new RpcRequest { Op = "auto.lease" }) is { Ok: true, Flag: true } && st9.Lease.IsAlive(clock9), "auto: lease op renews");
+                d9.Handle(new RpcRequest { Op = "auto.release" });
+                Check(!st9.Lease.IsAlive(clock9), "auto: release ends the lease");
+                Check(!d9.Handle(new RpcRequest { Op = "auto.push", Snapshot = "{ nope" }).Ok && st9.Config!.HeadlessAutomation, "auto: a bad snapshot is refused and the old one stays");
+                Check(!d9.Handle(new RpcRequest { Op = "auto.push", Snapshot = new string('x', AutomationSnapshot.MaxBytes + 10) }).Ok, "auto: an oversized snapshot is refused");
+                var none9 = new RpcDispatcher(f9, f9, f9, (n, c) => ("", null));
+                Check(!none9.Handle(new RpcRequest { Op = "auto.push", Snapshot = pushJson }).Ok && !none9.Handle(new RpcRequest { Op = "auto.lease" }).Flag, "auto: not supported without a state");
+            }
+
+            // who may do what: users, owners, name clashes, adapters, catch-all ranges
+            {
+                var userA = new RpcCaller("S-1-5-21-1-1-1-1001", false);
+                var userB = new RpcCaller("S-1-5-21-1-1-1-1002", false);
+                var adminC = new RpcCaller("S-1-5-21-1-1-1-500", true);
+                var fx = new FakeOps();
+                var dirx = Path.Combine(Path.GetTempPath(), "mg-authz-" + System.Guid.NewGuid().ToString("N"));
+                try
+                {
+                    byte[] Xor(byte[] b) => b.Select(x => (byte)(x ^ 0x21)).ToArray();
+                    var stx = new FileTunnelStore(dirx, Xor, Xor);
+                    var autox = new AutomationState(); string ownerSaved = "";
+                    var okAdapter = System.Guid.NewGuid();
+                    var dx = new RpcDispatcher(fx, fx, fx, (n, c) => (n + ".conf", null), store: stx, auto: autox,
+                                               tunnelAllowed: n => n != "Foreign", interfaceAllowed: g => g == okAdapter, persistOwner: s => ownerSaved = s);
+
+                    // tunnel names belong to the user who stored them
+                    Check(dx.Handle(new RpcRequest { Op = "store.put", Name = "Mine", Conf = GoodConf }, userA).Ok, "authz: user A stores a tunnel");
+                    Check(!dx.Handle(new RpcRequest { Op = "store.put", Name = "Mine", Conf = GoodConf.Replace("abc=", "evil=") }, userB).Ok && stx.Get("Mine") == GoodConf, "authz: user B cannot overwrite A's tunnel");
+                    Check(dx.Handle(new RpcRequest { Op = "store.put", Name = "Mine", Conf = GoodConf + "# admin\n" }, adminC).Ok && stx.OwnerOf("Mine") == userA.Sid, "authz: an administrator can, the owner stays");
+                    dx.Handle(new RpcRequest { Op = "store.put", Name = "Other", Conf = GoodConf }, userB);
+                    dx.Handle(new RpcRequest { Op = "store.prune", Names = new List<string>() }, userB);
+                    Check(stx.Get("Other") == null && stx.Get("Mine") != null, "authz: user B's prune removes only B's tunnels");
+
+                    // a service name we did not create
+                    Check(!dx.Handle(new RpcRequest { Op = "tunnel.connect", Name = "Foreign", Conf = GoodConf }, userA).Ok, "authz: connect refused for a name that belongs to another service");
+                    Check(!dx.Handle(new RpcRequest { Op = "tunnel.disconnect", Name = "Foreign" }, userA).Ok, "authz: disconnect refused for a name that belongs to another service");
+                    Check(!dx.Handle(new RpcRequest { Op = "tunnel.connectstored", Name = "Foreign", Hash = FileTunnelStore.HashOf(GoodConf), SplitMode = "off" }, userA).Ok, "authz: stored connect refused for a name that belongs to another service");
+                    Check(dx.Handle(new RpcRequest { Op = "tunnel.disconnect", Name = "Mine" }, userA).Ok, "authz: disconnect of an own tunnel works");
+
+                    // adapters
+                    var gp = new DnsProfile { Id = "p", Name = "P", V4Primary = "1.1.1.1" };
+                    Check(dx.Handle(new RpcRequest { Op = "dns.apply", Guid = okAdapter.ToString(), Families = "both", Profile = gp }, userA).Flag, "authz: DNS on a usable adapter");
+                    Check(!dx.Handle(new RpcRequest { Op = "dns.apply", Guid = System.Guid.NewGuid().ToString(), Families = "both", Profile = gp }, userA).Ok, "authz: DNS refused on an unknown/unusable adapter");
+                    Check(!dx.Handle(new RpcRequest { Op = "dns.auto", Guid = System.Guid.NewGuid().ToString(), Families = "both" }, userA).Ok, "authz: DNS automatic refused on an unusable adapter");
+
+                    // validators
+                    foreach (var bad in new[] { "con", "NUL", "com1", "lpt9", "aux.x", "Con.conf" })
+                        Check(RpcValidator.Name(bad) != null, $"name: reserved device name '{bad}' refused");
+                    Check(RpcValidator.Name("console") == null && RpcValidator.Name("com10") == null, "name: names that merely start like a device are fine");
+                    Check(RpcValidator.Bypass(new List<string> { "0.0.0.0/0" }) != null && RpcValidator.Bypass(new List<string> { "::/0" }) != null, "bypass: a catch-all range is refused");
+                    Check(RpcValidator.Bypass(new List<string> { "10.1.2.3" }) == null && RpcValidator.Bypass(new List<string> { "10.0.0.0/8" }) == null, "bypass: plain addresses and CIDRs are fine");
+
+                    // automation belongs to one user
+                    var pushA = AutomationSnapshot.Serialize(new AppConfig { HeadlessAutomation = true });
+                    var pushOff = AutomationSnapshot.Serialize(new AppConfig { HeadlessAutomation = false });
+                    Check(dx.Handle(new RpcRequest { Op = "auto.push", Snapshot = pushA }, userA).Ok && autox.OwnerSid == userA.Sid && ownerSaved == userA.Sid, "authz: the first user to enable it becomes the owner");
+                    Check(!dx.Handle(new RpcRequest { Op = "auto.push", Snapshot = pushOff }, userB).Ok && autox.Config!.HeadlessAutomation, "authz: another user cannot replace the snapshot");
+                    autox.Lease.Release();
+                    dx.Handle(new RpcRequest { Op = "auto.lease" }, userB);
+                    Check(!autox.Lease.IsAlive(DateTime.UtcNow), "authz: another user cannot hold the lease");
+                    dx.Handle(new RpcRequest { Op = "auto.lease" }, userA);
+                    Check(autox.Lease.IsAlive(DateTime.UtcNow), "authz: the owner renews the lease");
+                    dx.Handle(new RpcRequest { Op = "auto.release" }, userB);
+                    Check(autox.Lease.IsAlive(DateTime.UtcNow), "authz: another user cannot release it");
+                    Check(dx.Handle(new RpcRequest { Op = "auto.push", Snapshot = pushOff }, adminC).Ok && !autox.Config!.HeadlessAutomation && autox.OwnerSid == userA.Sid, "authz: an administrator can replace it, the owner stays");
+                }
+                catch (Exception exz) { fails.Add("authz threw: " + exz.Message); }
+                finally { try { Directory.Delete(dirx, true); } catch { } }
             }
 
             // bounded reader

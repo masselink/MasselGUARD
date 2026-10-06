@@ -27,6 +27,7 @@ namespace MasselGUARD.Services
         private int _savedDomain  = 1;
         private int _savedPrivate = 1;
         private int _savedPublic  = 1;
+        private bool _blockApplied;   // we raised the outbound default to Block and still owe the user the old value
 
         private const string Prefix  = "MasselGUARD_KS_";
         private const int    AllProf = 2147483647;  // NET_FW_PROFILE2_ALL
@@ -54,11 +55,6 @@ namespace MasselGUARD.Services
                 var policy = OpenPolicy();
                 if (policy == null) return;
 
-                // Restore outbound default to Allow for all profiles
-                try { policy.DefaultOutboundAction[ProfDomain]  = Allow; } catch { }
-                try { policy.DefaultOutboundAction[ProfPrivate] = Allow; } catch { }
-                try { policy.DefaultOutboundAction[ProfPublic]  = Allow; } catch { }
-
                 // Remove all MasselGUARD_KS_ rules
                 var rules    = policy.Rules;
                 var toRemove = new List<string>();
@@ -75,6 +71,17 @@ namespace MasselGUARD.Services
                 foreach (var n in toRemove)
                 {
                     try { rules.Remove(n); } catch { }
+                }
+
+                // Only when WE were in charge (rules of ours were left behind, or we raised the policy in this run):
+                // put the outbound default back. Without that check anyone who may call this could lower a
+                // block-outbound policy an administrator set for other reasons.
+                if (toRemove.Count > 0 || _blockApplied)
+                {
+                    try { policy.DefaultOutboundAction[ProfDomain]  = _blockApplied ? _savedDomain  : Allow; } catch { }
+                    try { policy.DefaultOutboundAction[ProfPrivate] = _blockApplied ? _savedPrivate : Allow; } catch { }
+                    try { policy.DefaultOutboundAction[ProfPublic]  = _blockApplied ? _savedPublic  : Allow; } catch { }
+                    _blockApplied = false;
                 }
 
                 lock (_lock) { _active.Clear(); }
@@ -143,6 +150,7 @@ namespace MasselGUARD.Services
             {
                 List<string> tunnels;
                 lock (_lock) { tunnels = new List<string>(_active); _active.Clear(); }
+                if (tunnels.Count == 0 && !_blockApplied) return;   // nothing of ours to undo
                 foreach (var t in tunnels)
                     try { RemoveTunnelRules(t); } catch { }
                 RestoreGlobalPolicy();
@@ -173,18 +181,21 @@ namespace MasselGUARD.Services
             // Allow loopback so local services keep working
             AddFwRule(policy.Rules, Prefix + "Allow_Loopback", AllProf,
                 remoteAddr: "127.0.0.0/8,::1/128");
+            _blockApplied = true;
         }
 
         private void RestoreGlobalPolicy()
         {
             var policy = OpenPolicy();
             if (policy == null) return;
+            if (!_blockApplied) return;   // we never raised the policy, so there is nothing to put back
 
             try { policy.DefaultOutboundAction[ProfDomain]  = _savedDomain;  } catch { }
             try { policy.DefaultOutboundAction[ProfPrivate] = _savedPrivate; } catch { }
             try { policy.DefaultOutboundAction[ProfPublic]  = _savedPublic;  } catch { }
 
             try { policy.Rules.Remove(Prefix + "Allow_Loopback"); } catch { }
+            _blockApplied = false;
         }
 
         private void AddTunnelRules(string tunnelName, string? endpointIp,

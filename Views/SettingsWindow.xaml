@@ -865,6 +865,31 @@
                                 </Grid>
                             </Border>
 
+                            <!-- Keep automation running in the service while no window is open -->
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="{Binding [SettingsHeadlessLabel], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                                   FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Text="{Binding [SettingsHeadlessDesc], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                        <TextBlock Text="{Binding [SettingsHeadlessLimits], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                                   Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                    <ToggleButton Grid.Column="1" x:Name="HeadlessAutomationToggle"
+                                                  Width="44" Height="22" Margin="16,0,0,0" VerticalAlignment="Top"
+                                                  Style="{StaticResource ToggleSwitch}"
+                                                  Checked="HeadlessAutomation_Changed" Unchecked="HeadlessAutomation_Changed"/>
+                                </Grid>
+                            </Border>
+
                             <!-- Tunnel-only WiFi sections - hidden in DNS-only mode (see ApplyFeatureSectionVisibility) -->
                             <StackPanel x:Name="WifiTunnelOnlySections">
                             <!-- WiFi Default Action (fallback when no rule matches) -->

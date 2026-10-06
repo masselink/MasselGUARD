@@ -1242,5 +1242,10 @@
   "ServiceTitle": "Servizio MasselGUARD",
   "ElevationNeededMsg": "Questa azione richiede i diritti di amministratore. Riavviare MasselGUARD come amministratore ora? Poi ripeti l'azione.",
   "ElevationNeededTitle": "Servono i diritti di amministratore",
-  "ElevationCancelled": "L'approvazione dell'amministratore e stata annullata."
+  "ElevationCancelled": "L'approvazione dell'amministratore e stata annullata.",
+  "SettingsHeadlessLabel": "Mantieni l'automazione quando MasselGUARD e chiuso",
+  "SettingsHeadlessDesc": "Con il servizio MasselGUARD installato, il servizio continua ad applicare le regole di rete (connettere o disconnettere un tunnel, cambiare DNS) a finestra chiusa, ad esempio prima dell'accesso. Usa le ultime impostazioni inviate da MasselGUARD e restituisce il controllo appena una finestra e di nuovo aperta. Chiudendo MasselGUARD, tunnel e kill switch restano attivi. Disattivato per impostazione predefinita.",
+  "SettingsHeadlessNeedsService": "Serve il servizio MasselGUARD. Installalo prima (Impostazioni > Avvio > Servizio in background).",
+  "PresetItemHeadlessAutomation": "L'automazione continua nel servizio quando la finestra e chiusa",
+  "SettingsHeadlessLimits": "Non gestito dal servizio a finestra chiusa: cronologia, notifiche, limiti di dati, regole pianificate e gli script prima/dopo la connessione."
 }

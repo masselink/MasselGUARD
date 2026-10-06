@@ -67,6 +67,20 @@ namespace MasselGUARD.Services
             return true;
         }
 
+        /// <summary>Ends a hold now (the user asked to stop it): restores the held interfaces and clears it.
+        /// Returns true when there was one.</summary>
+        public bool Stop(Action<Guid> restore)
+        {
+            List<Guid> due;
+            lock (_lock)
+            {
+                if (_profileId == null) return false;
+                due = _guids; _profileId = null; _guids = new();
+            }
+            foreach (var g in due) { try { restore(g); } catch { } }
+            return true;
+        }
+
         public static (int pass, int fail, List<string> failures) RunSelfTest()
         {
             int pass = 0; var fails = new List<string>();
@@ -93,6 +107,11 @@ namespace MasselGUARD.Services
             k.Register("x", new[] { g1 }, 30, t0);
             k.Cancel();
             Check(!k.Get(t0).Active && !k.Tick(t0.AddHours(1), restored.Add), "keeper: cancel drops the hold without restoring");
+
+            var stopped = new List<Guid>();
+            k.Register("x", new[] { g1, g2 }, 30, t0);
+            Check(k.Stop(stopped.Add) && stopped.Count == 2 && !k.Get(t0).Active, "keeper: stop restores now and clears");
+            Check(!k.Stop(stopped.Add) && stopped.Count == 2, "keeper: stop with nothing held does nothing");
 
             k.Register("x", new[] { g1 }, 999999, t0);
             Check(k.Get(t0).RemainingSeconds == MaxSeconds, "keeper: length clamped to the maximum");
