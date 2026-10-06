@@ -19,6 +19,8 @@ MasselGUARD includes a full command-line interface for scripting, automation, an
    - [disconnect](#disconnect)
    - [disconnect-all](#disconnect-all)
    - [info](#info)
+   - [dns](#dns)
+   - [service](#service)
    - [log](#log)
    - [tunnel-history](#tunnel-history)
    - [wifi-history](#wifi-history)
@@ -366,7 +368,7 @@ MasselGUARD dns bypass [seconds|stop|toggle]
 | `<seconds>` | use the bypass profile for that many seconds (5 to 3600) |
 | `stop` | end a running bypass now |
 
-It needs **no Administrator rights**: the CLI sends the request over a local pipe to the running MasselGUARD window (which owns the timer and the DNS change), so MasselGUARD must be running and a bypass profile must be marked (DNS panel, right-click > *Mark as bypass profile*). Exit code `0` on success, `1` otherwise (not running, no bypass profile, feature switched off, bad argument). The pipe is open to the current user only and accepts nothing but this command.
+It needs **no Administrator rights**. The CLI first sends the request over a local pipe to the running MasselGUARD window (which owns the timer, the countdown and the DNS change). When no window is running and the [MasselGUARD service](#service) is installed, the CLI (running as you) reads your configuration, picks the marked bypass profile and the connected network adapters, and has the service apply and hold it; the service ends it after the time (with about 3 seconds grace), `stop` and `toggle` work through the service too, and a window started later picks a running bypass up again. A bypass profile must be marked (DNS panel, right-click > *Mark as bypass profile*). Exit code `0` on success, `1` otherwise (neither a window nor the service available, no bypass profile, feature switched off, bad argument). The window pipe is open to the current user only and accepts nothing but this command.
 
 **JSON output (dns status):**
 ```json
@@ -386,6 +388,26 @@ It needs **no Administrator rights**: the CLI sends the request over a local pip
 
 ---
 
+### service
+
+Manages the privileged MasselGUARD service (see the manual, chapter 37). Needs **Administrator rights**.
+
+```
+MasselGUARDcli service install [--user DOMAIN\name]
+MasselGUARDcli service uninstall
+MasselGUARDcli service status
+MasselGUARDcli service allow --user DOMAIN\name
+MasselGUARDcli service deny  --user DOMAIN\name
+MasselGUARDcli service users
+```
+
+| Subcommand | What it does |
+|---|---|
+| `install` | Registers `MasselGUARDsvc` (automatic start, LocalSystem, restart on failure) for the `MasselGUARD.exe` next to the CLI and starts it. The calling user, plus any `--user`, may use it besides Administrators. Refused when the folder can be changed by standard users (install MasselGUARD to Program Files first), or is a OneDrive or network path. |
+| `uninstall` | Stops and removes the service. |
+| `status` | Whether it is installed, its state, and whether the pipe answers. `--json` prints `{installed, state, reachable}`. |
+| `allow` / `deny` | Add or remove a user (by name) who may use the service. |
+| `users` | List the allowed users (Administrators may always use it). |
 ### log
 
 Shows recent connection history. Reads from `%APPDATA%\MasselGUARD\tunnel_history.json` - the **same file** that Settings → History shows in the GUI. No duplication; one source of truth.
@@ -983,11 +1005,3 @@ Storing a config without DPAPI means anyone with Administrator access to the mac
 - The machine has other physical or software security controls in place
 
 The MasselGUARD CLI will always print a visible warning when `--unsecure` is used.
-
-## dns bypass without the window
-
-`MasselGUARDcli dns bypass [seconds|stop|toggle]` first asks a running MasselGUARD window. When no window is running and the MasselGUARD service is installed, the CLI (running as you) reads your config, picks the marked bypass profile and the connected adapters, and has the service apply and hold it; the service ends it after the time (about 3 seconds grace), and `stop` or `toggle` also work through the service. A window started later picks a running bypass up again. Without a window and without the service there is nothing to switch and the command fails.
-
-## service
-
-`MasselGUARDcli service install [--user DOMAIN\name]` registers and starts the privileged MasselGUARD service (auto-start, LocalSystem). The installing user, plus any `--user`, may use it besides Administrators. `service uninstall` removes it, `service status` shows whether it is installed and answering. Needs administrator rights, and the app must live in a local folder (not OneDrive). With the service running, the app uses it instead of elevating itself (see `docs/ServiceBackend-Design.md`).

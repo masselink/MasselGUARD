@@ -65,6 +65,12 @@ Light and dark are both built in, and colours and section icons are themeable. I
 - **Export and import** a tunnel as plain, password-encrypted or QR, optionally with its MasselGUARD settings.
 - Tunnels connected in the WireGuard for Windows app are detected, logged and recorded in history.
 
+### Background service
+- An optional **Windows service** does the privileged work (tunnels, DNS, kill switch), so MasselGUARD **starts without a UAC prompt**. One button installs it (Settings > Startup); without it everything works as before.
+- **Automation can keep running when the window is closed** (optional): the service applies your network rules for tunnels and DNS, for example before you sign in.
+- A timed DNS bypass keeps running if you close the window, and the Explorer right-click bypass works when MasselGUARD is not running.
+- Tunnel configs are kept in a machine-encrypted store only the system and administrators can read; the service refuses to run from a folder standard users can write to. See [`docs/ServiceBackend-Design.md`](docs/ServiceBackend-Design.md).
+
 ### History and diagnostics
 - **Activity timeline** of tunnel sessions, the primary network (Wi-Fi and wired) and DNS profiles over 24 h / 7 d / 31 d, with hover details and session navigation.
 - **Activity log** with a pop-out window and optional persistence.
@@ -76,7 +82,7 @@ The chart redraw rate is configurable, a settings save applies the theme once, a
 ### Appearance and settings
 - Dual-variant themes (light and dark in one file), Windows-colour theme, font override, a Theme Manager with live preview and a community theme browser.
 - A feature-based settings layout with deferred save; twelve languages (English, Dutch, German, French, Spanish, Japanese, Italian, Portuguese (Brazil), Russian, Polish, Turkish, Chinese (Simplified)).
-- A first-run wizard, start with Windows (Scheduled Task, no UAC prompt), start minimized to the tray, and update checks.
+- A first-run wizard, start with Windows (a per-user startup entry with the service, otherwise an elevated Scheduled Task; no UAC prompt either way), start minimized to the tray, and update checks that verify the download against a published checksum.
 
 ### Managed deployment
 A **`.masselguard`** file is a full settings snapshot. Import it to apply and edit, or drop it next to the exe to **force and lock** the settings it contains (company rollout, family laptop, kiosk). It is a soft lock, not tamper-proof. See the manual for details.
@@ -116,7 +122,7 @@ On Windows-on-ARM the ARM64 build is required for local tunnels. Not sure which 
 
 `MasselGUARDcli.exe` covers everything you need for scripting: `list`, `status`, `connect`, `disconnect`, `disconnect-all`, `info`, `import`, `delete`, `log`, `tunnel-history`, `wifi-history` / `network-history`, `check-update`, `version` and `help`. The read-only `dns status`, `network status` and `selftest`, and `dns bypass` (which hands the request to the running window), also run in a non-elevated terminal; everything that touches a tunnel needs Administrator. Flags: `--json`, `--quiet` / `-q`, `--group <name>`, `--active`. Exit codes: `0` success, `1` error, `2` already in the desired state.
 
-Full reference: [`docs/CLIManual.md`](docs/CLIManual.md). What `selftest` checks: [`docs/CliSelfTest.md`](docs/CliSelfTest.md).
+Service management: `service install|uninstall|status|allow|deny|users`. Full reference: [`docs/CLIManual.md`](docs/CLIManual.md). What `selftest` checks: [`docs/CliSelfTest.md`](docs/CliSelfTest.md).
 
 ---
 
@@ -130,13 +136,13 @@ BUILD.bat x64              :: one architecture
 BUILD.bat x64 nozip run    :: quick test build, then start it
 ```
 
-Each architecture publishes natively (framework-dependent single file) into `dist\<arch>\` and is zipped to `dist\MasselGUARD-<arch>.zip`. A release needs **both** zips. The native DLLs are built or fetched with `tunnelbuild\tunnelbuild.bat`. All build options, the version-bump checklist and the architecture details are in [`CLAUDE.md`](CLAUDE.md) and [`docs/Reference.md`](docs/Reference.md).
+Each architecture publishes natively (framework-dependent single file) into `dist\<arch>\` and is zipped to `dist\MasselGUARD-<arch>.zip`. A release needs **both** zips and their `.zip.sha256` files (the in-app updater refuses a release without them). The native DLLs are built or fetched with `tunnelbuild\tunnelbuild.bat`. All build options, the version-bump checklist and the architecture details are in [`CLAUDE.md`](CLAUDE.md) and [`docs/Reference.md`](docs/Reference.md).
 
 ---
 
 ## Security
 
-Tunnel configs are stored as individual DPAPI-encrypted `.conf.dpapi` files in `%APPDATA%\MasselGUARD\tunnels\` (current-user scope); `config.json` never contains key material. The plaintext temp file used while connecting is locked to SYSTEM, Administrators and the owner from the first byte and deleted within about 200 ms. `%APPDATA%\MasselGUARD\` is restricted to the current user.
+Tunnel configs are stored as individual DPAPI-encrypted `.conf.dpapi` files in `%APPDATA%\MasselGUARD\tunnels\` (current-user scope); `config.json` never contains key material. The plaintext temp file used while connecting is locked to SYSTEM, Administrators and the owner from the first byte and deleted within about 200 ms. `%APPDATA%\MasselGUARD\` is restricted to the current user. With the optional background service, tunnel configs are also kept in `%ProgramData%\MasselGUARD\tunnels\` (machine-scope DPAPI, readable only by SYSTEM and administrators), the service refuses to run from a folder standard users can write to, and updates are verified against a published SHA-256 checksum. The security review log is in [`docs/ServiceBackend-Security.md`](docs/ServiceBackend-Security.md).
 
 ---
 

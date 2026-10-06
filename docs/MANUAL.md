@@ -42,6 +42,7 @@
 34. [Keyboard and window behaviour](#34-keyboard-and-window-behaviour)
 35. [Frequently asked questions](#35-frequently-asked-questions)
 36. [Command-line interface (CLI)](#36-command-line-interface-cli) - see also [`CLIManual.md`](CLIManual.md) for the full reference
+37. [Background service](#37-background-service)
 
 ---
 
@@ -81,10 +82,10 @@ Any combination works, including running with WireGuard or DNS (or both) turned 
 
 1. **Settings → Startup → Installation → Install** (or the install choice in the setup wizard)
 2. Choose a parent folder
-3. Optionally enable **Start with Windows** (Scheduled Task, no UAC prompt on later launches)
+3. Optionally enable **Start with Windows** (with the [background service](#37-background-service) a per-user startup entry, otherwise a Scheduled Task; either way no UAC prompt on later launches)
 4. MasselGUARD relaunches from the installed location
 
-The same place shows the current run mode and offers **Uninstall** when running the installed copy.
+The same place shows the current run mode and offers **Uninstall** when running the installed copy. The installer also offers to install the [background service](#37-background-service) (no UAC prompts when you start MasselGUARD).
 
 ### Managed (portable) - version prompt
 
@@ -150,7 +151,7 @@ Title **DNS PROFILES**. Columns: **DNS profile name** | **Type** | **Rules** | *
 
 **Changing the shortcut.** *Settings > DNS > Bypass shortcut*: click the box and press the keys you want (Ctrl, Alt or Win plus one key; a letter, a digit, F1 to F24 or a navigation key). **Clear** removes the shortcut. It is stored in `config.json` as `BypassShortcut` (for example `"Ctrl+Alt+F9"`; an empty text means no shortcut, and an unusable value falls back to `Ctrl+Shift+B` with a line in the activity log). By default it only works while the MasselGUARD window has focus; turn on *Work in every app* (`BypassShortcutGlobal`) to register it system-wide, so it also works in other programs and while MasselGUARD is hidden in the tray. If another program already uses that combination, the system-wide registration fails (logged) and it still works with the window focused.
 
-**From Windows Explorer.** Turn on *Settings > DNS > Windows right-click menu* and right-click the desktop, the empty space of a folder, or a folder: **DNS bypass (MasselGUARD)** offers the same lengths and **Stop now**, with no UAC prompt. MasselGUARD must be running. On Windows 11 the entry is under **Show more options** (Shift+F10). The command-line equivalent is `MasselGUARDcli dns bypass [seconds|stop|toggle]` (see the [CLI manual](CLIManual.md)).
+**From Windows Explorer.** Turn on *Settings > DNS > Windows right-click menu* and right-click the desktop, the empty space of a folder, or a folder: **DNS bypass (MasselGUARD)** offers the same lengths and **Stop now**, with no UAC prompt and no terminal window. It works through the running MasselGUARD window or, when no window is running, through the [background service](#37-background-service); with neither it shows a short message. On Windows 11 the entry is under **Show more options** (Shift+F10). The command-line equivalent is `MasselGUARDcli dns bypass [seconds|stop|toggle]` (see the [CLI manual](CLIManual.md)).
 
 ### Automation panel
 
@@ -168,7 +169,7 @@ Header **ACTIVITY LOG** with the entry count, columns **Time** | **Event**, and 
 
 ### Footer
 
-Left: run mode (green when Managed). Centre: current Wi-Fi network, `⚡` default tunnel and `🔓` open-network tunnel. Right: Administrator status.
+Left: run mode (green when Managed). Right: the primary network (Wi-Fi name, or the wired network), the DNS servers in use, a running timed DNS override with its countdown, the **DNS Bypass** item, and the `⚡` default and `🔓` open-network tunnels.
 
 ---
 
@@ -515,6 +516,7 @@ The rules themselves are on the main window; this page holds the settings around
 - **Default Action** - Do nothing / Disconnect all tunnels / Activate tunnel
 - **Open Network Protection** - the tunnel for passwordless Wi-Fi
 - **Trusted networks (SSIDs)** - one SSID per line; **Add current WiFi network** appends the one you're on. Used by *Trusted networks* rules
+- **Keep automation running when MasselGUARD is closed** - needs the [background service](#37-background-service). While no window is open the service keeps applying your rules (tunnel and DNS); closing MasselGUARD then leaves tunnels and the kill switch in place. Off by default.
 - **Display** - the switch that shows the Automation panel on the main window, and *Show Rules column*, which removes the Rules column from both the tunnel list and the DNS profile list
 
 ---
@@ -809,7 +811,7 @@ Hold **Shift** while clicking ✕ (or pressing Alt+F4), or use Tray → Exit.
 Hold **Shift** while launching MasselGUARD. Before any window opens it resets the font override, switches to the System theme (Follow Windows) and sets the language to English, then tells you what was reset.
 
 **Can I run without a UAC prompt?**
-Yes - install MasselGUARD and enable **Start with Windows** (Settings → Startup). Launches then go through the elevated Scheduled Task.
+Yes. The best way is the [background service](#37-background-service) (Settings → Startup → Background service → Install service): MasselGUARD then starts unelevated, with no UAC prompt at all. Without the service, install MasselGUARD and enable **Start with Windows**: launches then go through an elevated Scheduled Task.
 
 **Can I reorder rules, tunnels or DNS profiles?**
 Yes - drag the rows. For rules the order is the evaluation order.
@@ -858,7 +860,7 @@ Settings → About → **Report an issue** opens a GitHub issue with your versio
 
 ### Requirements
 
-Run as Administrator. From a non-elevated terminal, Windows asks for elevation and opens a separate console. Installing with **Start with Windows** avoids the prompt. `help`, `version` and `dns status` work without elevation.
+Run as Administrator. From a non-elevated terminal the CLI tells you it needs elevation (use an administrator terminal, or `sudo`). `help`, `version`, `dns status`, `dns bypass` and `network status` work without elevation.
 
 ### Commands
 
@@ -894,6 +896,40 @@ switch ($LASTEXITCODE) {
     1 { Write-Host "Failed." }
 }
 ```
+
+---
+
+## 37. Background service
+
+MasselGUARD can do its privileged work (connecting tunnels, changing DNS, the kill switch) in a **Windows service** named *MasselGUARD Service*, instead of inside the app. The service is optional: without it MasselGUARD works as before and elevates itself.
+
+**What you get**
+- MasselGUARD **starts without a UAC prompt** (also at Windows start with *Start with Windows*).
+- Your **network rules can keep running when MasselGUARD is closed** (Settings → Automation → *Keep automation running when MasselGUARD is closed*, off by default).
+- A **timed DNS override** ("use Google for 5 minutes") keeps running if you close the window, and ends on time.
+- The **Explorer right-click DNS bypass** and `MasselGUARDcli dns bypass` work when MasselGUARD is not running.
+- Tunnel configs are kept by the service in a machine-encrypted store that only administrators and the system can read; the app sends a config only when it changed.
+
+**Install**
+1. Install MasselGUARD to **Program Files** first (Settings → Startup → Installation → Install). The service refuses to run from a folder that standard users can write to (for example a folder you created in Explorer) and cannot run from OneDrive or a network path.
+2. Settings → Startup → **Background service → Install service**. Windows asks for administrator approval once. On a portable copy the button installs MasselGUARD first and sets the service up as part of that. The installer and the setup wizard offer the same choice, and `MasselGUARDcli service install` does it from a terminal.
+3. Restart MasselGUARD when asked. The activity log (Debug level) says *Back-end: MasselGUARD service*.
+
+**Remove** with the same button (*Remove service*), or `MasselGUARDcli service uninstall`. Uninstalling MasselGUARD removes the service too. MasselGUARD then runs in direct mode again after a restart.
+
+**What changes when it runs**
+- Actions that really need administrator rights while the app is unelevated (installing, updating an installed copy, orphaned-service removal, the DNS-leak policy) offer to restart MasselGUARD as administrator; repeat the action there.
+- *Start with Windows* becomes a per-user startup entry (no approval needed); MasselGUARD waits a few seconds for the service at logon.
+- With *Keep automation running* on, the service takes over a few seconds after the last window closes (or at once when you exit) and hands back when a window opens. It applies tunnel and DNS rules only; it records no history, shows no notifications, applies no data caps or schedule rules and does not run your pre/post connect scripts.
+
+**Who may use it** - Administrators, and the users an administrator lists: the user who installed it, plus `MasselGUARDcli service allow --user DOMAIN\name` (`deny` removes, `users` lists). Stored tunnels and the keep-running automation belong to the user who created them; another user cannot overwrite them.
+
+**Updates** - the in-app updater checks the download against the release's `.sha256` file and refuses an update without it; it also stops and restarts the service around the file copy.
+
+**Troubleshooting**
+- *Service will not start / install refused with a folder message*: reinstall MasselGUARD to Program Files and register the service from there.
+- *Is it running?* Settings → Startup shows the state; `MasselGUARDcli service status`; the service log is `%ProgramData%\MasselGUARD\logs\service.log`.
+- *The app says the service does not answer*: start it (`sc start MasselGUARDsvc` as administrator) or restart MasselGUARD to fall back to direct mode.
 
 ---
 

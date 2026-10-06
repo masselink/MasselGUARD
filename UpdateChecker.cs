@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Net.Http;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -112,17 +113,37 @@ namespace MasselGUARD
             var tempDir    = Path.Combine(Path.GetTempPath(),
                 $"MasselGUARD_update_{release.TagName}");
 
+            // The checksum published with the release (MasselGUARD-<arch>.zip.sha256). No checksum = no update:
+            // the zip ends up running with administrator/SYSTEM rights, so an unverifiable download is refused.
+            if (release.Sha256Url == null)
+                throw new InvalidOperationException(
+                    $"Release {release.TagName} has no MasselGUARD-{ArchMoniker}.zip.sha256 asset, so the download cannot be verified. " +
+                    "The update was not applied; download the release manually from GitHub.");
+
             progress.Report(Lang.T("UpdateDownloading", release.TagName));
 
             // Download
+            string? expectedHash;
             using (var http = MakeClient())
-            using (var resp = await http.GetAsync(release.ZipUrl,
-                       HttpCompletionOption.ResponseHeadersRead))
             {
+                expectedHash = ParseChecksum(await http.GetStringAsync(release.Sha256Url));
+                if (expectedHash == null)
+                    throw new InvalidOperationException($"The checksum file of release {release.TagName} is not valid; the update was not applied.");
+
+                using var resp = await http.GetAsync(release.ZipUrl, HttpCompletionOption.ResponseHeadersRead);
                 resp.EnsureSuccessStatusCode();
                 await using var stream = await resp.Content.ReadAsStreamAsync();
                 await using var file   = File.Create(tempZip);
                 await stream.CopyToAsync(file);
+            }
+
+            // Verify before anything is extracted or copied.
+            var actualHash = Sha256OfFile(tempZip);
+            if (!string.Equals(actualHash, expectedHash, StringComparison.OrdinalIgnoreCase))
+            {
+                try { File.Delete(tempZip); } catch { }
+                throw new InvalidOperationException(
+                    $"The downloaded update does not match its checksum (expected {expectedHash[..12]}..., got {actualHash[..12]}...). It was discarded and nothing was changed.");
             }
 
             progress.Report(Lang.T("UpdateExtracting"));
@@ -293,6 +314,7 @@ namespace MasselGUARD
             // Step 2: find the GitHub release for this tag and pick the arch-specific
             // asset that matches this process's architecture.
             string? zipUrl = null;
+            string? sha256Url = null;
             try
             {
                 var relJson = await http.GetStringAsync(
@@ -314,11 +336,61 @@ namespace MasselGUARD
 
                 var wantArch = forceArch ?? ArchMoniker;
                 foreach (var candidate in AssetCandidates(wantArch))
-                    if (byName.TryGetValue(candidate, out var url)) { zipUrl = url; break; }
+                    if (byName.TryGetValue(candidate, out var url))
+                    {
+                        zipUrl = url;
+                        if (byName.TryGetValue(candidate + ".sha256", out var shaUrl)) sha256Url = shaUrl;
+                        break;
+                    }
             }
             catch { /* tag exists but has no release - that is fine */ }
 
-            return new ReleaseInfo(latestTag, zipUrl);
+            return new ReleaseInfo(latestTag, zipUrl, sha256Url);
+        }
+
+        // ── Download verification ─────────────────────────────────────────────────
+
+        /// <summary>The hash from a <c>.sha256</c> file: the first word of the first non-empty line (the format of
+        /// <c>sha256sum</c> and of BUILD.bat: <c>&lt;hash&gt;  &lt;file name&gt;</c>), or just a bare hash. Null when it is not 64 hex digits.</summary>
+        public static string? ParseChecksum(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return null;
+            var line = text.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Length > 0);
+            var word = line?.Split(new[] { ' ', '\t', '*' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+            if (word == null || word.Length != 64 || !word.All(Uri.IsHexDigit)) return null;
+            return word.ToLowerInvariant();
+        }
+
+        public static string Sha256OfFile(string path)
+        {
+            using var s = File.OpenRead(path);
+            return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(s)).ToLowerInvariant();
+        }
+
+        public static (int pass, int fail, System.Collections.Generic.List<string> failures) RunSelfTest()
+        {
+            int pass = 0; var fails = new System.Collections.Generic.List<string>();
+            void Check(bool ok, string what) { if (ok) pass++; else fails.Add(what); }
+            const string abc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";   // SHA-256 of "abc"
+
+            Check(ParseChecksum(abc + "  MasselGUARD-x64.zip\n") == abc, "checksum: sha256sum format");
+            Check(ParseChecksum(abc.ToUpperInvariant() + " *MasselGUARD-x64.zip") == abc, "checksum: upper case and binary marker");
+            Check(ParseChecksum(abc) == abc && ParseChecksum("\r\n\r\n" + abc + "\r\n") == abc, "checksum: bare hash, blank lines, CRLF");
+            Check(ParseChecksum("") == null && ParseChecksum(null) == null && ParseChecksum("not a hash") == null, "checksum: empty and garbage rejected");
+            Check(ParseChecksum(abc[..63]) == null && ParseChecksum(abc + "0") == null, "checksum: wrong length rejected");
+            Check(ParseChecksum("g" + abc[1..]) == null, "checksum: non-hex rejected");
+
+            var f = Path.Combine(Path.GetTempPath(), "mg-sha-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                File.WriteAllText(f, "abc");
+                Check(Sha256OfFile(f) == abc, "checksum: file hash matches the known value");
+                File.WriteAllText(f, "abd");
+                Check(Sha256OfFile(f) != abc, "checksum: a changed file no longer matches");
+            }
+            catch (Exception ex) { fails.Add("checksum threw: " + ex.Message); }
+            finally { try { File.Delete(f); } catch { } }
+            return (pass, fails.Count, fails);
         }
 
         private static HttpClient MakeClient()
@@ -356,5 +428,5 @@ del ""%~f0""
         }
     }
 
-    public record ReleaseInfo(string TagName, string? ZipUrl);
+    public record ReleaseInfo(string TagName, string? ZipUrl, string? Sha256Url = null);
 }

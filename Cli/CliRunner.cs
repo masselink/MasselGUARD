@@ -205,38 +205,6 @@ namespace MasselGUARD.Cli
         /// <summary>dns bypass [seconds|stop|toggle]: asks the RUNNING MasselGUARD window to switch to the bypass
         /// profile for a short time (the window owns the timer and the DNS change). Needs no elevation, which is
         /// what lets the Windows right-click menu call it without a UAC prompt.</summary>
-        /// <summary>No window is running: do the bypass through the MasselGUARD service instead. The CLI runs as
-        /// the user, so it can read the user's config (bypass profile, address families) and the current network
-        /// adapters; the service only applies and holds what it is told, and ends it on time.</summary>
-        private static (bool ok, string message)? BypassViaService(Services.CommandPipe.BypassRequest req, AppConfig cfg)
-        {
-            if (!Services.ServiceInstaller.IsInstalled()) return null;
-            var rpc = new Services.RpcOps(expectedServerPid: Services.ServiceInstaller.ServicePid);
-            if (!rpc.IsAvailable()) return null;
-
-            string action = req.Action;
-            if (action == "toggle") action = rpc.GetHold().active ? "stop" : "start";
-            if (action == "stop")
-                return rpc.StopHold() ? (true, "ok: DNS bypass stopped (through the MasselGUARD service).")
-                                      : (true, "ok: no DNS bypass is running.");
-
-            var snap = Services.NetworkMonitor.Capture(cfg.PrimaryNetworkMode, null, resolveGatewayMac: false, wifiOnly: cfg.SimpleWifiMode);
-            var guids = snap.Adapters.Select(a => Guid.TryParse(a.AdapterId, out var g) ? g : Guid.Empty).ToList();
-            var plan = Services.BypassPlan.Build(cfg, guids, req.Seconds);
-            if (!plan.Ok) return (false, "error: " + plan.Error);
-
-            int applied = 0;
-            foreach (var g in plan.Interfaces)
-                if (rpc.ApplyProfile(g, plan.Profile!, plan.Families)) applied++;
-            if (applied == 0) return (false, "error: the service could not switch DNS.");
-            if (!rpc.RegisterHold(plan.Profile!.Id, plan.Interfaces, plan.Seconds))
-            {
-                rpc.RestoreAll();
-                return (false, "error: the service could not start the timer, DNS was put back.");
-            }
-            return (true, $"ok: using '{plan.Profile.Name}' for {plan.Seconds} seconds, then back to automatic (through the MasselGUARD service).");
-        }
-
         private static int CmdDnsBypass(string[] args, AppConfig cfg, bool json)
         {
             string arg = args.Length > 2 ? args[2] : "";
@@ -246,17 +214,13 @@ namespace MasselGUARD.Cli
                 CliOutput.Error($"Usage: {ExeName} dns bypass [seconds|stop|toggle]   (seconds {Services.CommandPipe.MinSeconds}-{Services.CommandPipe.MaxSeconds})");
                 return 1;
             }
-            var reply = Services.CommandPipe.Send(("bypass " + arg).Trim());
-            if (reply == null)
+            var result = Services.BypassClient.Run(req, arg, cfg);   // the running window first, else the service
+            if (result == null)
             {
-                var viaService = BypassViaService(req, cfg);
-                if (viaService == null)
-                {
-                    CliOutput.Error("MasselGUARD is not running and the MasselGUARD service is not available, so there is nothing to switch DNS.");
-                    return 1;
-                }
-                reply = viaService.Value.message;
+                CliOutput.Error("MasselGUARD is not running and the MasselGUARD service is not available, so there is nothing to switch DNS.");
+                return 1;
             }
+            var reply = result.Value.message;
             bool ok = reply.StartsWith("ok", StringComparison.OrdinalIgnoreCase);
             if (json) CliOutput.PrintJson(new { ok, message = reply });
             else if (ok) CliOutput.Ok(reply);
@@ -440,6 +404,8 @@ namespace MasselGUARD.Cli
             var (ifPass,   ifFail,   ifFailures)   = Services.InstallFiles.RunSelfTest();
             var (haPass,   haFail,   haFailures)   = Services.HeadlessPlanner.RunSelfTest();
             var (sfPass,   sfFail,   sfFailures)   = Services.SecureFolders.RunSelfTest();
+            var (ucPass,   ucFail,   ucFailures)   = UpdateChecker.RunSelfTest();
+            var (bcPass,   bcFail,   bcFailures)   = Services.BypassClient.RunSelfTest();
 
             foreach (var f in cidrFailures) CliOutput.Error($"FAIL CidrMath {f}");
             foreach (var f in backFailures) CliOutput.Error($"FAIL Backend {f}");
@@ -461,10 +427,12 @@ namespace MasselGUARD.Cli
             foreach (var f in ifFailures)   CliOutput.Error($"FAIL InstallFiles {f}");
             foreach (var f in haFailures)   CliOutput.Error($"FAIL HeadlessPlanner {f}");
             foreach (var f in sfFailures)   CliOutput.Error($"FAIL SecureFolders {f}");
+            foreach (var f in ucFailures)   CliOutput.Error($"FAIL UpdateChecker {f}");
+            foreach (var f in bcFailures)   CliOutput.Error($"FAIL BypassClient {f}");
 
-            int pass = cidrPass + backPass + expPass + dnsPass + netPass + rtPass + rePass + smPass + toPass + cpPass + scPass + opPass + rpPass + hkPass + tsPass + arPass + bpPass + ifPass + haPass + sfPass;
-            int fail = cidrFail + backFail + expFail + dnsFail + netFail + rtFail + reFail + smFail + toFail + cpFail + scFail + opFail + rpFail + hkFail + tsFail + arFail + bpFail + ifFail + haFail + sfFail;
-            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}, NetworkMatcher {netPass}, RuleTester {rtPass}, RuleEngine {rePass}, RuleSimulator {smPass}, TempOverride {toPass}, CommandPipe {cpPass}, Shortcut {scPass}, PrivilegedOps {opPass}, PrivilegedRpc {rpPass}, DnsHoldKeeper {hkPass}, TunnelStore {tsPass}, AutostartRunKey {arPass}, BypassPlan {bpPass}, InstallFiles {ifPass}, HeadlessPlanner {haPass}, SecureFolders {sfPass}).");
+            int pass = cidrPass + backPass + expPass + dnsPass + netPass + rtPass + rePass + smPass + toPass + cpPass + scPass + opPass + rpPass + hkPass + tsPass + arPass + bpPass + ifPass + haPass + sfPass + ucPass + bcPass;
+            int fail = cidrFail + backFail + expFail + dnsFail + netFail + rtFail + reFail + smFail + toFail + cpFail + scFail + opFail + rpFail + hkFail + tsFail + arFail + bpFail + ifFail + haFail + sfFail + ucFail + bcFail;
+            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}, NetworkMatcher {netPass}, RuleTester {rtPass}, RuleEngine {rePass}, RuleSimulator {smPass}, TempOverride {toPass}, CommandPipe {cpPass}, Shortcut {scPass}, PrivilegedOps {opPass}, PrivilegedRpc {rpPass}, DnsHoldKeeper {hkPass}, TunnelStore {tsPass}, AutostartRunKey {arPass}, BypassPlan {bpPass}, InstallFiles {ifPass}, HeadlessPlanner {haPass}, SecureFolders {sfPass}, UpdateChecker {ucPass}, BypassClient {bcPass}).");
             else           CliOutput.Error($"Self-test: {pass} passed, {fail} failed.");
             return fail == 0 ? 0 : 1;
         }

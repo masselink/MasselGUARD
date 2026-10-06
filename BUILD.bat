@@ -144,6 +144,7 @@ echo.
 for %%A in (%ARCHES%) do (
     echo   dist\%%A\                     ^(native %%A build^)
     if exist "%DIST%\MasselGUARD-%%A.zip" echo   dist\MasselGUARD-%%A.zip     ^(release asset^)
+    if exist "%DIST%\MasselGUARD-%%A.zip.sha256" echo   dist\MasselGUARD-%%A.zip.sha256   ^(release asset, upload with the zip^)
 )
 echo.
 echo   Target machine requires the .NET 10 Desktop Runtime for its architecture:
@@ -318,6 +319,7 @@ rem Delete any stale zip first so the existence check reflects THIS run only, th
 rem fail the build if packaging did not produce it (a missing release asset is fatal).
 rem With "nozip" the stale zip is still removed, so an old build can't be shipped by mistake.
 if exist "%DIST%\MasselGUARD-%ARCH%.zip" del /f /q "%DIST%\MasselGUARD-%ARCH%.zip" >nul 2>&1
+if exist "%DIST%\MasselGUARD-%ARCH%.zip.sha256" del /f /q "%DIST%\MasselGUARD-%ARCH%.zip.sha256" >nul 2>&1
 if "%NOZIP%"=="1" (
     if "%PARTIAL%"=="1" (
         echo   Skipped release zip ^(partial build - a release zip needs both exes from one build^)
@@ -333,6 +335,15 @@ rem file in dist\%ARCH%\lang\ right as Compress-Archive reads it. Ride it out.
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$src='%OUT%\*'; $dst='%DIST%\MasselGUARD-%ARCH%.zip'; for($i=1;$i -le 8;$i++){ try { Compress-Archive -Path $src -DestinationPath $dst -Force -ErrorAction Stop; break } catch { if($i -eq 8){ throw }; Write-Host ('  zip source locked (attempt ' + $i + '/8) - retrying in 3s...'); Start-Sleep -Seconds 3 } }"
 if exist "%DIST%\MasselGUARD-%ARCH%.zip" (
     echo   OK  dist\MasselGUARD-%ARCH%.zip
+    rem The in-app updater refuses a release whose zip has no matching .sha256 asset: upload both files.
+    rem (.NET SHA256, not Get-FileHash: that cmdlet can be unavailable in locked-down hosts.)
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$z='%DIST%\MasselGUARD-%ARCH%.zip'; $s=[IO.File]::OpenRead($z); try { $h=([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($s)) -replace '-','').ToLower() } finally { $s.Close() }; [IO.File]::WriteAllText($z+'.sha256', $h+'  MasselGUARD-%ARCH%.zip'+[char]10)"
+    if exist "%DIST%\MasselGUARD-%ARCH%.zip.sha256" (
+        echo   OK  dist\MasselGUARD-%ARCH%.zip.sha256
+    ) else (
+        echo   BUILD FAILED -- could not create the .sha256 for %ARCH%.
+        endlocal & exit /b 1
+    )
 ) else (
     echo   BUILD FAILED -- could not create MasselGUARD-%ARCH%.zip for %ARCH%.
     endlocal & exit /b 1

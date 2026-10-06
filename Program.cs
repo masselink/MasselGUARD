@@ -55,6 +55,11 @@ namespace MasselGUARD
             if (args.Length >= 1 && string.Equals(args[0], "/svc", StringComparison.OrdinalIgnoreCase))
                 return Services.ServiceHost.Run();
 
+            // Windowless DNS bypass client (Explorer right-click entries): MasselGUARD.exe --bypass <seconds|stop|toggle>.
+            // The GUI exe has no console, so no terminal window flashes; it never elevates and never opens a window.
+            if (args.Length >= 1 && string.Equals(args[0], "--bypass", StringComparison.OrdinalIgnoreCase))
+                return RunBypassLauncher(args);
+
             // ── Elevation (manifest is asInvoker) ──────────────────────────────
             // 1. The MasselGUARD service is installed and answering: run unelevated, the service does the
             //    privileged work (no UAC prompt at all).
@@ -86,6 +91,32 @@ namespace MasselGUARD
             app.InitializeComponent();
             app.Run();
             return 0;
+        }
+
+        /// <summary>Asks the running window, else the MasselGUARD service, to start/stop the DNS bypass. Silent on
+        /// success; a failure (nothing to talk to, no bypass profile marked, ...) is shown in a message box.</summary>
+        private static int RunBypassLauncher(string[] args)
+        {
+            string? error = null;
+            var req = Services.BypassClient.ParseLauncherArgs(args);
+            if (req.Action == "invalid")
+                error = $"Usage: MasselGUARD.exe --bypass [seconds|stop|toggle]   (seconds {Services.CommandPipe.MinSeconds}-{Services.CommandPipe.MaxSeconds})";
+            else
+            {
+                try
+                {
+                    var cs = new Services.ConfigService();
+                    cs.Load();
+                    var result = Services.BypassClient.Run(req, args.Length > 1 ? args[1] : "", cs.Config);
+                    if (result == null) error = "MasselGUARD is not running and the MasselGUARD service is not available, so there is nothing to switch DNS.";
+                    else if (!result.Value.ok) error = result.Value.message.StartsWith("error: ") ? result.Value.message[7..] : result.Value.message;
+                }
+                catch (Exception ex) { error = ex.Message; }
+            }
+            if (error == null) return 0;
+            try { System.Windows.Forms.MessageBox.Show(error, "MasselGUARD - DNS bypass", System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Warning); }
+            catch { }
+            return 1;
         }
 
         /// <summary>The service is installed, running and accepts this user (checked through the pipe, with the

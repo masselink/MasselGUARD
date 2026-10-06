@@ -7,7 +7,7 @@ MasselGUARDcli selftest
 ```
 
 ```
-✓ Self-test: 604 passed (CidrMath 18, Backend 11, Export 6, DnsPolicy 20, NetworkMatcher 150, RuleTester 38, RuleEngine 37, RuleSimulator 20, TempOverride 18, CommandPipe 17, Shortcut 31, PrivilegedOps 10, PrivilegedRpc 85, DnsHoldKeeper 13, TunnelStore 15, AutostartRunKey 8, BypassPlan 12, InstallFiles 6, HeadlessPlanner 33, SecureFolders 17).
+✓ Self-test: 622 passed (CidrMath 18, Backend 11, Export 6, DnsPolicy 20, NetworkMatcher 150, RuleTester 38, RuleEngine 37, RuleSimulator 20, TempOverride 18, CommandPipe 17, Shortcut 31, PrivilegedOps 10, PrivilegedRpc 122, DnsHoldKeeper 15, TunnelStore 15, AutostartRunKey 8, BypassPlan 12, InstallFiles 6, HeadlessPlanner 33, SecureFolders 17, UpdateChecker 8, BypassClient 10).
 ```
 
 ## Running it
@@ -20,7 +20,7 @@ MasselGUARDcli selftest
 
 ## What it covers
 
-The checks are plain assertions inside the shared, WPF-free services, so the CLI and the GUI are tested with exactly the same code. They are grouped in eleven suites, in the order printed:
+The checks are plain assertions inside the shared, WPF-free services, so the CLI and the GUI are tested with exactly the same code. They are grouped in twenty-two suites, in the order printed:
 
 | Suite | Source | What it checks |
 |---|---|---|
@@ -35,6 +35,17 @@ The checks are plain assertions inside the shared, WPF-free services, so the CLI
 | **TempOverride** | `Models/TempOverride.cs` | The timer behind the timed DNS override ("use this profile for 1 minute"): a fresh override is active until its absolute UTC end time and expired afterwards, the remaining time and the `0:42` countdown text (rounded up, hours for long ones), replacing an override restarts the clock, the 10 s / 1 / 5 / 15 minute presets and their menu label keys. |
 | **CommandPipe** | `Services/CommandPipe.cs` | The command channel behind `dns bypass` and the Windows right-click menu: parsing of `bypass`, `bypass 60`, `bypass stop`, `bypass toggle` (case, extra spaces, the 5 to 3600 second clamp, garbage and other commands rejected), and a real round trip over a private named pipe: the access-protected server starts, the same user connects, the request arrives and the reply comes back, and a missing listener returns nothing. It uses a random pipe name, so a running MasselGUARD window is never touched. |
 | **Shortcut** | `Models/Shortcut.cs` | The text form of keyboard shortcuts stored in `config.json` (the bypass shortcut): any case and the aliases (`Control`, `Windows`), spaces and modifier order normalised to `Ctrl+Alt+Shift+Win+Key`, letters, digits, F1 to F24 and the named navigation keys, empty text meaning "no shortcut", and rejection of Shift-only or modifier-less shortcuts, two keys, stray plus signs, unknown keys and F25. Also the fallback to the default for an unusable value. |
+| **PrivilegedOps** | `Services/PrivilegedOps.cs` | The seam of the service back-end: the fake implementation records and tracks tunnel, DNS and kill-switch calls, so call sequences can be tested without touching the system. |
+| **PrivilegedRpc** | `Services/PrivilegedRpc.cs` | The service's RPC: every validator (tunnel names incl. reserved device names, configs without Pre/PostUp/Down hooks, GUIDs, address families, endpoints, bypass and split ranges, DNS profiles, hashes), the dispatcher against the fake (operations, rejected input never reaching the operations, hold, store and automation operations), who may do what (owners, foreign service names, unusable adapters, catch-all ranges), the bounded line reader, and real pipe round trips on private pipe names (authorized and refused callers, wrong server PID, oversized requests). |
+| **DnsHoldKeeper** | `Services/DnsHoldKeeper.cs` | The timed DNS override the service keeps: remaining time, grace period, restore once, cancel, stop now, length and interface limits. |
+| **TunnelStore** | `Services/TunnelStore.cs` | The service's tunnel store: round trip, case-insensitive names, hash, file is not plaintext and not named after the tunnel, replace, prune, delete, per-user owners, corrupt files, and the real machine-scope DPAPI round trip. |
+| **AutostartRunKey** | `Services/AutostartRunKey.cs` | The per-user Start-with-Windows entry on a private registry key: quoted path, enable, replace, disable. |
+| **BypassPlan** | `Services/BypassPlan.cs` | A DNS bypass without a window: profile, adapters, length clamp, families, and the error texts for every missing prerequisite. |
+| **InstallFiles** | `Services/InstallFiles.cs` | Replacing a file that is in use by renaming it aside, keeping the old one when even that fails, cleanup of the leftovers. |
+| **HeadlessPlanner** | `Services/HeadlessAutomation.cs` | Automation while no window is open: the tunnel and DNS decisions per network change, taking over without acting on the current network, manual mode, foreign and missing tunnels, the window lease, and the config snapshot (size, garbage, dropped paths and invalid names). |
+| **SecureFolders** | `Services/SecureFolders.cs` | Folder trust: the pure ACL judgement (owner, write rights, inherit-only, parents) and real folders (a user-writable folder is refused, System32 is accepted, a pre-existing user-owned data folder is not trusted). |
+| **BypassClient** | `Services/BypassClient.cs` | The arguments of the windowless launcher the Explorer entries run (`MasselGUARD.exe --bypass 60`, `stop`, `toggle`, no argument, case, garbage, extra arguments, the length clamp). |
+| **UpdateChecker** | `UpdateChecker.cs` | The release checksum used by the updater: the formats of a `.sha256` file, rejected garbage and wrong lengths, and the file hash against a known value. |
 
 ## What it does not cover
 
@@ -42,6 +53,7 @@ The self-test is a safety net for logic, not a test of the whole program. It doe
 
 - the GUI (layout, themes, drag and drop, the footer, the settings pages)
 - connecting or disconnecting a tunnel, the kill switch (Windows Firewall), `netsh` DNS changes or the WireGuard driver
+- the Windows service itself (installing it, the pipe with real user tokens and UAC, the folder permissions of a real install, headless takeover): the manual test plan in ServiceBackend-Design.md covers those
 - the live network (it works from described networks, never from your adapters), Wi-Fi notifications or the gateway MAC lookup
 - configuration loading, managed presets, the update check or history files
 - translations (the language files are not compared by the self-test)

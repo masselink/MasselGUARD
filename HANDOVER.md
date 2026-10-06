@@ -1,10 +1,8 @@
 # MasselGUARD - Session Handover
 
 **Project:** MasselGUARD - WireGuard + DNS automation manager for Windows (.NET 10; WinExe GUI `MasselGUARD.exe` + console `MasselGUARDcli.exe`).
-**Current:** **4.5.0 - Resolving Raven** on branch `dev` (feature work happens on `dev`; no per-version branches).
-**Shipped tags:** `4.0.0` (Forking Fox, final), `4.2.0-BETA` and `4.5.0-beta` (Resolving Raven betas). The version in code stays numeric (`4.5.0`) - a `-beta` suffix would break `UpdateChecker.ParseVersion`; "beta" lives only in the GitHub tag.
-**What 4.5.0 is:** the UI/settings overhaul - General > Feature settings, split Settings tabs, consistent main-window layout, themeable section icons (Theme Builder "Section icons" editor), Time | Event activity log + pop-out window, drag-reorder with drop lines, WireGuard/DNS may both be off, and a fully translated interface. Full list: [`docs/WHATSNEW.md`](docs/WHATSNEW.md). Architecture: [`CLAUDE.md`](CLAUDE.md).
-
+**Current:** **4.6.0 - Wired Weasel** is the latest release; **5.0** (the service back-end) is built on the branch `service-backend` and waits for testing and release. The version in code stays numeric (`x.y.z`) - a `-beta` suffix would break `UpdateChecker.ParseVersion`; "beta" lives only in the GitHub tag.
+**Where to start:** [`docs/Handoff-next-version.md`](docs/Handoff-next-version.md) (state of 5.0, what is left before a release, rules and traps), [`docs/ServiceBackend-Design.md`](docs/ServiceBackend-Design.md), [`docs/ServiceBackend-Security.md`](docs/ServiceBackend-Security.md). Architecture: [`CLAUDE.md`](CLAUDE.md). User-facing history: [`docs/WHATSNEW.md`](docs/WHATSNEW.md).
 > **Standing rules (carry every cycle):**
 > 1. **`Models/*.cs` stay WPF-free** - shared with the CLI.
 > 2. **The CLI lists shared `Services/*.cs` explicitly** in `MasselGUARDcli/MasselGUARDcli.csproj` (it globs Models, not Services) - a new shared Service must be added there.
@@ -15,22 +13,19 @@
 
 ---
 
-## 1. Release checklist - 4.5.0
+## 1. Release checklist
 
-1. **Visual/functional check** of the 4.5.0 changes on a real run (layout + icon sizes, Theme Builder Section icons, drag-and-drop drop lines, one-time column-width reset, both features off, a non-English language incl. toasts and System diagnostics).
-2. **Commit** `dev` (MasselGUARD) and **push `../MasselGUARD-themes`** (Resolving Raven theme with custom icons, em-dash cleanup, updated `THEME_EXAMPLE.md`); add Resolving Raven's **preview screenshots** to the themes repo.
-3. **Tag/release** with both arch zips (plus the legacy x64 `MasselGUARD.zip` bridge for pre-3.8 installs).
-4. **Scoop bucket** (`../MasselGUARD-scoop`): bump `version` + both SHA256 hashes, or confirm the Excavator workflow did it.
+The checklist for the next release (5.0) is in [`docs/Handoff-next-version.md`](docs/Handoff-next-version.md) section 2. In short: run the manual test plan, bump the version everywhere (section 2 below), run a plain `BUILD.bat`, create the GitHub release **with both zips and both `.zip.sha256` files**, bump the Scoop bucket (`../MasselGUARD-scoop`: version + both SHA256 hashes) and push `../MasselGUARD-themes` when themes changed.
 
 ---
-
 ## 2. Version-bump checklist (every release)
 
 - `UpdateChecker.cs` - `CurrentVersion` **and** `_codenames["x.y.z"]`.
+- Both csproj files - `Version`, `AssemblyVersion`, `FileVersion`, `InformationalVersion`.
 - `BUILD.bat` - `VERSION` **and** `CODENAME`.
 - Doc headers: `CLAUDE.md`, `docs/MANUAL.md`, `docs/CLIManual.md`, `docs/Reference.md`, `README.md`.
 - `docs/WHATSNEW.md` - new `## vX.Y.Z - <Codename>` entry.
-- GitHub release/tag + Scoop manifest (user's manual steps).
+- GitHub release/tag (zips **and** `.zip.sha256` files) + Scoop manifest (user's manual steps).
 
 ---
 
@@ -50,6 +45,8 @@ Prototyped on WinDivert and reverted (2026-09-10/11); the design and findings ar
 ---
 
 ## 4. Prior releases (condensed)
+- **4.6.0 - Wired Weasel:** wired-network rules (SSID, DNS suffix, gateway MAC, subnet, connection type, adapter), several conditions per rule, rule order = table order, create a rule from the current network, timed DNS bypass with Explorer menu and CLI, lighter on memory, resizable lists.
+- **4.5.0 - Resolving Raven:** the UI/settings overhaul (General > Feature settings, split Settings tabs, themeable section icons, Time | Event activity log, drag-reorder, fully translated interface).
 - **4.2.0 - Resolving Raven (beta):** DNS automation (per-network resolver, plain or DoH, tunnel-independent), DNS profiles panel + DNS in the charts, connect on start / start minimized, built-in tester, companion (WireGuard-for-Windows) mode removed.
 - **4.0.0 - Forking Fox:** route/IP-based split tunneling, non-elevated `help`/`version`/`selftest`, licensing groundwork (MIT `LICENSE`, `THIRD-PARTY-NOTICES.md`), ARM64 `tunnel.dll`.
 - **3.9.5 - Selective Serval:** 12 languages, cap usage rings + chart, kill-at-cap, directional trusted-network rules, tunnel export (`.mgconf`/QR).

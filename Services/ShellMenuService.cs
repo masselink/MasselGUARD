@@ -7,7 +7,7 @@ namespace MasselGUARD.Services
     /// <summary>
     /// Adds a "DNS bypass" cascade to Windows Explorer's right-click menu (desktop / folder background and
     /// folders): <c>For 10 seconds</c>, <c>1 minute</c>, <c>5 minutes</c>, <c>15 minutes</c> and <c>Stop now</c>.
-    /// <para>Each entry runs <c>MasselGUARDcli.exe dns bypass &lt;seconds&gt;</c>, which talks to the running window
+    /// <para>Each entry runs <c>MasselGUARD.exe --bypass &lt;seconds&gt;</c> (windowless: no terminal flashes), which talks to the running window
     /// over <see cref="CommandPipe"/>; the CLI needs no elevation, so there is no UAC prompt per click.</para>
     /// Registered per user (HKCU\Software\Classes), no administrator rights needed, removed again by
     /// <see cref="Unregister"/>. On Windows 11 a classic verb like this appears under "Show more options"
@@ -50,7 +50,7 @@ namespace MasselGUARD.Services
         }
 
         /// <summary>Writes (or refreshes) the menu entries. <paramref name="label"/> maps a language key to its text.</summary>
-        public static void Register(string cliPath, string iconExePath, Func<string, string> label)
+        public static void Register(string launcherPath, string iconExePath, Func<string, string> label)
         {
             Unregister();   // start clean so a changed install path or language never leaves stale entries
 
@@ -64,8 +64,8 @@ namespace MasselGUARD.Services
 
             var items = new List<(string key, string text, string args, bool separator)>();
             foreach (var s in Models.TempOverride.PresetSeconds)
-                items.Add(($"{items.Count + 1:00}_{s}", label(Models.TempOverride.LabelKey(s)), $"dns bypass {s}", false));
-            items.Add(("99_stop", label("DnsTempStop"), "dns bypass stop", true));
+                items.Add(($"{items.Count + 1:00}_{s}", label(Models.TempOverride.LabelKey(s)), $"--bypass {s}", false));
+            items.Add(("99_stop", label("DnsTempStop"), "--bypass stop", true));
 
             foreach (var (key, text, args, sep) in items)
             {
@@ -73,7 +73,7 @@ namespace MasselGUARD.Services
                 verb.SetValue("MUIVerb", text);
                 if (sep) verb.SetValue("CommandFlags", 0x20, RegistryValueKind.DWord);   // separator above
                 using var cmd = verb.CreateSubKey("command");
-                cmd.SetValue(null, $"\"{cliPath}\" {args}");
+                cmd.SetValue(null, $"\"{launcherPath}\" {args}");
             }
         }
 

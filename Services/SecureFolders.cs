@@ -8,7 +8,7 @@ using System.Security.Principal;
 namespace MasselGUARD.Services
 {
     /// <summary>
-    /// Folder trust for the LocalSystem service (docs/ServiceBackend-Worries.md S1 + S2).
+    /// Folder trust for the LocalSystem service (docs/ServiceBackend-Security.md).
     /// <list type="bullet">
     /// <item><see cref="Ensure"/>: the service's data folders under %ProgramData% are created with a protected DACL and a
     /// trusted OWNER, and an existing folder that a standard user created beforehand (owner = that user, or a

@@ -1806,9 +1806,8 @@ namespace MasselGUARD
             {
                 if (!ConfigSvc.Config.ShellBypassMenuEnabled) { Services.ShellMenuService.Unregister(); return; }
                 var exe = Environment.ProcessPath ?? "";
-                var cli = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(exe) ?? AppContext.BaseDirectory, "MasselGUARDcli.exe");
-                if (!System.IO.File.Exists(cli)) { LogSvc.Warn("Explorer menu: MasselGUARDcli.exe not found next to the app, entries not added."); return; }
-                Services.ShellMenuService.Register(cli, exe, k => Lang.T(k));
+                if (!System.IO.File.Exists(exe)) { LogSvc.Warn("Explorer menu: MasselGUARD.exe not found, entries not added."); return; }
+                Services.ShellMenuService.Register(exe, exe, k => Lang.T(k));   // the entries run "MasselGUARD.exe --bypass ..." (no console window)
             }
             catch (Exception ex) { LogSvc.Warn($"Explorer menu: {ex.Message}"); }
         }
