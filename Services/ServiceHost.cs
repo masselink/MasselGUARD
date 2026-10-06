@@ -78,7 +78,7 @@ namespace MasselGUARD.Services
                                              store: store, auto: _auto, persistSnapshot: PersistSnapshot,
                                              tunnelAllowed: TunnelNameAllowed, interfaceAllowed: InterfaceAllowed, persistOwner: PersistOwner);
                 // Automation without a window (only when the window's last pushed config asks for it).
-                _headless = new HeadlessHost(_auto, new TunnelDllOps(), _ks, _dns, store, StageConf, _hold, _log);
+                _headless = new HeadlessHost(_auto, new TunnelDllOps(), _ks, _dns, store, StageConf, _hold, _log, TunnelNameAllowed);
                 _headless.Start();
                 // Backstop for timed DNS overrides: ends them when the UI is gone (see DnsHoldKeeper).
                 _holdTimer = new System.Threading.Timer(_ =>

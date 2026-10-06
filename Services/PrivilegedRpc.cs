@@ -258,7 +258,7 @@ namespace MasselGUARD.Services
                     if (_tunnelAllowed != null && !_tunnelAllowed(r.Name!)) return RpcResponse.Fail(NameClash);
                     // Missing or out of date ("stale"): the window pushes the current config and asks again.
                     var sc = new SplitConfig { Mode = r.SplitMode!, Ranges = r.SplitRanges ?? new List<string>() };
-                    return StoredConnect.Run(_store, _tunnels, null, _stageConf, r.Name!, sc, r.Hash);
+                    return StoredConnect.Run(_store, _tunnels, null, _stageConf, r.Name!, sc, r.Hash, _tunnelAllowed);
                 }
                 case "auto.push":
                 {

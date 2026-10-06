@@ -24,6 +24,8 @@ namespace MasselGUARD.Services
         private readonly Func<string, string, (string path, IDisposable? cleanup)> _stage;
         private readonly DnsHoldKeeper _hold;
         private readonly LogService _log;
+        private readonly Func<string, bool> _tunnelAllowed;
+        private readonly HashSet<string> _warnedNames = new(StringComparer.OrdinalIgnoreCase);
         private readonly HeadlessPlanner _planner = new();
         private readonly WiFiService _wifi = new();
         private readonly object _lock = new();
@@ -32,8 +34,9 @@ namespace MasselGUARD.Services
         private bool _running;
 
         public HeadlessHost(AutomationState state, ITunnelOps tunnels, IKillSwitchOps ks, IDnsOps dns, ITunnelStore store,
-                            Func<string, string, (string path, IDisposable? cleanup)> stage, DnsHoldKeeper hold, LogService log)
-        { _state = state; _tunnels = tunnels; _ks = ks; _dns = dns; _store = store; _stage = stage; _hold = hold; _log = log; }
+                            Func<string, string, (string path, IDisposable? cleanup)> stage, DnsHoldKeeper hold, LogService log,
+                            Func<string, bool>? tunnelAllowed = null)
+        { _state = state; _tunnels = tunnels; _ks = ks; _dns = dns; _store = store; _stage = stage; _hold = hold; _log = log; _tunnelAllowed = tunnelAllowed ?? (_ => true); }
 
         public bool IsRunning => _running;
 
@@ -102,18 +105,25 @@ namespace MasselGUARD.Services
                     if (!_running || cfg == null) return;
                     var snap = Capture(cfg);
 
-                    var local = cfg.Tunnels.Where(t => string.IsNullOrEmpty(t.Source) || t.Source == "local").ToList();
+                    // Only tunnels this service may touch: a valid name, and no foreign service (WireGuard for Windows, ...)
+                    // of that name. Everything below (running state, disconnect, connect) works on this list only.
+                    var local = cfg.Tunnels.Where(t => (string.IsNullOrEmpty(t.Source) || t.Source == "local") && IsOurs(t.Name)).ToList();
                     var active = local.Where(t => SafeRunning(t.Name)).Select(t => t.Name).ToList();
 
                     foreach (var a in _planner.PlanTunnel(cfg, snap, active))
                     {
                         if (a.Kind == HeadlessActionKind.Disconnect)
                         {
+                            if (!local.Any(t => string.Equals(t.Name, a.Tunnel, StringComparison.OrdinalIgnoreCase))) continue;
                             _log.Info($"Automation: disconnect {a.Tunnel} ({a.Reason})");
                             _tunnels.Disconnect(a.Tunnel, out _);
                             _ks.Disable(a.Tunnel);
                         }
-                        else Connect(cfg, local.First(t => string.Equals(t.Name, a.Tunnel, StringComparison.OrdinalIgnoreCase)), a.Reason);
+                        else
+                        {
+                            var target = local.FirstOrDefault(t => string.Equals(t.Name, a.Tunnel, StringComparison.OrdinalIgnoreCase));
+                            if (target != null) Connect(cfg, target, a.Reason);   // null = filtered out above
+                        }
                     }
 
                     bool tunnelOwnsDns = local.Any(t => SafeRunning(t.Name));
@@ -132,13 +142,22 @@ namespace MasselGUARD.Services
             }
         }
 
+        private bool IsOurs(string name)
+        {
+            bool ok = RpcValidator.Name(name) == null;
+            if (ok) { try { ok = _tunnelAllowed(name); } catch { ok = false; } }
+            if (!ok && _warnedNames.Add(name))
+                _log.Warn($"Automation: ignoring tunnel '{name}' (invalid name, or a service of that name exists that MasselGUARD did not create).");
+            return ok;
+        }
+
         private bool SafeRunning(string name) { try { return _tunnels.IsRunning(name); } catch { return false; } }
 
         private void Connect(AppConfig cfg, StoredTunnel t, string reason)
         {
             _log.Info($"Automation: connect {t.Name} ({reason})");
             bool ks = cfg.KillSwitchMode == "always" || t.KillSwitch;
-            var resp = StoredConnect.Run(_store, _tunnels, ks ? _ks : null, _stage, t.Name, SplitConfig.From(t), expectedHash: null);
+            var resp = StoredConnect.Run(_store, _tunnels, ks ? _ks : null, _stage, t.Name, SplitConfig.From(t), expectedHash: null, tunnelAllowed: _tunnelAllowed);
             if (!resp.Ok || !resp.Flag) _log.Warn($"Automation: could not connect {t.Name}: {(resp.Error.Length > 0 ? resp.Error : "failed")}");
             else _log.Ok($"Automation: connected {t.Name}");
         }

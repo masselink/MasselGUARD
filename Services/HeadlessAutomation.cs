@@ -47,8 +47,12 @@ namespace MasselGUARD.Services
         /// <param name="killSwitch">non-null = enable the kill switch for this tunnel after a successful connect</param>
         public static RpcResponse Run(ITunnelStore store, ITunnelOps tunnels, IKillSwitchOps? killSwitch,
                                       Func<string, string, (string path, IDisposable? cleanup)> stage,
-                                      string name, SplitConfig split, string? expectedHash)
+                                      string name, SplitConfig split, string? expectedHash,
+                                      Func<string, bool>? tunnelAllowed = null)
         {
+            if (RpcValidator.Name(name) != null) return RpcResponse.Fail("invalid tunnel name");
+            // A service of that name that MasselGUARD did not create (WireGuard for Windows, ...) is not ours to stop or replace.
+            if (tunnelAllowed != null && !tunnelAllowed(name)) return RpcResponse.Fail("a service with this tunnel name exists that MasselGUARD did not create");
             var baseConf = store.Get(name);
             if (baseConf == null || (expectedHash != null && FileTunnelStore.HashOf(baseConf) != expectedHash))
                 return RpcResponse.Fail("stale");
@@ -90,6 +94,8 @@ namespace MasselGUARD.Services
                 if (cfg == null) { error = "invalid snapshot"; return null; }
                 // The service never needs (or keeps) inline tunnel configs or file paths from a client.
                 foreach (var t in cfg.Tunnels) { t.Config = null; t.Path = null; }
+                // A tunnel name becomes a service name, a file name and an adapter name: only names the RPC would accept.
+                cfg.Tunnels = cfg.Tunnels.Where(t => RpcValidator.Name(t.Name) == null).ToList();
                 return cfg;
             }
             catch { error = "invalid snapshot"; return null; }
@@ -329,6 +335,29 @@ namespace MasselGUARD.Services
             Check(back != null && back.Tunnels.Count == 2 && back.Rules.Count == 2, "snapshot: round trip keeps tunnels and rules");
             Check(back != null && back.Tunnels.All(t => t.Config == null && t.Path == null), "snapshot: inline configs and file paths are dropped");
             Check(AutomationSnapshot.TryParse("{ not json", out _) == null && AutomationSnapshot.TryParse("", out _) == null, "snapshot: garbage refused");
+            var cfgNames = Cfg(); cfgNames.Tunnels.Add(new StoredTunnel { Name = @"..\evil", Source = "local" }); cfgNames.Tunnels.Add(new StoredTunnel { Name = "con", Source = "local" });
+            var parsedNames = AutomationSnapshot.TryParse(AutomationSnapshot.Serialize(cfgNames), out _);
+            Check(parsedNames != null && parsedNames.Tunnels.Count == 2 && parsedNames.Tunnels.All(t => t.Name is "Work" or "Home"), "snapshot: tunnels with invalid names are dropped");
+
+            // StoredConnect: the same name rules as the RPC, for every caller
+            {
+                var fx = new FakeOps();
+                var dir = Path.Combine(Path.GetTempPath(), "mg-sc-" + Guid.NewGuid().ToString("N"));
+                try
+                {
+                    byte[] Xor(byte[] b) => b.Select(x => (byte)(x ^ 0x17)).ToArray();
+                    var st = new FileTunnelStore(dir, Xor, Xor);
+                    const string C = "[Interface]\nPrivateKey = a=\n";
+                    st.Put("Office", C); st.Put("Mine", C);
+                    var off = new SplitConfig { Mode = "off" };
+                    Func<string, string, (string, IDisposable?)> stage = (n, c) => (n + ".conf", null);
+                    var foreign = StoredConnect.Run(st, fx, null, stage, "Office", off, null, n => n != "Office");
+                    Check(!foreign.Ok && fx.Calls.Count == 0, "storedconnect: a name that belongs to a foreign service is refused, nothing is connected");
+                    Check(StoredConnect.Run(st, fx, null, stage, "Mine", off, null, n => n != "Office") is { Ok: true } && fx.Calls.Contains("tunnel.connect Mine"), "storedconnect: an allowed name connects");
+                    Check(!StoredConnect.Run(st, fx, null, stage, @"..\x", off, null, null).Ok, "storedconnect: an invalid name is refused");
+                }
+                finally { try { Directory.Delete(dir, true); } catch { } }
+            }
             Check(AutomationSnapshot.TryParse(new string('x', AutomationSnapshot.MaxBytes + 1), out var e2) == null && e2.Contains("large"), "snapshot: oversized refused");
             return (pass, fails.Count, fails);
         }

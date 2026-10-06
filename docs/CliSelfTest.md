@@ -7,7 +7,7 @@ MasselGUARDcli selftest
 ```
 
 ```
-✓ Self-test: 600 passed (CidrMath 18, Backend 11, Export 6, DnsPolicy 20, NetworkMatcher 150, RuleTester 38, RuleEngine 37, RuleSimulator 20, TempOverride 18, CommandPipe 17, Shortcut 31, PrivilegedOps 10, PrivilegedRpc 85, DnsHoldKeeper 13, TunnelStore 15, AutostartRunKey 8, BypassPlan 12, InstallFiles 6, HeadlessPlanner 29, SecureFolders 17).
+✓ Self-test: 604 passed (CidrMath 18, Backend 11, Export 6, DnsPolicy 20, NetworkMatcher 150, RuleTester 38, RuleEngine 37, RuleSimulator 20, TempOverride 18, CommandPipe 17, Shortcut 31, PrivilegedOps 10, PrivilegedRpc 85, DnsHoldKeeper 13, TunnelStore 15, AutostartRunKey 8, BypassPlan 12, InstallFiles 6, HeadlessPlanner 33, SecureFolders 17).
 ```
 
 ## Running it
