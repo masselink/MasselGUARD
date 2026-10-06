@@ -13,7 +13,7 @@ namespace MasselGUARD.Services
     /// Reference-counted: the global block policy is applied on the first Enable()
     /// and restored on the last Disable() / DisableAll().
     /// </summary>
-    public class KillSwitchService
+    public class KillSwitchService : IKillSwitchOps
     {
         private readonly LogService  _log;
         private readonly object      _lock   = new();

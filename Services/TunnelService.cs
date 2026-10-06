@@ -35,7 +35,8 @@ namespace MasselGUARD.Services
         private readonly LogService         _log;
         private readonly ScriptService      _scripts;
         private readonly HistoryService     _history;
-        private readonly KillSwitchService? _ks;
+        private readonly IKillSwitchOps? _ks;
+        private readonly ITunnelOps _ops;
         // Route/IP-based split backend (4.0.0). Stateless; a future WinDivert backend
         // would be selected here per SplitConfig. See docs/SplitTunneling-Design.md §4.
         private readonly ISplitTunnelBackend _splitBackend = new RouteBasedBackend();
@@ -50,12 +51,13 @@ namespace MasselGUARD.Services
             new(StringComparer.OrdinalIgnoreCase);
 
         public TunnelService(LogService log, ScriptService scripts, HistoryService history,
-                             KillSwitchService? killSwitch = null)
+                             IKillSwitchOps? killSwitch = null, ITunnelOps? tunnelOps = null)
         {
             _log     = log;
             _scripts = scripts;
             _history = history;
             _ks      = killSwitch;
+            _ops     = tunnelOps ?? new TunnelDllOps();
         }
 
         private static bool ShouldKillSwitch(StoredTunnel s, AppConfig cfg) =>
@@ -191,13 +193,13 @@ namespace MasselGUARD.Services
             try
             {
                 _log.Debug($"Connecting local tunnel: {stored.Name}");
-                bool ok2 = TunnelDll.Connect(stored.Name, tempPath, msg => _log.Debug(msg), out string err);
+                bool ok2 = _ops.Connect(stored.Name, tempPath, msg => _log.Debug(msg), out string err);
                 if (ok2)
                 {
                     _log.Ok($"Connected: {stored.Name}");
                     _connectTimes[stored.Name] = DateTime.UtcNow;
                     // Snapshot initial bytes so we can compute session totals on disconnect
-                    var s0 = TunnelDll.GetTrafficStats(stored.Name);
+                    var s0 = _ops.GetTrafficStats(stored.Name);
                     _connectBytes[stored.Name] = (s0.RxBytes, s0.TxBytes);
                     // Stamp service so orphan scan can identify it as MasselGUARD-managed
                     try
@@ -317,8 +319,8 @@ namespace MasselGUARD.Services
             try
             {
                 // Snapshot bytes BEFORE the adapter is torn down - it disappears on disconnect
-                var finalStats = TunnelDll.GetTrafficStats(stored.Name);
-                TunnelDll.Disconnect(stored.Name, out string disconnErr);
+                var finalStats = _ops.GetTrafficStats(stored.Name);
+                _ops.Disconnect(stored.Name, out string disconnErr);
                 LogDisconnect(stored.Name, finalStats, storeTraffic);
                 if (!string.IsNullOrEmpty(disconnErr)) _log.Warn(disconnErr);
                 _ks?.Disable(stored.Name);
@@ -377,7 +379,7 @@ namespace MasselGUARD.Services
 
         public bool IsActive(StoredTunnel stored)
         {
-            try { return TunnelDll.IsRunning(stored.Name); }
+            try { return _ops.IsRunning(stored.Name); }
             catch { return false; }
         }
 

@@ -983,3 +983,7 @@ Storing a config without DPAPI means anyone with Administrator access to the mac
 - The machine has other physical or software security controls in place
 
 The MasselGUARD CLI will always print a visible warning when `--unsecure` is used.
+
+## service
+
+`MasselGUARDcli service install [--user DOMAIN\name]` registers and starts the privileged MasselGUARD service (auto-start, LocalSystem). The installing user, plus any `--user`, may use it besides Administrators. `service uninstall` removes it, `service status` shows whether it is installed and answering. Needs administrator rights, and the app must live in a local folder (not OneDrive). With the service running, the app uses it instead of elevating itself (see `docs/ServiceBackend-Design.md`).

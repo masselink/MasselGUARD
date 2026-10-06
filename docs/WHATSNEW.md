@@ -1,5 +1,13 @@
 ## Next version (number and codename to be decided)
 
+### Background service (preview)
+
+- **MasselGUARD service** - the privileged part of MasselGUARD (tunnels, DNS, kill switch) can run as a Windows service. Install it with one button: **Settings > Startup > Background service > Install service**, or answer Yes when the installer offers it, or use the same button in the setup wizard. Windows asks for administrator approval once. If MasselGUARD is not installed in a local folder yet, the button installs it first and sets the service up as part of that.
+- MasselGUARD uses the service automatically when it is installed and running, and falls back to elevating itself (as before) when it is not. Remove it with the same button; uninstalling MasselGUARD removes it too.
+- `MasselGUARDcli service install | uninstall | status` does the same from a terminal.
+- **A timed DNS override survives closing the window** - with the service, "use Google for 5 minutes" is also kept by the service: closing MasselGUARD no longer cancels it, it ends on time, and reopening the window picks the countdown up again.
+- No UAC prompt at startup when the service is running (the app starts unelevated). Actions that need administrator rights (installing, Start with Windows, updating an installed copy) offer to restart MasselGUARD as administrator.
+
 ### Bypass shortcut you can change
 
 - **Configurable shortcut** - the quick DNS bypass shortcut is no longer fixed to **Ctrl+Shift+B**. Set it in **Settings > DNS > Bypass shortcut** (click the box and press the keys; **Clear** removes it) or in `config.json` as `BypassShortcut` (for example `Ctrl+Alt+F9`). It needs Ctrl, Alt or Win plus one key; an unusable value falls back to the default and says so in the activity log.

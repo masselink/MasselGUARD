@@ -160,6 +160,23 @@ namespace MasselGUARD
             onShutdown?.Invoke();
         }
 
+        /// <summary>An update replaces the exe: that needs administrator rights when the MasselGUARD service
+        /// is installed (it holds the exe, so it is stopped and restarted around the copy) or when the install
+        /// folder is not writable by this user (Program Files).</summary>
+        public static bool NeedsElevation()
+        {
+            if (Services.ServiceInstaller.IsElevated()) return false;
+            if (Services.ServiceInstaller.IsInstalled()) return true;
+            try
+            {
+                var dir = Path.GetDirectoryName(Environment.ProcessPath ?? AppContext.BaseDirectory)!;
+                var probe = Path.Combine(dir, ".mg-write-test-" + Guid.NewGuid().ToString("N"));
+                File.WriteAllText(probe, "x"); File.Delete(probe);
+                return false;
+            }
+            catch { return true; }
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────────
         // Returns true when the latest published tag is newer than the running build.
         public static bool IsNewerVersion(string? latestTag)
@@ -325,8 +342,11 @@ namespace MasselGUARD
             // Waits for the process to exit (~3s), copies all files, relaunches
             return $@"@echo off
 timeout /t 3 /nobreak >nul
+sc stop MasselGUARDsvc >nul 2>&1
+timeout /t 2 /nobreak >nul
 robocopy ""{sourceDir}"" ""{destDir}"" /E /IS /IT /IM /NJH /NJS /NP >nul
 if exist ""{sourceDir}\lang"" robocopy ""{sourceDir}\lang"" ""{destDir}\lang"" /E /IS /IT /IM /NJH /NJS /NP >nul
+sc start MasselGUARDsvc >nul 2>&1
 start """" ""{exePath}""
 del ""%~f0""
 ";

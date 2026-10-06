@@ -580,6 +580,30 @@
                                 </Grid>
                             </Border>
 
+                            <!-- Background service (docs/ServiceBackend-Design.md) -->
+                            <TextBlock Text="{Binding [SettingsServiceTitle], Source={x:Static local:Lang.Instance}}"
+                                       Style="{StaticResource SettingsSectionHeader}"/>
+                            <Border Style="{StaticResource SettingsCard}" Margin="0,0,0,16">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock x:Name="ServiceStatusLabel"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11" Foreground="{DynamicResource TextPrimary}"
+                                                   TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding [SettingsServiceDesc], Source={x:Static local:Lang.Instance}}"
+                                                   FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9" Foreground="{DynamicResource TextMuted}"
+                                                   TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" x:Name="ServiceBtn"
+                                            Style="{StaticResource FlatBtn}"
+                                            FontSize="11" Padding="14,6" Margin="12,0,0,0"
+                                            VerticalAlignment="Top" Click="ServiceBtn_Click"/>
+                                </Grid>
+                            </Border>
+
                         </StackPanel>
 
                         <!-- ══ TUNNELS PAGE (labelled "WireGuard") ══════════════════════════ -->

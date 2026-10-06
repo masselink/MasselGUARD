@@ -1,5 +1,7 @@
 # Handoff - the version after 4.6.0
 
+**Service back-end status (2026-10-05, branch `service-backend`, uncommitted):** design agreed in `docs/ServiceBackend-Design.md`; phase 0 (`IPrivilegedOps` seam) and phase 1a/1b (RPC, service host, installer, back-end selection, pipe hardening) are in the working tree, selftest 434 passed, both projects build. NOT yet tested on a real machine (needs an elevated `MasselGUARDcli service install`; test plan at the end of the design doc). Next: user test, then phase 1c (manifest `asInvoker` + direct-mode relaunch), `%ProgramData%` tunnel store, phase 2 (bypass/DNS state in the service), `/security-review`.
+
 Status: **planning, nothing started.** Written at the end of the 4.6.0 work so a fresh session can pick up without the history. Read `CLAUDE.md` first (it is the codebase guide); this file adds the plan, the decisions already made and the traps.
 
 Two goals:

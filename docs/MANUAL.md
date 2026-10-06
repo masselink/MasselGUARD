@@ -426,6 +426,7 @@ One card per feature - **WireGuard**, **DNS**, **Automation**, **Activity log**,
 - **Free memory while hidden in the tray** - when the window is closed to the tray, MasselGUARD compacts its memory and returns the unused part to Windows (default on). The first redraw after reopening can be slightly slower
 - **Confirm disconnect on exit** - ask before disconnecting active tunnels when exiting (default on)
 - **Installation** - run mode, **Install** / **Uninstall**, and *Don't ask to update the installed version at startup*
+- **Background service** - **Install service** / **Remove service**. The service runs the privileged part (tunnels, DNS, kill switch); MasselGUARD uses it automatically when it is running, otherwise it elevates itself as before. Installing asks for administrator approval once, and installs MasselGUARD to a local folder first when needed (the service cannot run from OneDrive or a network path). The installer and the setup wizard offer the same choice. Terminal: `MasselGUARDcli service install | uninstall | status`.
 
 ---
 

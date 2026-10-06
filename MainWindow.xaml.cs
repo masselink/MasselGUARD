@@ -28,7 +28,8 @@ namespace MasselGUARD
         internal readonly RuleEngine     RuleEngine;
         internal readonly ScriptService  ScriptSvc;
         internal readonly Services.HistoryService     HistorySvc;
-        internal readonly Services.KillSwitchService  KillSwitchSvc;
+        internal readonly Services.IKillSwitchOps       KillSwitchSvc;
+        internal readonly Services.PrivilegedBackend    Backend;
 
         // ── ViewModel ─────────────────────────────────────────────────────────
         internal readonly MainViewModel _vm;
@@ -147,13 +148,14 @@ namespace MasselGUARD
             HistorySvc.Load();
             HistorySvc.LoadSsid();
             HistorySvc.LoadDns();
-            KillSwitchSvc  = new Services.KillSwitchService(LogSvc);
-            TunnelSvc      = new TunnelService(LogSvc, ScriptSvc, HistorySvc, KillSwitchSvc);
+            Backend        = Services.PrivilegedBackend.Select(LogSvc);
+            KillSwitchSvc  = Backend.KillSwitch;
+            TunnelSvc      = new TunnelService(LogSvc, ScriptSvc, HistorySvc, Backend.KillSwitch, Backend.Tunnels);
             WifiSvc        = new WiFiService();
             RuleEngine     = new RuleEngine();
 
             // ── Build ViewModel ───────────────────────────────────────────────
-            _vm = new MainViewModel(ConfigSvc, TunnelSvc, LogSvc, WifiSvc, RuleEngine, HistorySvc);
+            _vm = new MainViewModel(ConfigSvc, TunnelSvc, LogSvc, WifiSvc, RuleEngine, HistorySvc, Backend.Dns, Backend.Hold);
 
             // ── Wire ViewModel → View dialog requests ─────────────────────────
             _vm.AddTunnelRequested    += OnAddTunnel;
@@ -2563,6 +2565,7 @@ namespace MasselGUARD
 
         public void RemoveOrphan(OrphanedService orphan)
         {
+            if (!EnsureElevated()) return;
             _pendingOrphanDeletion.Add(orphan.ServiceName);   // hide from the next scan immediately
             try
             {
@@ -4458,6 +4461,7 @@ namespace MasselGUARD
 
                 if (shouldUpdate)
                 {
+                    if (UpdateChecker.NeedsElevation() && !await Dispatcher.InvokeAsync(EnsureElevated)) return;
                     var progress = new System.Progress<string>(
                         msg => LogSvc.Info($"[Update] {msg}"));
                     await UpdateChecker.UpdateAsync(
@@ -4504,6 +4508,7 @@ namespace MasselGUARD
                     return;
                 }
 
+                if (UpdateChecker.NeedsElevation() && !await Dispatcher.InvokeAsync(EnsureElevated)) return;
                 var progress = new System.Progress<string>(msg => LogSvc.Info($"[ARM64] {msg}"));
                 await UpdateChecker.UpdateAsync(
                     release, progress, ConfigSvc.Config, ConfigSvc.Save,
@@ -4641,6 +4646,7 @@ namespace MasselGUARD
 
         public void RunInstallPublic()
         {
+            if (!EnsureElevated()) return;   // Program Files, HKLM and the scheduled task need admin rights
             var mode = AppRunMode;
 
             if (mode == AppRunModeKind.Managed)
@@ -4670,10 +4676,112 @@ namespace MasselGUARD
             DoInstall(installDir);
         }
 
-        private void DoInstall(string installDir)
+        // ── MasselGUARD service (docs/ServiceBackend-Design.md) ──────────────────
+
+        /// <summary>Set by the "Install service" button when MasselGUARD is not installed yet: the
+        /// normal install then sets the service up too, without asking a second time.</summary>
+        private bool _installServiceAfterInstall;
+
+        public bool ServiceInstalled => Services.ServiceInstaller.IsInstalled();
+
+        /// <summary>One line for Settings: whether the service exists and whether this app uses it.</summary>
+        public string ServiceStatusText()
+        {
+            var st = Services.ServiceInstaller.Status();
+            if (st == null) return Lang.T("ServiceStatusNotInstalled");
+            if (st != System.ServiceProcess.ServiceControllerStatus.Running) return Lang.T("ServiceStatusStopped");
+            return Backend.IsService ? Lang.T("ServiceStatusActive") : Lang.T("ServiceStatusRestart");
+        }
+
+        /// <summary>Install the service when absent, remove it when present (Settings and wizard button).</summary>
+        public void ToggleServicePublic()
+        {
+            if (ServiceInstalled) RemoveServiceFromUi(); else InstallServiceFromUi();
+        }
+
+        private void InstallServiceFromUi()
+        {
+            // The service must point at a local, stable copy: installing MasselGUARD comes first.
+            if (AppRunMode != AppRunModeKind.Managed)
+            {
+                if (!ShowThemedYesNo(Lang.T("ServiceNeedsInstall"), Lang.T("ServiceTitle"))) return;
+                _installServiceAfterInstall = true;
+                RunInstallPublic();                 // relaunches the installed copy on success
+                _installServiceAfterInstall = false;
+                return;
+            }
+
+            var exe = System.IO.Path.Combine(GetInstalledPath()!, "MasselGUARD.exe");
+            var (ok, msg) = Services.ServiceInstaller.InstallAuto(exe);
+            if (!ok)
+            {
+                LogSvc.Warn($"Service install failed: {msg}");
+                ShowThemedInfo(Lang.T("ServiceFailed", msg), Lang.T("ServiceTitle"));
+                return;
+            }
+            LogSvc.Ok("MasselGUARD service installed.");
+            if (ShowThemedYesNo(Lang.T("ServiceInstallDone"), Lang.T("ServiceTitle"))) RestartApp();
+        }
+
+        private void RemoveServiceFromUi()
+        {
+            if (!ShowThemedYesNo(Lang.T("ServiceRemoveConfirm"), Lang.T("ServiceTitle"))) return;
+            var exe = System.IO.Path.Combine(
+                System.IO.Path.GetDirectoryName(Environment.ProcessPath ?? AppContext.BaseDirectory) ?? "", "MasselGUARD.exe");
+            var (ok, msg) = Services.ServiceInstaller.UninstallAuto(exe);
+            if (!ok)
+            {
+                LogSvc.Warn($"Service removal failed: {msg}");
+                ShowThemedInfo(Lang.T("ServiceFailed", msg), Lang.T("ServiceTitle"));
+                return;
+            }
+            LogSvc.Ok("MasselGUARD service removed.");
+            if (Backend.IsService && ShowThemedYesNo(Lang.T("ServiceRemoveDone"), Lang.T("ServiceTitle"))) RestartApp();
+        }
+
+        /// <summary>For actions that need administrator rights (install, autostart task, HKLM policy, orphan removal,
+        /// updating an installed copy). Returns true when this process is elevated. Otherwise offers to restart
+        /// elevated (UAC) and returns false: the user repeats the action in the elevated instance.</summary>
+        public bool EnsureElevated()
+        {
+            if (Services.ServiceInstaller.IsElevated()) return true;
+            if (!ShowThemedYesNo(Lang.T("ElevationNeededMsg"), Lang.T("ElevationNeededTitle"))) return false;
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                    Environment.ProcessPath ?? System.IO.Path.Combine(AppContext.BaseDirectory, "MasselGUARD.exe"))
+                { Verb = "runas", UseShellExecute = true });
+                Application.Current.Dispatcher.BeginInvoke(() => ((App)Application.Current).ShutdownApp());
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                LogSvc.Warn("Administrator approval was cancelled.");
+                ShowThemedInfo(Lang.T("ElevationCancelled"), Lang.T("ElevationNeededTitle"));
+            }
+            catch (Exception ex) { LogSvc.Warn($"Elevated restart failed: {ex.Message}"); }
+            return false;
+        }
+
+        private void RestartApp()
         {
             try
             {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                    Environment.ProcessPath ?? System.IO.Path.Combine(AppContext.BaseDirectory, "MasselGUARD.exe"))
+                { UseShellExecute = true });
+                Application.Current.Dispatcher.BeginInvoke(() => ((App)Application.Current).ShutdownApp());
+            }
+            catch (Exception ex) { LogSvc.Warn($"Restart failed: {ex.Message}"); }
+        }
+
+        private void DoInstall(string installDir)
+        {
+            // An installed service keeps MasselGUARD.exe locked: stop it before the files are replaced,
+            // and register it again afterwards (it then points at the new copy).
+            bool serviceWasInstalled = Services.ServiceInstaller.IsInstalled();
+            try
+            {
+                if (serviceWasInstalled && Services.ServiceInstaller.IsElevated()) Services.ServiceInstaller.Stop();
                 LogSvc.Info($"Installing to: {installDir}");
                 var currentExe = Environment.ProcessPath ?? AppContext.BaseDirectory;
                 var sourceDir  = System.IO.Path.GetDirectoryName(currentExe)!;
@@ -4730,6 +4838,21 @@ namespace MasselGUARD
 
                 LogSvc.Ok(Lang.T("InstallDone"));
 
+                // 3b. Service: asked for explicitly, already present (re-point it), or offered now.
+                bool wantService = _installServiceAfterInstall || serviceWasInstalled;
+                if (!wantService)
+                    wantService = ShowThemedYesNo(Lang.T("InstallServicePrompt"), Lang.T("InstallTitle"));
+                if (wantService)
+                {
+                    var (sok, smsg) = Services.ServiceInstaller.InstallAuto(installedExe);
+                    if (sok) LogSvc.Ok("MasselGUARD service installed.");
+                    else
+                    {
+                        LogSvc.Warn($"Service install failed: {smsg}");
+                        ShowThemedInfo(Lang.T("ServiceFailed", smsg), Lang.T("ServiceTitle"));
+                    }
+                }
+
                 // 4. Auto-start - only ask if not already configured
                 if (!GetStartWithWindows())
                 {
@@ -4758,6 +4881,7 @@ namespace MasselGUARD
             }
             catch (Exception ex)
             {
+                if (serviceWasInstalled) { try { Services.ServiceInstaller.Start(); } catch { } }
                 LogSvc.Warn($"Install failed: {ex.Message}");
                 MessageBox.Show(Lang.T("InstallFailed", ex.Message), Lang.T("InstallTitle"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
@@ -4780,6 +4904,12 @@ namespace MasselGUARD
             try
             {
                 LogSvc.Info("Uninstalling...");
+                // The service holds MasselGUARD.exe open; remove it first (asks for approval when needed).
+                if (Services.ServiceInstaller.IsInstalled())
+                {
+                    var (sok, smsg) = Services.ServiceInstaller.UninstallAuto(System.IO.Path.Combine(installDir, "MasselGUARD.exe"));
+                    if (!sok) LogSvc.Warn($"Service removal failed: {smsg}");
+                }
                 RunPS("Unregister-ScheduledTask -TaskName 'MasselGUARD' -Confirm:$false -ErrorAction SilentlyContinue");
                 try { Services.ShellMenuService.Unregister(); } catch { }   // Explorer right-click entries
                 var startMenuDir = System.IO.Path.Combine(
@@ -4983,6 +5113,7 @@ namespace MasselGUARD
 
         public void SetStartWithWindows(bool enable)
         {
+            if (!EnsureElevated()) return;   // the scheduled task is registered at the highest run level
             if (enable)
             {
                 var exe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "";

@@ -25,9 +25,10 @@ namespace MasselGUARD.ViewModels
         private readonly WiFiService    _wifi;
         private readonly RuleEngine     _rules;
         private readonly HistoryService _history;
-        private readonly DnsService     _dns;
+        private readonly IDnsOps        _dns;
+        private readonly IDnsHoldOps?   _hold;   // service mode only: timed DNS override kept by the service
         /// <summary>The live DNS service (shared snapshot/restore state) - used by the diagnostics tester.</summary>
-        public DnsService Dns => _dns;
+        public IDnsOps Dns => _dns;
         private readonly DispatcherTimer _timer;
 
         // ── Observable state ──────────────────────────────────────────────────
@@ -128,7 +129,9 @@ namespace MasselGUARD.ViewModels
             LogService     log,
             WiFiService    wifi,
             RuleEngine     rules,
-            HistoryService history)
+            HistoryService history,
+            IDnsOps?       dnsOps = null,
+            IDnsHoldOps?   dnsHold = null)
         {
             _config  = config;
             _tunnels = tunnels;
@@ -136,7 +139,8 @@ namespace MasselGUARD.ViewModels
             _wifi    = wifi;
             _rules   = rules;
             _history = history;
-            _dns     = new DnsService(_log);
+            _dns     = dnsOps ?? new DnsService(_log);
+            _hold    = dnsHold;
             RecoverDnsFromPreviousRun();   // crash/reboot recovery - before any rule applies
 
             AddTunnelCommand    = new RelayCommand(DoAddTunnel);
@@ -1169,6 +1173,21 @@ namespace MasselGUARD.ViewModels
         {
             try
             {
+                if (_hold != null)
+                {
+                    // Service mode: a timed override started by an earlier window may still be running in the
+                    // service. Pick it up again (countdown + "manual profile" state) and restore the rest.
+                    var h = _hold.GetHold();
+                    if (h.active && _config.Config.DnsProfiles.Any(p => p.Id == h.profileId))
+                    {
+                        _manualDnsProfileId = h.profileId;
+                        _dnsTemp = TempOverride.Start(h.profileId, TimeSpan.FromSeconds(h.remainingSeconds), DateTime.UtcNow);
+                        _log.Info($"DNS: timed override still running in the service ({h.remainingSeconds} s left) - continuing it.");
+                    }
+                    else if (h.active) _hold.CancelHold();
+                    _hold.ReleaseExceptHeld();
+                    return;
+                }
                 int n = _dns.OverrideCount;
                 if (n > 0)
                     _log.Warn($"DNS: restoring {n} interface(s) left overridden by a previous run.");
@@ -1181,7 +1200,16 @@ namespace MasselGUARD.ViewModels
         /// (the process can exit without <see cref="Dispose"/> running). Idempotent.</summary>
         public void RestoreDnsOverrides()
         {
-            try { _dns.RestoreAll(); } catch { }
+            // Service mode: a running timed override stays in force (the service ends it on time).
+            try { if (_hold != null) _hold.ReleaseExceptHeld(); else _dns.RestoreAll(); } catch { }
+        }
+
+        /// <summary>Ends the timed override state, and in service mode the service's hold with it.</summary>
+        private void ClearDnsTemp()
+        {
+            bool wasSet = _dnsTemp.IsSet;
+            _dnsTemp = TempOverride.None;
+            if (wasSet) { try { _hold?.CancelHold(); } catch { } }
         }
 
         // Runtime manual DNS override (DNS panel Enable / Disable / Revert-to-default):
@@ -1225,7 +1253,7 @@ namespace MasselGUARD.ViewModels
         /// tunnel's own DNS) until Disable / Revert-to-default.</summary>
         public bool ManualApplyDns(DnsProfile profile)
         {
-            _dnsTemp = TempOverride.None;   // a plain Enable is sticky: it cancels any running timed override
+            ClearDnsTemp();   // a plain Enable is sticky: it cancels any running timed override
             _manualDnsProfileId = profile.Id;
             _log.Ok($"DNS: manually enabled '{profile.Name}' (overrides tunnel).");
             ApplyPendingDns();
@@ -1253,6 +1281,8 @@ namespace MasselGUARD.ViewModels
             if (!_config.Config.DnsTempOverrideEnabled || !_config.Config.EnableDns) return false;
             if (!ManualApplyDns(profile)) return false;   // (this clears any earlier timer)
             _dnsTemp = TempOverride.Start(profile.Id, duration, DateTime.UtcNow);
+            // Service mode: the service also holds it, so it ends on time even if this window closes.
+            try { _hold?.RegisterHold(profile.Id, DnsTargets().Where(g => g != Guid.Empty).ToList(), (int)Math.Ceiling(duration.TotalSeconds)); } catch { }
             _log.Ok($"DNS: using '{profile.Name}' for {FormatDuration(duration)} (until {DateTime.Now.Add(duration):HH:mm:ss}), then back to automatic.");
             return true;
         }
@@ -1277,7 +1307,7 @@ namespace MasselGUARD.ViewModels
         /// automation is off, restores the network's own resolver).</summary>
         public void ManualDisable()
         {
-            _dnsTemp = TempOverride.None;
+            ClearDnsTemp();
             _manualDnsProfileId = null;
             _log.Ok("DNS: manual override cleared - following automation.");
             // Undo what the manual override wrote to the physical NIC first - it forces a static
@@ -1301,7 +1331,7 @@ namespace MasselGUARD.ViewModels
         /// override must be undone regardless of tunnel ownership.</summary>
         public void ManualRevertToDefault()
         {
-            _dnsTemp = TempOverride.None;
+            ClearDnsTemp();
             _manualDnsProfileId = null;   // stop forcing anything
             _pendingDnsByGuid.Clear();    // and don't let a stale rule result re-apply on the next poll
             foreach (var guid in DnsTargets())

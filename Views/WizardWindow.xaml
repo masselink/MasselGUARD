@@ -329,6 +329,24 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Background service -->
+                    <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderColor}"
+                            BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,6">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="{Binding [SettingsServiceTitle], Source={x:Static local:Lang.Instance}}"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="11"
+                                           Foreground="{DynamicResource TextPrimary}"/>
+                                <TextBlock x:Name="WizServiceStatus"
+                                           FontFamily="{DynamicResource Theme.FontFamily}" FontSize="9"
+                                           Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                            </StackPanel>
+                            <Button Grid.Column="1" x:Name="WizServiceBtn" Style="{StaticResource FlatBtn}"
+                                    FontSize="11" Padding="12,6" VerticalAlignment="Center" Click="WizService_Click"/>
+                        </Grid>
+                    </Border>
+
                     <!-- Start with Windows -->
                     <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource BorderColor}"
                             BorderThickness="1" CornerRadius="4" Padding="12,10" Margin="0,0,0,6">

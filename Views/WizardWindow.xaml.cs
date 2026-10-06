@@ -100,6 +100,8 @@ namespace MasselGUARD.Views
                         (!_isUpgrade && _main.AppRunMode == MainWindow.AppRunModeKind.Standalone)
                         ? Visibility.Visible : Visibility.Collapsed;
 
+                RefreshWizService();
+
                 _settingControls = true;
                 if (WizStartWithWindowsToggle != null) WizStartWithWindowsToggle.IsChecked = cfg.StartWithWindows;
                 if (WizStartMinimizedToggle   != null) WizStartMinimizedToggle.IsChecked   = cfg.StartMinimized;
@@ -571,6 +573,19 @@ namespace MasselGUARD.Views
         private void WizRunPortable_Click(object sender, RoutedEventArgs e)
         {
             if (WizInstallChoice != null) WizInstallChoice.Visibility = Visibility.Collapsed;
+        }
+
+        private void RefreshWizService()
+        {
+            if (WizServiceStatus == null || WizServiceBtn == null) return;
+            WizServiceStatus.Text  = _main.ServiceStatusText();
+            WizServiceBtn.Content  = Lang.T(_main.ServiceInstalled ? "BtnServiceRemove" : "BtnServiceInstall");
+        }
+
+        private void WizService_Click(object sender, RoutedEventArgs e)
+        {
+            _main.ToggleServicePublic();
+            RefreshWizService();
         }
 
         private void WizInstallNow_Click(object sender, RoutedEventArgs e)

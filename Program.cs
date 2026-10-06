@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace MasselGUARD
@@ -50,23 +51,32 @@ namespace MasselGUARD
             if (svcResult >= 0)
                 return svcResult;
 
-            // ── Early UAC bypass for managed installs ─────────────────────────
-            // If a scheduled task 'MasselGUARD' exists and we're NOT already
-            // elevated, relaunch via the task (which runs at RunLevel=Highest
-            // without a UAC prompt). This only applies to managed installs.
-            if (!IsElevated() && ScheduledTaskExists("MasselGUARD"))
+            // Privileged back-end service (MasselGUARD.exe /svc, LocalSystem) - also before any WPF.
+            if (args.Length >= 1 && string.Equals(args[0], "/svc", StringComparison.OrdinalIgnoreCase))
+                return Services.ServiceHost.Run();
+
+            // ── Elevation (manifest is asInvoker) ──────────────────────────────
+            // 1. The MasselGUARD service is installed and answering: run unelevated, the service does the
+            //    privileged work (no UAC prompt at all).
+            // 2. Direct mode: the app itself must be elevated. A scheduled task 'MasselGUARD' (managed
+            //    installs) starts it at RunLevel=Highest without a UAC prompt; otherwise relaunch with UAC.
+            if (!IsElevated() && !ServiceUsable())
             {
-                try
+                if (ScheduledTaskExists("MasselGUARD"))
                 {
-                    Process.Start(new ProcessStartInfo("schtasks.exe",
-                        "/run /tn MasselGUARD /i")
+                    try
                     {
-                        CreateNoWindow  = true,
-                        UseShellExecute = false,
-                    });
-                    return 0; // exit this non-elevated instance
+                        Process.Start(new ProcessStartInfo("schtasks.exe",
+                            "/run /tn MasselGUARD /i")
+                        {
+                            CreateNoWindow  = true,
+                            UseShellExecute = false,
+                        });
+                        return 0; // exit this non-elevated instance
+                    }
+                    catch { /* fall through to the UAC relaunch */ }
                 }
-                catch { /* fall through to normal launch */ }
+                return RelaunchElevated(args, exeDir);
             }
 
             // Normal GUI launch - WinExe subsystem means Windows never
@@ -76,6 +86,37 @@ namespace MasselGUARD
             app.InitializeComponent();
             app.Run();
             return 0;
+        }
+
+        /// <summary>The service is installed, running and accepts this user (checked through the pipe, with the
+        /// server's process id verified against the service's).</summary>
+        private static bool ServiceUsable()
+        {
+            try
+            {
+                return Services.ServiceInstaller.Status() == System.ServiceProcess.ServiceControllerStatus.Running
+                    && new Services.RpcOps(expectedServerPid: Services.ServiceInstaller.ServicePid).IsAvailable();
+            }
+            catch { return false; }
+        }
+
+        /// <summary>Starts this exe again with the UAC prompt and ends this instance. Declining the prompt
+        /// ends the app too (direct mode cannot work without elevation).</summary>
+        private static int RelaunchElevated(string[] args, string exeDir)
+        {
+            try
+            {
+                var exe = Environment.ProcessPath ?? Path.Combine(exeDir, "MasselGUARD.exe");
+                Process.Start(new ProcessStartInfo(exe)
+                {
+                    Verb = "runas",
+                    UseShellExecute = true,
+                    Arguments = string.Join(" ", args.Select(a => a.Contains(' ') ? "\"" + a + "\"" : a)),
+                    WorkingDirectory = exeDir,
+                });
+                return 0;
+            }
+            catch { return 1; }   // UAC declined (or the exe vanished)
         }
 
         private static bool IsElevated()

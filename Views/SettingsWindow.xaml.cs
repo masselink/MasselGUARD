@@ -183,7 +183,7 @@ namespace MasselGUARD.Views
             if (tab == "Notifications") PopulateNotifSettings();
             if (tab == "History")    RefreshHistoryTab();
             if (tab == "Log")        { PopulateLogLevelPicker(); PopulateLogSettings(); }
-            if (tab == "Startup")    { RefreshInstallState(); RefreshDllStatus(); SyncStartWithWindows(); SyncStartupOptions(); SyncConfirmOnClose(); }
+            if (tab == "Startup")    { RefreshInstallState(); RefreshServiceState(); RefreshDllStatus(); SyncStartWithWindows(); SyncStartupOptions(); SyncConfirmOnClose(); }
             if (tab == "About")      RefreshUpdateState();
             if (tab == "Diagnostics") ScanOrphans();
 
@@ -2097,6 +2097,7 @@ namespace MasselGUARD.Views
         /// <summary>Runs a DNS-policy change, reports the result, and refreshes the section.</summary>
         private void ApplyDnsPolicy(Action change)
         {
+            if (!_main.EnsureElevated()) return;   // writes an HKLM policy
             try
             {
                 change();
@@ -2427,6 +2428,8 @@ namespace MasselGUARD.Views
                 return;
             }
 
+            if (UpdateChecker.NeedsElevation() && !_main.EnsureElevated()) return;
+
             if (CheckUpdateBtn != null)  CheckUpdateBtn.IsEnabled = false;
             if (DoUpdateBtn    != null)  DoUpdateBtn.IsEnabled    = false;
             if (UpdateProgressLabel != null)
@@ -2654,6 +2657,22 @@ namespace MasselGUARD.Views
         {
             if (_loading) return;
             _draft.SkipTunnelValidation = SkipTunnelValidationToggle?.IsChecked == true;
+        }
+
+        private void RefreshServiceState()
+        {
+            if (ServiceStatusLabel == null) return;
+            bool installed = _main.ServiceInstalled;
+            ServiceStatusLabel.Text = _main.ServiceStatusText();
+            ServiceStatusLabel.Foreground = (System.Windows.Media.Brush)FindResource(installed ? "Accent" : "TextMuted");
+            ServiceBtn.Content = Lang.T(installed ? "BtnServiceRemove" : "BtnServiceInstall");
+        }
+
+        private void ServiceBtn_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            _main.ToggleServicePublic();
+            RefreshServiceState();
+            RefreshInstallState();
         }
 
         private void InstallBtn_Click(object sender, System.Windows.RoutedEventArgs e)
