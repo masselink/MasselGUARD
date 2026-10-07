@@ -26,6 +26,7 @@ namespace MasselGUARD.Models
         private string _encryption  = "plain";
         private string _dohTemplate = "";
         private bool   _requireEncryption;
+        private string _listId = "";
 
         /// <summary>Stable id referenced by rules/config. Assigned once; never the display name.</summary>
         public string Id { get; set; } = System.Guid.NewGuid().ToString("N");
@@ -66,6 +67,9 @@ namespace MasselGUARD.Models
             get => _requireEncryption;
             set => SetField(ref _requireEncryption, value);
         }
+
+        /// <summary>Id of the DNS server list entry this profile was created from ("" = made by hand). Only used to show "already added".</summary>
+        public string ListId { get => _listId; set => SetField(ref _listId, value ?? ""); }
 
         // ── Display helpers (JSON-ignored) ───────────────────────────────────────
         /// <summary>True when this profile requests any form of encrypted DNS.</summary>
@@ -131,34 +135,7 @@ namespace MasselGUARD.Models
             Encryption        = _encryption,
             DohTemplate       = _dohTemplate,
             RequireEncryption = _requireEncryption,
-        };
-
-        // ── Built-in presets (seed for the "Add preset" UI) ──────────────────────
-        /// <summary>Well-known public resolvers. Each call returns fresh instances with new
-        /// Ids so they can be added to <c>AppConfig.DnsProfiles</c> directly. NextDNS ships as
-        /// a template the user completes with their own config id.</summary>
-        public static List<DnsProfile> BuiltInPresets() => new()
-        {
-            new DnsProfile { Name = "Cloudflare", V4Primary = "1.1.1.1", V4Secondary = "1.0.0.1",
-                             V6Primary = "2606:4700:4700::1111", V6Secondary = "2606:4700:4700::1001",
-                             Encryption = "auto", DohTemplate = "https://cloudflare-dns.com/dns-query" },
-            new DnsProfile { Name = "Cloudflare (malware-blocking)", V4Primary = "1.1.1.2", V4Secondary = "1.0.0.2",
-                             V6Primary = "2606:4700:4700::1112", V6Secondary = "2606:4700:4700::1002",
-                             Encryption = "auto", DohTemplate = "https://security.cloudflare-dns.com/dns-query" },
-            new DnsProfile { Name = "Google", V4Primary = "8.8.8.8", V4Secondary = "8.8.4.4",
-                             V6Primary = "2001:4860:4860::8888", V6Secondary = "2001:4860:4860::8844",
-                             Encryption = "auto", DohTemplate = "https://dns.google/dns-query" },
-            new DnsProfile { Name = "Quad9", V4Primary = "9.9.9.9", V4Secondary = "149.112.112.112",
-                             V6Primary = "2620:fe::fe", V6Secondary = "2620:fe::9",
-                             Encryption = "auto", DohTemplate = "https://dns.quad9.net/dns-query" },
-            new DnsProfile { Name = "AdGuard", V4Primary = "94.140.14.14", V4Secondary = "94.140.15.15",
-                             V6Primary = "2a10:50c0::ad1:ff", V6Secondary = "2a10:50c0::ad2:ff",
-                             Encryption = "auto", DohTemplate = "https://dns.adguard-dns.com/dns-query" },
-            new DnsProfile { Name = "OpenDNS", V4Primary = "208.67.222.222", V4Secondary = "208.67.220.220",
-                             V6Primary = "2620:119:35::35", V6Secondary = "2620:119:53::53",
-                             Encryption = "auto", DohTemplate = "https://doh.opendns.com/dns-query" },
-            new DnsProfile { Name = "NextDNS (set your config id)", V4Primary = "", V4Secondary = "",
-                             Encryption = "doh", DohTemplate = "https://dns.nextdns.io/YOUR_CONFIG_ID" },
+            ListId            = _listId,
         };
     }
 }

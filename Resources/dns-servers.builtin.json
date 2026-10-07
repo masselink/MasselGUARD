@@ -1,0 +1,392 @@
+{
+  "schemaVersion": 1,
+  "generated": "2026-10-07",
+  "count": 17,
+  "servers": [
+    {
+      "id": "adguard",
+      "name": "AdGuard DNS",
+      "provider": "AdGuard",
+      "website": "https://adguard-dns.io/",
+      "privacyPolicy": "https://adguard-dns.io/en/privacy.html",
+      "country": "CY",
+      "description": "Blocks ads, trackers and malicious domains for every app on the PC, not only the browser.",
+      "blocks": [
+        "ads",
+        "trackers",
+        "malware"
+      ],
+      "logging": "anonymized",
+      "v4": [
+        "94.140.14.14",
+        "94.140.15.15"
+      ],
+      "v6": [
+        "2a10:50c0::ad1:ff",
+        "2a10:50c0::ad2:ff"
+      ],
+      "doh": "https://dns.adguard-dns.com/dns-query",
+      "encryptedOnly": false,
+      "parameters": []
+    },
+    {
+      "id": "adguard-family",
+      "name": "AdGuard DNS Family protection",
+      "provider": "AdGuard",
+      "website": "https://adguard-dns.io/",
+      "privacyPolicy": "https://adguard-dns.io/en/privacy.html",
+      "country": "CY",
+      "description": "Everything the default AdGuard DNS blocks, plus adult content. Also enforces safe search in common search engines.",
+      "blocks": [
+        "ads",
+        "trackers",
+        "malware",
+        "adult"
+      ],
+      "logging": "anonymized",
+      "v4": [
+        "94.140.14.15",
+        "94.140.15.16"
+      ],
+      "v6": [
+        "2a10:50c0::bad1:ff",
+        "2a10:50c0::bad2:ff"
+      ],
+      "doh": "https://family.adguard-dns.com/dns-query",
+      "encryptedOnly": false,
+      "parameters": []
+    },
+    {
+      "id": "adguard-unfiltered",
+      "name": "AdGuard DNS Non-filtering",
+      "provider": "AdGuard",
+      "website": "https://adguard-dns.io/",
+      "privacyPolicy": "https://adguard-dns.io/en/privacy.html",
+      "country": "CY",
+      "description": "AdGuard's resolver without any filtering. Use it when the default service blocks something you need.",
+      "blocks": [],
+      "logging": "anonymized",
+      "v4": [
+        "94.140.14.140",
+        "94.140.14.141"
+      ],
+      "v6": [
+        "2a10:50c0::1:ff",
+        "2a10:50c0::2:ff"
+      ],
+      "doh": "https://unfiltered.adguard-dns.com/dns-query",
+      "encryptedOnly": false,
+      "parameters": []
+    },
+    {
+      "id": "cleanbrowsing-adult",
+      "name": "CleanBrowsing Adult Filter",
+      "provider": "CleanBrowsing",
+      "website": "https://cleanbrowsing.org/",
+      "privacyPolicy": "https://cleanbrowsing.org/privacy",
+      "country": "US",
+      "description": "Blocks adult content and enforces safe search, but allows proxies and VPN sites.",
+      "blocks": [
+        "adult"
+      ],
+      "logging": "unknown",
+      "v4": [
+        "185.228.168.10",
+        "185.228.169.11"
+      ],
+      "v6": [],
+      "doh": "https://doh.cleanbrowsing.org/doh/adult-filter/",
+      "encryptedOnly": false,
+      "parameters": []
+    },
+    {
+      "id": "cleanbrowsing-family",
+      "name": "CleanBrowsing Family Filter",
+      "provider": "CleanBrowsing",
+      "website": "https://cleanbrowsing.org/",
+      "privacyPolicy": "https://cleanbrowsing.org/privacy",
+      "country": "US",
+      "description": "Blocks adult content, proxies and VPN sites, and enforces safe search. Meant for homes with children.",
+      "blocks": [
+        "adult",
+        "malware"
+      ],
+      "logging": "unknown",
+      "v4": [
+        "185.228.168.168",
+        "185.228.169.168"
+      ],
+      "v6": [],
+      "doh": "https://doh.cleanbrowsing.org/doh/family-filter/",
+      "encryptedOnly": false,
+      "parameters": []
+    },
+    {
+      "id": "cleanbrowsing-security",
+      "name": "CleanBrowsing Security Filter",
+      "provider": "CleanBrowsing",
+      "website": "https://cleanbrowsing.org/",
+      "privacyPolicy": "https://cleanbrowsing.org/privacy",
+      "country": "US",
+      "description": "Blocks phishing, malware and malicious domains. Does not block adult content.",
+      "blocks": [
+        "malware"
+      ],
+      "logging": "unknown",
+      "v4": [
+        "185.228.168.9",
+        "185.228.169.9"
+      ],
+      "v6": [],
+      "doh": "https://doh.cleanbrowsing.org/doh/security-filter/",
+      "encryptedOnly": false,
+      "parameters": []
+    },
+    {
+      "id": "cloudflare",
+      "name": "Cloudflare 1.1.1.1",
+      "provider": "Cloudflare",
+      "website": "https://one.one.one.one/",
+      "privacyPolicy": "https://www.cloudflare.com/privacypolicy/",
+      "country": "US",
+      "description": "Fast public resolver with a strong privacy focus. Does not block anything, so it is a good neutral choice.",
+      "blocks": [],
+      "logging": "short-term",
+      "v4": [
+        "1.1.1.1",
+        "1.0.0.1"
+      ],
+      "v6": [
+        "2606:4700:4700::1111",
+        "2606:4700:4700::1001"
+      ],
+      "doh": "https://cloudflare-dns.com/dns-query",
+      "encryptedOnly": false,
+      "parameters": []
+    },
+    {
+      "id": "cloudflare-family",
+      "name": "Cloudflare 1.1.1.3 (Malware and Adult Content Blocking)",
+      "provider": "Cloudflare",
+      "website": "https://one.one.one.one/",
+      "privacyPolicy": "https://www.cloudflare.com/privacypolicy/",
+      "country": "US",
+      "description": "Blocks malware, phishing and adult content. Useful for a family PC or a shared network.",
+      "blocks": [
+        "malware",
+        "adult"
+      ],
+      "logging": "short-term",
+      "v4": [
+        "1.1.1.3",
+        "1.0.0.3"
+      ],
+      "v6": [
+        "2606:4700:4700::1113",
+        "2606:4700:4700::1003"
+      ],
+      "doh": "https://family.cloudflare-dns.com/dns-query",
+      "encryptedOnly": false,
+      "parameters": []
+    },
+    {
+      "id": "cloudflare-malware",
+      "name": "Cloudflare 1.1.1.2 (Malware Blocking)",
+      "provider": "Cloudflare",
+      "website": "https://one.one.one.one/",
+      "privacyPolicy": "https://www.cloudflare.com/privacypolicy/",
+      "country": "US",
+      "description": "The same resolver, but it refuses domains known to host malware or phishing. Does not block adult content.",
+      "blocks": [
+        "malware"
+      ],
+      "logging": "short-term",
+      "v4": [
+        "1.1.1.2",
+        "1.0.0.2"
+      ],
+      "v6": [
+        "2606:4700:4700::1112",
+        "2606:4700:4700::1002"
+      ],
+      "doh": "https://security.cloudflare-dns.com/dns-query",
+      "encryptedOnly": false,
+      "parameters": []
+    },
+    {
+      "id": "google",
+      "name": "Google Public DNS",
+      "provider": "Google",
+      "website": "https://developers.google.com/speed/public-dns",
+      "privacyPolicy": "https://developers.google.com/speed/public-dns/privacy",
+      "country": "US",
+      "description": "Very widely used, fast and reliable. Does not block anything, which makes it a common choice to get past a DNS ad-block for a moment.",
+      "blocks": [],
+      "logging": "short-term",
+      "v4": [
+        "8.8.8.8",
+        "8.8.4.4"
+      ],
+      "v6": [
+        "2001:4860:4860::8888",
+        "2001:4860:4860::8844"
+      ],
+      "doh": "https://dns.google/dns-query",
+      "encryptedOnly": false,
+      "parameters": []
+    },
+    {
+      "id": "mullvad",
+      "name": "Mullvad DNS",
+      "provider": "Mullvad",
+      "website": "https://mullvad.net/",
+      "privacyPolicy": "https://mullvad.net/en/help/privacy-policy",
+      "country": "SE",
+      "description": "Public resolver from the Swedish VPN provider. Does not block anything and states that it keeps no query logs. Answers encrypted (DoH) queries only.",
+      "blocks": [],
+      "logging": "none",
+      "v4": [
+        "194.242.2.2"
+      ],
+      "v6": [
+        "2a07:e340::2"
+      ],
+      "doh": "https://dns.mullvad.net/dns-query",
+      "encryptedOnly": true,
+      "parameters": []
+    },
+    {
+      "id": "mullvad-adblock",
+      "name": "Mullvad DNS Adblock",
+      "provider": "Mullvad",
+      "website": "https://mullvad.net/",
+      "privacyPolicy": "https://mullvad.net/en/help/privacy-policy",
+      "country": "SE",
+      "description": "Mullvad's resolver with ad and tracker blocking turned on. Answers encrypted (DoH) queries only.",
+      "blocks": [
+        "ads",
+        "trackers"
+      ],
+      "logging": "none",
+      "v4": [
+        "194.242.2.3"
+      ],
+      "v6": [
+        "2a07:e340::3"
+      ],
+      "doh": "https://adblock.dns.mullvad.net/dns-query",
+      "encryptedOnly": true,
+      "parameters": []
+    },
+    {
+      "id": "nextdns",
+      "name": "NextDNS",
+      "provider": "NextDNS",
+      "website": "https://nextdns.io/",
+      "privacyPolicy": "https://nextdns.io/privacy",
+      "country": "US",
+      "description": "A resolver you configure yourself on nextdns.io: blocklists, parental controls, logging and more. You need a free account and fill in your configuration id.",
+      "blocks": [],
+      "logging": "configurable",
+      "v4": [],
+      "v6": [],
+      "doh": "https://dns.nextdns.io/CONFIG_ID",
+      "encryptedOnly": false,
+      "parameters": [
+        "CONFIG_ID"
+      ]
+    },
+    {
+      "id": "opendns",
+      "name": "OpenDNS Home",
+      "provider": "OpenDNS (Cisco)",
+      "website": "https://www.opendns.com/",
+      "privacyPolicy": "https://www.cisco.com/c/en/us/about/legal/privacy-full.html",
+      "country": "US",
+      "description": "Long-running resolver from Cisco that blocks known phishing and malware domains. Free accounts can add their own filtering rules.",
+      "blocks": [
+        "malware"
+      ],
+      "logging": "unknown",
+      "v4": [
+        "208.67.222.222",
+        "208.67.220.220"
+      ],
+      "v6": [
+        "2620:119:35::35",
+        "2620:119:53::53"
+      ],
+      "doh": "https://doh.opendns.com/dns-query",
+      "encryptedOnly": false,
+      "parameters": []
+    },
+    {
+      "id": "opendns-familyshield",
+      "name": "OpenDNS FamilyShield",
+      "provider": "OpenDNS (Cisco)",
+      "website": "https://www.opendns.com/",
+      "privacyPolicy": "https://www.cisco.com/c/en/us/about/legal/privacy-full.html",
+      "country": "US",
+      "description": "Pre-configured filter that blocks adult content as well as malware and phishing. No account needed.",
+      "blocks": [
+        "malware",
+        "adult"
+      ],
+      "logging": "unknown",
+      "v4": [
+        "208.67.222.123",
+        "208.67.220.123"
+      ],
+      "v6": [],
+      "doh": "https://doh.familyshield.opendns.com/dns-query",
+      "encryptedOnly": false,
+      "parameters": []
+    },
+    {
+      "id": "quad9",
+      "name": "Quad9 Secured",
+      "provider": "Quad9",
+      "website": "https://quad9.net/",
+      "privacyPolicy": "https://quad9.net/privacy/policy/",
+      "country": "CH",
+      "description": "Non-profit resolver based in Switzerland that blocks domains known to be malicious. Does not store your IP address.",
+      "blocks": [
+        "malware"
+      ],
+      "logging": "minimal",
+      "v4": [
+        "9.9.9.9",
+        "149.112.112.112"
+      ],
+      "v6": [
+        "2620:fe::fe",
+        "2620:fe::9"
+      ],
+      "doh": "https://dns.quad9.net/dns-query",
+      "encryptedOnly": false,
+      "parameters": []
+    },
+    {
+      "id": "quad9-unfiltered",
+      "name": "Quad9 Unsecured",
+      "provider": "Quad9",
+      "website": "https://quad9.net/",
+      "privacyPolicy": "https://quad9.net/privacy/policy/",
+      "country": "CH",
+      "description": "Quad9's privacy protections without the malware blocking. Use it when a legitimate site is blocked by the default Quad9 service.",
+      "blocks": [],
+      "logging": "minimal",
+      "v4": [
+        "9.9.9.10",
+        "149.112.112.10"
+      ],
+      "v6": [
+        "2620:fe::10",
+        "2620:fe::fe:10"
+      ],
+      "doh": "https://dns10.quad9.net/dns-query",
+      "encryptedOnly": false,
+      "parameters": []
+    }
+  ]
+}

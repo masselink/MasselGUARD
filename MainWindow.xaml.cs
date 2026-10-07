@@ -269,7 +269,7 @@ namespace MasselGUARD
 
             // Restore or initialise column widths
             InitColumnWidths();
-            PreviewKeyDown += MainWindow_PreviewKeyDown;   // Ctrl+Shift+B = quick DNS bypass
+            PreviewKeyDown += MainWindow_PreviewKeyDown;   // Ctrl+Alt+D (default, configurable) = quick DNS bypass
 
             // Update footer
             UpdateFooterLabel();
@@ -1726,7 +1726,8 @@ namespace MasselGUARD
         }
 
         // ── Timed DNS override (optional: Settings > DNS) ─────────────────────
-        private int _lastDnsTempSeconds = 60;   // Shift+Enter repeats the last chosen length
+        /// <summary>The length of the quick bypass when none is chosen (Settings > DNS > Default bypass length).</summary>
+        private int DefaultBypassSeconds => ConfigSvc.Config.BypassDefaultSeconds;
 
         /// <summary>Right-click a DNS profile: use it for 10 s / 1 / 5 / 15 minutes, then back to automatic.</summary>
         private void DnsList_RightClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -1767,7 +1768,7 @@ namespace MasselGUARD
                 || (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Shift) == 0) return;
             if (!ConfigSvc.Config.DnsTempOverrideEnabled) return;
             e.Handled = true;
-            if (DnsProfilesPanelList.SelectedItem is DnsProfileRow row) UseDnsTemporarily(row.Id, _lastDnsTempSeconds);
+            if (DnsProfilesPanelList.SelectedItem is DnsProfileRow row) UseDnsTemporarily(row.Id, DefaultBypassSeconds);
             else BypassDnsNow();   // nothing selected: the marked bypass profile
             RebuildDnsPanel();
         }
@@ -1791,8 +1792,7 @@ namespace MasselGUARD
 
             var p = cfg.DnsProfiles.FirstOrDefault(x => x.Id == cfg.BypassDnsProfileId);
             if (p == null) return "error: no bypass profile is marked (right-click a DNS profile > Mark as bypass profile).";
-            int secs = seconds > 0 ? seconds : _lastDnsTempSeconds;
-            _lastDnsTempSeconds = secs;
+            int secs = seconds > 0 ? seconds : DefaultBypassSeconds;
             if (!_vm.UseDnsTemporarily(p, TimeSpan.FromSeconds(secs))) return "error: could not switch DNS.";
             RebuildDnsPanel();
             return $"ok: using '{p.Name}' for {secs} seconds, then back to automatic.";
@@ -1820,11 +1820,11 @@ namespace MasselGUARD
             if (!cfg.DnsTempOverrideEnabled || !cfg.EnableDns) return;
             if (_vm.DnsTempActive && seconds == null) { _vm.ManualDisable(); RebuildDnsPanel(); return; }
             if (string.IsNullOrEmpty(cfg.BypassDnsProfileId)) { ShowThemedInfo(Lang.T("DnsBypassNoneSet"), Lang.T("DnsBypassBadgeTip"), this); return; }
-            UseDnsTemporarily(cfg.BypassDnsProfileId, seconds ?? _lastDnsTempSeconds);
+            UseDnsTemporarily(cfg.BypassDnsProfileId, seconds ?? DefaultBypassSeconds);
             RebuildDnsPanel();
         }
 
-        // â”€â”€ Quick-bypass shortcut (AppConfig.BypassShortcut, default Ctrl+Shift+B) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // â”€â”€ Quick-bypass shortcut (AppConfig.BypassShortcut, default Ctrl+Alt+D) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         private Models.Shortcut _bypassShortcut;
         private bool _bypassHotkeyRegistered;
         private const int BypassHotkeyId = 0x4D47;   // "MG"
@@ -1835,7 +1835,7 @@ namespace MasselGUARD
         [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
         private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
-        /// <summary>The configured shortcut as text ("Ctrl+Shift+B"), "" when none; for tooltips and the tray menu.</summary>
+        /// <summary>The configured shortcut as text ("Ctrl+Alt+D"), "" when none; for tooltips and the tray menu.</summary>
         public string BypassShortcutText => _bypassShortcut.ToString();
 
         /// <summary>Reads <c>BypassShortcut</c> / <c>BypassShortcutGlobal</c> from the config and applies them: the in-window
@@ -1880,7 +1880,6 @@ namespace MasselGUARD
         {
             var p = ConfigSvc.Config.DnsProfiles.FirstOrDefault(x => x.Id == profileId);
             if (p == null) return;
-            _lastDnsTempSeconds = seconds;
             _vm.UseDnsTemporarily(p, TimeSpan.FromSeconds(seconds));
         }
 
@@ -3378,14 +3377,11 @@ namespace MasselGUARD
 
         private void DnsPanelPresets_Click(object sender, RoutedEventArgs e)
         {
-            var existing = ConfigSvc.Config.DnsProfiles.Select(p => p.Name)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            int added = 0;
-            foreach (var p in Models.DnsProfile.BuiltInPresets())
-                if (existing.Add(p.Name)) { ConfigSvc.Config.DnsProfiles.Add(p); added++; }
-            if (added == 0) return;
+            var (added, removed) = Views.DnsServerPickerWindow.PickAndAdd(this, ConfigSvc.Config);
             ConfigSvc.Save();
-            LogSvc.Ok($"DNS presets added: {added}");
+            if (added + removed == 0) return;
+            LogSvc.Ok($"DNS servers from the list: {added} added, {removed} removed");
+            if (removed > 0) RefreshWifiRulesPanel();   // rule DNS labels may have changed
             RebuildDnsPanel();
         }
 

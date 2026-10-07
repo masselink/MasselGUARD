@@ -54,6 +54,7 @@ namespace MasselGUARD.Views
                 {
                     _loading = true;
                     SharedThemesRepoBox.Text = _draft.SharedThemesRepoUrl ?? "";
+                    if (DnsListRepoBox != null) DnsListRepoBox.Text = _draft.DnsListRepoUrl ?? "";
                     _loading = false;
                 }
                 ApplyFeatureTabVisibility();   // module tabs stay visible; sync their feature stubs
@@ -1437,6 +1438,7 @@ namespace MasselGUARD.Views
             if (DnsShellToggle != null) DnsShellToggle.IsChecked = cfg.ShellBypassMenuEnabled;
             if (DnsShortcutBox != null) DnsShortcutBox.Text = cfg.BypassShortcut ?? "";
             if (DnsShortcutGlobalToggle != null) DnsShortcutGlobalToggle.IsChecked = cfg.BypassShortcutGlobal;
+            if (DnsBypassSecondsBox != null) { DnsBypassSecondsBox.Text = cfg.BypassDefaultSeconds.ToString(); UpdateBypassMinutesHint(); }
 
             if (DnsFamiliesBox != null)
             {
@@ -1500,6 +1502,36 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Save();
             if (DnsShortcutBox != null) DnsShortcutBox.Text = "";
             _main.RefreshBypassShortcut();
+        }
+
+        /// <summary>Grey "x.xx minutes" next to the seconds box, only for lengths above 60 seconds (while typing, the value is
+        /// clamped to 5-3600 the same way the setting itself will be).</summary>
+        private void UpdateBypassMinutesHint()
+        {
+            if (DnsBypassMinutesHint == null || DnsBypassSecondsBox == null) return;
+            if (!int.TryParse(DnsBypassSecondsBox.Text.Trim(), out int secs) || secs <= 60)
+            {
+                DnsBypassMinutesHint.Visibility = Visibility.Collapsed;
+                return;
+            }
+            secs = Math.Clamp(secs, AppConfig.BypassSecondsMin, AppConfig.BypassSecondsMax);
+            DnsBypassMinutesHint.Text = Lang.T("SettingsBypassMinutes", (secs / 60.0).ToString("0.00", Lang.Culture));
+            DnsBypassMinutesHint.Visibility = Visibility.Visible;
+        }
+
+        private void DnsBypassSeconds_TextChanged(object sender, TextChangedEventArgs e) => UpdateBypassMinutesHint();
+
+        /// <summary>The default length of the quick bypass: any number is accepted and pulled into 5 to 3600 seconds.</summary>
+        private void DnsBypassSeconds_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_dnsLoading || DnsBypassSecondsBox == null) return;
+            if (int.TryParse(DnsBypassSecondsBox.Text.Trim(), out int secs))
+            {
+                _main.ConfigSvc.Config.BypassDefaultSeconds = secs;   // the setter clamps
+                _main.ConfigSvc.Save();
+            }
+            DnsBypassSecondsBox.Text = _main.ConfigSvc.Config.BypassDefaultSeconds.ToString();   // show what was really stored
+            UpdateBypassMinutesHint();
         }
 
         private void DnsShortcutGlobal_Changed(object sender, RoutedEventArgs e)
@@ -1591,13 +1623,9 @@ namespace MasselGUARD.Views
 
         private void DnsPresets_Click(object sender, RoutedEventArgs e)
         {
-            var existingNames = _main.ConfigSvc.Config.DnsProfiles
-                .Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            int added = 0;
-            foreach (var preset in Models.DnsProfile.BuiltInPresets())
-                if (existingNames.Add(preset.Name)) { _main.ConfigSvc.Config.DnsProfiles.Add(preset); added++; }
-            if (added == 0) return;
+            var (added, removed) = DnsServerPickerWindow.PickAndAdd(this, _main.ConfigSvc.Config);
             _main.ConfigSvc.Save();
+            if (added + removed == 0) return;
             RefreshDnsControls();
         }
 
@@ -2504,6 +2532,19 @@ namespace MasselGUARD.Views
         {
             if (_loading) return;
             _draft.SharedThemesRepoUrl = SharedThemesRepoBox.Text.Trim();
+        }
+
+        private void DnsListRepo_Changed(object sender, TextChangedEventArgs e)
+        {
+            if (_loading) return;
+            var v = DnsListRepoBox.Text.Trim();
+            _draft.DnsListRepoUrl = v.Length == 0 ? Models.AppConfig.DefaultDnsListRepoUrl : v;
+        }
+
+        private void ResetDnsListRepo_Click(object sender, RoutedEventArgs e)
+        {
+            DnsListRepoBox.Text = Models.AppConfig.DefaultDnsListRepoUrl;
+            DnsListRepoBox.CaretIndex = DnsListRepoBox.Text.Length;
         }
 
         /// <summary>Reset the repo URL to the official MasselGUARD themes repository.</summary>

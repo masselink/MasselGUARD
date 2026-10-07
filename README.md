@@ -52,7 +52,7 @@ Light and dark are both built in, and colours and section icons are themeable. I
 
 ### DNS control
 - **A resolver per network, with or without a tunnel**, on its own axis next to the tunnel rules.
-- **Profiles manager** - IPv4/IPv6 profiles, plain or DoH, one-click presets (Cloudflare, Google, Quad9, AdGuard, OpenDNS, NextDNS template), and **Require encryption** to fail closed.
+- **Profiles manager** - IPv4/IPv6 profiles, plain or DoH, a searchable **Browse DNS servers** list of public resolvers kept on GitHub (masselink/MasselGUARD-dnslist), and **Require encryption** to fail closed.
 - **DNS panel** on the main window with per-row Enable and a clickable rules count; a manual choice overrides the tunnel's DNS until you revert it.
 - **Timed DNS bypass** - use a profile (mark one as your bypass profile, for example Google DNS) for 10 seconds up to 15 minutes to get past a DNS ad-block, then go back to automatic. From the DNS list, the tray menu, a keyboard shortcut (**Ctrl+Shift+B** by default, configurable), the footer, or an optional entry in Windows Explorer's right-click menu; MasselGUARDcli dns bypass does the same from a terminal.
 - **Leak protection** for the two Windows split-tunnel DNS-leak gaps. Your original DNS is saved before the first override and restored on exit or after a crash.

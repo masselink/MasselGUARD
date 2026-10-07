@@ -1,6 +1,6 @@
 # Handoff - 5.0 (the service back-end)
 
-Status 2026-10-06. Written so a fresh session can pick up without the history. Read `CLAUDE.md` first (the codebase guide); this file says where things stand, what is left before a release, the standing rules and the traps.
+Status 2026-10-07. Written so a fresh session can pick up without the history. Read `CLAUDE.md` first (the codebase guide); this file says where things stand, what is left before a release, the standing rules and the traps.
 
 ## 1. Where things stand
 
@@ -8,9 +8,10 @@ Status 2026-10-06. Written so a fresh session can pick up without the history. R
 - **5.0 is built on the branch `service-backend`** (the code still says 4.6.0 until release; the target number is **5.0**, written with three parts in the files because the build and `UpdateChecker.ParseVersion` expect `Major.Minor.Patch`, so `5.0.0` there and "5.0" in the text). It contains, in this order of work:
   1. a configurable DNS bypass shortcut (`BypassShortcut`, optional system-wide hotkey),
   2. the **service back-end**: the privileged operations behind `IPrivilegedOps`, a LocalSystem service with a named-pipe RPC, `asInvoker` manifest, one-click install (Settings, wizard, installer, CLI), connect-by-name from a machine-encrypted tunnel store, a timed DNS override the service keeps, the DNS bypass without the window (Explorer menu/CLI), per-user autostart, installing/updating over files in use, **headless automation** (snapshot handover), and release **checksums** for the updater.
+  3. **Browse DNS servers**: a searchable, checkbox picker for public DNS resolvers that replaces the fixed "Add presets": add AND remove entries (Apply shows +N new / -M removed), per-entry parameter fields (NextDNS `CONFIG_ID`), a speed test with a changeable test name and an "only ticked servers" option, sorted fastest first. The list lives in its own repo (`masselink/MasselGUARD-dnslist`: `index.json` + `servers/<provider>.json`, language-neutral, read from the `main` branch, cached with an ETag per file, all or nothing, built-in snapshot for offline use). Design, file format and the app pieces: `docs/DnsList-Format.md` and the "DNS server list" bullet in `CLAUDE.md`.
   Everything is described in [`ServiceBackend-Design.md`](ServiceBackend-Design.md); the user-visible text is in `docs/WHATSNEW.md` ("Next version") and `docs/MANUAL.md` chapter 37.
 - **Security:** reviewed twice with `/security-review`; findings, fixes and the accepted risks are in [`ServiceBackend-Security.md`](ServiceBackend-Security.md). The service refuses to run from a folder that standard users can write to, so it must be installed from Program Files.
-- **Quality gates:** `dotnet build MasselGUARD.csproj` and `MasselGUARDcli\MasselGUARDcli.csproj` build with 0 errors; `MasselGUARDcli selftest` passes **622** checks in 22 suites; all 12 `lang/*.json` have the same key count (1249).
+- **Quality gates:** `dotnet build MasselGUARD.csproj` and `MasselGUARDcli\MasselGUARDcli.csproj` build with 0 errors; `MasselGUARDcli selftest` passes **715** checks in 24 suites; all 12 `lang/*.json` have the same key count (1319).
 - The user has installed the service on his machine (Program Files, running, used by the app) and is the only one who can test the rest: the elevated app and the service cannot be driven from an assistant session.
 
 ## 2. What is left before 5.0 can be released
@@ -19,7 +20,9 @@ Status 2026-10-06. Written so a fresh session can pick up without the history. R
 2. **Merge**: `service-backend` into `dev` (and later `main`). `dev` should be merged into `service-backend` first if it moved; the 12 `lang/*.json` conflict at the end of each file when both sides add keys: keep both blocks.
 3. **Version bump** (all together): `UpdateChecker.cs` (`CurrentVersion` + `_codenames`), `BUILD.bat` (`VERSION` + `CODENAME`), both csproj `<Version>`/`AssemblyVersion`/`FileVersion`/`InformationalVersion`. Pick a codename. Rename the "Next version" heading in `docs/WHATSNEW.md`, write `docs/release-body-5.0.md`, update the "Current version" line in `CLAUDE.md` and the Scoop bucket note.
 4. **Release by hand** on GitHub: run a plain `BUILD.bat` (both arches), upload `MasselGUARD-x64.zip`, `MasselGUARD-arm64.zip` **and their `.zip.sha256` files**; the in-app updater refuses a release without the matching `.sha256`. Then bump the Scoop bucket (`../MasselGUARD-scoop`: version + both hashes, which are the same sha256 values as the `.sha256` files) and run `MasselGUARDcli check-update` once.
-5. **Wording check** of the strings added for the service (they were translated without a native speaker).
+5. **Wording check** of the strings added for the service and the bypass: written by the assistant, never reviewed by a native speaker (the accents/umlauts in de, fr, es, it, pl, pt-BR, tr and nl were corrected after a first accent-less draft).
+
+6. **DNS server list**: (a) check every entry of the dnslist repo against the provider's own documentation (addresses, DoH templates, `blocks`, `logging`, names, privacy-policy links; Mullvad and CleanBrowsing and the family/unfiltered variants were written from memory and are the least sure), (b) make sure `main` of `masselink/MasselGUARD-dnslist` holds `index.json` and `servers/*.json` (the app downloads them from `raw.githubusercontent.com/.../main/`; before that it only has the built-in snapshot), turn on branch protection and required review there (there is no checksum or validation workflow, so a bad merge reaches users within a day; the app skips invalid entries but cannot judge a wrong address), (c) run `pwsh tools/make-builtin-dnslist.ps1` before the release build so the built-in snapshot matches, (d) try the picker in a build: add/remove, the NextDNS field, the speed test (also with only ticked servers), a language switch.
 
 Still open, not blocking (see the Security doc, "Functional items still open"): automatic fallback to direct mode when the service stops, a GUI list for allowed users, English-only RPC error texts.
 

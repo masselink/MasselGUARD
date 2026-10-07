@@ -7,7 +7,7 @@ MasselGUARDcli selftest
 ```
 
 ```
-✓ Self-test: 622 passed (CidrMath 18, Backend 11, Export 6, DnsPolicy 20, NetworkMatcher 150, RuleTester 38, RuleEngine 37, RuleSimulator 20, TempOverride 18, CommandPipe 17, Shortcut 31, PrivilegedOps 10, PrivilegedRpc 122, DnsHoldKeeper 15, TunnelStore 15, AutostartRunKey 8, BypassPlan 12, InstallFiles 6, HeadlessPlanner 33, SecureFolders 17, UpdateChecker 8, BypassClient 10).
+✓ Self-test: 715 passed (CidrMath 18, Backend 11, Export 6, DnsPolicy 20, NetworkMatcher 150, RuleTester 38, RuleEngine 37, RuleSimulator 20, TempOverride 18, CommandPipe 17, Shortcut 31, PrivilegedOps 10, PrivilegedRpc 122, DnsHoldKeeper 15, TunnelStore 15, AutostartRunKey 8, BypassPlan 15, InstallFiles 6, HeadlessPlanner 33, SecureFolders 17, UpdateChecker 8, BypassClient 10, DnsServerList 75, DnsProbe 15).
 ```
 
 ## Running it
@@ -44,6 +44,8 @@ The checks are plain assertions inside the shared, WPF-free services, so the CLI
 | **InstallFiles** | `Services/InstallFiles.cs` | Replacing a file that is in use by renaming it aside, keeping the old one when even that fails, cleanup of the leftovers. |
 | **HeadlessPlanner** | `Services/HeadlessAutomation.cs` | Automation while no window is open: the tunnel and DNS decisions per network change, taking over without acting on the current network, manual mode, foreign and missing tunnels, the window lease, and the config snapshot (size, garbage, dropped paths and invalid names). |
 | **SecureFolders** | `Services/SecureFolders.cs` | Folder trust: the pure ACL judgement (owner, write rights, inherit-only, parents) and real folders (a user-writable folder is refused, System32 is accepted, a pre-existing user-owned data folder is not trusted). |
+| **DnsServerList** | `Models/DnsServerList.cs` | The DNS server list the picker shows: the index and provider-file parsers (valid names only, inherited provider fields, skipped entries, size caps, combine across files), the flat parser, whole-file refusals (bad JSON, unknown schemaVersion, too big), skipped entries (bad id, bad/private/loopback/link-local addresses, http or metacharacter DoH, missing English text, em dash, token problems, duplicate id), search with translated words, the feature filter (blocks / encrypted only / needs input), plain-string names and descriptions, conversion to a profile (encrypted-only is fail-closed DoH, input token replaced, bad input refused), "already added" detection, the repository URL rules, and the embedded built-in snapshot (all entries valid). |
+| **DnsProbe** | `Services/DnsProbe.cs` | The DNS query the speed test sends (header, labels, type A/IN, trailing dot) and the answer check (wrong id, REFUSED, NXDOMAIN, other rcode, no records, short packet, a query is not an answer), plus the ranking of a `DnsSpeed`. The network calls are not tested here. |
 | **BypassClient** | `Services/BypassClient.cs` | The arguments of the windowless launcher the Explorer entries run (`MasselGUARD.exe --bypass 60`, `stop`, `toggle`, no argument, case, garbage, extra arguments, the length clamp). |
 | **UpdateChecker** | `UpdateChecker.cs` | The release checksum used by the updater: the formats of a `.sha256` file, rejected garbage and wrong lengths, and the file hash against a known value. |
 

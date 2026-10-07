@@ -1284,6 +1284,7 @@ namespace MasselGUARD.ViewModels
             // Service mode: the service also holds it, so it ends on time even if this window closes.
             try { _hold?.RegisterHold(profile.Id, DnsTargets().Where(g => g != Guid.Empty).ToList(), (int)Math.Ceiling(duration.TotalSeconds)); } catch { }
             _log.Ok($"DNS: using '{profile.Name}' for {FormatDuration(duration)} (until {DateTime.Now.Add(duration):HH:mm:ss}), then back to automatic.");
+            ToastBypass(profile.Name, Lang.T("ToastBypassUntil", DateTime.Now.Add(duration).ToString("HH:mm:ss")));
             return true;
         }
 
@@ -1293,8 +1294,9 @@ namespace MasselGUARD.ViewModels
         {
             if (!_dnsTemp.HasExpired(DateTime.UtcNow)) return;
             var name = _config.Config.DnsProfiles.FirstOrDefault(p => p.Id == _dnsTemp.Id)?.Name ?? "profile";
-            ManualDisable();   // also clears _dnsTemp
+            ManualDisable(announce: false);   // also clears _dnsTemp; the "ended" message below replaces the "stopped" one
             _log.Ok($"DNS: temporary override of '{name}' ended, back to automatic.");
+            ToastBypass(Lang.T("ToastBypassEnded"), Lang.T("ToastBypassBack"));
             (Application.Current as App)?.OnDnsStateChanged();
         }
 
@@ -1305,8 +1307,9 @@ namespace MasselGUARD.ViewModels
 
         /// <summary>Disable: clear the manual override so automation takes back over (or, when
         /// automation is off, restores the network's own resolver).</summary>
-        public void ManualDisable()
+        public void ManualDisable(bool announce = true)
         {
+            bool wasTimed = _dnsTemp.IsSet;
             ClearDnsTemp();
             _manualDnsProfileId = null;
             _log.Ok("DNS: manual override cleared - following automation.");
@@ -1321,6 +1324,22 @@ namespace MasselGUARD.ViewModels
             SetActiveDns(null);
             _lastDnsAutoToast = null;   // let automation announce whatever it re-applies
             ApplyPendingDns();
+            if (announce && wasTimed) ToastBypass(Lang.T("ToastBypassStopped"), Lang.T("ToastBypassBack"));
+        }
+
+        /// <summary>The tray message for the timed DNS override (started, stopped, ended): it is something the user did,
+        /// so it confirms the action. Follows the same "pop-up on switch" preference as the automation messages.</summary>
+        private void ToastBypass(string primary, string secondary)
+        {
+            if (!_config.Config.ShowTrayPopupOnSwitch) return;
+            EmitToast(new Views.ToastNotification
+            {
+                Category   = Lang.T("ToastCatDnsBypass"),
+                Primary    = primary,
+                Secondary  = secondary,
+                StripColor = "Accent",
+                DurationMs = _config.Config.NotificationDurationSeconds * 1000,
+            });
         }
 
         /// <summary>Revert to default: undo any DNS override and restore the interface to the exact

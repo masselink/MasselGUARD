@@ -14,7 +14,7 @@ namespace MasselGUARD.Services
     /// </summary>
     public sealed record BypassPlan(bool Ok, string Error, DnsProfile? Profile, IReadOnlyList<Guid> Interfaces, string Families, int Seconds)
     {
-        public const int DefaultSeconds = 60;
+        public const int DefaultSeconds = AppConfig.BypassSecondsDefault;
 
         public static BypassPlan Build(AppConfig cfg, IEnumerable<Guid> adapters, int seconds)
         {
@@ -24,7 +24,7 @@ namespace MasselGUARD.Services
             if (p == null) return Fail("no bypass profile is marked (right-click a DNS profile > Mark as bypass profile).");
             var list = adapters.Where(g => g != Guid.Empty).Distinct().Take(DnsHoldKeeper.MaxGuids).ToList();
             if (list.Count == 0) return Fail("no connected network adapter to switch DNS on.");
-            int secs = seconds > 0 ? Math.Clamp(seconds, CommandPipe.MinSeconds, CommandPipe.MaxSeconds) : DefaultSeconds;
+            int secs = seconds > 0 ? Math.Clamp(seconds, CommandPipe.MinSeconds, CommandPipe.MaxSeconds) : cfg.BypassDefaultSeconds;   // no length given: the configured default
             var fam = cfg.DnsAddressFamilies is "v4" or "v6" ? cfg.DnsAddressFamilies : "both";
             return new BypassPlan(true, "", p, list, fam, secs);
         }
@@ -43,6 +43,12 @@ namespace MasselGUARD.Services
             Check(ok.Ok && ok.Profile == prof && ok.Interfaces.Count == 2 && ok.Seconds == 300, "plan: ok, duplicate interfaces collapsed");
             Check(Build(Cfg(), new[] { g1 }, 0).Seconds == BypassPlan.DefaultSeconds, "plan: no length = default");
             Check(Build(Cfg(), new[] { g1 }, 1).Seconds == CommandPipe.MinSeconds, "plan: length clamped up");
+            var custom = Cfg(); custom.BypassDefaultSeconds = 300;
+            Check(Build(custom, new[] { g1 }, 0).Seconds == 300 && Build(custom, new[] { g1 }, 20).Seconds == 20, "plan: the configured default is used when no length is given, an explicit length wins");
+            var wild = Cfg(); wild.BypassDefaultSeconds = 999999;
+            Check(wild.BypassDefaultSeconds == AppConfig.BypassSecondsMax, "config: the default length is clamped to the maximum");
+            wild.BypassDefaultSeconds = 0;
+            Check(wild.BypassDefaultSeconds == AppConfig.BypassSecondsMin, "config: the default length is clamped to the minimum");
             Check(Build(Cfg(), new[] { g1 }, 999999).Seconds == CommandPipe.MaxSeconds, "plan: length clamped down");
 
             var c = Cfg(); c.EnableDns = false;

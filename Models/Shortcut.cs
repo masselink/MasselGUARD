@@ -20,7 +20,7 @@ namespace MasselGUARD.Models
         };
 
         /// <summary>The default shortcut of the quick DNS bypass.</summary>
-        public const string DefaultText = "Ctrl+Shift+B";
+        public const string DefaultText = "Ctrl+Alt+D";
 
         public bool IsEmpty => string.IsNullOrEmpty(Key);
 
@@ -99,7 +99,7 @@ namespace MasselGUARD.Models
             void Eq(string name, string got, string want) { if (got == want) pass++; else fails.Add($"{name}: got '{got}' want '{want}'"); }
             string Norm(string? s) => TryParse(s, out var r) ? r.ToString() : "<invalid>";
 
-            Eq("default",            Norm(DefaultText), "Ctrl+Shift+B");
+            Eq("default",            Norm(DefaultText), "Ctrl+Alt+D");
             Eq("lowercase",          Norm("ctrl+shift+b"), "Ctrl+Shift+B");
             Eq("order-normalised",   Norm("Shift+Ctrl+B"), "Ctrl+Shift+B");
             Eq("spaces",             Norm(" Ctrl + Alt + F9 "), "Ctrl+Alt+F9");

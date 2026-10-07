@@ -406,6 +406,8 @@ namespace MasselGUARD.Cli
             var (sfPass,   sfFail,   sfFailures)   = Services.SecureFolders.RunSelfTest();
             var (ucPass,   ucFail,   ucFailures)   = UpdateChecker.RunSelfTest();
             var (bcPass,   bcFail,   bcFailures)   = Services.BypassClient.RunSelfTest();
+            var (dlPass,   dlFail,   dlFailures)   = Models.DnsServerList.RunSelfTest();
+            var (dpPass,   dpFail,   dpFailures)   = Services.DnsProbe.RunSelfTest();
 
             foreach (var f in cidrFailures) CliOutput.Error($"FAIL CidrMath {f}");
             foreach (var f in backFailures) CliOutput.Error($"FAIL Backend {f}");
@@ -429,10 +431,12 @@ namespace MasselGUARD.Cli
             foreach (var f in sfFailures)   CliOutput.Error($"FAIL SecureFolders {f}");
             foreach (var f in ucFailures)   CliOutput.Error($"FAIL UpdateChecker {f}");
             foreach (var f in bcFailures)   CliOutput.Error($"FAIL BypassClient {f}");
+            foreach (var f in dlFailures)   CliOutput.Error($"FAIL DnsServerList {f}");
+            foreach (var f in dpFailures)   CliOutput.Error($"FAIL DnsProbe {f}");
 
-            int pass = cidrPass + backPass + expPass + dnsPass + netPass + rtPass + rePass + smPass + toPass + cpPass + scPass + opPass + rpPass + hkPass + tsPass + arPass + bpPass + ifPass + haPass + sfPass + ucPass + bcPass;
-            int fail = cidrFail + backFail + expFail + dnsFail + netFail + rtFail + reFail + smFail + toFail + cpFail + scFail + opFail + rpFail + hkFail + tsFail + arFail + bpFail + ifFail + haFail + sfFail + ucFail + bcFail;
-            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}, NetworkMatcher {netPass}, RuleTester {rtPass}, RuleEngine {rePass}, RuleSimulator {smPass}, TempOverride {toPass}, CommandPipe {cpPass}, Shortcut {scPass}, PrivilegedOps {opPass}, PrivilegedRpc {rpPass}, DnsHoldKeeper {hkPass}, TunnelStore {tsPass}, AutostartRunKey {arPass}, BypassPlan {bpPass}, InstallFiles {ifPass}, HeadlessPlanner {haPass}, SecureFolders {sfPass}, UpdateChecker {ucPass}, BypassClient {bcPass}).");
+            int pass = cidrPass + backPass + expPass + dnsPass + netPass + rtPass + rePass + smPass + toPass + cpPass + scPass + opPass + rpPass + hkPass + tsPass + arPass + bpPass + ifPass + haPass + sfPass + ucPass + bcPass + dlPass + dpPass;
+            int fail = cidrFail + backFail + expFail + dnsFail + netFail + rtFail + reFail + smFail + toFail + cpFail + scFail + opFail + rpFail + hkFail + tsFail + arFail + bpFail + ifFail + haFail + sfFail + ucFail + bcFail + dlFail + dpFail;
+            if (fail == 0) CliOutput.Ok($"Self-test: {pass} passed (CidrMath {cidrPass}, Backend {backPass}, Export {expPass}, DnsPolicy {dnsPass}, NetworkMatcher {netPass}, RuleTester {rtPass}, RuleEngine {rePass}, RuleSimulator {smPass}, TempOverride {toPass}, CommandPipe {cpPass}, Shortcut {scPass}, PrivilegedOps {opPass}, PrivilegedRpc {rpPass}, DnsHoldKeeper {hkPass}, TunnelStore {tsPass}, AutostartRunKey {arPass}, BypassPlan {bpPass}, InstallFiles {ifPass}, HeadlessPlanner {haPass}, SecureFolders {sfPass}, UpdateChecker {ucPass}, BypassClient {bcPass}, DnsServerList {dlPass}, DnsProbe {dpPass}).");
             else           CliOutput.Error($"Self-test: {pass} passed, {fail} failed.");
             return fail == 0 ? 0 : 1;
         }

@@ -27,6 +27,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="..\Resources\dns-servers.builtin.json" LogicalName="dns-servers.builtin.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>
@@ -44,6 +48,14 @@
     <Compile Include="..\Services\PrivilegedOps.cs" />
     <Compile Include="..\Services\PrivilegedRpc.cs" />
     <Compile Include="..\Services\DnsHoldKeeper.cs" />
+    <Compile Include="..\Services\DnsProbe.cs" />
+    <Compile Include="..\Services\TunnelStore.cs" />
+    <Compile Include="..\Services\AutostartRunKey.cs" />
+    <Compile Include="..\Services\BypassPlan.cs" />
+    <Compile Include="..\Services\BypassClient.cs" />
+    <Compile Include="..\Services\InstallFiles.cs" />
+    <Compile Include="..\Services\HeadlessAutomation.cs" />
+    <Compile Include="..\Services\SecureFolders.cs" />
     <Compile Include="..\Services\ServiceInstaller.cs" />
     <Compile Include="..\Services\SplitTunnelBackend.cs" />
     <Compile Include="..\Services\DnsPolicy.cs" />
