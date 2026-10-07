@@ -7,7 +7,11 @@ namespace MasselGUARD.Services
 {
     /// <summary>Outcome of testing one rule: whether its requirement holds right now, one line saying
     /// why, and optional engine notes (rule disabled, manual mode, feature off).</summary>
-    public record RuleTestResult(bool Met, string Summary, IReadOnlyList<string> Notes);
+    public record RuleTestResult(bool Met, string Summary, IReadOnlyList<string> Notes,
+                                 IReadOnlyList<RuleCheck>? Checks = null, IReadOnlyList<string>? Actions = null);
+
+    /// <summary>One line of the test: what was checked and whether it holds (<c>Ok</c> null = information only).</summary>
+    public record RuleCheck(bool? Ok, string Text);
 
     /// <summary>
     /// PURE "is this rule's requirement met right now?" check behind the Automation pane's Test button and
@@ -40,7 +44,94 @@ namespace MasselGUARD.Services
             if (!string.IsNullOrEmpty(rule.DnsProfileId) && (!cfg.EnableDns || !cfg.DnsAutomationEnabled))
                 notes.Add("DNS automation is off: the DNS part of this rule would not apply.");
 
-            return new RuleTestResult(met, summary, notes);
+            var checks = rule.Kind switch
+            {
+                "schedule" => ScheduleChecks(rule, now),
+                "trusted"  => TrustedChecks(rule, cfg, net),
+                "wifi" or "network" => NetworkChecks(rule, net, met),
+                _          => new List<RuleCheck> { new(false, summary) },
+            };
+            return new RuleTestResult(met, summary, notes, checks, Actions(rule, cfg));
+        }
+
+        // ── What was checked, line by line (the popup) ────────────────────────
+
+        /// <summary>What the rule does when its requirement is met (tunnel and DNS part).</summary>
+        public static List<string> Actions(TunnelRule rule, AppConfig cfg)
+        {
+            var l = new List<string>();
+            if (!DnsPolicy.IsDnsOnly(rule))
+                l.Add(string.IsNullOrEmpty(rule.Tunnel) ? "Disconnect the active tunnel" : $"Connect the tunnel \"{rule.Tunnel}\"");
+            if (!string.IsNullOrEmpty(rule.DnsProfileId))
+            {
+                var name = rule.DnsProfileId == DnsProfile.AutomaticId ? "automatic (network-provided) DNS"
+                         : cfg.DnsProfiles.FirstOrDefault(p => p.Id == rule.DnsProfileId)?.Name is { } n ? $"\"{n}\"" : "(a profile that no longer exists)";
+                l.Add($"Use the DNS profile {name}");
+            }
+            return l;
+        }
+
+        /// <summary>The value a network has for a match type, for the "this network:" part of a check.</summary>
+        private static string Actual(string by, NetworkIdentity a)
+        {
+            string? v = by switch
+            {
+                NetworkMatchBy.Ssid           => a.Ssid,
+                NetworkMatchBy.DnsSuffix      => a.DnsSuffix,
+                NetworkMatchBy.GatewayMac     => a.GatewayMac,
+                NetworkMatchBy.ConnectionType => a.Kind,
+                NetworkMatchBy.AdapterName    => a.AdapterName,
+                NetworkMatchBy.AdapterDesc    => a.AdapterDescription,
+                NetworkMatchBy.AdapterMac     => a.AdapterMac,
+                _                             => a.Subnets.Count == 0 ? null : string.Join("/", a.Subnets),
+            };
+            return string.IsNullOrEmpty(v) ? "none" : v;
+        }
+
+        private static List<RuleCheck> NetworkChecks(TunnelRule rule, NetworkSnapshot net, bool met)
+        {
+            var list = new List<RuleCheck>();
+            var hit = met ? net.Adapters.OrderByDescending(a => a.IsPrimary).FirstOrDefault(a => NetworkMatcher.RuleMatches(rule, a)) : null;
+            var basis = hit ?? net.Primary ?? net.Adapters.FirstOrDefault();
+            if (basis == null) { list.Add(new RuleCheck(false, "There is no connected network to test.")); return list; }
+            list.Add(new RuleCheck(null, $"Network tested: {Label(basis)}" + (met ? "" : basis.IsPrimary ? " (the primary network)" : "")));
+            foreach (var c in rule.EffectiveConditions)
+                list.Add(new RuleCheck(NetworkMatcher.ConditionHolds(c, basis), $"{c.ToPlain()}   (this network: {Actual(c.By, basis)})"));
+            if (hit != null)
+                list.Add(new RuleCheck(hit.IsPrimary, hit.IsPrimary
+                    ? "It is the primary network, so the rule decides the tunnel"
+                    : $"It is not the primary network ({Label(net.Primary)} is), so this rule would not drive the tunnel"));
+            return list;
+        }
+
+        private static List<RuleCheck> TrustedChecks(TunnelRule rule, AppConfig cfg, NetworkSnapshot net)
+        {
+            var primary = net.Primary;
+            if (primary == null) return new List<RuleCheck> { new(false, "There is no connected network to test.") };
+            bool trusted = NetworkMatcher.IsTrusted(cfg.TrustedNetworks, primary);
+            bool needs = rule.TrustedWhenOnList;
+            return new List<RuleCheck>
+            {
+                new(null, $"Network tested: {Label(primary)} (the primary network)"),
+                new(trusted == needs, $"The rule needs a network that is {(needs ? "on" : "not on")} the trusted list; this one is {(trusted ? "on" : "not on")} it"
+                                      + (cfg.TrustedNetworks.Count == 0 ? " (the list is empty)" : "")),
+            };
+        }
+
+        private static List<RuleCheck> ScheduleChecks(TunnelRule rule, DateTime now)
+        {
+            if (!TimeSpan.TryParse(rule.StartTime, out var start) || !TimeSpan.TryParse(rule.EndTime, out var end))
+                return new List<RuleCheck> { new(false, $"The start or end time is not a valid time of day ({rule.StartTime} - {rule.EndTime})") };
+            if (start == end) return new List<RuleCheck> { new(false, "The window has zero length (start equals end)") };
+            bool allDays = rule.Days is not { Count: > 0 };
+            bool dayOk = allDays || rule.Days!.Contains((int)now.DayOfWeek);
+            var t = now.TimeOfDay;
+            bool timeOk = start < end ? t >= start && t < end : t >= start || t < end;   // a window that passes midnight
+            return new List<RuleCheck>
+            {
+                new(dayOk, allDays ? $"Day: the rule runs every day (today is {now:dddd})" : $"Day: today is {now:dddd}; the rule runs on {rule.ScheduleSummary}"),
+                new(timeOk, $"Time: it is {now:HH:mm}; the rule runs from {rule.StartTime} to {rule.EndTime}"),
+            };
         }
 
         // ── Kinds ─────────────────────────────────────────────────────────────
@@ -187,6 +278,31 @@ namespace MasselGUARD.Services
                 Test(home, cfg, Snap(Wifi("Home", false), Wired(null!, true)), monday).Met);
             Check("ssid-secondary-says-so",
                 Test(home, cfg, Snap(Wifi("Home", false), Wired(null!, true)), monday).Summary.Contains("not the primary"));
+
+            // the line-by-line checks and the actions (the popup)
+            var rHome = Test(home, cfg, Snap(Wifi("Home", true)), monday);
+            Check("checks-met",        rHome.Checks is { Count: 3 } && rHome.Checks.All(c => c.Ok != false) && rHome.Checks[1].Text.Contains("Home") && rHome.Checks[2].Ok == true);
+            var rCafe = Test(home, cfg, Snap(Wifi("Cafe", true)), monday);
+            Check("checks-not-met",    rCafe.Checks is { Count: 2 } && rCafe.Checks[1].Ok == false && rCafe.Checks[1].Text.Contains("Cafe"));
+            var rNone = Test(home, cfg, NetworkSnapshot.Empty, monday);
+            Check("checks-no-network", rNone.Checks is { Count: 1 } && rNone.Checks[0].Ok == false);
+            var rSec = Test(home, cfg, Snap(Wifi("Home", false), Wired(null!, true)), monday);
+            Check("checks-secondary",  rSec.Met && rSec.Checks != null && rSec.Checks[^1].Ok == false && rSec.Checks[^1].Text.Contains("not the primary"));
+            Check("actions-tunnel",    rHome.Actions is { Count: 1 } && rHome.Actions[0].Contains("\"T\""));
+            Check("actions-disconnect", Test(new TunnelRule { Kind = "wifi", Ssid = "Home" }, cfg, Snap(Wifi("Home", true)), monday).Actions![0].StartsWith("Disconnect"));
+            var dnsCfg = new AppConfig { EnableTunnels = true }; dnsCfg.DnsProfiles.Add(new DnsProfile { Id = "p1", Name = "Cloudflare" });
+            var dnsRule = new TunnelRule { Kind = "wifi", Ssid = "Home", Tunnel = "T", DnsProfileId = "p1" };
+            Check("actions-dns",       Test(dnsRule, dnsCfg, Snap(Wifi("Home", true)), monday).Actions is { Count: 2 } a2 && a2[1].Contains("Cloudflare"));
+            Check("actions-dns-only",  Test(new TunnelRule { Kind = "wifi", Ssid = "Home", DnsProfileId = DnsProfile.AutomaticId }, dnsCfg, Snap(Wifi("Home", true)), monday).Actions is { Count: 1 } a3 && a3[0].Contains("automatic"));
+            var rSched = new TunnelRule { Kind = "schedule", StartTime = "08:00", EndTime = "17:00", Days = new List<int> { 1, 2, 3, 4, 5 }, Tunnel = "T" };
+            var sOk = Test(rSched, cfg, NetworkSnapshot.Empty, monday).Checks!;
+            Check("checks-schedule-ok", sOk.Count == 2 && sOk.All(c => c.Ok == true));
+            var sSat = Test(rSched, cfg, NetworkSnapshot.Empty, saturday).Checks!;
+            Check("checks-schedule-day", sSat[0].Ok == false && sSat[1].Ok == true);
+            var sNight = Test(new TunnelRule { Kind = "schedule", StartTime = "22:00", EndTime = "06:00", Tunnel = "T" }, cfg, NetworkSnapshot.Empty, new DateTime(2026, 9, 14, 1, 0, 0)).Checks!;
+            Check("checks-schedule-midnight", sNight.All(c => c.Ok == true));
+            var tr = Test(new TunnelRule { Kind = "trusted", TrustedWhen = "untrusted", Tunnel = "T" }, cfg, Snap(Wifi("Cafe", true)), monday).Checks!;
+            Check("checks-trusted",    tr.Count == 2 && tr[1].Ok == true);
 
             // Non-SSID network rules (kind "network")
             var bySuffix = new TunnelRule { Kind = "network", MatchBy = "dnssuffix", MatchValue = "corp.example.com" };

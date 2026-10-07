@@ -70,7 +70,7 @@ namespace MasselGUARD.Models
         public const int MaxProviderBytes = 64 * 1024;
 
         /// <summary>The block categories the app has words for (a list may use others; they show as written).</summary>
-        public static readonly string[] KnownBlocks = { "malware", "ads", "trackers", "adult" };
+        public static readonly string[] KnownBlocks = { "malware", "ads", "trackers", "adult", "social", "gambling", "proxies" };
         private static readonly string[] Loggings = { "none", "minimal", "short-term", "anonymized", "configurable", "unknown" };
         private static readonly Regex IdRx = new("^[a-z0-9][a-z0-9-]{1,63}$", RegexOptions.Compiled);
         private static readonly Regex TokenRx = new("^[A-Z][A-Z0-9_]{1,31}$", RegexOptions.Compiled);

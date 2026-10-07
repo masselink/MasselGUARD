@@ -2687,12 +2687,7 @@ namespace MasselGUARD
         /// FileVersion resource) yields an empty build stamp, not "0".</summary>
         private static (string ver, string build) SplitVersion(string full)
         {
-            if (string.IsNullOrWhiteSpace(full)) return ("0.0.0", "");
-            var parts = full.Trim().TrimStart('v', 'V').Split('+')[0].Split('.');
-            string ver   = string.Join('.', parts.Take(3));
-            string build = parts.Length >= 4 ? parts[3] : "";
-            if (build == "0") build = "";
-            return (ver, build);
+            return UpdateChecker.SplitFullVersion(full);
         }
 
         private static bool IsVersionNewer(string current, string previous)
@@ -3659,6 +3654,9 @@ namespace MasselGUARD
             LogSvc.Write(r.Met ? LogLevel.Ok : LogLevel.Warn,
                 (r.Met ? "Requirement met: " : "Requirement not met: ") + r.Summary, isContinuation: true);
             LogSvc.Ok($"Test: {rule.RuleName}");
+
+            // the log may be hidden: show the result in a window as well
+            new Views.RuleTestResultWindow(this, rule.RuleName, r).ShowDialog();
         }
 
         // ── Defaults popup ────────────────────────────────────────────────────

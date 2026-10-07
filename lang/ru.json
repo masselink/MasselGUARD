@@ -1216,7 +1216,7 @@
   "RuleNetMenuTip": "Создать правило из подключённой сети",
   "RuleShadowNote": "Правило «{0}» выше тоже подходит этой сети и имеет приоритет. Перетащите новое правило выше, чтобы изменить это.",
   "RuleShadowTitle": "Порядок правил",
-  "BtnAddFromNetwork": "Из сети",
+  "BtnAddFromNetwork": "Добавить текущую сеть",
   "SettingsDnsShortcutLabel": "Сочетание клавиш обхода",
   "SettingsDnsShortcutTip": "Щёлкните поле и нажмите нужные клавиши, например Ctrl+Alt+D. Нужны Ctrl, Alt или Win и одна клавиша. «Очистить» убирает сочетание. Значение хранится в config.json как BypassShortcut.",
   "BtnClearShortcut": "Очистить",
@@ -1320,5 +1320,17 @@
   "DnsPickSourceSaved": "Только добавленные вами серверы: {0} (не удалось загрузить список)",
   "DnsPickNoList": "Список ещё не загружен. Проверьте подключение к Интернету и нажмите «Обновить».",
   "DnsPickSkippedFiles": "Файлов списка, требующих более новой версии MasselGUARD, пропущено: {0}.",
-  "DnsPickTestSkippedParam": "Серверов с пустым полем не проверено: {0}."
+  "DnsPickTestSkippedParam": "Серверов с пустым полем не проверено: {0}.",
+  "RuleTestTitle": "Проверка правила",
+  "RuleTestMet": "Условие выполнено",
+  "RuleTestNotMet": "Условие не выполнено",
+  "RuleTestChecks": "ЧТО ПРОВЕРЕНО",
+  "RuleTestActions": "ЧТО ПРАВИЛО ДЕЛАЕТ СЕЙЧАС",
+  "RuleTestActionsIf": "ЧТО СДЕЛАЛО БЫ ПРАВИЛО ПРИ ВЫПОЛНЕНИИ",
+  "RuleTestNotes": "ОБРАТИТЕ ВНИМАНИЕ",
+  "RuleTestReadOnly": "Это была только проверка: ничего не подключено и не изменено. Правило выше этого всё равно может иметь приоритет.",
+  "DnsPickBlockSocial": "Социальные сети",
+  "DnsPickBlockGambling": "Азартные игры",
+  "DnsPickBlockProxies": "Прокси и VPN",
+  "DnsPickParamFilled": "Заполнено"
 }

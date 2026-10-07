@@ -1216,7 +1216,7 @@
   "RuleNetMenuTip": "从已连接的网络创建规则",
   "RuleShadowNote": "上方的规则「{0}」也匹配此网络且优先生效。将新规则拖到它上方即可改变。",
   "RuleShadowTitle": "规则顺序",
-  "BtnAddFromNetwork": "从网络",
+  "BtnAddFromNetwork": "添加当前网络",
   "SettingsDnsShortcutLabel": "绕过快捷键",
   "SettingsDnsShortcutTip": "点击输入框并按下所需的按键,例如 Ctrl+Alt+D。需要 Ctrl、Alt 或 Win 加一个按键。「清除」会移除快捷键。该值以 BypassShortcut 保存在 config.json 中。",
   "BtnClearShortcut": "清除",
@@ -1320,5 +1320,17 @@
   "DnsPickSourceSaved": "仅显示您添加的服务器: {0} (无法加载列表)",
   "DnsPickNoList": "尚未下载列表。请检查网络连接并点击刷新。",
   "DnsPickSkippedFiles": "有 {0} 个列表文件需要更新版本的 MasselGUARD，已跳过。",
-  "DnsPickTestSkippedParam": "有空字段的 {0} 个服务器未进行测试。"
+  "DnsPickTestSkippedParam": "有空字段的 {0} 个服务器未进行测试。",
+  "RuleTestTitle": "测试规则",
+  "RuleTestMet": "条件已满足",
+  "RuleTestNotMet": "条件未满足",
+  "RuleTestChecks": "检查内容",
+  "RuleTestActions": "该规则现在会执行",
+  "RuleTestActionsIf": "条件满足时该规则会执行",
+  "RuleTestNotes": "请注意",
+  "RuleTestReadOnly": "这只是检查: 没有连接或更改任何内容。位于此规则上方的规则仍可能优先生效。",
+  "DnsPickBlockSocial": "社交媒体",
+  "DnsPickBlockGambling": "赌博",
+  "DnsPickBlockProxies": "代理和 VPN",
+  "DnsPickParamFilled": "已填写"
 }

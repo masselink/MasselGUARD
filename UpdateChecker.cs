@@ -49,7 +49,7 @@ namespace MasselGUARD
         // Major.Minor.Patch only - static, never modified by build.
         // The build timestamp is injected at compile time via -p:InformationalVersion
         // and read at runtime from the assembly attribute (see BuildStamp below).
-        private const string CurrentVersion = "4.6.0";
+        private const string CurrentVersion = "5";
 
         // Release codenames - one entry per public version, keyed by Major.Minor.Patch.
         // Update both here AND in BUILD.bat (set CODENAME=...) when bumping the version.
@@ -69,6 +69,7 @@ namespace MasselGUARD
                 { "4.2.0", "Resolving Raven" },
                 { "4.5.0", "Resolving Raven" },
                 { "4.6.0", "Wired Weasel" },
+                { "5", "Background Badger" },
             };
 
         // ── Public: silent background check (called on startup) ──────────────
@@ -254,10 +255,24 @@ namespace MasselGUARD
                     .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
                     ?.InformationalVersion;
                 if (string.IsNullOrEmpty(info)) return "";
-                // Strip any +git-hash suffix the SDK may append, then take part[3].
-                var parts = info.Split('+')[0].Split('.');
-                return parts.Length >= 4 ? parts[3] : "";
+                return SplitFullVersion(info).build;
             }
+        }
+
+        /// <summary>Splits a full version string into its base and its build stamp (YYMMDDHHMM). Handles every form the build
+        /// produced: <c>4.6.0.2610071200</c>, <c>5.2610071200</c> (a single-number release), a padded <c>4.2.0.0</c> (no stamp), a bare
+        /// <c>5</c> and a trailing <c>+git-hash</c>.</summary>
+        public static (string ver, string build) SplitFullVersion(string? full)
+        {
+            if (string.IsNullOrWhiteSpace(full)) return ("0.0.0", "");
+            var parts = full.Trim().TrimStart('v', 'V').Split('+')[0].Split('.');
+            var last = parts[^1];
+            if (parts.Length >= 2 && last.Length == 10 && last.All(char.IsDigit))
+                return (string.Join('.', parts.Take(parts.Length - 1)), last);
+            string ver = string.Join('.', parts.Take(3));
+            string build = parts.Length >= 4 ? parts[3] : "";
+            if (build == "0") build = "";
+            return (ver, build);
         }
 
         /// <summary>Full display string: "3.3.0.2606011200" - or just "3.3.0" in IDE builds.</summary>
@@ -270,12 +285,15 @@ namespace MasselGUARD
             }
         }
 
+        /// <summary>Reads a version or release tag (without the leading v): <c>5</c>, <c>5.0</c> and <c>5.0.0</c> are the same version,
+        /// <c>4.6.0</c> and <c>4.6.0-rc</c> too (the first numeric parts count). From 5 on releases are a single number (5, 6, 7...);
+        /// the two- and three-part forms stay readable for the 4.x tags and for the first 5 tag (<c>v5.0</c>, which copies of 4.x need:
+        /// their parser wants at least two parts). Anything else is 0.0.0. Always returns Major.Minor.Patch (a missing part is 0) so that
+        /// <c>5</c> and <c>5.0.0</c> compare equal.</summary>
         private static Version ParseVersion(string s)
         {
-            // Compare only Major.Minor.Patch - the 4th component is a build timestamp
-            // (yyMMddHHmm) that exceeds int.MaxValue from ~2022 onward, causing
-            // Version.TryParse to silently fail and fall back to (0,0), which makes
-            // any GitHub tag appear newer than the locally running build.
+            // Only Major.Minor.Patch count - the 4th component is a build timestamp (yyMMddHHmm) that exceeds
+            // int.MaxValue from ~2022 onward, which made Version.TryParse fail and every tag look newer than the running build.
             var parts = s.Split('.');
             if (parts.Length >= 3
                 && int.TryParse(parts[0], out var major)
@@ -285,8 +303,10 @@ namespace MasselGUARD
             if (parts.Length >= 2
                 && int.TryParse(parts[0], out major)
                 && int.TryParse(parts[1], out minor))
-                return new Version(major, minor);
-            return new Version(0, 0);
+                return new Version(major, minor, 0);
+            if (parts.Length == 1 && int.TryParse(parts[0], out major) && major >= 0)
+                return new Version(major, 0, 0);
+            return new Version(0, 0, 0);
         }
 
         // Fetch latest tag from GitHub tags API, then find its release asset.
@@ -301,7 +321,7 @@ namespace MasselGUARD
             var tagsJson = await http.GetStringAsync(TagsApiUrl);
             using var tagsDoc = JsonDocument.Parse(tagsJson);
             string? latestTag = null;
-            Version latestVer  = new Version(0, 0);
+            Version latestVer  = new Version(0, 0, 0);
             foreach (var tagEl in tagsDoc.RootElement.EnumerateArray())
             {
                 var name = tagEl.TryGetProperty("name", out var n) ? n.GetString() : null;
@@ -372,6 +392,19 @@ namespace MasselGUARD
             int pass = 0; var fails = new System.Collections.Generic.List<string>();
             void Check(bool ok, string what) { if (ok) pass++; else fails.Add(what); }
             const string abc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";   // SHA-256 of "abc"
+
+            Check(SplitFullVersion("4.6.0.2610071200") == ("4.6.0", "2610071200") && SplitFullVersion("5.2610071200") == ("5", "2610071200"), "build stamp: after 3 parts and after a single number");
+            Check(SplitFullVersion("5") == ("5", "") && SplitFullVersion("4.2.0.0") == ("4.2.0", "") && SplitFullVersion("4.6.0") == ("4.6.0", "") && SplitFullVersion("5.0") == ("5.0", ""), "build stamp: none when there is none");
+            Check(SplitFullVersion("v5.2610071200+abc123") == ("5", "2610071200") && SplitFullVersion("") == ("0.0.0", "") && SplitFullVersion(null) == ("0.0.0", ""), "build stamp: v prefix, git hash, empty");
+            // versions: a single number from 5 on, the old forms stay readable, and they compare as the same version
+            Check(ParseVersion("5") == new Version(5, 0, 0) && ParseVersion("5.0") == new Version(5, 0, 0) && ParseVersion("5.0.0") == new Version(5, 0, 0), "version: 5, 5.0 and 5.0.0 are the same");
+            Check(ParseVersion("4.6.0") == new Version(4, 6, 0) && ParseVersion("4.6.0-rc") == new Version(4, 6, 0) && ParseVersion("4.6") == new Version(4, 6, 0), "version: the 4.x forms");
+            Check(ParseVersion("10") > ParseVersion("9") && ParseVersion("6") > ParseVersion("5.0") && ParseVersion("5") > ParseVersion("4.6.9"), "version: single numbers compare numerically");
+            Check(ParseVersion("latest") == new Version(0, 0, 0) && ParseVersion("") == new Version(0, 0, 0) && ParseVersion("5-beta") == new Version(0, 0, 0) && ParseVersion("-1") == new Version(0, 0, 0), "version: garbage is 0.0.0");
+            var cur = ParseVersion(CurrentVersion);
+            Check(IsNewerVersion("v" + (cur.Major + 1)) && IsNewerVersion("V" + (cur.Major + 1) + ".0") && IsNewerVersion("v" + (cur.Major + 1) + ".0.0"), "version: the next number is newer, in any form");
+            Check(!IsNewerVersion("v" + cur.Major + "." + cur.Minor + "." + cur.Build) && !IsNewerVersion("v1") && !IsNewerVersion("latest") && !IsNewerVersion(null), "version: the same, older and garbage tags are not newer");
+            Check(IsAheadOfLatest("v1") && !IsAheadOfLatest("v" + (cur.Major + 1)), "version: ahead of an older tag only");
 
             Check(ParseChecksum(abc + "  MasselGUARD-x64.zip\n") == abc, "checksum: sha256sum format");
             Check(ParseChecksum(abc.ToUpperInvariant() + " *MasselGUARD-x64.zip") == abc, "checksum: upper case and binary marker");

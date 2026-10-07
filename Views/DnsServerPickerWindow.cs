@@ -45,6 +45,7 @@ namespace MasselGUARD.Views
         private DnsPickResult _result = new();
         private readonly HashSet<string> _initial = new();   // entries that were already in the user's list when the window opened
         private readonly HashSet<string> _seen = new();
+        private readonly Dictionary<string, UIElement> _paramPanels = new();   // the parameter fields of each row, shown only for the selected one
         private readonly Dictionary<string, Dictionary<string, string>> _values = new();   // entry id -> parameter token -> typed value
 
         private readonly TextBox _search;
@@ -256,6 +257,7 @@ namespace MasselGUARD.Views
             foreach (var sv in _list.Data.Servers)   // entries already in the user's list start ticked
                 if (_seen.Add(sv.Id) && DnsServerList.IsAdded(sv, _existing)) { _initial.Add(sv.Id); _checked.Add(sv.Id); }
             _rows.Children.Clear();
+            _paramPanels.Clear();
             int shown = 0;
             IEnumerable<DnsListServer> view = _list.Data.Servers.Where(s => DnsServerList.Matches(s, _search.Text, tag, Words(s)));
             if (_sortBox.SelectedIndex == 1)   // fastest first: measured ones by time, then unmeasured, failed last
@@ -285,8 +287,14 @@ namespace MasselGUARD.Views
             // Parameter fields (for example the NextDNS configuration id), shown for entries that are not in the list yet.
             var paramPanel = new StackPanel { Margin = new Thickness(0, 4, 0, 2) };
             var paramBoxes = new List<TextBox>();
+            TextBlock? paramPill = null;   // "needs your input" marker in the row, turns into "filled in" once every field is valid
             if (s.Parameters.Count > 0 && !_initial.Contains(s.Id))
             {
+                paramPill = new TextBlock
+                {
+                    FontFamily = Font, FontSize = 10, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 8, 0),
+                    ToolTip = Lang.T("DnsPickNeeds", string.Join(", ", s.Parameters.Select(p => p.Token))),
+                };
                 if (!_values.TryGetValue(s.Id, out var vals)) _values[s.Id] = vals = new Dictionary<string, string>();
                 TextBlock? preview = null;
                 foreach (var prm in s.Parameters)
@@ -316,6 +324,12 @@ namespace MasselGUARD.Views
             // a ticked entry with an empty or invalid field shows it in red
             void PaintParams()
             {
+                if (paramPill != null)
+                {
+                    bool all = paramBoxes.All(b => DnsServerList.ValidInput(b.Text.Trim()));
+                    paramPill.Text = (all ? "\u2714 " : "\u270E ") + Lang.T(all ? "DnsPickParamFilled" : "DnsPickFilterParam");
+                    paramPill.Foreground = Res(all ? "Success" : "WarningColor");
+                }
                 foreach (var box in paramBoxes)
                     box.BorderBrush = _checked.Contains(s.Id) && !DnsServerList.ValidInput(box.Text.Trim()) ? Res("Danger") : null;
             }
@@ -334,7 +348,15 @@ namespace MasselGUARD.Views
                 name.Foreground = Res(!on && was ? "TextMuted" : "TextPrimary");
                 PaintParams();
             }
-            chk.Checked += (_, _) => { _checked.Add(s.Id); Paint(); UpdateAddButton(); };
+            chk.Checked += (_, _) =>
+            {
+                _checked.Add(s.Id); Paint(); UpdateAddButton();
+                if (paramBoxes.Count > 0)   // show the fields and put the cursor in the first one
+                {
+                    SelectRow(s);
+                    Dispatcher.BeginInvoke(new Action(() => paramBoxes[0].Focus()), System.Windows.Threading.DispatcherPriority.Input);
+                }
+            };
             chk.Unchecked += (_, _) => { _checked.Remove(s.Id); Paint(); UpdateAddButton(); };
             Paint();
             var facts = new List<string>();
@@ -349,9 +371,15 @@ namespace MasselGUARD.Views
             text.Children.Add(name);
             var line2 = new StackPanel { Orientation = Orientation.Horizontal };
             line2.Children.Add(stateTag);
+            if (paramPill != null) line2.Children.Add(paramPill);
             if (facts.Count > 0) line2.Children.Add(sub);
             text.Children.Add(line2);
-            if (paramBoxes.Count > 0) text.Children.Add(paramPanel);
+            if (paramBoxes.Count > 0)
+            {
+                paramPanel.Visibility = _selected?.Id == s.Id ? Visibility.Visible : Visibility.Collapsed;   // only for the selected entry: keeps the list tidy
+                _paramPanels[s.Id] = paramPanel;
+                text.Children.Add(paramPanel);
+            }
 
             var dock = new DockPanel { Margin = new Thickness(8, 6, 8, 6), Background = Brushes.Transparent };
             DockPanel.SetDock(chk, Dock.Left);
@@ -375,11 +403,18 @@ namespace MasselGUARD.Views
             row.MouseLeftButtonDown += (_, e) =>
             {
                 if (e.OriginalSource is DependencyObject d && IsInside<CheckBox>(d)) return;
-                _selected = s;
-                foreach (Border b in _rows.Children.OfType<Border>()) b.Background = (string?)b.Tag == s.Id ? Res("WindowBg") : Brushes.Transparent;
-                ShowDetails(s);
+                SelectRow(s);
             };
             return row;
+        }
+
+        /// <summary>Selects an entry: highlights its row, shows its parameter fields (and hides the others') and fills the details pane.</summary>
+        private void SelectRow(DnsListServer s)
+        {
+            _selected = s;
+            foreach (Border b in _rows.Children.OfType<Border>()) b.Background = (string?)b.Tag == s.Id ? Res("WindowBg") : Brushes.Transparent;
+            foreach (var kv in _paramPanels) kv.Value.Visibility = kv.Key == s.Id ? Visibility.Visible : Visibility.Collapsed;
+            ShowDetails(s);
         }
 
         private static bool IsInside<T>(DependencyObject d) where T : DependencyObject
@@ -469,6 +504,9 @@ namespace MasselGUARD.Views
             "ads" => Lang.T("DnsPickBlockAds"),
             "trackers" => Lang.T("DnsPickBlockTrackers"),
             "adult" => Lang.T("DnsPickBlockAdult"),
+            "social" => Lang.T("DnsPickBlockSocial"),
+            "gambling" => Lang.T("DnsPickBlockGambling"),
+            "proxies" => Lang.T("DnsPickBlockProxies"),
             _ => b,
         };
 
@@ -592,13 +630,9 @@ namespace MasselGUARD.Views
                 var p = DnsServerList.ToProfile(s, vals);
                 if (p == null)   // a parameter field is empty or not valid: show which entry
                 {
-                    _selected = s;
+                    SelectRow(s);
                     foreach (Border b in _rows.Children.OfType<Border>())
-                    {
-                        b.Background = (string?)b.Tag == s.Id ? Res("WindowBg") : Brushes.Transparent;
                         if ((string?)b.Tag == s.Id) b.BringIntoView();
-                    }
-                    ShowDetails(s);
                     MessageBox.Show(this, Lang.T("DnsPickParamMissing", s.Name), Lang.T("DnsPickTitle"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }

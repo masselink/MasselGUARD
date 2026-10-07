@@ -1216,7 +1216,7 @@
   "RuleNetMenuTip": "接続中のネットワークからルールを作成",
   "RuleShadowNote": "上にあるルール「{0}」もこのネットワークに一致し、優先されます。変更するには新しいルールをその上へドラッグしてください。",
   "RuleShadowTitle": "ルールの順序",
-  "BtnAddFromNetwork": "ネットワークから",
+  "BtnAddFromNetwork": "現在のネットワークを追加",
   "SettingsDnsShortcutLabel": "バイパスのショートカット",
   "SettingsDnsShortcutTip": "ボックスをクリックして使いたいキーを押します(例: Ctrl+Alt+D)。Ctrl、Alt、Win のいずれかと1つのキーが必要です。「クリア」でショートカットを削除します。値は config.json に BypassShortcut として保存されます。",
   "BtnClearShortcut": "クリア",
@@ -1320,5 +1320,17 @@
   "DnsPickSourceSaved": "追加したサーバーのみ: {0} (リストを読み込めませんでした)",
   "DnsPickNoList": "リストはまだダウンロードされていません。インターネット接続を確認して [更新] を押してください。",
   "DnsPickSkippedFiles": "より新しいMasselGUARDが必要なリストファイル {0} 件をスキップしました。",
-  "DnsPickTestSkippedParam": "入力欄が空の {0} 台のサーバーはテストしませんでした。"
+  "DnsPickTestSkippedParam": "入力欄が空の {0} 台のサーバーはテストしませんでした。",
+  "RuleTestTitle": "ルールをテスト",
+  "RuleTestMet": "条件を満たしています",
+  "RuleTestNotMet": "条件を満たしていません",
+  "RuleTestChecks": "確認した内容",
+  "RuleTestActions": "このルールが今行うこと",
+  "RuleTestActionsIf": "条件を満たした場合にルールが行うこと",
+  "RuleTestNotes": "ご注意",
+  "RuleTestReadOnly": "確認のみで、接続や変更は行っていません。このルールより上にあるルールが優先される場合があります。",
+  "DnsPickBlockSocial": "ソーシャルメディア",
+  "DnsPickBlockGambling": "ギャンブル",
+  "DnsPickBlockProxies": "プロキシとVPN",
+  "DnsPickParamFilled": "入力済み"
 }

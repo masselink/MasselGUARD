@@ -1216,7 +1216,7 @@
   "RuleNetMenuTip": "Bağlı bir ağdan kural oluştur",
   "RuleShadowNote": "Yukarıdaki \"{0}\" kuralı da bu ağa uyuyor ve öncelikli. Bunu değiştirmek için yeni kuralı onun üstüne sürükleyin.",
   "RuleShadowTitle": "Kural sırası",
-  "BtnAddFromNetwork": "Ağdan",
+  "BtnAddFromNetwork": "Geçerli ağı ekle",
   "SettingsDnsShortcutLabel": "Atlama kısayolu",
   "SettingsDnsShortcutTip": "Kutuya tıklayın ve istediğiniz tuşlara basın, örneğin Ctrl+Alt+D. Ctrl, Alt veya Win ile bir tuş gerekir. Temizle kısayolu kaldırır. Değer config.json içinde BypassShortcut olarak saklanır.",
   "BtnClearShortcut": "Temizle",
@@ -1320,5 +1320,17 @@
   "DnsPickSourceSaved": "Yalnızca eklediğiniz sunucular: {0} (liste yüklenemedi)",
   "DnsPickNoList": "Liste henüz indirilmedi. İnternet bağlantınızı kontrol edin ve Yenile'ye basın.",
   "DnsPickSkippedFiles": "{0} liste dosyası daha yeni bir MasselGUARD gerektirdiği için atlandı.",
-  "DnsPickTestSkippedParam": "Boş alanı olan {0} sunucu test edilmedi."
+  "DnsPickTestSkippedParam": "Boş alanı olan {0} sunucu test edilmedi.",
+  "RuleTestTitle": "Kuralı test et",
+  "RuleTestMet": "Koşul sağlandı",
+  "RuleTestNotMet": "Koşul sağlanmadı",
+  "RuleTestChecks": "NELER KONTROL EDİLDİ",
+  "RuleTestActions": "KURAL ŞİMDİ NE YAPIYOR",
+  "RuleTestActionsIf": "KOŞUL SAĞLANIRSA KURAL NE YAPARDI",
+  "RuleTestNotes": "DİKKAT",
+  "RuleTestReadOnly": "Bu yalnızca bir kontroldü: hiçbir şey bağlanmadı veya değiştirilmedi. Bunun üstündeki bir kural yine de öncelik alabilir.",
+  "DnsPickBlockSocial": "Sosyal medya",
+  "DnsPickBlockGambling": "Kumar",
+  "DnsPickBlockProxies": "Proxy'ler ve VPN'ler",
+  "DnsPickParamFilled": "Dolduruldu"
 }

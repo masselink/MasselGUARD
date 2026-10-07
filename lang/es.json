@@ -1216,7 +1216,7 @@
   "RuleNetMenuTip": "Crear una regla desde una red conectada",
   "RuleShadowNote": "La regla \"{0}\" de arriba también coincide con esta red y gana. Arrastra la nueva regla por encima para cambiarlo.",
   "RuleShadowTitle": "Orden de reglas",
-  "BtnAddFromNetwork": "Desde la red",
+  "BtnAddFromNetwork": "Añadir la red actual",
   "SettingsDnsShortcutLabel": "Atajo de omisión",
   "SettingsDnsShortcutTip": "Haz clic en el cuadro y pulsa las teclas que quieras, por ejemplo Ctrl+Alt+D. Necesita Ctrl, Alt o Win más una tecla. Borrar quita el atajo. El valor se guarda en config.json como BypassShortcut.",
   "BtnClearShortcut": "Borrar",
@@ -1320,5 +1320,17 @@
   "DnsPickSourceSaved": "Solo los servidores que ha añadido: {0} (no se pudo cargar la lista)",
   "DnsPickNoList": "La lista aún no se ha descargado. Compruebe su conexión a Internet y pulse Actualizar.",
   "DnsPickSkippedFiles": "{0} archivo(s) de la lista requieren una versión más reciente de MasselGUARD y se omitieron.",
-  "DnsPickTestSkippedParam": "No se probaron {0} servidor(es) con un campo vacío."
+  "DnsPickTestSkippedParam": "No se probaron {0} servidor(es) con un campo vacío.",
+  "RuleTestTitle": "Probar regla",
+  "RuleTestMet": "Condición cumplida",
+  "RuleTestNotMet": "Condición no cumplida",
+  "RuleTestChecks": "QUÉ SE COMPROBÓ",
+  "RuleTestActions": "QUÉ HACE LA REGLA AHORA",
+  "RuleTestActionsIf": "QUÉ HARÍA LA REGLA SI SE CUMPLIERA",
+  "RuleTestNotes": "TENGA EN CUENTA",
+  "RuleTestReadOnly": "Solo fue una comprobación: no se conectó ni se cambió nada. Una regla situada por encima aún puede imponerse.",
+  "DnsPickBlockSocial": "Redes sociales",
+  "DnsPickBlockGambling": "Juegos de azar",
+  "DnsPickBlockProxies": "Proxies y VPN",
+  "DnsPickParamFilled": "Rellenado"
 }

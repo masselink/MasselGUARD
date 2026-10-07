@@ -45,7 +45,7 @@ Light and dark are both built in, and colours and section icons are themeable. I
 - **Other triggers** - schedule windows (overnight supported) and a directional **trusted-networks** list (connect on untrusted, or only on trusted).
 - **Default action** and **open-network protection** (force a tunnel on passwordless Wi-Fi before any rule fires).
 - **Simple Wi-Fi mode** - only Wi-Fi networks and plain SSID rules are used, for people who just want the classic behaviour.
-- **Create a rule from the network you are on** - right-click the network name in the footer, or use **From network** next to **+ Add**: the rule dialog opens already filled in with the condition that identifies that network best.
+- **Create a rule from the network you are on** - right-click the network name in the footer, or use **Add current network** next to **+ Add**: the rule dialog opens already filled in with the condition that identifies that network best.
 - **Test it** - **Test rule** checks one rule against the current network; **Advanced test** lets you describe any network and shows which rule fires and why, step by step. Nothing is connected or changed.
 - **Fetch, don't type** - every value has a Fetch button that lists the connected networks, the PC's adapters and recently seen networks.
 - **Network-change notifications** - an optional pop-up with the new network, its DNS and which automation applied.

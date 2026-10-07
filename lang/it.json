@@ -1216,7 +1216,7 @@
   "RuleNetMenuTip": "Crea una regola da una rete connessa",
   "RuleShadowNote": "La regola \"{0}\" sopra corrisponde anche a questa rete e vince. Trascina la nuova regola sopra di essa per cambiarlo.",
   "RuleShadowTitle": "Ordine delle regole",
-  "BtnAddFromNetwork": "Dalla rete",
+  "BtnAddFromNetwork": "Aggiungi la rete attuale",
   "SettingsDnsShortcutLabel": "Scorciatoia bypass",
   "SettingsDnsShortcutTip": "Fai clic nella casella e premi i tasti desiderati, ad esempio Ctrl+Alt+D. Servono Ctrl, Alt o Win più un tasto. Cancella rimuove la scorciatoia. Il valore è salvato in config.json come BypassShortcut.",
   "BtnClearShortcut": "Cancella",
@@ -1320,5 +1320,17 @@
   "DnsPickSourceSaved": "Solo i server che hai aggiunto: {0} (non è stato possibile caricare l'elenco)",
   "DnsPickNoList": "L'elenco non è ancora stato scaricato. Controlla la connessione a Internet e premi Aggiorna.",
   "DnsPickSkippedFiles": "{0} file dell'elenco richiedono una versione più recente di MasselGUARD e sono stati ignorati.",
-  "DnsPickTestSkippedParam": "{0} server con un campo vuoto non sono stati provati."
+  "DnsPickTestSkippedParam": "{0} server con un campo vuoto non sono stati provati.",
+  "RuleTestTitle": "Prova regola",
+  "RuleTestMet": "Condizione soddisfatta",
+  "RuleTestNotMet": "Condizione non soddisfatta",
+  "RuleTestChecks": "COSA È STATO CONTROLLATO",
+  "RuleTestActions": "COSA FA LA REGOLA ORA",
+  "RuleTestActionsIf": "COSA FAREBBE LA REGOLA SE FOSSE SODDISFATTA",
+  "RuleTestNotes": "DA NOTARE",
+  "RuleTestReadOnly": "Era solo un controllo: non è stato connesso né modificato nulla. Una regola sopra questa può ancora prevalere.",
+  "DnsPickBlockSocial": "Social media",
+  "DnsPickBlockGambling": "Gioco d'azzardo",
+  "DnsPickBlockProxies": "Proxy e VPN",
+  "DnsPickParamFilled": "Compilato"
 }

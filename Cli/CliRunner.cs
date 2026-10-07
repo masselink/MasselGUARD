@@ -228,13 +228,56 @@ namespace MasselGUARD.Cli
             return ok ? 0 : 1;
         }
 
+        /// <summary>Validates a checkout of the DNS list repository (index.json + servers/*.json) with the same parser the app uses, so a
+        /// maintainer sees which entries the app would skip. Exit 1 when anything is skipped, missing or invalid.</summary>
+        private static int CmdDnsCheckList(string[] args, bool json)
+        {
+            if (args.Length < 3) { CliOutput.Error($"Usage: {ExeName} dns check-list <folder of the MasselGUARD-dnslist checkout>"); return 1; }
+            var dir = args[2];
+            var indexPath = System.IO.Path.Combine(dir, "index.json");
+            if (!System.IO.File.Exists(indexPath)) { CliOutput.Error($"No index.json in {dir}"); return 1; }
+            var names = Models.DnsServerList.ParseIndex(System.IO.File.ReadAllText(indexPath), out var version, out var ierr);
+            if (names == null) { CliOutput.Error($"index.json: {ierr}"); return 1; }
+
+            bool bad = false;
+            var texts = new Dictionary<string, string>();
+            var report = new List<object>();
+            foreach (var n in names)
+            {
+                var path = System.IO.Path.Combine(dir, "servers", n + ".json");
+                if (!System.IO.File.Exists(path)) { CliOutput.Error($"{n}: servers\\{n}.json is listed in index.json but does not exist"); bad = true; continue; }
+                var text = System.IO.File.ReadAllText(path);
+                texts[n] = text;
+                var list = Models.DnsServerList.ParseProvider(text, out var skipped, out var perr);
+                if (list == null) { CliOutput.Error($"{n}: {perr}"); bad = true; continue; }
+                if (skipped > 0) bad = true;
+                report.Add(new { file = n, servers = list.Count, skipped });
+                if (!json) (skipped > 0 ? (Action<string>)CliOutput.Error : CliOutput.Ok)($"{n}: {list.Count} server(s)" + (skipped > 0 ? $", {skipped} SKIPPED (invalid or duplicate)" : ""));
+            }
+            // files in servers/ that the index does not list are never read by the app
+            var folder = System.IO.Path.Combine(dir, "servers");
+            if (System.IO.Directory.Exists(folder))
+                foreach (var f in System.IO.Directory.GetFiles(folder, "*.json"))
+                {
+                    var n = System.IO.Path.GetFileNameWithoutExtension(f);
+                    if (!names.Contains(n)) { CliOutput.Error($"{n}.json is not listed in index.json, so the app ignores it"); bad = true; }
+                }
+            var data = Models.DnsServerList.Assemble(names, version, n => texts.TryGetValue(n, out var t) ? t : null, out var problem);
+            if (data == null) { CliOutput.Error("Whole list: " + problem); return 1; }
+            if (json) CliOutput.PrintJson(new { version, servers = data.Servers.Count, skipped = data.Skipped, files = report, ok = !bad });
+            else if (!bad) CliOutput.Ok($"List OK: {data.Servers.Count} server(s) from {names.Count} file(s), version {version}.");
+            else CliOutput.Error($"List has problems: {data.Servers.Count} usable server(s) from {names.Count} file(s).");
+            return bad ? 1 : 0;
+        }
+
         private static int CmdDns(string[] args, AppConfig cfg, bool json)
         {
             string sub = args.Length > 1 ? args[1].ToLowerInvariant() : "status";
             if (sub == "bypass") return CmdDnsBypass(args, cfg, json);
+            if (sub == "check-list") return CmdDnsCheckList(args, json);
             if (sub != "status")
             {
-                CliOutput.Error($"Unknown dns subcommand: '{sub}'. Use: dns status | dns bypass [seconds|stop|toggle]");
+                CliOutput.Error($"Unknown dns subcommand: '{sub}'. Use: dns status | dns bypass [seconds|stop|toggle] | dns check-list <folder>");
                 return 1;
             }
 

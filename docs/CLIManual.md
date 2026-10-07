@@ -1005,3 +1005,7 @@ Storing a config without DPAPI means anyone with Administrator access to the mac
 - The machine has other physical or software security controls in place
 
 The MasselGUARD CLI will always print a visible warning when `--unsecure` is used.
+
+### dns check-list
+
+`MasselGUARDcli dns check-list <folder>` validates a checkout of the DNS list repository (`index.json` and `servers/*.json`) with the same parser the app uses, and prints for every provider file how many servers are valid and how many would be skipped. It also warns about a file the index lists but that does not exist, and about a file in `servers/` that the index does not list (the app never reads it). Exit code 0 = all fine, 1 = something is wrong. Read-only and needs no administrator rights; add `--json` for machine-readable output.

@@ -1216,7 +1216,7 @@
   "RuleNetMenuTip": "Utwórz regułę z połączonej sieci",
   "RuleShadowNote": "Reguła \"{0}\" wyżej również pasuje do tej sieci i wygrywa. Przeciągnij nową regułę nad nią, aby to zmienić.",
   "RuleShadowTitle": "Kolejność reguł",
-  "BtnAddFromNetwork": "Z sieci",
+  "BtnAddFromNetwork": "Dodaj bieżącą sieć",
   "SettingsDnsShortcutLabel": "Skrót obejścia",
   "SettingsDnsShortcutTip": "Kliknij pole i naciśnij żądane klawisze, na przykład Ctrl+Alt+D. Wymagany jest Ctrl, Alt lub Win oraz jeden klawisz. Wyczyść usuwa skrót. Wartość jest zapisana w config.json jako BypassShortcut.",
   "BtnClearShortcut": "Wyczyść",
@@ -1320,5 +1320,17 @@
   "DnsPickSourceSaved": "Tylko dodane przez Ciebie serwery: {0} (nie udało się wczytać listy)",
   "DnsPickNoList": "Lista nie została jeszcze pobrana. Sprawdź połączenie z internetem i naciśnij Odśwież.",
   "DnsPickSkippedFiles": "Pliki listy wymagające nowszego MasselGUARD zostały pominięte: {0}.",
-  "DnsPickTestSkippedParam": "Nie przetestowano serwerów z pustym polem: {0}."
+  "DnsPickTestSkippedParam": "Nie przetestowano serwerów z pustym polem: {0}.",
+  "RuleTestTitle": "Testuj regułę",
+  "RuleTestMet": "Warunek spełniony",
+  "RuleTestNotMet": "Warunek niespełniony",
+  "RuleTestChecks": "CO SPRAWDZONO",
+  "RuleTestActions": "CO REGUŁA ROBI TERAZ",
+  "RuleTestActionsIf": "CO REGUŁA ZROBIŁABY PO SPEŁNIENIU WARUNKU",
+  "RuleTestNotes": "UWAGA",
+  "RuleTestReadOnly": "To było tylko sprawdzenie: nic nie połączono ani nie zmieniono. Reguła znajdująca się wyżej może nadal mieć pierwszeństwo.",
+  "DnsPickBlockSocial": "Media społecznościowe",
+  "DnsPickBlockGambling": "Hazard",
+  "DnsPickBlockProxies": "Serwery proxy i VPN",
+  "DnsPickParamFilled": "Wypełniono"
 }

@@ -1216,7 +1216,7 @@
   "RuleNetMenuTip": "Créer une règle depuis un réseau connecté",
   "RuleShadowNote": "La règle \"{0}\" au-dessus correspond aussi à ce réseau et l'emporte. Faites glisser la nouvelle règle au-dessus pour changer cela.",
   "RuleShadowTitle": "Ordre des règles",
-  "BtnAddFromNetwork": "Depuis le réseau",
+  "BtnAddFromNetwork": "Ajouter le réseau actuel",
   "SettingsDnsShortcutLabel": "Raccourci de contournement",
   "SettingsDnsShortcutTip": "Cliquez dans le champ et appuyez sur les touches voulues, par exemple Ctrl+Alt+D. Il faut Ctrl, Alt ou Win plus une touche. Effacer supprime le raccourci. La valeur est stockée dans config.json sous BypassShortcut.",
   "BtnClearShortcut": "Effacer",
@@ -1320,5 +1320,17 @@
   "DnsPickSourceSaved": "Seuls les serveurs que vous avez ajoutés : {0} (la liste n'a pas pu être chargée)",
   "DnsPickNoList": "La liste n'a pas encore été téléchargée. Vérifiez votre connexion Internet et cliquez sur Actualiser.",
   "DnsPickSkippedFiles": "{0} fichier(s) de liste nécessitent une version plus récente de MasselGUARD et ont été ignorés.",
-  "DnsPickTestSkippedParam": "{0} serveur(s) dont un champ est vide n'ont pas été testés."
+  "DnsPickTestSkippedParam": "{0} serveur(s) dont un champ est vide n'ont pas été testés.",
+  "RuleTestTitle": "Tester la règle",
+  "RuleTestMet": "Condition remplie",
+  "RuleTestNotMet": "Condition non remplie",
+  "RuleTestChecks": "CE QUI A ÉTÉ VÉRIFIÉ",
+  "RuleTestActions": "CE QUE LA RÈGLE FAIT MAINTENANT",
+  "RuleTestActionsIf": "CE QUE LA RÈGLE FERAIT SI ELLE S'APPLIQUAIT",
+  "RuleTestNotes": "À NOTER",
+  "RuleTestReadOnly": "Ce n'était qu'une vérification : rien n'a été connecté ni modifié. Une règle située au-dessus peut encore l'emporter.",
+  "DnsPickBlockSocial": "Réseaux sociaux",
+  "DnsPickBlockGambling": "Jeux d'argent",
+  "DnsPickBlockProxies": "Proxys et VPN",
+  "DnsPickParamFilled": "Renseigné"
 }

@@ -18,7 +18,7 @@ The app downloads `https://raw.githubusercontent.com/<owner>/<repo>/main/index.j
 
 1. Add or edit `servers/<name>.json` (`<name>`: lower-case letters, digits and hyphens, at most 41 characters).
 2. For a new provider, add `<name>` to `providers` in `index.json` **and** change `version` (any text, for example the date). A file that is not in the index is ignored.
-3. Check that the app accepts it: the app silently **skips** an entry that breaks the rules below, so test in a build (Browse DNS servers shows "N invalid entries ignored").
+3. Check that the app accepts it: the app silently **skips** an entry that breaks the rules below. Run `MasselGUARDcli dns check-list <folder of the dnslist checkout>`: it reads `index.json` and every provider file with the same parser as the app and reports, per file, how many servers are valid and how many would be skipped (invalid, duplicate id, private address, missing file, a file the index does not list). Exit code 1 when anything is wrong. Browse DNS servers also shows "N invalid entries ignored".
 
 ## `index.json`
 
@@ -72,7 +72,7 @@ The file is at most 64 KB and holds at most 50 servers. `provider`, `website`, `
 | `servers[].id` | yes | `^[a-z0-9][a-z0-9-]{1,63}$`. **Unique in the whole list and never changed or reused**: the app uses it to know which profile came from which entry. |
 | `servers[].name` | yes | The service's own name as its provider calls it (max 80). A plain string, shown and used as the profile name in every language. |
 | `servers[].description` | no | One short plain-text sentence in English (max 400). Shown as written in every language; keep it neutral and factual. |
-| `servers[].blocks` | no | What the resolver blocks, as codes: `malware` (includes phishing), `ads`, `trackers`, `adult`. Empty or missing = blocks nothing. The app translates these codes and uses them for the feature filter and for searching in the user's language. Another code (lower case letters, digits, hyphens, 2-24 characters, at most 8 codes) is accepted and shown as written until the app has a translation. |
+| `servers[].blocks` | no | What the resolver blocks, as codes: `malware` (includes phishing), `ads`, `trackers`, `adult`, `social` (social media), `gambling`, `proxies` (proxy and VPN sites). Empty or missing = blocks nothing. The app translates these codes and uses them for the feature filter and for searching in the user's language. Another code (lower case letters, digits, hyphens, 2-24 characters, at most 8 codes) is accepted and shown as written until the app has a translation. |
 | `servers[].logging` | no | `none`, `minimal`, `short-term`, `anonymized`, `configurable` or `unknown` (default `unknown`). Use what the provider states. |
 | `servers[].v4`, `v6` | one of v4/v6/doh | Up to 4 addresses each, primary first. **Public addresses only**: private, loopback, link-local, unique-local, CGNAT and multicast ranges are refused. |
 | `servers[].doh` | one of v4/v6/doh | DNS-over-HTTPS template, `https://` only, max 300 characters, none of `" ' \` ^ & \| < > %` or spaces. |

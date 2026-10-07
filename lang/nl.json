@@ -1216,7 +1216,7 @@
   "RuleNetMenuTip": "Een regel maken van een verbonden netwerk",
   "RuleShadowNote": "Regel \"{0}\" hierboven past ook op dit netwerk en wint. Sleep de nieuwe regel erboven om dat te veranderen.",
   "RuleShadowTitle": "Regelvolgorde",
-  "BtnAddFromNetwork": "Van netwerk",
+  "BtnAddFromNetwork": "Huidig netwerk toevoegen",
   "SettingsDnsShortcutLabel": "Bypass-sneltoets",
   "SettingsDnsShortcutTip": "Klik in het vak en druk op de gewenste toetsen, bijvoorbeeld Ctrl+Alt+D. Er is Ctrl, Alt of Win plus een toets nodig. Wissen verwijdert de sneltoets. De waarde staat in config.json als BypassShortcut.",
   "BtnClearShortcut": "Wissen",
@@ -1320,5 +1320,17 @@
   "DnsPickSourceSaved": "Alleen de servers die je hebt toegevoegd: {0} (de lijst kon niet worden geladen)",
   "DnsPickNoList": "De lijst is nog niet gedownload. Controleer je internetverbinding en druk op Vernieuwen.",
   "DnsPickSkippedFiles": "{0} lijstbestand(en) vragen een nieuwere MasselGUARD en zijn overgeslagen.",
-  "DnsPickTestSkippedParam": "{0} server(s) met een leeg veld zijn niet getest."
+  "DnsPickTestSkippedParam": "{0} server(s) met een leeg veld zijn niet getest.",
+  "RuleTestTitle": "Regel testen",
+  "RuleTestMet": "Voorwaarde vervuld",
+  "RuleTestNotMet": "Voorwaarde niet vervuld",
+  "RuleTestChecks": "WAT IS ER GECONTROLEERD",
+  "RuleTestActions": "WAT DE REGEL NU DOET",
+  "RuleTestActionsIf": "WAT DE REGEL ZOU DOEN ALS HIJ KLOPT",
+  "RuleTestNotes": "LET OP",
+  "RuleTestReadOnly": "Dit was alleen een controle: er is niets verbonden of gewijzigd. Een regel boven deze kan nog steeds winnen.",
+  "DnsPickBlockSocial": "Sociale media",
+  "DnsPickBlockGambling": "Gokken",
+  "DnsPickBlockProxies": "Proxy's en VPN's",
+  "DnsPickParamFilled": "Ingevuld"
 }

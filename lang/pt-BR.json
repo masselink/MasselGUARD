@@ -1216,7 +1216,7 @@
   "RuleNetMenuTip": "Criar uma regra a partir de uma rede conectada",
   "RuleShadowNote": "A regra \"{0}\" acima também corresponde a esta rede e vence. Arraste a nova regra para cima dela para mudar isso.",
   "RuleShadowTitle": "Ordem das regras",
-  "BtnAddFromNetwork": "Da rede",
+  "BtnAddFromNetwork": "Adicionar a rede atual",
   "SettingsDnsShortcutLabel": "Atalho de contorno",
   "SettingsDnsShortcutTip": "Clique na caixa e pressione as teclas desejadas, por exemplo Ctrl+Alt+D. É preciso Ctrl, Alt ou Win mais uma tecla. Limpar remove o atalho. O valor fica em config.json como BypassShortcut.",
   "BtnClearShortcut": "Limpar",
@@ -1320,5 +1320,17 @@
   "DnsPickSourceSaved": "Somente os servidores que você adicionou: {0} (não foi possível carregar a lista)",
   "DnsPickNoList": "A lista ainda não foi baixada. Verifique sua conexão com a Internet e pressione Atualizar.",
   "DnsPickSkippedFiles": "{0} arquivo(s) da lista exigem um MasselGUARD mais recente e foram ignorados.",
-  "DnsPickTestSkippedParam": "{0} servidor(es) com um campo vazio não foram testados."
+  "DnsPickTestSkippedParam": "{0} servidor(es) com um campo vazio não foram testados.",
+  "RuleTestTitle": "Testar regra",
+  "RuleTestMet": "Condição atendida",
+  "RuleTestNotMet": "Condição não atendida",
+  "RuleTestChecks": "O QUE FOI VERIFICADO",
+  "RuleTestActions": "O QUE A REGRA FAZ AGORA",
+  "RuleTestActionsIf": "O QUE A REGRA FARIA SE FOSSE ATENDIDA",
+  "RuleTestNotes": "OBSERVAÇÕES",
+  "RuleTestReadOnly": "Foi apenas uma verificação: nada foi conectado ou alterado. Uma regra acima desta ainda pode prevalecer.",
+  "DnsPickBlockSocial": "Redes sociais",
+  "DnsPickBlockGambling": "Jogos de azar",
+  "DnsPickBlockProxies": "Proxies e VPNs",
+  "DnsPickParamFilled": "Preenchido"
 }

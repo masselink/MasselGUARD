@@ -35,10 +35,10 @@
     <ApplicationIcon>MasselGUARD.ico</ApplicationIcon>
     <!-- Default versions for IDE / dotnet build without BUILD.bat.
          BUILD.bat overrides these via -p:Version / -p:InformationalVersion. -->
-    <Version>4.6.0</Version>
-    <AssemblyVersion>4.6.0.0</AssemblyVersion>
-    <FileVersion>4.6.0.0</FileVersion>
-    <InformationalVersion>4.6.0</InformationalVersion>
+    <Version>5</Version>
+    <AssemblyVersion>5.0.0.0</AssemblyVersion>
+    <FileVersion>5.0.0.0</FileVersion>
+    <InformationalVersion>5</InformationalVersion>
     <!-- Keep the SDK from appending "+<git-sha>" to InformationalVersion — the
          About page shows the raw value as the build stamp. -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>

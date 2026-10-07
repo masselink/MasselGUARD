@@ -1216,7 +1216,7 @@
   "RuleNetMenuTip": "Create a rule from a connected network",
   "RuleShadowNote": "Rule \"{0}\" above also matches this network and wins. Drag the new rule above it to change that.",
   "RuleShadowTitle": "Rule order",
-  "BtnAddFromNetwork": "From network",
+  "BtnAddFromNetwork": "Add current network",
   "SettingsDnsShortcutLabel": "Bypass shortcut",
   "SettingsDnsShortcutTip": "Click the box and press the keys you want, for example Ctrl+Alt+D. It needs Ctrl, Alt or Win plus one key. Clear removes the shortcut. The value is stored in config.json as BypassShortcut.",
   "BtnClearShortcut": "Clear",
@@ -1320,5 +1320,17 @@
   "DnsPickSourceSaved": "Showing only the servers you added: {0} (the list could not be loaded)",
   "DnsPickNoList": "The list has not been downloaded yet. Check your internet connection and press Refresh.",
   "DnsPickSkippedFiles": "{0} list file(s) need a newer MasselGUARD and were skipped.",
-  "DnsPickTestSkippedParam": "{0} server(s) with an empty field were not tested."
+  "DnsPickTestSkippedParam": "{0} server(s) with an empty field were not tested.",
+  "RuleTestTitle": "Test rule",
+  "RuleTestMet": "Requirement met",
+  "RuleTestNotMet": "Requirement not met",
+  "RuleTestChecks": "WHAT WAS CHECKED",
+  "RuleTestActions": "WHAT THE RULE DOES NOW",
+  "RuleTestActionsIf": "WHAT THE RULE WOULD DO WHEN MET",
+  "RuleTestNotes": "PLEASE NOTE",
+  "RuleTestReadOnly": "This was only a check: nothing was connected or changed. Another rule above this one may still win.",
+  "DnsPickBlockSocial": "Social media",
+  "DnsPickBlockGambling": "Gambling",
+  "DnsPickBlockProxies": "Proxies and VPNs",
+  "DnsPickParamFilled": "Filled in"
 }
