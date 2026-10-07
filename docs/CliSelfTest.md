@@ -7,7 +7,7 @@ MasselGUARDcli selftest
 ```
 
 ```
-✓ Self-test: 747 passed (CidrMath 18, Backend 11, Export 6, DnsPolicy 20, NetworkMatcher 150, RuleTester 50, RuleEngine 37, RuleSimulator 20, TempOverride 18, CommandPipe 17, Shortcut 31, PrivilegedOps 10, PrivilegedRpc 122, DnsHoldKeeper 15, TunnelStore 15, AutostartRunKey 8, BypassPlan 15, InstallFiles 6, HeadlessPlanner 33, SecureFolders 17, UpdateChecker 18, BypassClient 10, DnsServerList 85, DnsProbe 15).
+✓ Self-test: 754 passed (CidrMath 18, Backend 11, Export 6, DnsPolicy 20, NetworkMatcher 150, RuleTester 50, RuleEngine 37, RuleSimulator 20, TempOverride 18, CommandPipe 17, Shortcut 31, PrivilegedOps 10, PrivilegedRpc 122, DnsHoldKeeper 15, TunnelStore 15, AutostartRunKey 8, BypassPlan 15, InstallFiles 6, HeadlessPlanner 33, SecureFolders 17, UpdateChecker 25, BypassClient 10, DnsServerList 85, DnsProbe 15).
 ```
 
 ## Running it
@@ -47,7 +47,7 @@ The checks are plain assertions inside the shared, WPF-free services, so the CLI
 | **DnsServerList** | `Models/DnsServerList.cs` | The DNS server list the picker shows: the index and provider-file parsers (valid names only, inherited provider fields, skipped entries, size caps, combine across files), the flat parser, whole-file refusals (bad JSON, unknown schemaVersion, too big), skipped entries (bad id, bad/private/loopback/link-local addresses, http or metacharacter DoH, missing English text, em dash, token problems, duplicate id), search with translated words, the feature filter (blocks / encrypted only / needs input), plain-string names and descriptions, conversion to a profile (encrypted-only is fail-closed DoH, input token replaced, bad input refused), "already added" detection, the repository URL rules, a provider file of another schemaVersion skipped while a corrupt or missing one fails the whole list, and the user's saved copy of added entries (flat JSON round trip, merge, drop). |
 | **DnsProbe** | `Services/DnsProbe.cs` | The DNS query the speed test sends (header, labels, type A/IN, trailing dot) and the answer check (wrong id, REFUSED, NXDOMAIN, other rcode, no records, short packet, a query is not an answer), plus the ranking of a `DnsSpeed`. The network calls are not tested here. |
 | **BypassClient** | `Services/BypassClient.cs` | The arguments of the windowless launcher the Explorer entries run (`MasselGUARD.exe --bypass 60`, `stop`, `toggle`, no argument, case, garbage, extra arguments, the length clamp). |
-| **UpdateChecker** | `UpdateChecker.cs` | Release versions (a single number from 5 on: `5`, `5.0` and `5.0.0` are the same, the 4.x forms stay readable, garbage is 0.0.0, which tags count as newer) and the release checksum used by the updater: the formats of a `.sha256` file, rejected garbage and wrong lengths, and the file hash against a known value. |
+| **UpdateChecker** | `UpdateChecker.cs` | Which tag is the latest (numeric: v10 beats v9, names that are not versions ignored), release versions (a single number from 5 on: `5`, `5.0` and `5.0.0` are the same, the 4.x forms stay readable, garbage is 0.0.0, which tags count as newer) and the release checksum used by the updater: the formats of a `.sha256` file, rejected garbage and wrong lengths, and the file hash against a known value. |
 
 ## What it does not cover
 

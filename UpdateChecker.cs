@@ -309,6 +309,38 @@ namespace MasselGUARD
             return new Version(0, 0, 0);
         }
 
+        /// <summary>The zip for <paramref name="arch"/> and its <c>.sha256</c> asset from a GitHub release object (the JSON of
+        /// <c>/releases/latest</c> or <c>/releases/tags/&lt;tag&gt;</c>). Either may be null when the release does not have it.</summary>
+        public static (string? zipUrl, string? sha256Url) PickAssets(JsonElement release, string arch)
+        {
+            var byName = new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (release.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
+                foreach (var asset in assets.EnumerateArray())
+                {
+                    var aname = asset.TryGetProperty("name", out var an) ? an.GetString() : null;
+                    var url = asset.TryGetProperty("browser_download_url", out var u) ? u.GetString() : null;
+                    if (!string.IsNullOrEmpty(aname) && !string.IsNullOrEmpty(url)) byName[aname] = url;
+                }
+            foreach (var candidate in AssetCandidates(arch))
+                if (byName.TryGetValue(candidate, out var zip))
+                    return (zip, byName.TryGetValue(candidate + ".sha256", out var sha) ? sha : null);
+            return (null, null);
+        }
+
+        /// <summary>The tag with the highest version number (numeric: <c>v10</c> beats <c>v9</c>, <c>v5.0</c> equals <c>v5</c>);
+        /// tags that are not versions are ignored. Null when there is none.</summary>
+        public static string? PickLatestTag(System.Collections.Generic.IEnumerable<string> tags)
+        {
+            string? best = null;
+            Version bestVer = new Version(0, 0, 0);
+            foreach (var name in tags)
+            {
+                var ver = ParseVersion(name.TrimStart('v', 'V'));
+                if (ver > bestVer) { bestVer = ver; best = name; }
+            }
+            return best;
+        }
+
         // Fetch latest tag from GitHub tags API, then find its release asset.
         // forceArch overrides the process architecture when selecting the asset - used by the
         // "switch to ARM64" flow, where the running process is emulated x64 but we want the
@@ -316,19 +348,43 @@ namespace MasselGUARD
         public static async Task<ReleaseInfo?> FetchLatestReleaseAsync(string? forceArch = null)
         {
             using var http = MakeClient();
+            var wantArch = forceArch ?? ArchMoniker;
 
-            // Step 1: get the latest tag name from the tags list
-            var tagsJson = await http.GetStringAsync(TagsApiUrl);
-            using var tagsDoc = JsonDocument.Parse(tagsJson);
-            string? latestTag = null;
-            Version latestVer  = new Version(0, 0, 0);
-            foreach (var tagEl in tagsDoc.RootElement.EnumerateArray())
+            // Step 0: GitHub's own "latest release" (the newest published release that is not a draft or a pre-release): one request that
+            // returns the tag and the files, and a tag without a release is never offered. Falls back to the tag list below when there is
+            // no such release yet, the network fails, or the rate limit is hit.
+            try
             {
-                var name = tagEl.TryGetProperty("name", out var n) ? n.GetString() : null;
-                if (name == null) continue;
-                var ver = ParseVersion(name.TrimStart('v', 'V'));
-                if (ver > latestVer) { latestVer = ver; latestTag = name; }
+                var latestJson = await http.GetStringAsync(ReleasesApiUrl + "/latest");
+                using var latestDoc = JsonDocument.Parse(latestJson);
+                var root = latestDoc.RootElement;
+                var tag = root.TryGetProperty("tag_name", out var tn) ? tn.GetString() : null;
+                bool isDraft = root.TryGetProperty("draft", out var d) && d.ValueKind == JsonValueKind.True;
+                bool isPre   = root.TryGetProperty("prerelease", out var pr) && pr.ValueKind == JsonValueKind.True;
+                if (!string.IsNullOrEmpty(tag) && !isDraft && !isPre && ParseVersion(tag.TrimStart('v', 'V')) > new Version(0, 0, 0))
+                {
+                    var (zip, sha) = PickAssets(root, wantArch);
+                    return new ReleaseInfo(tag, zip, sha);
+                }
             }
+            catch { /* fall back to the tag list */ }
+
+            // Step 1: the latest TAG, always: read every page of the tags list (the API returns the tags in an order that is not
+            // numeric - v10 sorts before v9 - and 30 per page by default) and take the highest version number.
+            var tagNames = new System.Collections.Generic.List<string>();
+            for (int page = 1; page <= 10; page++)
+            {
+                var tagsJson = await http.GetStringAsync($"{TagsApiUrl}?per_page=100&page={page}");
+                using var tagsDoc = JsonDocument.Parse(tagsJson);
+                int count = 0;
+                foreach (var tagEl in tagsDoc.RootElement.EnumerateArray())
+                {
+                    count++;
+                    if (tagEl.TryGetProperty("name", out var n) && n.GetString() is { } name) tagNames.Add(name);
+                }
+                if (count < 100) break;
+            }
+            var latestTag = PickLatestTag(tagNames);
             if (latestTag == null) return null;
 
             // Step 2: find the GitHub release for this tag and pick the arch-specific
@@ -337,33 +393,10 @@ namespace MasselGUARD
             string? sha256Url = null;
             try
             {
-                var relJson = await http.GetStringAsync(
-                    ReleasesApiUrl + "/tags/" + latestTag);
+                var relJson = await http.GetStringAsync(ReleasesApiUrl + "/tags/" + latestTag);
                 using var relDoc = JsonDocument.Parse(relJson);
-
-                var byName = new System.Collections.Generic.Dictionary<string, string>(
-                    StringComparer.OrdinalIgnoreCase);
-                if (relDoc.RootElement.TryGetProperty("assets", out var assets))
-                    foreach (var asset in assets.EnumerateArray())
-                    {
-                        var aname = asset.TryGetProperty("name", out var an)
-                            ? an.GetString() : null;
-                        var url = asset.TryGetProperty("browser_download_url", out var u)
-                            ? u.GetString() : null;
-                        if (!string.IsNullOrEmpty(aname) && !string.IsNullOrEmpty(url))
-                            byName[aname] = url;
-                    }
-
-                var wantArch = forceArch ?? ArchMoniker;
-                foreach (var candidate in AssetCandidates(wantArch))
-                    if (byName.TryGetValue(candidate, out var url))
-                    {
-                        zipUrl = url;
-                        if (byName.TryGetValue(candidate + ".sha256", out var shaUrl)) sha256Url = shaUrl;
-                        break;
-                    }
-            }
-            catch { /* tag exists but has no release - that is fine */ }
+                (zipUrl, sha256Url) = PickAssets(relDoc.RootElement, wantArch);
+            }            catch { /* tag exists but has no release - that is fine */ }
 
             return new ReleaseInfo(latestTag, zipUrl, sha256Url);
         }
@@ -393,6 +426,17 @@ namespace MasselGUARD
             void Check(bool ok, string what) { if (ok) pass++; else fails.Add(what); }
             const string abc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";   // SHA-256 of "abc"
 
+            const string relJson = """{"tag_name":"v5.0","assets":[{"name":"MasselGUARD-x64.zip","browser_download_url":"https://x/x64.zip"},{"name":"MasselGUARD-x64.zip.sha256","browser_download_url":"https://x/x64.sha"},{"name":"MasselGUARD-arm64.zip","browser_download_url":"https://x/arm.zip"}]}""";
+            using (var rel = JsonDocument.Parse(relJson))
+            {
+                Check(PickAssets(rel.RootElement, "x64") == ("https://x/x64.zip", "https://x/x64.sha"), "release assets: the zip and its checksum for this architecture");
+                Check(PickAssets(rel.RootElement, "arm64") == ("https://x/arm.zip", null), "release assets: a zip without a checksum has none");
+                Check(PickAssets(rel.RootElement, "riscv") == (null, null), "release assets: no zip for another architecture");
+            }
+            using (var empty = JsonDocument.Parse("""{"tag_name":"v5.0"}""")) Check(PickAssets(empty.RootElement, "x64") == (null, null), "release assets: a release without assets");
+            Check(PickLatestTag(new[] { "v4.6.0", "v10", "v9", "v5.0" }) == "v10", "latest tag: numeric order (v10 beats v9)");
+            Check(PickLatestTag(new[] { "v5.0", "v4.6.0", "latest", "nightly" }) == "v5.0" && PickLatestTag(new[] { "latest", "x" }) == null && PickLatestTag(System.Array.Empty<string>()) == null, "latest tag: ignores names that are not versions");
+            Check(PickLatestTag(new[] { "v5", "v5.0.1", "v5.0" }) == "v5.0.1", "latest tag: patch beats the plain number");
             Check(SplitFullVersion("4.6.0.2610071200") == ("4.6.0", "2610071200") && SplitFullVersion("5.2610071200") == ("5", "2610071200"), "build stamp: after 3 parts and after a single number");
             Check(SplitFullVersion("5") == ("5", "") && SplitFullVersion("4.2.0.0") == ("4.2.0", "") && SplitFullVersion("4.6.0") == ("4.6.0", "") && SplitFullVersion("5.0") == ("5.0", ""), "build stamp: none when there is none");
             Check(SplitFullVersion("v5.2610071200+abc123") == ("5", "2610071200") && SplitFullVersion("") == ("0.0.0", "") && SplitFullVersion(null) == ("0.0.0", ""), "build stamp: v prefix, git hash, empty");

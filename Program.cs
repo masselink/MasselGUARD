@@ -65,6 +65,11 @@ namespace MasselGUARD
             //    privileged work (no UAC prompt at all).
             // 2. Direct mode: the app itself must be elevated. A scheduled task 'MasselGUARD' (managed
             //    installs) starts it at RunLevel=Highest without a UAC prompt; otherwise relaunch with UAC.
+            // An elevated start with the service installed: make sure this user may call the service, so the NEXT start
+            // can run unelevated (the service lets administrators in, but an unelevated administrator carries a filtered token
+            // that does not count as one, so the account itself must be on the service's list).
+            if (IsElevated()) TryAllowCurrentUser();
+
             if (!IsElevated() && !ServiceUsable())
             {
                 if (ScheduledTaskExists("MasselGUARD"))
@@ -121,8 +126,45 @@ namespace MasselGUARD
 
         /// <summary>The service is installed, running and accepts this user (checked through the pipe, with the
         /// server's process id verified against the service's).</summary>
+        /// <summary>Elevated and the service is installed: adds this account to the service's allowed users when it is missing.</summary>
+        private static void TryAllowCurrentUser()
+        {
+            try
+            {
+                if (!Services.ServiceInstaller.IsInstalled()) return;
+                var sid = System.Security.Principal.WindowsIdentity.GetCurrent().User?.Value;
+                if (sid == null || Services.RpcAuth.LoadAllowed().Contains(sid, StringComparer.OrdinalIgnoreCase)) return;
+                var err = Services.ServiceInstaller.AllowUser(sid);
+                WriteStartupNote(err == null ? "this account was not on the service's list of allowed users and has been added" : "could not add this account to the service's allowed users: " + err);
+            }
+            catch { }
+        }
+
+        /// <summary>One line in %APPDATA%\MasselGUARD\startup.log (kept small): why the app did not use the service, so a UAC prompt at
+        /// start can be explained.</summary>
+        private static void WriteStartupNote(string note)
+        {
+            try
+            {
+                var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MasselGUARD");
+                Directory.CreateDirectory(dir);
+                var path = Path.Combine(dir, "startup.log");
+                if (File.Exists(path) && new FileInfo(path).Length > 40_000) File.Delete(path);
+                File.AppendAllText(path, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss}  {note}{Environment.NewLine}");
+            }
+            catch { }
+        }
+
         private static bool ServiceUsable()
         {
+            var ok = ServiceUsableCore(out var why);
+            if (!ok && Services.ServiceInstaller.IsInstalled()) WriteStartupNote("service is installed but not used: " + why);
+            return ok;
+        }
+
+        private static bool ServiceUsableCore(out string why)
+        {
+            why = "";
             try
             {
                 var rpc = new Services.RpcOps(expectedServerPid: Services.ServiceInstaller.ServicePid);
@@ -132,14 +174,15 @@ namespace MasselGUARD
                 {
                     var st = Services.ServiceInstaller.Status();
                     if (st is not (System.ServiceProcess.ServiceControllerStatus.Running or System.ServiceProcess.ServiceControllerStatus.StartPending))
-                        return false;
+                    { why = "the service is " + (st?.ToString() ?? "missing"); return false; }
                     if (st == System.ServiceProcess.ServiceControllerStatus.Running && rpc.IsAvailable()) return true;
-                    if (rpc.LastError == "access denied") return false;
+                    if (rpc.LastError == "access denied") { why = "the service refused this account (not on its allowed users)"; return false; }
+                    why = "no answer from the service: " + (string.IsNullOrEmpty(rpc.LastError) ? "unknown" : rpc.LastError);
                     System.Threading.Thread.Sleep(500);
                 }
                 return false;
             }
-            catch { return false; }
+            catch (Exception ex) { why = "error: " + ex.Message; return false; }
         }
 
         /// <summary>Starts this exe again with the UAC prompt and ends this instance. Declining the prompt

@@ -1,7 +1,7 @@
 # MasselGUARD - Session Handover
 
 **Project:** MasselGUARD - WireGuard + DNS automation manager for Windows (.NET 10; WinExe GUI `MasselGUARD.exe` + console `MasselGUARDcli.exe`).
-**Current:** **4.6.0 - Wired Weasel** is the latest release; **5.0** (the service back-end) is built on the branch `service-backend` and waits for testing and release. The version in code stays numeric (`x.y.z`) - a `-beta` suffix would break `UpdateChecker.ParseVersion`; "beta" lives only in the GitHub tag.
+**Current:** **5 - Background Badger** (the service back-end, the Browse DNS servers picker, single-number versions) is built and prepared on the branch `service-backend`; **4.6.0 - Wired Weasel** is the latest published release. The version in code is the bare number `5`; the first release tag is `5.0`.
 **Where to start:** [`docs/Handoff-next-version.md`](docs/Handoff-next-version.md) (state of 5.0, what is left before a release, rules and traps), [`docs/ServiceBackend-Design.md`](docs/ServiceBackend-Design.md), [`docs/ServiceBackend-Security.md`](docs/ServiceBackend-Security.md). Architecture: [`CLAUDE.md`](CLAUDE.md). User-facing history: [`docs/WHATSNEW.md`](docs/WHATSNEW.md).
 > **Standing rules (carry every cycle):**
 > 1. **`Models/*.cs` stay WPF-free** - shared with the CLI.
@@ -15,20 +15,21 @@
 
 ## 1. Release checklist
 
-The checklist for the next release (5.0) is in [`docs/Handoff-next-version.md`](docs/Handoff-next-version.md) section 2. In short: run the manual test plan, bump the version everywhere (section 2 below), run a plain `BUILD.bat`, create the GitHub release **with both zips and both `.zip.sha256` files**, bump the Scoop bucket (`../MasselGUARD-scoop`: version + both SHA256 hashes) and push `../MasselGUARD-themes` when themes changed.
+The checklist for release 5 is in [`docs/Handoff-next-version.md`](docs/Handoff-next-version.md) section 2. In short: run the manual test plan, bump the version everywhere (section 2 below), run a plain `BUILD.bat`, create the GitHub release **with both zips and both `.zip.sha256` files**, bump the Scoop bucket (`../MasselGUARD-scoop`: version + both SHA256 hashes) and push `../MasselGUARD-themes` when themes changed.
 
 ---
 ## 2. Version-bump checklist (every release)
 
-- `UpdateChecker.cs` - `CurrentVersion` **and** `_codenames["x.y.z"]`.
-- Both csproj files - `Version`, `AssemblyVersion`, `FileVersion`, `InformationalVersion`.
-- `BUILD.bat` - `VERSION` **and** `CODENAME`.
-- Doc headers: `CLAUDE.md`, `docs/MANUAL.md`, `docs/CLIManual.md`, `docs/Reference.md`, `README.md`.
-- `docs/WHATSNEW.md` - new `## vX.Y.Z - <Codename>` entry.
+From 5 on a release is a single number (5, 6, 7...); `UpdateChecker.ParseVersion` reads `5`, `5.0` and `5.0.0` as the same version. The FIRST tag is `5.0` (like the existing tags such as `4.6.0`, no `v`; `5.0` is read too) (installed 4.x copies need a tag with a dot to see it); later tags may be `6`, `7`.
+
+- `UpdateChecker.cs` - `CurrentVersion` **and** `_codenames["5"]`.
+- Both csproj files - `Version`, `AssemblyVersion` (`N.0.0.0`), `FileVersion`, `InformationalVersion`.
+- `BUILD.bat` - `VERSION` **and** `CODENAME` (the build appends `.0` for the assembly version and `.<YYMMDDHHMM>` for the InformationalVersion).
+- Doc headers: the "Current version" line in `CLAUDE.md`, this file, `docs/Handoff-next-version.md`.
+- `docs/WHATSNEW.md` - new `## vN - <Codename>` entry on top; `docs/release-body-N.md` for the GitHub release text.
 - GitHub release/tag (zips **and** `.zip.sha256` files) + Scoop manifest (user's manual steps).
 
 ---
-
 ## 3. Open items
 
 ### A. Needs a live-tunnel check
@@ -45,6 +46,7 @@ Prototyped on WinDivert and reverted (2026-09-10/11); the design and findings ar
 ---
 
 ## 4. Prior releases (condensed)
+- **5 - Background Badger:** the Windows service back-end (no UAC at start, headless automation, timed DNS override and bypass without the window, per-user autostart, machine-encrypted tunnel store, verified updates), the Browse DNS servers picker with an online list (`MasselGUARD-dnslist`), configurable bypass shortcut and default length, Test rule window, clearer DNS leak protection, single-number versions.
 - **4.6.0 - Wired Weasel:** wired-network rules (SSID, DNS suffix, gateway MAC, subnet, connection type, adapter), several conditions per rule, rule order = table order, create a rule from the current network, timed DNS bypass with Explorer menu and CLI, lighter on memory, resizable lists.
 - **4.5.0 - Resolving Raven:** the UI/settings overhaul (General > Feature settings, split Settings tabs, themeable section icons, Time | Event activity log, drag-reorder, fully translated interface).
 - **4.2.0 - Resolving Raven (beta):** DNS automation (per-network resolver, plain or DoH, tunnel-independent), DNS profiles panel + DNS in the charts, connect on start / start minimized, built-in tester, companion (WireGuard-for-Windows) mode removed.
