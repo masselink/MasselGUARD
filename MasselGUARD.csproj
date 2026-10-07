@@ -73,9 +73,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Built-in snapshot of the DNS server list (offline fallback of the "Browse DNS servers" picker).
-         Refresh: pwsh ..\MasselGUARD-dnslist\scripts\build.ps1, then copy dist\dns-servers.json to Resources\dns-servers.builtin.json. -->
-    <EmbeddedResource Include="Resources\dns-servers.builtin.json" LogicalName="dns-servers.builtin.json" />
     <Content Include="MasselGUARD.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>

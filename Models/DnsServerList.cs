@@ -46,6 +46,8 @@ namespace MasselGUARD.Models
     {
         public List<DnsListServer> Servers { get; init; } = new();
         public int Skipped { get; init; }
+        /// <summary>Provider files skipped because they use a schemaVersion this app does not know (they need a newer MasselGUARD).</summary>
+        public int SkippedFiles { get; init; }
         public string Generated { get; init; } = "";
     }
 
@@ -59,6 +61,8 @@ namespace MasselGUARD.Models
     public static class DnsServerList
     {
         public const int SupportedSchema = 1;
+        /// <summary>The <c>error</c> text of <see cref="ParseProvider"/> / <see cref="ParseIndex"/> for a file of another schemaVersion.</summary>
+        public const string UnsupportedSchemaError = "unsupported schemaVersion";
         public const int MaxBytes = 256 * 1024;
         public const int MaxServers = 500;
         public const int MaxProviderFiles = 100;
@@ -90,7 +94,7 @@ namespace MasselGUARD.Models
                 var root = doc.RootElement;
                 if (root.ValueKind != JsonValueKind.Object) { error = "not a list"; return null; }
                 if (!root.TryGetProperty("schemaVersion", out var sv) || sv.ValueKind != JsonValueKind.Number || sv.GetInt32() != SupportedSchema)
-                { error = "unsupported schemaVersion"; return null; }
+                { error = UnsupportedSchemaError; return null; }
                 if (!root.TryGetProperty("servers", out var arr) || arr.ValueKind != JsonValueKind.Array) { error = "no servers"; return null; }
 
                 var list = new List<DnsListServer>();
@@ -129,7 +133,7 @@ namespace MasselGUARD.Models
                 var root = doc.RootElement;
                 if (root.ValueKind != JsonValueKind.Object) { error = "not an index"; return null; }
                 if (!root.TryGetProperty("schemaVersion", out var sv) || sv.ValueKind != JsonValueKind.Number || sv.GetInt32() != SupportedSchema)
-                { error = "unsupported schemaVersion"; return null; }
+                { error = UnsupportedSchemaError; return null; }
                 if (!root.TryGetProperty("providers", out var arr) || arr.ValueKind != JsonValueKind.Array) { error = "no providers"; return null; }
                 var names = new List<string>();
                 foreach (var e in arr.EnumerateArray())
@@ -157,7 +161,7 @@ namespace MasselGUARD.Models
                 var root = doc.RootElement;
                 if (root.ValueKind != JsonValueKind.Object) { error = "not a provider file"; return null; }
                 if (!root.TryGetProperty("schemaVersion", out var sv) || sv.ValueKind != JsonValueKind.Number || sv.GetInt32() != SupportedSchema)
-                { error = "unsupported schemaVersion"; return null; }
+                { error = UnsupportedSchemaError; return null; }
                 if (!root.TryGetProperty("servers", out var arr) || arr.ValueKind != JsonValueKind.Array) { error = "no servers"; return null; }
                 var list = new List<DnsListServer>();
                 foreach (var e in arr.EnumerateArray())
@@ -170,15 +174,77 @@ namespace MasselGUARD.Models
             catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException) { error = "invalid provider file"; return null; }
         }
 
+        /// <summary>Parses the provider files an index names and joins them. A file of ANOTHER schemaVersion is skipped (and counted in
+        /// <see cref="DnsListData.SkippedFiles"/>) so that one file written for a newer app cannot take the whole list down for an old one;
+        /// a file that is missing or corrupt still fails the whole assembly (null + <paramref name="problem"/>), so the list never mixes versions.
+        /// Null too when nothing is left.</summary>
+        public static DnsListData? Assemble(List<string> names, string version, Func<string, string?> text, out string? problem)
+        {
+            problem = null;
+            var parts = new List<List<DnsListServer>>();
+            int skipped = 0, skippedFiles = 0;
+            foreach (var n in names)
+            {
+                var t = text(n);
+                int sk = 0;
+                string? perr = null;
+                var list = t == null ? null : ParseProvider(t, out sk, out perr);
+                if (list == null && perr == UnsupportedSchemaError) { skippedFiles++; continue; }
+                if (list == null) { problem = $"{n}.json: {perr ?? "missing"}"; return null; }
+                skipped += sk;
+                parts.Add(list);
+            }
+            var data = Combine(parts, skipped, version, skippedFiles);
+            if (data.Servers.Count == 0) { problem = "no valid servers"; return null; }
+            return data;
+        }
+
         /// <summary>Joins the entries of all provider files (first file wins on a duplicate id, at most <see cref="MaxServers"/>).</summary>
-        public static DnsListData Combine(IEnumerable<List<DnsListServer>> parts, int skipped, string version)
+        public static DnsListData Combine(IEnumerable<List<DnsListServer>> parts, int skipped, string version, int skippedFiles = 0)
         {
             var list = new List<DnsListServer>();
             var ids = new HashSet<string>();
             foreach (var part in parts)
                 foreach (var s in part)
                     if (list.Count < MaxServers && ids.Add(s.Id)) list.Add(s); else skipped++;
-            return new DnsListData { Servers = list, Skipped = skipped, Generated = version };
+            return new DnsListData { Servers = list, Skipped = skipped, SkippedFiles = skippedFiles, Generated = version };
+        }
+
+        // ── The user's own copy of the entries they added ─────────────────────
+
+        /// <summary>The flat JSON (the same shape <see cref="Parse"/> reads) for a set of entries: the local copy of the servers the user picked.</summary>
+        public static string ToFlatJson(IEnumerable<DnsListServer> servers, string generated = "")
+        {
+            var arr = servers.Select(s => new Dictionary<string, object?>
+            {
+                ["id"] = s.Id, ["name"] = s.Name, ["provider"] = s.Provider, ["website"] = s.Website, ["privacyPolicy"] = s.PrivacyPolicy,
+                ["country"] = s.Country, ["description"] = s.Description, ["blocks"] = s.Blocks, ["logging"] = s.Logging,
+                ["v4"] = s.V4, ["v6"] = s.V6, ["doh"] = s.Doh.Length > 0 ? s.Doh : null, ["encryptedOnly"] = s.EncryptedOnly,
+                ["parameters"] = s.Parameters.Select(p => p.Token).ToList(),
+            }).ToList();
+            return JsonSerializer.Serialize(new Dictionary<string, object?> { ["schemaVersion"] = SupportedSchema, ["generated"] = generated, ["count"] = arr.Count, ["servers"] = arr },
+                                            new JsonSerializerOptions { WriteIndented = true });
+        }
+
+        /// <summary>The saved entries after adding <paramref name="add"/> (a newer copy replaces the same id) and dropping <paramref name="removeIds"/>.</summary>
+        public static List<DnsListServer> MergeSaved(IEnumerable<DnsListServer> saved, IEnumerable<DnsListServer> add, IEnumerable<string> removeIds)
+        {
+            var drop = new HashSet<string>(removeIds);
+            var addList = add.ToList();
+            var ids = new HashSet<string>(addList.Select(a => a.Id));
+            var result = saved.Where(s => !drop.Contains(s.Id) && !ids.Contains(s.Id)).ToList();
+            result.AddRange(addList.Where(a => !drop.Contains(a.Id)));
+            return result.Take(MaxServers).ToList();
+        }
+
+        /// <summary>The downloaded list plus the user's saved entries that are not in it (an entry removed from the online list stays
+        /// visible while the user still has it, and the picker still works when the list could not be downloaded).</summary>
+        public static DnsListData WithSaved(DnsListData? data, IEnumerable<DnsListServer> saved)
+        {
+            var list = data?.Servers.ToList() ?? new List<DnsListServer>();
+            var ids = new HashSet<string>(list.Select(s => s.Id));
+            foreach (var s in saved) if (list.Count < MaxServers && ids.Add(s.Id)) list.Add(s);
+            return new DnsListData { Servers = list, Skipped = data?.Skipped ?? 0, SkippedFiles = data?.SkippedFiles ?? 0, Generated = data?.Generated ?? "" };
         }
 
         private static string Clip(string? s, int max) { var t = (s ?? "").Trim(); return t.Length > max ? t[..max] : t; }
@@ -481,18 +547,36 @@ namespace MasselGUARD.Models
                 Check(!IsAdded(q9, new[] { new DnsProfile { Name = "x", V4Primary = "9.9.9.9", DohTemplate = "https://other.example/dns-query" } }), "added: same address other template is not the entry");
             }
 
-            // the built-in snapshot (embedded in the GUI exe and, for this test, in the CLI) must be fully valid
-            using (var rs = System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream("dns-servers.builtin.json"))
+            // the user's own copy of the entries they added
+            if (data != null && data.Servers.Count == 3)
             {
-                if (rs != null)
-                {
-                    using var rd = new System.IO.StreamReader(rs);
-                    var built = Parse(rd.ReadToEnd(), out _);
-                    Check(built != null && built.Servers.Count > 0 && built.Skipped == 0, "built-in snapshot: parses with no skipped entry");
-                    Check(built != null && built.Servers.All(s => ToProfile(s, s.Parameters.ToDictionary(x => x.Token, _ => "abc123")) != null), "built-in snapshot: every entry makes a valid profile");
-                }
+                var json = ToFlatJson(data.Servers, "x");
+                var back = Parse(json, out _);
+                Check(back != null && back.Skipped == 0 && back.Servers.Count == 3, "saved: flat JSON round trip keeps every entry valid");
+                Check(back != null && back.Servers.Zip(data.Servers).All(z => z.First.Id == z.Second.Id && z.First.Name == z.Second.Name && z.First.Description == z.Second.Description
+                      && z.First.Blocks.SequenceEqual(z.Second.Blocks) && z.First.Logging == z.Second.Logging && z.First.V4.SequenceEqual(z.Second.V4) && z.First.V6.SequenceEqual(z.Second.V6)
+                      && z.First.Doh == z.Second.Doh && z.First.EncryptedOnly == z.Second.EncryptedOnly && z.First.Parameters.Select(p => p.Token).SequenceEqual(z.Second.Parameters.Select(p => p.Token))
+                      && z.First.Provider == z.Second.Provider && z.First.Country == z.Second.Country && z.First.Website == z.Second.Website), "saved: round trip keeps every field");
+                var q9s = data.Servers[0]; var nds = data.Servers[1]; var mvs = data.Servers[2];
+                var merged = MergeSaved(new[] { q9s }, new[] { nds }, Array.Empty<string>());
+                Check(merged.Count == 2 && merged[0].Id == "quad9" && merged[1].Id == "nextdns", "saved: an added entry is appended");
+                Check(MergeSaved(merged, new[] { mvs }, new[] { "quad9" }).Select(s => s.Id).SequenceEqual(new[] { "nextdns", "mullvad" }), "saved: a removed entry is dropped");
+                Check(MergeSaved(merged, new[] { q9s }, Array.Empty<string>()).Count == 2, "saved: adding the same id again replaces it");
+                var withSaved = WithSaved(new DnsListData { Servers = new List<DnsListServer> { q9s }, Skipped = 1, Generated = "g" }, new[] { q9s, nds });
+                Check(withSaved.Servers.Count == 2 && withSaved.Skipped == 1 && withSaved.Generated == "g", "saved: WithSaved adds only entries the list does not have");
+                Check(WithSaved(null, new[] { nds }).Servers.Count == 1 && WithSaved(null, Array.Empty<DnsListServer>()).Servers.Count == 0, "saved: usable without any downloaded list");
             }
 
+            // a provider file of another schemaVersion is skipped, a corrupt one is not
+            const string pGood = """{"schemaVersion":1,"provider":"A","servers":[{"id":"aaa","name":"A","v4":["9.9.9.31"]}]}""";
+            const string pNew = """{"schemaVersion":2,"provider":"B","servers":[]}""";
+            string? PText(string n) => n switch { "a" => pGood, "b" => pNew, "bad" => "{ not json", _ => null };
+            var asm = Assemble(new List<string> { "a", "b" }, "v", PText, out var asmProblem);
+            Check(asm != null && asmProblem == null && asm.Servers.Count == 1 && asm.SkippedFiles == 1, "assemble: a file of another schemaVersion is skipped and counted");
+            Check(Assemble(new List<string> { "a", "bad" }, "v", PText, out var p2) == null && p2 != null && p2.StartsWith("bad.json"), "assemble: a corrupt file fails the whole list");
+            Check(Assemble(new List<string> { "a", "missing" }, "v", PText, out var p3) == null && p3 != null, "assemble: a missing file fails the whole list");
+            Check(Assemble(new List<string> { "b" }, "v", PText, out var p4) == null && p4 == "no valid servers", "assemble: nothing usable is an error");
+            Check(ParseProvider(pNew, out _, out var pErr) == null && pErr == UnsupportedSchemaError && ParseIndex("""{"schemaVersion":2,"providers":["a"]}""", out _, out var iErr) == null && iErr == UnsupportedSchemaError, "schema: the unsupported-version error text is stable");
             // public address rules
             Check(IsPublic(IPAddress.Parse("9.9.9.9")) && IsPublic(IPAddress.Parse("2606:4700:4700::1111")), "public: ok");
             Check(!IsPublic(IPAddress.Parse("10.1.2.3")) && !IsPublic(IPAddress.Parse("172.20.0.1")) && !IsPublic(IPAddress.Parse("100.64.0.1")) && !IsPublic(IPAddress.Parse("224.0.0.1")), "public: private ranges refused");

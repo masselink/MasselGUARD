@@ -1275,7 +1275,6 @@
   "DnsPickPrivacy": "Privacybeleid",
   "DnsPickNoSelection": "Kies een server om te zien wat die doet.",
   "DnsPickNoneFound": "Geen servers gevonden voor je zoekopdracht.",
-  "DnsPickSourceBuiltIn": "Lijst ingebouwd in deze versie: {0} servers",
   "DnsPickSourceCache": "Lijst gedownload op {0}: {1} servers",
   "DnsPickSourceOnline": "Lijst is actueel: {0} servers",
   "DnsPickSkipped": "{0} ongeldige items genegeerd.",
@@ -1317,5 +1316,8 @@
   "DnsPickFilterParam": "Vraagt om jouw invoer",
   "DnsPickTestTicked": "Alleen aangevinkte servers",
   "DnsPickTestTickedTip": "Test alleen de servers die je hebt aangevinkt (van de getoonde) in plaats van elke server in de lijst.",
-  "DnsPickTestTickedNone": "Vink eerst de servers aan die je wilt testen."
+  "DnsPickTestTickedNone": "Vink eerst de servers aan die je wilt testen.",
+  "DnsPickSourceSaved": "Alleen de servers die je hebt toegevoegd: {0} (de lijst kon niet worden geladen)",
+  "DnsPickNoList": "De lijst is nog niet gedownload. Controleer je internetverbinding en druk op Vernieuwen.",
+  "DnsPickSkippedFiles": "{0} lijstbestand(en) vragen een nieuwere MasselGUARD en zijn overgeslagen."
 }

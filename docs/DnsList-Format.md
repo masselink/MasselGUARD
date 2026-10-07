@@ -12,7 +12,7 @@ servers/mullvad.json
 
 **The list is language-neutral.** Names are the services' own names, and the only free text is one short `description` in the list's own language (English). Everything else is a code that MasselGUARD translates from its own language files (what a server blocks, how it logs, which value you must fill in), so there is one list for all languages and nothing to translate when a server is added.
 
-The app downloads `https://raw.githubusercontent.com/<owner>/<repo>/main/index.json` and then every `servers/<name>.json` the index names. It re-reads them at most once a day, sends each file's ETag so unchanged files are not downloaded again, and stores a complete copy in `%APPDATA%\MasselGUARD\dnslist`. The refresh is **all or nothing**: if one file is missing or not valid, the previous copy stays, so users never see a mix of two versions. A flat snapshot of the list is also built into the app for offline use (`tools/make-builtin-dnslist.ps1` makes it; run it before a release).
+The app downloads `https://raw.githubusercontent.com/<owner>/<repo>/main/index.json` and then every `servers/<name>.json` the index names. It re-reads them at most once a day, sends each file's ETag so unchanged files are not downloaded again, and stores a complete copy in `%APPDATA%\MasselGUARD\dnslist`. The refresh is **all or nothing**: if one file is missing or not valid, the previous copy stays, so users never see a mix of two versions. The app ships no copy of the list: it is fetched from the repository when needed. The servers a user adds are also saved as a local copy (`%APPDATA%\MasselGUARD\dns-selected.json`), so they stay visible, and can be unticked again, when the list cannot be downloaded or a server leaves the list.
 
 ## Adding or changing a provider
 
@@ -89,6 +89,8 @@ Plain text only: no control characters and no em dash in any text.
 - Nothing is applied automatically: the user ticks entries and presses **Apply**.
 - The picker's details come from the fields: the description as written, "Blocks: ..." and "Logging: ..." in the user's language, the addresses, and the provider with the country name in the user's language. Searching matches the names, provider, description and the translated words.
 
-## The built-in snapshot
+## Changing the format later
 
-`Resources/dns-servers.builtin.json` is the same list in one flat file (every server with its provider fields copied in, `generated`, `count`). The app's parser reads both shapes. The self-test (`MasselGUARDcli selftest`) fails when any entry of the snapshot is invalid.
+- **Additive changes** (new fields, new providers, new `blocks` codes) keep `schemaVersion: 1`; an older app ignores what it does not know (an unknown `blocks` code shows as written).
+- A provider file with **another `schemaVersion`** is skipped by an app that does not know it (the picker says how many files need a newer MasselGUARD) and the other files still work; an index with another `schemaVersion` is refused and the app keeps its downloaded copy. A file that is corrupt or missing makes the whole refresh fail (the list never mixes versions).
+- A breaking change belongs in a new folder (for example `v2/index.json` and `v2/servers/`) while the old files stay for older apps.

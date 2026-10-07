@@ -1275,7 +1275,6 @@
   "DnsPickPrivacy": "Polityka prywatności",
   "DnsPickNoSelection": "Wybierz serwer, aby zobaczyć, co robi.",
   "DnsPickNoneFound": "Żaden serwer nie pasuje do wyszukiwania.",
-  "DnsPickSourceBuiltIn": "Lista wbudowana w tę wersję: {0} serwerów",
   "DnsPickSourceCache": "Lista pobrana {0}: {1} serwerów",
   "DnsPickSourceOnline": "Lista jest aktualna: {0} serwerów",
   "DnsPickSkipped": "Zignorowano nieprawidłowe wpisy: {0}.",
@@ -1317,5 +1316,8 @@
   "DnsPickFilterParam": "Wymaga Twojego wpisu",
   "DnsPickTestTicked": "Tylko zaznaczone serwery",
   "DnsPickTestTickedTip": "Testuj tylko zaznaczone serwery (spośród wyświetlanych) zamiast wszystkich serwerów z listy.",
-  "DnsPickTestTickedNone": "Najpierw zaznacz serwery, które chcesz przetestować."
+  "DnsPickTestTickedNone": "Najpierw zaznacz serwery, które chcesz przetestować.",
+  "DnsPickSourceSaved": "Tylko dodane przez Ciebie serwery: {0} (nie udało się wczytać listy)",
+  "DnsPickNoList": "Lista nie została jeszcze pobrana. Sprawdź połączenie z internetem i naciśnij Odśwież.",
+  "DnsPickSkippedFiles": "Pliki listy wymagające nowszego MasselGUARD zostały pominięte: {0}."
 }

@@ -1275,7 +1275,6 @@
   "DnsPickPrivacy": "隐私政策",
   "DnsPickNoSelection": "选择一个服务器以查看其用途。",
   "DnsPickNoneFound": "没有与搜索匹配的服务器。",
-  "DnsPickSourceBuiltIn": "此版本内置的列表: {0} 个服务器",
   "DnsPickSourceCache": "列表下载于 {0}: {1} 个服务器",
   "DnsPickSourceOnline": "列表已是最新: {0} 个服务器",
   "DnsPickSkipped": "已忽略 {0} 个无效条目。",
@@ -1317,5 +1316,8 @@
   "DnsPickFilterParam": "需要您输入",
   "DnsPickTestTicked": "仅已勾选的服务器",
   "DnsPickTestTickedTip": "仅测试您已勾选的服务器 (在显示的服务器中)，而不是列表中的所有服务器。",
-  "DnsPickTestTickedNone": "请先勾选要测试的服务器。"
+  "DnsPickTestTickedNone": "请先勾选要测试的服务器。",
+  "DnsPickSourceSaved": "仅显示您添加的服务器: {0} (无法加载列表)",
+  "DnsPickNoList": "尚未下载列表。请检查网络连接并点击刷新。",
+  "DnsPickSkippedFiles": "有 {0} 个列表文件需要更新版本的 MasselGUARD，已跳过。"
 }

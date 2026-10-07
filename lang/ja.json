@@ -1275,7 +1275,6 @@
   "DnsPickPrivacy": "プライバシーポリシー",
   "DnsPickNoSelection": "サーバーを選択すると、その内容が表示されます。",
   "DnsPickNoneFound": "検索に一致するサーバーはありません。",
-  "DnsPickSourceBuiltIn": "このバージョンに内蔵のリスト: {0} 台のサーバー",
   "DnsPickSourceCache": "{0} にダウンロードしたリスト: {1} 台のサーバー",
   "DnsPickSourceOnline": "リストは最新です: {0} 台のサーバー",
   "DnsPickSkipped": "無効なエントリ {0} 件を無視しました。",
@@ -1317,5 +1316,8 @@
   "DnsPickFilterParam": "入力が必要",
   "DnsPickTestTicked": "チェックしたサーバーのみ",
   "DnsPickTestTickedTip": "リスト内のすべてのサーバーではなく、(表示中のうち) チェックしたサーバーだけをテストします。",
-  "DnsPickTestTickedNone": "先にテストしたいサーバーをチェックしてください。"
+  "DnsPickTestTickedNone": "先にテストしたいサーバーをチェックしてください。",
+  "DnsPickSourceSaved": "追加したサーバーのみ: {0} (リストを読み込めませんでした)",
+  "DnsPickNoList": "リストはまだダウンロードされていません。インターネット接続を確認して [更新] を押してください。",
+  "DnsPickSkippedFiles": "より新しいMasselGUARDが必要なリストファイル {0} 件をスキップしました。"
 }

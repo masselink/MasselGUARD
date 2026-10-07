@@ -1275,7 +1275,6 @@
   "DnsPickPrivacy": "Privacy policy",
   "DnsPickNoSelection": "Select a server to see what it does.",
   "DnsPickNoneFound": "No servers match your search.",
-  "DnsPickSourceBuiltIn": "List built into this version: {0} servers",
   "DnsPickSourceCache": "List downloaded on {0}: {1} servers",
   "DnsPickSourceOnline": "List is up to date: {0} servers",
   "DnsPickSkipped": "{0} invalid entries ignored.",
@@ -1317,5 +1316,8 @@
   "DnsPickFilterParam": "Needs your input",
   "DnsPickTestTicked": "Only ticked servers",
   "DnsPickTestTickedTip": "Test only the servers you have ticked (among those shown) instead of every server in the list.",
-  "DnsPickTestTickedNone": "Tick the servers you want to test first."
+  "DnsPickTestTickedNone": "Tick the servers you want to test first.",
+  "DnsPickSourceSaved": "Showing only the servers you added: {0} (the list could not be loaded)",
+  "DnsPickNoList": "The list has not been downloaded yet. Check your internet connection and press Refresh.",
+  "DnsPickSkippedFiles": "{0} list file(s) need a newer MasselGUARD and were skipped."
 }

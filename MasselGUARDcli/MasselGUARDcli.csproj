@@ -27,10 +27,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="..\Resources\dns-servers.builtin.json" LogicalName="dns-servers.builtin.json" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
   </ItemGroup>

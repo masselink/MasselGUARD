@@ -1275,7 +1275,6 @@
   "DnsPickPrivacy": "Gizlilik politikası",
   "DnsPickNoSelection": "Ne yaptığını görmek için bir sunucu seçin.",
   "DnsPickNoneFound": "Aramanızla eşleşen sunucu yok.",
-  "DnsPickSourceBuiltIn": "Bu sürüme gömülü liste: {0} sunucu",
   "DnsPickSourceCache": "Liste {0} tarihinde indirildi: {1} sunucu",
   "DnsPickSourceOnline": "Liste güncel: {0} sunucu",
   "DnsPickSkipped": "{0} geçersiz giriş yok sayıldı.",
@@ -1317,5 +1316,8 @@
   "DnsPickFilterParam": "Girişiniz gerekiyor",
   "DnsPickTestTicked": "Yalnızca işaretli sunucular",
   "DnsPickTestTickedTip": "Listedeki tüm sunucular yerine yalnızca işaretlediğiniz (gösterilenler arasından) sunucuları test eder.",
-  "DnsPickTestTickedNone": "Önce test etmek istediğiniz sunucuları işaretleyin."
+  "DnsPickTestTickedNone": "Önce test etmek istediğiniz sunucuları işaretleyin.",
+  "DnsPickSourceSaved": "Yalnızca eklediğiniz sunucular: {0} (liste yüklenemedi)",
+  "DnsPickNoList": "Liste henüz indirilmedi. İnternet bağlantınızı kontrol edin ve Yenile'ye basın.",
+  "DnsPickSkippedFiles": "{0} liste dosyası daha yeni bir MasselGUARD gerektirdiği için atlandı."
 }

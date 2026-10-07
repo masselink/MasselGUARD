@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -13,29 +12,40 @@ using MasselGUARD.Models;
 namespace MasselGUARD.Services
 {
     /// <summary>Where the list in use came from.</summary>
-    public enum DnsListSource { BuiltIn, Cache, Online }
+    public enum DnsListSource
+    {
+        /// <summary>Nothing downloaded yet and nothing saved.</summary>
+        None,
+        /// <summary>Only the entries the user added (the list could not be loaded).</summary>
+        Saved,
+        /// <summary>The downloaded copy from an earlier refresh.</summary>
+        Cache,
+        /// <summary>Just downloaded.</summary>
+        Online,
+    }
 
     public sealed class DnsListResult
     {
         public DnsListData Data { get; init; } = new();
         public DnsListSource Source { get; init; }
-        /// <summary>When the cached/online copy was fetched (UTC), null for the built-in snapshot.</summary>
+        /// <summary>When the cached/online copy was fetched (UTC), null when nothing was downloaded.</summary>
         public DateTime? FetchedUtc { get; init; }
         /// <summary>Why a refresh did not produce a newer list (null = no problem or none attempted).</summary>
         public string? RefreshNote { get; init; }
     }
 
     /// <summary>
-    /// Provides the public DNS server list (see <see cref="DnsServerList"/>): the built-in snapshot that ships with the app,
-    /// a downloaded copy in <c>%APPDATA%\MasselGUARD\dnslist</c>, and the refresh from the main branch of the list repository
-    /// on GitHub: <c>index.json</c> names the provider files, each downloaded from <c>servers/&lt;name&gt;.json</c>.
-    /// The refresh is all or nothing (one failed or invalid file keeps the previous copy, so the list never mixes versions)
-    /// and conditional (ETag per file: nothing is downloaded or rewritten when nothing changed). Nothing is applied
-    /// automatically: the picker only shows entries. GUI-only (HttpClient + embedded resource).
+    /// Provides the public DNS server list (see <see cref="DnsServerList"/>) from the list repository on GitHub:
+    /// <c>index.json</c> names the provider files, each downloaded from <c>servers/&lt;name&gt;.json</c> on the main branch,
+    /// and a copy is kept in <c>%APPDATA%\MasselGUARD\dnslist</c>. The app does not ship a copy of the list.
+    /// The refresh is all or nothing (a missing or corrupt file keeps the previous copy, so the list never mixes versions; a file
+    /// of a schemaVersion this app does not know is skipped) and conditional (ETag per file: nothing is downloaded or rewritten when
+    /// nothing changed). The entries the user added are also saved locally (<c>dns-selected.json</c>), so they stay visible, and can
+    /// be unticked again, when the list cannot be downloaded or an entry leaves the online list. Nothing is applied automatically.
+    /// GUI-only (HttpClient).
     /// </summary>
     public static class DnsListService
     {
-        private const string ResourceName = "dns-servers.builtin.json";
         private static readonly TimeSpan RefreshEvery = TimeSpan.FromHours(24);
 
         private static string Dir => Path.Combine(
@@ -44,6 +54,8 @@ namespace MasselGUARD.Services
         private static string MetaPath => Path.Combine(CacheDir, "meta.json");
         private static string IndexPath => Path.Combine(CacheDir, "index.json");
         private static string ProviderPath(string name) => Path.Combine(CacheDir, "servers", name + ".json");
+        /// <summary>The user's own copy of the entries they added (outside the cache folder, which a refresh replaces).</summary>
+        private static string SavedPath => Path.Combine(Dir, "dns-selected.json");
 
         private sealed class Meta
         {
@@ -53,26 +65,57 @@ namespace MasselGUARD.Services
             public DateTime FetchedUtc { get; set; }
         }
 
-        /// <summary>The list that ships inside the exe (always valid; the flat format, made by tools/make-builtin-dnslist.ps1).</summary>
-        public static DnsListData LoadBuiltIn()
-        {
-            using var s = Assembly.GetExecutingAssembly().GetManifestResourceStream(ResourceName);
-            if (s == null) return new DnsListData();
-            using var r = new StreamReader(s);
-            return DnsServerList.Parse(r.ReadToEnd(), out _) ?? new DnsListData();
-        }
+        // ── The user's saved entries ──────────────────────────────────────────
 
-        /// <summary>The list to show right now, without any network: the downloaded copy when it parses, else the built-in one.</summary>
-        public static DnsListResult LoadLocal()
+        public static List<DnsListServer> LoadSaved()
         {
             try
             {
-                var cached = ReadCache();
-                if (cached != null)
-                    return new DnsListResult { Data = cached, Source = DnsListSource.Cache, FetchedUtc = ReadMeta()?.FetchedUtc };
+                if (File.Exists(SavedPath) && new FileInfo(SavedPath).Length <= DnsServerList.MaxBytes)
+                    return DnsServerList.Parse(File.ReadAllText(SavedPath), out _)?.Servers ?? new List<DnsListServer>();
             }
-            catch { /* unreadable cache: use the built-in list */ }
-            return new DnsListResult { Data = LoadBuiltIn(), Source = DnsListSource.BuiltIn };
+            catch { /* unreadable: start empty */ }
+            return new List<DnsListServer>();
+        }
+
+        private static void WriteSaved(List<DnsListServer> servers)
+        {
+            try
+            {
+                Directory.CreateDirectory(Dir);
+                var tmp = SavedPath + ".tmp";
+                File.WriteAllText(tmp, DnsServerList.ToFlatJson(servers, DateTime.UtcNow.ToString("yyyy-MM-dd")));
+                File.Move(tmp, SavedPath, overwrite: true);
+            }
+            catch { /* a copy only helps offline */ }
+        }
+
+        /// <summary>Remembers the entries the user just added and forgets the ones they removed.</summary>
+        public static void SaveSelected(IEnumerable<DnsListServer> added, IEnumerable<string> removedIds)
+        {
+            var merged = DnsServerList.MergeSaved(LoadSaved(), added, removedIds);
+            WriteSaved(merged);
+        }
+
+        /// <summary>Drops saved entries that are no longer a profile of the user (removed in Settings or by hand).</summary>
+        public static void PruneSaved(IEnumerable<DnsProfile> profiles)
+        {
+            var saved = LoadSaved();
+            var keep = saved.Where(s => DnsServerList.IsAdded(s, profiles)).ToList();
+            if (keep.Count != saved.Count) WriteSaved(keep);
+        }
+
+        // ── Reading what is stored ────────────────────────────────────────────
+
+        /// <summary>The list to show right now, without any network: the downloaded copy plus the user's saved entries.</summary>
+        public static DnsListResult LoadLocal()
+        {
+            DnsListData? cached = null;
+            try { cached = ReadCache(); } catch { /* unreadable cache: treat as none */ }
+            var saved = LoadSaved();
+            var data = DnsServerList.WithSaved(cached, saved);
+            var source = cached != null ? DnsListSource.Cache : saved.Count > 0 ? DnsListSource.Saved : DnsListSource.None;
+            return new DnsListResult { Data = data, Source = source, FetchedUtc = cached != null ? ReadMeta()?.FetchedUtc : null };
         }
 
         private static DnsListData? ReadCache()
@@ -80,29 +123,7 @@ namespace MasselGUARD.Services
             if (!File.Exists(IndexPath)) return null;
             var names = DnsServerList.ParseIndex(File.ReadAllText(IndexPath), out var version, out _);
             if (names == null) return null;
-            return Assemble(names, version, n => File.Exists(ProviderPath(n)) ? File.ReadAllText(ProviderPath(n)) : null, out _);
-        }
-
-        /// <summary>Parses the provider files named by the index and joins them; null when a file is missing or invalid
-        /// (the cache must be complete) or nothing is left.</summary>
-        private static DnsListData? Assemble(List<string> names, string version, Func<string, string?> text, out string? problem)
-        {
-            problem = null;
-            var parts = new List<List<DnsListServer>>();
-            int skipped = 0;
-            foreach (var n in names)
-            {
-                var t = text(n);
-                int sk = 0;
-                string? perr = null;
-                var list = t == null ? null : DnsServerList.ParseProvider(t, out sk, out perr);
-                if (list == null) { problem = $"{n}.json: {perr ?? "missing"}"; return null; }
-                skipped += sk;
-                parts.Add(list);
-            }
-            var data = DnsServerList.Combine(parts, skipped, version);
-            if (data.Servers.Count == 0) { problem = "no valid servers"; return null; }
-            return data;
+            return DnsServerList.Assemble(names, version, n => File.Exists(ProviderPath(n)) ? File.ReadAllText(ProviderPath(n)) : null, out _);
         }
 
         /// <summary>True when the last check is more than a day ago (or never happened).</summary>
@@ -176,13 +197,13 @@ namespace MasselGUARD.Services
                 }
 
                 // 3. all or nothing: every file must be valid before anything is stored
-                var data = Assemble(names, version, n => texts.TryGetValue(n, out var t) ? t : null, out var problem);
+                var data = DnsServerList.Assemble(names, version, n => texts.TryGetValue(n, out var t) ? t : null, out var problem);
                 if (data == null) return Note(local, "The downloaded list is not valid (" + problem + ").");
 
                 Store(idxText, texts, names);
                 var now = DateTime.UtcNow;
                 WriteMeta(new Meta { ETags = etags, CheckedUtc = now, FetchedUtc = now });
-                return new DnsListResult { Data = data, Source = DnsListSource.Online, FetchedUtc = now };
+                return new DnsListResult { Data = DnsServerList.WithSaved(data, LoadSaved()), Source = DnsListSource.Online, FetchedUtc = now };
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch (Exception ex)

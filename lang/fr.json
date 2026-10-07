@@ -1275,7 +1275,6 @@
   "DnsPickPrivacy": "Politique de confidentialité",
   "DnsPickNoSelection": "Sélectionnez un serveur pour voir ce qu'il fait.",
   "DnsPickNoneFound": "Aucun serveur ne correspond à votre recherche.",
-  "DnsPickSourceBuiltIn": "Liste intégrée à cette version : {0} serveurs",
   "DnsPickSourceCache": "Liste téléchargée le {0} : {1} serveurs",
   "DnsPickSourceOnline": "La liste est à jour : {0} serveurs",
   "DnsPickSkipped": "{0} entrées non valides ignorées.",
@@ -1317,5 +1316,8 @@
   "DnsPickFilterParam": "Nécessite votre saisie",
   "DnsPickTestTicked": "Serveurs cochés uniquement",
   "DnsPickTestTickedTip": "Teste uniquement les serveurs que vous avez cochés (parmi ceux affichés) au lieu de tous les serveurs de la liste.",
-  "DnsPickTestTickedNone": "Cochez d'abord les serveurs à tester."
+  "DnsPickTestTickedNone": "Cochez d'abord les serveurs à tester.",
+  "DnsPickSourceSaved": "Seuls les serveurs que vous avez ajoutés : {0} (la liste n'a pas pu être chargée)",
+  "DnsPickNoList": "La liste n'a pas encore été téléchargée. Vérifiez votre connexion Internet et cliquez sur Actualiser.",
+  "DnsPickSkippedFiles": "{0} fichier(s) de liste nécessitent une version plus récente de MasselGUARD et ont été ignorés."
 }

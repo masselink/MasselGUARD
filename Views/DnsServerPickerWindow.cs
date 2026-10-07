@@ -24,6 +24,10 @@ namespace MasselGUARD.Views
     {
         public List<DnsProfile> Added { get; init; } = new();
         public List<string> RemovedIds { get; init; } = new();
+        /// <summary>The list entries behind <see cref="Added"/>: saved locally so they stay visible without the online list.</summary>
+        public List<DnsListServer> AddedServers { get; init; } = new();
+        /// <summary>Ids of the list entries the user unticked (their local copy is dropped).</summary>
+        public List<string> RemovedListIds { get; init; } = new();
         /// <summary>The name the user last tested with (kept for next time).</summary>
         public string TestName { get; set; } = DnsProbe.DefaultTestName;
     }
@@ -64,6 +68,7 @@ namespace MasselGUARD.Views
             _testName = DnsProbe.ValidName(testName) ? testName : DnsProbe.DefaultTestName;
             _existing = existing;
             _repoUrl = repoUrl;
+            DnsListService.PruneSaved(existing);   // forget saved entries that are no longer a profile
             _list = DnsListService.LoadLocal();
 
             WindowStyle = WindowStyle.None;
@@ -173,7 +178,7 @@ namespace MasselGUARD.Views
                 RebuildRows();
                 ShowDetails(null);
                 UpdateStatus(null);
-                if (DnsListService.RefreshDue()) _ = RefreshAsync(force: false);
+                if (DnsListService.RefreshDue() || _list.Source is DnsListSource.None or DnsListSource.Saved) _ = RefreshAsync(force: false);
             };
             Closed += (_, _) => { _cts.Cancel(); _testCts?.Cancel(); };
         }
@@ -203,6 +208,8 @@ namespace MasselGUARD.Views
                 foreach (var rule in cfg.Rules) if (ids.Contains(rule.DnsProfileId)) rule.DnsProfileId = "";
             }
             cfg.DnsProfiles.AddRange(r.Added);
+            // keep a local copy of the entries that are now in the user's list (and drop the ones that left)
+            if (r.AddedServers.Count + r.RemovedListIds.Count > 0) DnsListService.SaveSelected(r.AddedServers, r.RemovedListIds);
             return (r.Added.Count, r.RemovedIds.Count);
         }
 
@@ -231,9 +238,11 @@ namespace MasselGUARD.Views
             {
                 DnsListSource.Online => Lang.T("DnsPickSourceOnline", n),
                 DnsListSource.Cache => Lang.T("DnsPickSourceCache", (_list.FetchedUtc ?? DateTime.UtcNow).ToLocalTime().ToString("d", Lang.Culture), n),
-                _ => Lang.T("DnsPickSourceBuiltIn", n),
+                DnsListSource.Saved => Lang.T("DnsPickSourceSaved", n),
+                _ => Lang.T("DnsPickNoList"),
             };
             if (_list.Data.Skipped > 0) text += "  " + Lang.T("DnsPickSkipped", _list.Data.Skipped);
+            if (_list.Data.SkippedFiles > 0) text += "  " + Lang.T("DnsPickSkippedFiles", _list.Data.SkippedFiles);
             if (!string.IsNullOrEmpty(note)) text += "\n" + Lang.T("DnsPickRefreshFailed", note);
             _status.Text = text;
         }
@@ -258,7 +267,7 @@ namespace MasselGUARD.Views
                 shown++;
             }
             if (shown == 0)
-                _rows.Children.Add(new TextBlock { Text = Lang.T("DnsPickNoneFound"), FontFamily = Font, FontSize = 11, Foreground = Res("TextMuted"), Margin = new Thickness(12) });
+                _rows.Children.Add(new TextBlock { Text = Lang.T(_list.Data.Servers.Count == 0 ? "DnsPickNoList" : "DnsPickNoneFound"), FontFamily = Font, FontSize = 11, Foreground = Res("TextMuted"), Margin = new Thickness(12) });
             UpdateAddButton();
         }
 
@@ -548,6 +557,7 @@ namespace MasselGUARD.Views
         {
             var picked = _list.Data.Servers.Where(s => _checked.Contains(s.Id) && !_initial.Contains(s.Id)).ToList();
             var profiles = new List<DnsProfile>();
+            var addedServers = new List<DnsListServer>();
             foreach (var s in picked)
             {
                 _values.TryGetValue(s.Id, out var vals);
@@ -565,6 +575,7 @@ namespace MasselGUARD.Views
                     return;
                 }
                 profiles.Add(p);
+                addedServers.Add(s);
             }
 
             // entries to remove: ticked off again, and the profiles they stand for
@@ -573,7 +584,11 @@ namespace MasselGUARD.Views
             if (gone.Count > 0 && MessageBox.Show(this, Lang.T("DnsPickConfirmRemove", gone.Count, string.Join("\n", gone.Select(p => "- " + p.Name))),
                     Lang.T("DnsPickTitle"), MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                 return;
-            _result = new DnsPickResult { Added = profiles, RemovedIds = gone.Select(p => p.Id).ToList() };
+            _result = new DnsPickResult
+            {
+                Added = profiles, RemovedIds = gone.Select(p => p.Id).ToList(), AddedServers = addedServers,
+                RemovedListIds = _list.Data.Servers.Where(s => _initial.Contains(s.Id) && !_checked.Contains(s.Id)).Select(s => s.Id).ToList(),
+            };
             Close();
         }
     }

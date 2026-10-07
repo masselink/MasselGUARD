@@ -1275,7 +1275,6 @@
   "DnsPickPrivacy": "Política de privacidade",
   "DnsPickNoSelection": "Selecione um servidor para ver o que ele faz.",
   "DnsPickNoneFound": "Nenhum servidor corresponde à sua pesquisa.",
-  "DnsPickSourceBuiltIn": "Lista incorporada a esta versão: {0} servidores",
   "DnsPickSourceCache": "Lista baixada em {0}: {1} servidores",
   "DnsPickSourceOnline": "A lista está atualizada: {0} servidores",
   "DnsPickSkipped": "{0} entradas inválidas ignoradas.",
@@ -1317,5 +1316,8 @@
   "DnsPickFilterParam": "Requer a sua entrada",
   "DnsPickTestTicked": "Somente servidores marcados",
   "DnsPickTestTickedTip": "Testa somente os servidores que você marcou (entre os exibidos) em vez de todos os servidores da lista.",
-  "DnsPickTestTickedNone": "Marque primeiro os servidores que deseja testar."
+  "DnsPickTestTickedNone": "Marque primeiro os servidores que deseja testar.",
+  "DnsPickSourceSaved": "Somente os servidores que você adicionou: {0} (não foi possível carregar a lista)",
+  "DnsPickNoList": "A lista ainda não foi baixada. Verifique sua conexão com a Internet e pressione Atualizar.",
+  "DnsPickSkippedFiles": "{0} arquivo(s) da lista exigem um MasselGUARD mais recente e foram ignorados."
 }
