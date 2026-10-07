@@ -99,6 +99,13 @@
                                        Foreground="{DynamicResource Accent}"
                                        VerticalAlignment="Center"
                                        Visibility="{DynamicResource Theme.ShowTitleBarAppName}"/>
+                            <!-- release number in the normal text colour, right behind the name (set in UpdateWindowTitle) -->
+                            <TextBlock x:Name="TitleVersionTag"
+                                       FontFamily="{DynamicResource Theme.HeaderFontFamily}"
+                                       FontSize="{DynamicResource Theme.FontSize.Header}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimary}"
+                                       Margin="6,0,0,0" VerticalAlignment="Center"
+                                       Visibility="{DynamicResource Theme.ShowTitleBarAppName}"/>
 
                         </StackPanel>
 

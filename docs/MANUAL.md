@@ -364,7 +364,7 @@ When a DNS profile is active, a small badge is drawn over the tray icon (themes 
 
 ### DNS leak protection
 
-On a split-tunnel connection Windows can send DNS queries out other adapters. **Settings → DNS → DNS leak protection** can turn off *Smart multi-homed name resolution* and *Parallel A / AAAA queries* (global Windows settings; reconnect or reboot to apply), and choose how to be alerted to a possible leak (status icon, log warning, tray notification).
+On a split-tunnel connection Windows can send DNS queries out other adapters. **Settings → DNS → DNS leak protection** has two rows, **Keep DNS queries on one adapter** (Windows "smart multi-homed name resolution") and **Look up IPv4 and IPv6 one after the other** (Windows "parallel A / AAAA queries"). Each row shows **Protected** (green) or **Not protected - Windows default** (amber) and has one button: **Turn on protection**, or **Restore Windows default** when it is already on. These are machine-wide Windows policies (every network and every program) and need administrator rights; reconnect your tunnel or reboot to apply. You can also choose how to be alerted to a possible leak (status icon, log warning, tray notification).
 
 The CLI command `MasselGUARDcli dns status` shows the configuration and each interface's live resolvers.
 

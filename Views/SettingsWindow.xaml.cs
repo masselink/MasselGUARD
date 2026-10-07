@@ -2091,10 +2091,8 @@ namespace MasselGUARD.Views
         // ── DNS leak protection (smart name resolution + parallel A/AAAA) ───────
         private void RefreshDnsLeakSection()
         {
-            UpdateDnsRow(Services.DnsLeakService.IsSmartNameResolutionDisabled(),
-                         DnsLeakStatusLabel, DnsLeakDisableBtn, DnsLeakEnableBtn);
-            UpdateDnsRow(Services.DnsLeakService.IsParallelQueriesDisabled(),
-                         DnsParallelStatusLabel, DnsParallelDisableBtn, DnsParallelEnableBtn);
+            UpdateDnsRow(Services.DnsLeakService.IsSmartNameResolutionDisabled(), DnsLeakStatusLabel, DnsLeakToggleBtn);
+            UpdateDnsRow(Services.DnsLeakService.IsParallelQueriesDisabled(),     DnsParallelStatusLabel, DnsParallelToggleBtn);
 
             // Possible-leak alert channels (icon / log / toast; all off = disabled).
             _loading = true;
@@ -2116,21 +2114,20 @@ namespace MasselGUARD.Views
             _draft.DnsLeakWarnToast = DnsLeakWarnToastToggle?.IsChecked == true;
         }
 
-        private void UpdateDnsRow(bool disabled, System.Windows.Controls.TextBlock? status,
-                                  System.Windows.Controls.Button? disableBtn,
-                                  System.Windows.Controls.Button? enableBtn)
+        /// <summary>One row of the leak section. <paramref name="protectedNow"/> = the Windows feature is switched OFF (DNS cannot leak through it).
+        /// The status says "Protected" or "Not protected"; the single button turns the protection on, or restores the Windows default.</summary>
+        private void UpdateDnsRow(bool protectedNow, System.Windows.Controls.TextBlock? status, System.Windows.Controls.Button? toggle)
         {
             if (status != null)
             {
-                status.Text = disabled
-                    ? Lang.T("SettingsDnsLeakStatusOn")
-                    : Lang.T("SettingsDnsLeakStatusOff");
-                status.Foreground = (System.Windows.Media.Brush)FindResource(
-                    disabled ? "Success" : "TextMuted");
+                status.Text = Lang.T(protectedNow ? "SettingsDnsLeakStatusOn" : "SettingsDnsLeakStatusOff");
+                status.Foreground = (System.Windows.Media.Brush)FindResource(protectedNow ? "Success" : "WarningColor");
             }
-            // Grey out the button matching the current state.
-            if (disableBtn != null) disableBtn.IsEnabled = !disabled;
-            if (enableBtn  != null) enableBtn.IsEnabled  = disabled;
+            if (toggle != null)
+            {
+                toggle.Content = Lang.T(protectedNow ? "BtnDnsLeakRestore" : "BtnDnsLeakProtect");
+                toggle.Style = (Style)FindResource(protectedNow ? "FlatBtn" : "SuccessBtn");
+            }
         }
 
         /// <summary>Runs a DNS-policy change, reports the result, and refreshes the section.</summary>
@@ -2149,17 +2146,14 @@ namespace MasselGUARD.Views
             RefreshDnsLeakSection();
         }
 
-        private void DnsLeakDisable_Click(object sender, RoutedEventArgs e) =>
-            ApplyDnsPolicy(Services.DnsLeakService.DisableSmartNameResolution);
+        // one button per row: when protected it restores the Windows default, otherwise it turns the protection on
+        private void DnsLeakToggle_Click(object sender, RoutedEventArgs e) =>
+            ApplyDnsPolicy(Services.DnsLeakService.IsSmartNameResolutionDisabled()
+                ? Services.DnsLeakService.EnableSmartNameResolution : Services.DnsLeakService.DisableSmartNameResolution);
 
-        private void DnsLeakEnable_Click(object sender, RoutedEventArgs e) =>
-            ApplyDnsPolicy(Services.DnsLeakService.EnableSmartNameResolution);
-
-        private void DnsParallelDisable_Click(object sender, RoutedEventArgs e) =>
-            ApplyDnsPolicy(Services.DnsLeakService.DisableParallelQueries);
-
-        private void DnsParallelEnable_Click(object sender, RoutedEventArgs e) =>
-            ApplyDnsPolicy(Services.DnsLeakService.EnableParallelQueries);
+        private void DnsParallelToggle_Click(object sender, RoutedEventArgs e) =>
+            ApplyDnsPolicy(Services.DnsLeakService.IsParallelQueriesDisabled()
+                ? Services.DnsLeakService.EnableParallelQueries : Services.DnsLeakService.DisableParallelQueries);
 
         private void SetLabel(string name, string text)
         {
@@ -2287,14 +2281,13 @@ namespace MasselGUARD.Views
             var cfg     = _main.ConfigSvc.Config;
             var current = UpdateChecker.CurrentVersionString;
 
-            // Version label - large, with optional codename
+            // The release number sits behind the app name ("MasselGUARD v5"); the line below holds only the release name
+            if (AboutVersionTag != null) AboutVersionTag.Text = current;
             if (VersionLabel != null)
             {
                 var codename = UpdateChecker.Codename;
-                // The hero card shows the app name above this line, so only version + codename here.
-                VersionLabel.Text = string.IsNullOrEmpty(codename)
-                    ? $"v{current}"
-                    : $"v{current}  ·  {codename}";
+                VersionLabel.Text = codename;
+                VersionLabel.Visibility = string.IsNullOrEmpty(codename) ? Visibility.Collapsed : Visibility.Visible;
             }
 
             // Build stamp + architecture - small muted line below the version

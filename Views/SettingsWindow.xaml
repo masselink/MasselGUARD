@@ -1341,14 +1341,10 @@
                                                    Foreground="{DynamicResource TextPrimary}"
                                                    VerticalAlignment="Center" TextWrapping="Wrap"/>
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="8,0,0,0">
-                                            <Button x:Name="DnsLeakDisableBtn"
-                                                    Content="{Binding [BtnDnsLeakDisable], Source={x:Static local:Lang.Instance}}"
+                                            <!-- one button: turns the protection on, or restores the Windows default (text and style follow the state) -->
+                                            <Button x:Name="DnsLeakToggleBtn"
                                                     Style="{StaticResource SuccessBtn}" FontSize="10" Padding="12,5"
-                                                    Click="DnsLeakDisable_Click"/>
-                                            <Button x:Name="DnsLeakEnableBtn"
-                                                    Content="{Binding [BtnDnsLeakEnable], Source={x:Static local:Lang.Instance}}"
-                                                    Style="{StaticResource FlatBtn}" FontSize="10" Padding="12,5"
-                                                    Margin="6,0,0,0" Click="DnsLeakEnable_Click"/>
+                                                    Click="DnsLeakToggle_Click"/>
                                         </StackPanel>
                                     </Grid>
 
@@ -1374,14 +1370,9 @@
                                                    Foreground="{DynamicResource TextPrimary}"
                                                    VerticalAlignment="Center" TextWrapping="Wrap"/>
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="8,0,0,0">
-                                            <Button x:Name="DnsParallelDisableBtn"
-                                                    Content="{Binding [BtnDnsLeakDisable], Source={x:Static local:Lang.Instance}}"
+                                            <Button x:Name="DnsParallelToggleBtn"
                                                     Style="{StaticResource SuccessBtn}" FontSize="10" Padding="12,5"
-                                                    Click="DnsParallelDisable_Click"/>
-                                            <Button x:Name="DnsParallelEnableBtn"
-                                                    Content="{Binding [BtnDnsLeakEnable], Source={x:Static local:Lang.Instance}}"
-                                                    Style="{StaticResource FlatBtn}" FontSize="10" Padding="12,5"
-                                                    Margin="6,0,0,0" Click="DnsParallelEnable_Click"/>
+                                                    Click="DnsParallelToggle_Click"/>
                                         </StackPanel>
                                     </Grid>
 
@@ -2466,10 +2457,18 @@
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                             <!-- Always the product name, exactly as written - not the theme's appName, and not
                                                  the header font (e.g. Cinzel renders lower case as small capitals). -->
-                                            <TextBlock Text="MasselGUARD"
-                                                       FontFamily="{DynamicResource Theme.FontFamily}"
-                                                       FontSize="22" FontWeight="Bold"
-                                                       Foreground="{DynamicResource Accent}"/>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="MasselGUARD"
+                                                           FontFamily="{DynamicResource Theme.FontFamily}"
+                                                           FontSize="22" FontWeight="Bold"
+                                                           Foreground="{DynamicResource Accent}"/>
+                                                <!-- the release number, in the normal text colour right behind the name -->
+                                                <TextBlock x:Name="AboutVersionTag"
+                                                           FontFamily="{DynamicResource Theme.FontFamily}"
+                                                           FontSize="22" FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimary}"
+                                                           Margin="8,0,0,0"/>
+                                            </StackPanel>
                                             <TextBlock x:Name="VersionLabel"
                                                        FontFamily="{DynamicResource Theme.FontFamily}"
                                                        FontSize="15" FontWeight="SemiBold"

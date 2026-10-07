@@ -2349,7 +2349,8 @@ namespace MasselGUARD
         private void UpdateWindowTitle()
         {
             var appName = ThemeManager.Instance.Current.AppName;
-            Title = $"{appName} v{UpdateChecker.CurrentVersionString} - {Lang.T("TrayIdleSubtitle")}";
+            Title = $"{appName} {UpdateChecker.CurrentVersionString} - {Lang.T("TrayIdleSubtitle")}";
+            if (TitleVersionTag != null) TitleVersionTag.Text = UpdateChecker.CurrentVersionString;
         }
 
         private static (ImageSource?, System.Drawing.Icon?) LoadDefaultExeIcon()

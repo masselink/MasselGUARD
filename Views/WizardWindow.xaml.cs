@@ -169,7 +169,7 @@ namespace MasselGUARD.Views
             // ── Step 8: Done ─────────────────────────────────────────────────
             if (_vm.Step == 8)
             {
-                if (WizVersionLabel   != null) WizVersionLabel.Text   = $"MasselGUARD v{UpdateChecker.CurrentVersionString}";
+                if (WizVersionLabel   != null) WizVersionLabel.Text   = $"MasselGUARD {UpdateChecker.CurrentVersionString}";
                 if (WizCheckUpdateBtn != null) WizCheckUpdateBtn.Content = Lang.T("BtnCheckUpdate");
                 BuildSummary();
             }
