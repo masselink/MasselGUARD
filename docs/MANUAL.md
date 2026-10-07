@@ -143,7 +143,7 @@ Columns: **WireGuard tunnel** | **Status** | **Rules** | **Action**
 
 Title **DNS PROFILES**. Columns: **DNS profile name** | **Type** | **Rules** | **Action**. The Action button applies a profile manually (it stays until you undo it); **Revert to default** hands DNS back to the tunnel or the system. **Rules** counts the Automation rules that use the profile (click to highlight them).
 
-**Toolbar:** Revert to default | Add… | Edit… | Remove | **More…** (Browse DNS servers, Import, Export). Drag rows to reorder.
+**Toolbar:** Revert to default | Add… | **Browse DNS servers** | Edit… | Remove | **More…** (Import, Export). Drag rows to reorder.
 
 **Use a profile for a moment.** Right-click a profile and choose **For 10 seconds / 1 minute / 5 minutes / 15 minutes**: the profile applies right away and MasselGUARD goes back to automatic DNS by itself when the time is up (for example, Google DNS for a minute to get past a DNS ad-block). The footer shows a countdown (`Google · 0:42`); click it to stop at once. **Shift+Enter** on the selected profile uses the default bypass length (*Settings > DNS > Default bypass length*, 60 seconds unless you change it; a grey "x.xx minutes" next to the box shows lengths above a minute). A tray message confirms when a bypass starts, stops or ends. The same lengths are in the tray icon's right-click menu (see below). Browsers with their own encrypted DNS (Secure DNS in Chrome and Edge, DoH in Firefox) ignore the Windows resolver, so turn that setting off in the browser for this to work there.
 

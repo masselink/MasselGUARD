@@ -74,7 +74,7 @@ namespace MasselGUARD.Views
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
             Background = Brushes.Transparent;
-            Width = 780; Height = 560; MinWidth = 600; MinHeight = 420;
+            Width = Math.Min(1080, SystemParameters.WorkArea.Width - 60); Height = 600; MinWidth = 900; MinHeight = 440;
             ResizeMode = ResizeMode.CanResizeWithGrip;
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
             if (owner != null) Owner = owner;
@@ -288,6 +288,7 @@ namespace MasselGUARD.Views
             if (s.Parameters.Count > 0 && !_initial.Contains(s.Id))
             {
                 if (!_values.TryGetValue(s.Id, out var vals)) _values[s.Id] = vals = new Dictionary<string, string>();
+                TextBlock? preview = null;
                 foreach (var prm in s.Parameters)
                 {
                     paramPanel.Children.Add(new TextBlock { Text = prm.Token, FontFamily = Font, FontSize = 10, Foreground = Res("TextMuted"), Margin = new Thickness(0, 2, 0, 2) });
@@ -297,10 +298,20 @@ namespace MasselGUARD.Views
                         FontFamily = Font, FontSize = 12, Padding = new Thickness(4, 3, 4, 3), MaxLength = 64,
                         ToolTip = Lang.T("DnsPickInputError"),
                     };
-                    box.TextChanged += (_, _) => { vals[prm.Token] = box.Text.Trim(); PaintParams(); };
+                    box.TextChanged += (_, _) => { vals[prm.Token] = box.Text.Trim(); PaintParams(); UpdatePreview(); };
                     paramPanel.Children.Add(box);
                     paramBoxes.Add(box);
                 }
+                // the address as it will be stored: every token replaced by what was typed (the token itself while empty)
+                preview = new TextBlock { FontFamily = Font, FontSize = 9, Foreground = Res("TextMuted"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
+                void UpdatePreview()
+                {
+                    var u = s.Doh;
+                    foreach (var prm in s.Parameters) u = u.Replace(prm.Token, vals.TryGetValue(prm.Token, out var x) && x.Length > 0 ? x : prm.Token);
+                    preview!.Text = "→ " + u;
+                }
+                UpdatePreview();
+                paramPanel.Children.Add(preview);
             }
             // a ticked entry with an empty or invalid field shows it in red
             void PaintParams()

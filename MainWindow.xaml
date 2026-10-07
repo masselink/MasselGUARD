@@ -1340,6 +1340,10 @@
                                     Content="{Binding [BtnDnsAddProfile], Source={x:Static local:Lang.Instance}}"
                                     Style="{StaticResource SuccessBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
                                     Click="DnsPanelAdd_Click"/>
+                            <Button x:Name="DnsPanelBrowseBtn"
+                                    Content="{Binding [BtnDnsAddPresets], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource PrimaryBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Margin="6,0,0,0" Click="DnsPanelPresets_Click"/>
                             <Button x:Name="DnsPanelEditBtn"
                                     Content="{Binding [BtnDnsEditProfile], Source={x:Static local:Lang.Instance}}"
                                     Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
@@ -1354,8 +1358,6 @@
                                     Margin="6,0,0,0" Click="DnsPanelMore_Click">
                                 <Button.ContextMenu>
                                     <ContextMenu>
-                                        <MenuItem Header="{Binding [BtnDnsAddPresets], Source={x:Static local:Lang.Instance}}"
-                                                  Click="DnsPanelPresets_Click"/>
                                         <MenuItem Header="{Binding [BtnDnsImport], Source={x:Static local:Lang.Instance}}"
                                                   Click="DnsPanelImport_Click"/>
                                         <MenuItem Header="{Binding [BtnDnsExport], Source={x:Static local:Lang.Instance}}"
