@@ -1319,5 +1319,6 @@
   "DnsPickTestTickedNone": "Markieren Sie zuerst die Server, die Sie testen möchten.",
   "DnsPickSourceSaved": "Nur die von Ihnen hinzugefügten Server: {0} (die Liste konnte nicht geladen werden)",
   "DnsPickNoList": "Die Liste wurde noch nicht heruntergeladen. Prüfen Sie Ihre Internetverbindung und klicken Sie auf Aktualisieren.",
-  "DnsPickSkippedFiles": "{0} Listendatei(en) benötigen ein neueres MasselGUARD und wurden übersprungen."
+  "DnsPickSkippedFiles": "{0} Listendatei(en) benötigen ein neueres MasselGUARD und wurden übersprungen.",
+  "DnsPickTestSkippedParam": "{0} Server mit leerem Feld wurden nicht getestet."
 }

@@ -1319,5 +1319,6 @@
   "DnsPickTestTickedNone": "先にテストしたいサーバーをチェックしてください。",
   "DnsPickSourceSaved": "追加したサーバーのみ: {0} (リストを読み込めませんでした)",
   "DnsPickNoList": "リストはまだダウンロードされていません。インターネット接続を確認して [更新] を押してください。",
-  "DnsPickSkippedFiles": "より新しいMasselGUARDが必要なリストファイル {0} 件をスキップしました。"
+  "DnsPickSkippedFiles": "より新しいMasselGUARDが必要なリストファイル {0} 件をスキップしました。",
+  "DnsPickTestSkippedParam": "入力欄が空の {0} 台のサーバーはテストしませんでした。"
 }

@@ -1319,5 +1319,6 @@
   "DnsPickTestTickedNone": "Önce test etmek istediğiniz sunucuları işaretleyin.",
   "DnsPickSourceSaved": "Yalnızca eklediğiniz sunucular: {0} (liste yüklenemedi)",
   "DnsPickNoList": "Liste henüz indirilmedi. İnternet bağlantınızı kontrol edin ve Yenile'ye basın.",
-  "DnsPickSkippedFiles": "{0} liste dosyası daha yeni bir MasselGUARD gerektirdiği için atlandı."
+  "DnsPickSkippedFiles": "{0} liste dosyası daha yeni bir MasselGUARD gerektirdiği için atlandı.",
+  "DnsPickTestSkippedParam": "Boş alanı olan {0} sunucu test edilmedi."
 }

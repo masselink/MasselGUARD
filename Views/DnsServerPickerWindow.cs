@@ -519,7 +519,23 @@ namespace MasselGUARD.Views
                 targets = targets.Where(s => _checked.Contains(s.Id)).ToList();
                 if (targets.Count == 0) { _status.Text = Lang.T("DnsPickTestTickedNone"); return; }
             }
-            if (targets.Count == 0) return;
+            // an entry with a parameter is only tested once every field is filled in (its address needs the value); an empty field = not tested
+            var dohUrls = new Dictionary<string, string>();
+            int skippedParam = 0;
+            targets = targets.Where(s =>
+            {
+                if (s.Parameters.Count == 0) return true;
+                _values.TryGetValue(s.Id, out var v);
+                var pr = DnsServerList.ParamsComplete(s, v) ? DnsServerList.ToProfile(s, v) : null;
+                if (pr == null) { skippedParam++; return false; }
+                dohUrls[s.Id] = pr.DohTemplate;
+                return true;
+            }).ToList();
+            if (targets.Count == 0)
+            {
+                if (skippedParam > 0) _status.Text = Lang.T("DnsPickTestSkippedParam", skippedParam);
+                return;
+            }
             _testCts = new CancellationTokenSource();
             var ct = _testCts.Token;
             _testBtn.Content = Lang.T("DnsPickStop");
@@ -535,7 +551,7 @@ namespace MasselGUARD.Views
                     try
                     {
                         // DoH is only timed when there is no plain address (or it is DoH-only): the figure to compare is plain DNS
-                        var r = await DnsProbe.TestAsync(s, http, _testName, 2500, ct, withDoh: true);
+                        var r = await DnsProbe.TestAsync(s, http, _testName, 2500, ct, withDoh: true, dohUrl: dohUrls.TryGetValue(s.Id, out var du) ? du : null);
                         _speed[s.Id] = r;
                         _status.Text = Lang.T("DnsPickTesting", ++done, targets.Count);
                     }
@@ -546,6 +562,7 @@ namespace MasselGUARD.Views
                 _status.Text = best == null
                     ? Lang.T("DnsPickTestNone")
                     : Lang.T("DnsPickTestDone", targets.Count, best.Name, _speed[best.Id].RankMs!.Value, _testName);
+                if (skippedParam > 0) _status.Text += "  " + Lang.T("DnsPickTestSkippedParam", skippedParam);
             }
             catch (OperationCanceledException) { UpdateStatus(null); }
             catch (Exception ex) { _status.Text = ex.Message; }

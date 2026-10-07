@@ -1342,7 +1342,7 @@
                                     Click="DnsPanelAdd_Click"/>
                             <Button x:Name="DnsPanelBrowseBtn"
                                     Content="{Binding [BtnDnsAddPresets], Source={x:Static local:Lang.Instance}}"
-                                    Style="{StaticResource PrimaryBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
                                     Margin="6,0,0,0" Click="DnsPanelPresets_Click"/>
                             <Button x:Name="DnsPanelEditBtn"
                                     Content="{Binding [BtnDnsEditProfile], Source={x:Static local:Lang.Instance}}"

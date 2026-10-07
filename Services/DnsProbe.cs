@@ -141,9 +141,10 @@ namespace MasselGUARD.Services
             return best;
         }
 
-        /// <summary>Tests every address of a list entry (plain) and its DoH template (not when it needs a personal id,
-        /// or when plain DNS works and <paramref name="withDoh"/> is false).</summary>
-        public static async Task<DnsSpeed> TestAsync(DnsListServer s, HttpClient http, string name, int timeoutMs, CancellationToken ct, bool withDoh = true)
+        /// <summary>Tests every address of a list entry (plain) and its DoH address. An entry with parameters (a personal value in its
+        /// address) has no usable DoH template: pass the finished address as <paramref name="dohUrl"/> once the user filled the fields in,
+        /// and do not test such an entry at all while a field is empty (the picker skips it).</summary>
+        public static async Task<DnsSpeed> TestAsync(DnsListServer s, HttpClient http, string name, int timeoutMs, CancellationToken ct, bool withDoh = true, string? dohUrl = null)
         {
             int tried = 0, answered = 0;
             int? plain = null, doh = null;
@@ -158,10 +159,11 @@ namespace MasselGUARD.Services
                     catch (Exception ex) { problem ??= ip + ": " + Short(ex); }
                 }
 
-            if (s.Doh.Length > 0 && s.Parameters.Count == 0 && (withDoh || s.EncryptedOnly))
+            var dohTarget = dohUrl ?? (s.Parameters.Count == 0 ? s.Doh : "");
+            if (dohTarget.Length > 0 && (withDoh || s.EncryptedOnly))
             {
                 tried++;
-                try { doh = await DohAsync(http, s.Doh, name, timeoutMs, ct); answered++; }
+                try { doh = await DohAsync(http, dohTarget, name, timeoutMs, ct); answered++; }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex) { problem ??= "DoH: " + Short(ex); }
             }

@@ -1319,5 +1319,6 @@
   "DnsPickTestTickedNone": "请先勾选要测试的服务器。",
   "DnsPickSourceSaved": "仅显示您添加的服务器: {0} (无法加载列表)",
   "DnsPickNoList": "尚未下载列表。请检查网络连接并点击刷新。",
-  "DnsPickSkippedFiles": "有 {0} 个列表文件需要更新版本的 MasselGUARD，已跳过。"
+  "DnsPickSkippedFiles": "有 {0} 个列表文件需要更新版本的 MasselGUARD，已跳过。",
+  "DnsPickTestSkippedParam": "有空字段的 {0} 个服务器未进行测试。"
 }
