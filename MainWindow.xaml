@@ -663,7 +663,7 @@
                                                                  row (connected + disconnected) instead of hugging the variable-
                                                                  length status text ("8s" vs "Disconnected"). -->
                                                             <ColumnDefinition Width="{Binding Data.TunStatusW, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}"/>    <!-- status dot + text (width set by the header handle) -->
-                                                            <ColumnDefinition Width="Auto"/>   <!-- DNS leak badge -->
+                                                            <ColumnDefinition Width="0"/>      <!-- (the DNS leak badge now sits inside the status column) -->
                                                             <ColumnDefinition Width="*"/>       <!-- usage rings / bars fill this remaining space -->
                                                         </Grid.ColumnDefinitions>
                                                         <!-- Status dot + text -->
@@ -680,19 +680,20 @@
                                                                        FontSize="{DynamicResource Theme.FontSize}"
                                                                        VerticalAlignment="Center"
                                                                        MaxWidth="98" TextTrimming="CharacterEllipsis"/>
-                                                        </StackPanel>
-                                                        <!-- DNS leak badge - kept its own slot next to the status. -->
-                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
-                                                                    Visibility="{Binding DnsLeakVisibility}">
-                                                            <TextBlock Text="  |  "
-                                                                       Foreground="{DynamicResource TextMuted}"
-                                                                       FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                                       VerticalAlignment="Center"/>
-                                                            <TextBlock Text="{Binding DnsLeakDisplay}"
-                                                                       Foreground="{Binding DnsLeakColor}"
-                                                                       FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                                       VerticalAlignment="Center"
-                                                                       ToolTip="{Binding DnsLeakTooltip}"/>
+                                                            <!-- DNS leak badge: part of the STATUS (right behind the status text, inside the status column),
+                                                                 not of the data-usage area to its right. -->
+                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                                        Visibility="{Binding DnsLeakVisibility}">
+                                                                <TextBlock Text=" | "
+                                                                           Foreground="{DynamicResource TextMuted}"
+                                                                           FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                           VerticalAlignment="Center"/>
+                                                                <TextBlock Text="{Binding DnsLeakDisplay}"
+                                                                           Foreground="{Binding DnsLeakColor}"
+                                                                           FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                           VerticalAlignment="Center"
+                                                                           ToolTip="{Binding DnsLeakTooltip}"/>
+                                                            </StackPanel>
                                                         </StackPanel>
                                                         <!-- Data-cap usage rings - day · week · month, each drawn only when its cap
                                                              is set (d/w/m centre glyph). Pinned in its own right-hand Grid cell with a
