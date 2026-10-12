@@ -1334,5 +1334,15 @@
   "BtnDnsLeakProtect": "保護をオンにする",
   "BtnDnsLeakRestore": "Windowsの既定値に戻す",
   "DnsPickCustom": "カスタム",
-  "DnsPickCustomNote": "これはご自身で作成したプロファイルで、オンラインリストのものではありません。速度をテストできるようにここに表示しています。編集や削除は DNS プロファイルで行います。"
+  "DnsPickCustomNote": "これはご自身で作成したプロファイルで、オンラインリストのものではありません。速度をテストできるようにここに表示しています。編集や削除は DNS プロファイルで行います。",
+  "DnsHitsTip": "このプロファイルが使用された回数(手動、ルール、または一時的な切り替えによる)。",
+  "BtnDnsSpeedTest": "選択したものの速度をテスト",
+  "BtnDnsSpeedTestTip": "選択したプロファイル(未選択の場合はすべて)を測定し、最も速いものを先頭に表示します。",
+  "BtnDnsClearHits": "カウンターをクリア",
+  "BtnDnsClearHitsTip": "選択したプロファイル(未選択の場合はすべて)のカウンターを0に戻します。",
+  "DnsClearHitsConfirm": "{0} 件のプロファイルのカウンターを0に戻しますか?",
+  "DnsSpeedTitle": "DNS 速度テスト",
+  "DnsSpeedColPlain": "通常の DNS",
+  "DnsSpeedColDoh": "DoH",
+  "DnsSpeedAgain": "もう一度テスト"
 }

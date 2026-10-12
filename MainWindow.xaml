@@ -1168,7 +1168,8 @@
                                             <ColumnDefinition x:Name="DnsColDef1" Width="70"   MinWidth="50"/>
                                             <ColumnDefinition x:Name="DnsColDef2" Width="0"    MinWidth="0"/>
                                             <ColumnDefinition x:Name="DnsColDef3" Width="52"   MinWidth="40"/>
-                                            <ColumnDefinition x:Name="DnsColDef4" Width="76"   MinWidth="60"/>
+                                            <ColumnDefinition x:Name="DnsColDef4" Width="44"   MinWidth="36"/>
+                                            <ColumnDefinition x:Name="DnsColDef5" Width="76"   MinWidth="60"/>
                                         </Grid.ColumnDefinitions>
                                         <Button Grid.Column="0" Style="{StaticResource SortHeaderBtn}" Click="DnsSort_Name">
                                             <StackPanel Orientation="Horizontal">
@@ -1213,7 +1214,17 @@
                                                 <TextBlock x:Name="DnsArrowRules" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
                                             </StackPanel>
                                         </Button>
-                                        <TextBlock Grid.Column="4" Text="{Binding [RuleColAction], Source={x:Static local:Lang.Instance}}"
+                                        <Thumb Style="{StaticResource HandleThumb}" Grid.Column="4" x:Name="DnsHitsThumb" Width="5" HorizontalAlignment="Right"
+                                               Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
+                                               DragDelta="DnsHitsThumb_DragDelta" DragCompleted="ColThumb_DragCompleted"/>
+                                        <Button Grid.Column="4" Style="{StaticResource SortHeaderBtn}" Click="DnsSort_Hits" HorizontalAlignment="Left"
+                                                ToolTip="{Binding [DnsHitsTip], Source={x:Static local:Lang.Instance}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [RuleColCount], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
+                                                <TextBlock x:Name="DnsArrowHits" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <TextBlock Grid.Column="5" Text="{Binding [RuleColAction], Source={x:Static local:Lang.Instance}}"
                                                    FontSize="{DynamicResource Theme.FontSize.Tiny}"
                                                    Foreground="{DynamicResource TextMuted}"
                                                    HorizontalAlignment="Left" VerticalAlignment="Center"/>
@@ -1261,6 +1272,7 @@
                                                     <ColumnDefinition Width="{Binding Data.DnsCol1W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="50"/>
                                                     <ColumnDefinition Width="{Binding Data.DnsCol2W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="0"/>
                                                     <ColumnDefinition Width="{Binding Data.DnsCol3W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="0"/>
+                                                    <ColumnDefinition Width="{Binding Data.DnsCol4W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="0"/>
                                                     <!-- Last column takes what is left, so the list's scrollbar can never clip the Enable button -->
                                                     <ColumnDefinition Width="*" MinWidth="60"/>
                                                 </Grid.ColumnDefinitions>
@@ -1311,7 +1323,11 @@
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
-                                                <Button Grid.Column="4" Content="{Binding EnableLabel}"
+                                                <TextBlock Grid.Column="4" Text="{Binding HitsText}"
+                                                           HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                           FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                           Foreground="{DynamicResource TextMuted}"/>
+                                                <Button Grid.Column="5" Content="{Binding EnableLabel}"
                                                         Click="DnsRowEnable_Click"
                                                         FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="8,2"
                                                         HorizontalAlignment="Left" VerticalAlignment="Center">
@@ -1370,6 +1386,13 @@
                                                   Click="DnsPanelImport_Click"/>
                                         <MenuItem Header="{Binding [BtnDnsExport], Source={x:Static local:Lang.Instance}}"
                                                   Click="DnsPanelExport_Click"/>
+                                        <Separator/>
+                                        <MenuItem Header="{Binding [BtnDnsSpeedTest], Source={x:Static local:Lang.Instance}}"
+                                                  ToolTip="{Binding [BtnDnsSpeedTestTip], Source={x:Static local:Lang.Instance}}"
+                                                  Click="DnsPanelSpeedTest_Click"/>
+                                        <MenuItem Header="{Binding [BtnDnsClearHits], Source={x:Static local:Lang.Instance}}"
+                                                  ToolTip="{Binding [BtnDnsClearHitsTip], Source={x:Static local:Lang.Instance}}"
+                                                  Click="DnsPanelClearHits_Click"/>
                                     </ContextMenu>
                                 </Button.ContextMenu>
                             </Button>

@@ -71,6 +71,10 @@ namespace MasselGUARD.Models
         /// <summary>Id of the DNS server list entry this profile was created from ("" = made by hand). Only used to show "already added".</summary>
         public string ListId { get => _listId; set => SetField(ref _listId, value ?? ""); }
 
+        /// <summary>How many times this profile was put in use (by hand, by a rule or by a timed override), like a rule's hit counter.
+        /// Counted when it becomes the applied profile, not on every re-apply; cleared from the DNS panel (More > Clear hit counters).</summary>
+        public int ActivationCount { get; set; }
+
         // ── Display helpers (JSON-ignored) ───────────────────────────────────────
         /// <summary>True when this profile requests any form of encrypted DNS.</summary>
         [JsonIgnore]
@@ -136,6 +140,7 @@ namespace MasselGUARD.Models
             DohTemplate       = _dohTemplate,
             RequireEncryption = _requireEncryption,
             ListId            = _listId,
+            ActivationCount   = ActivationCount,
         };
     }
 }

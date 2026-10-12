@@ -1334,5 +1334,15 @@
   "BtnDnsLeakProtect": "开启保护",
   "BtnDnsLeakRestore": "恢复 Windows 默认设置",
   "DnsPickCustom": "自定义",
-  "DnsPickCustomNote": "这是您自己创建的配置文件,不在线上列表中。在此显示是为了让您测试其速度。请在 DNS 配置文件中编辑或删除。"
+  "DnsPickCustomNote": "这是您自己创建的配置文件,不在线上列表中。在此显示是为了让您测试其速度。请在 DNS 配置文件中编辑或删除。",
+  "DnsHitsTip": "此配置文件被启用的次数(手动、规则或临时切换)。",
+  "BtnDnsSpeedTest": "测试所选项的速度",
+  "BtnDnsSpeedTestTip": "测量所选配置文件(未选择时为全部),并将最快的显示在最前面。",
+  "BtnDnsClearHits": "清除计数器",
+  "BtnDnsClearHitsTip": "将所选配置文件(未选择时为全部)的计数器重置为 0。",
+  "DnsClearHitsConfirm": "将 {0} 个配置文件的计数器重置为 0?",
+  "DnsSpeedTitle": "DNS 速度测试",
+  "DnsSpeedColPlain": "普通 DNS",
+  "DnsSpeedColDoh": "DoH",
+  "DnsSpeedAgain": "重新测试"
 }

@@ -112,7 +112,8 @@ namespace MasselGUARD.ViewModels
         private double _dnsCol1W = 70;  public double DnsCol1W { get => _dnsCol1W; set => SetField(ref _dnsCol1W, value); }
         private double _dnsCol2W = 190; public double DnsCol2W { get => _dnsCol2W; set => SetField(ref _dnsCol2W, value); }
         private double _dnsCol3W = 52;  public double DnsCol3W { get => _dnsCol3W; set => SetField(ref _dnsCol3W, value); }
-        private double _dnsCol4W = 76;  public double DnsCol4W { get => _dnsCol4W; set => SetField(ref _dnsCol4W, value); }
+        private double _dnsCol4W = 44;  public double DnsCol4W { get => _dnsCol4W; set => SetField(ref _dnsCol4W, value); }
+        private double _dnsCol5W = 76;  public double DnsCol5W { get => _dnsCol5W; set => SetField(ref _dnsCol5W, value); }
 
         // ── Commands ──────────────────────────────────────────────────────────
         public RelayCommand AddTunnelCommand    { get; }
@@ -1246,6 +1247,11 @@ namespace MasselGUARD.ViewModels
         {
             if (string.Equals(_appliedDnsProfileId, profileId, StringComparison.Ordinal)) return;
             _appliedDnsProfileId = profileId;
+            if (profileId != null)   // a hit, like a rule's counter: the profile became the applied one
+            {
+                var p = _config.Config.DnsProfiles.FirstOrDefault(x => x.Id == profileId);
+                if (p != null) { p.ActivationCount++; try { _config.Save(); } catch { /* best-effort */ } }
+            }
             (Application.Current as App)?.OnDnsStateChanged();
         }
 

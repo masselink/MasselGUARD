@@ -1334,5 +1334,15 @@
   "BtnDnsLeakProtect": "Ativar proteção",
   "BtnDnsLeakRestore": "Restaurar padrão do Windows",
   "DnsPickCustom": "personalizado",
-  "DnsPickCustomNote": "Este é um perfil criado por você, não vem da lista online. Ele aparece aqui para que você possa testar a velocidade. Edite ou exclua nos perfis DNS."
+  "DnsPickCustomNote": "Este é um perfil criado por você, não vem da lista online. Ele aparece aqui para que você possa testar a velocidade. Edite ou exclua nos perfis DNS.",
+  "DnsHitsTip": "Quantas vezes este perfil foi colocado em uso (manualmente, por uma regra ou por uma substituição temporária).",
+  "BtnDnsSpeedTest": "Testar velocidade da seleção",
+  "BtnDnsSpeedTestTip": "Mede os perfis selecionados (todos se nenhum estiver selecionado) e mostra o mais rápido primeiro.",
+  "BtnDnsClearHits": "Limpar contadores",
+  "BtnDnsClearHitsTip": "Volta a 0 o contador dos perfis selecionados (todos se nenhum estiver selecionado).",
+  "DnsClearHitsConfirm": "Voltar a 0 o contador de {0} perfil(is)?",
+  "DnsSpeedTitle": "Teste de velocidade de DNS",
+  "DnsSpeedColPlain": "DNS comum",
+  "DnsSpeedColDoh": "DoH",
+  "DnsSpeedAgain": "Testar novamente"
 }

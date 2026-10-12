@@ -1334,5 +1334,15 @@
   "BtnDnsLeakProtect": "Korumayı aç",
   "BtnDnsLeakRestore": "Windows varsayılanını geri yükle",
   "DnsPickCustom": "özel",
-  "DnsPickCustomNote": "Bu, kendi oluşturduğunuz bir profildir ve çevrimiçi listede yer almaz. Hızını test edebilmeniz için burada gösterilir. DNS profillerinden düzenleyebilir veya silebilirsiniz."
+  "DnsPickCustomNote": "Bu, kendi oluşturduğunuz bir profildir ve çevrimiçi listede yer almaz. Hızını test edebilmeniz için burada gösterilir. DNS profillerinden düzenleyebilir veya silebilirsiniz.",
+  "DnsHitsTip": "Bu profilin kaç kez kullanıma alındığı (elle, bir kuralla veya zamanlı bir geçişle).",
+  "BtnDnsSpeedTest": "Seçilenlerin hızını test et",
+  "BtnDnsSpeedTestTip": "Seçili profilleri ölçer (hiçbiri seçili değilse tümünü) ve en hızlıyı en üstte gösterir.",
+  "BtnDnsClearHits": "Sayaçları temizle",
+  "BtnDnsClearHitsTip": "Seçili profillerin sayacını (hiçbiri seçili değilse tümünün) 0'a döndürür.",
+  "DnsClearHitsConfirm": "{0} profilin sayacı 0'a döndürülsün mü?",
+  "DnsSpeedTitle": "DNS hız testi",
+  "DnsSpeedColPlain": "Düz DNS",
+  "DnsSpeedColDoh": "DoH",
+  "DnsSpeedAgain": "Yeniden test et"
 }

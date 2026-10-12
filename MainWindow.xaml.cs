@@ -1570,6 +1570,8 @@ namespace MasselGUARD
             public string EnableLabel { get; init; } = "";   // per-row button: Enable / Disable
             public Visibility EnabledDot => Enabled ? Visibility.Visible : Visibility.Collapsed;
             public int    RulesCount { get; init; }      // numeric, for sorting
+            public int    Hits { get; init; }            // how many times the profile was put in use (the hit counter)
+            public string HitsText => Hits.ToString();
         }
 
         private string _dnsSortCol = "";   // "", Name, Type, Server, Rules
@@ -1598,6 +1600,7 @@ namespace MasselGUARD
                     Server = p.ConnectionDisplay,
                     Rules  = cnt.ToString(),
                     RulesCount = cnt,
+                    Hits = p.ActivationCount,
                     Enabled = on,
                     IsBypass = p.Id == ConfigSvc.Config.BypassDnsProfileId,
                     EnableLabel = Lang.T(on ? "BtnDnsDisable" : "BtnDnsEnable"),
@@ -1700,6 +1703,7 @@ namespace MasselGUARD
                 "Type"   => _dnsSortAsc ? src.OrderBy(r => r.Type,   StringComparer.OrdinalIgnoreCase) : src.OrderByDescending(r => r.Type,   StringComparer.OrdinalIgnoreCase),
                 "Server" => _dnsSortAsc ? src.OrderBy(r => r.Server, StringComparer.OrdinalIgnoreCase) : src.OrderByDescending(r => r.Server, StringComparer.OrdinalIgnoreCase),
                 "Rules"  => _dnsSortAsc ? src.OrderBy(r => r.RulesCount) : src.OrderByDescending(r => r.RulesCount),
+                "Hits"   => _dnsSortAsc ? src.OrderBy(r => r.Hits) : src.OrderByDescending(r => r.Hits),
                 _        => src,
             };
 
@@ -1707,6 +1711,7 @@ namespace MasselGUARD
         private void DnsSort_Type  (object s, RoutedEventArgs e) => DnsSort("Type");
         private void DnsSort_Server(object s, RoutedEventArgs e) => DnsSort("Server");
         private void DnsSort_Rules (object s, RoutedEventArgs e) => DnsSort("Rules");
+        private void DnsSort_Hits  (object s, RoutedEventArgs e) => DnsSort("Hits");
 
         private void DnsSort(string col)
         {
@@ -1723,6 +1728,7 @@ namespace MasselGUARD
             if (DnsArrowType   != null) DnsArrowType.Text   = _dnsSortCol == "Type"   ? (_dnsSortAsc ? asc : desc) : "";
             if (DnsArrowServer != null) DnsArrowServer.Text = _dnsSortCol == "Server" ? (_dnsSortAsc ? asc : desc) : "";
             if (DnsArrowRules  != null) DnsArrowRules.Text  = _dnsSortCol == "Rules"  ? (_dnsSortAsc ? asc : desc) : "";
+            if (DnsArrowHits   != null) DnsArrowHits.Text   = _dnsSortCol == "Hits"   ? (_dnsSortAsc ? asc : desc) : "";
         }
 
         // ── Timed DNS override (optional: Settings > DNS) ─────────────────────
@@ -3328,6 +3334,36 @@ namespace MasselGUARD
                 b.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
                 b.ContextMenu.IsOpen = true;
             }
+        }
+
+        /// <summary>The profiles selected in the DNS panel; with nothing selected, all of them.</summary>
+        private List<DnsProfile> DnsPanelTargets()
+        {
+            var ids = DnsProfilesPanelList.SelectedItems.OfType<DnsProfileRow>().Select(r => r.Id).ToHashSet();
+            var all = ConfigSvc.Config.DnsProfiles;
+            return ids.Count == 0 ? all.ToList() : all.Where(p => ids.Contains(p.Id)).ToList();
+        }
+
+        /// <summary>More > Test speed: times the selected profiles (all when none is selected) in a small result window.</summary>
+        private void DnsPanelSpeedTest_Click(object sender, RoutedEventArgs e)
+        {
+            var targets = DnsPanelTargets();
+            if (targets.Count == 0) return;
+            var w = new Views.DnsSpeedWindow(this, targets, ConfigSvc.Config.DnsTestName);
+            w.ShowDialog();
+            if (w.TestName != ConfigSvc.Config.DnsTestName) { ConfigSvc.Config.DnsTestName = w.TestName; ConfigSvc.Save(); }
+        }
+
+        /// <summary>More > Clear hit counters: sets the counter of the selected profiles (all when none is selected) back to 0.</summary>
+        private void DnsPanelClearHits_Click(object sender, RoutedEventArgs e)
+        {
+            var targets = DnsPanelTargets().Where(p => p.ActivationCount > 0).ToList();
+            if (targets.Count == 0) return;
+            if (!ShowThemedYesNo(Lang.T("DnsClearHitsConfirm", targets.Count), Lang.T("BtnDnsClearHits"))) return;
+            foreach (var p in targets) p.ActivationCount = 0;
+            ConfigSvc.Save();
+            LogSvc.Ok($"DNS hit counters cleared ({targets.Count} profile(s)).");
+            RebuildDnsPanel();
         }
 
         private void DnsPanelAdd_Click(object sender, RoutedEventArgs e)
@@ -7221,17 +7257,17 @@ namespace MasselGUARD
         private void DnsColGrid_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             double total = e.NewSize.Width;
-            // Name (0) is the sole flexible star column; Type (1)/Rules (3)/Enable (4) fixed.
+            // Name (0) is the sole flexible star column; Type (1)/Rules (3)/Hits (4)/Enable (5) fixed.
             // The Server column (2) is removed - pinned to zero width.
             DnsColDef0.MinWidth = 60; DnsColDef1.MinWidth = 50;
             DnsColDef2.MinWidth = 0; DnsColDef2.MaxWidth = 0; DnsColDef2.Width = new GridLength(0);
-            DnsColDef3.MinWidth = _rulesColShown ? 40 : 0; DnsColDef4.MinWidth = 60;
+            DnsColDef3.MinWidth = _rulesColShown ? 40 : 0; DnsColDef4.MinWidth = 36; DnsColDef5.MinWidth = 60;
             if (!_rulesColShown) DnsColDef3.MaxWidth = 0;
-            double reserved = 50 + (_rulesColShown ? 40 : 0) + 60;   // Type + Rules + Enable minimums
+            double reserved = 50 + (_rulesColShown ? 40 : 0) + 36 + 60;   // Type + Rules + Hits + Enable minimums
             DnsColDef0.MaxWidth = Math.Max(60, total - reserved);
             // A Name width saved from a wider window (or theme layout) must not push Type / Action out of a
             // narrower panel: when the fixed columns no longer fit beside it, Name goes back to flexible.
-            double fixedW = DnsColDef1.Width.Value + (_rulesColShown ? DnsColDef3.Width.Value : 0) + DnsColDef4.MinWidth;
+            double fixedW = DnsColDef1.Width.Value + (_rulesColShown ? DnsColDef3.Width.Value : 0) + DnsColDef4.Width.Value + DnsColDef5.MinWidth;
             if (!DnsColDef0.Width.IsStar && DnsColDef0.Width.Value + fixedW > total)
                 DnsColDef0.Width = new GridLength(2.4, GridUnitType.Star);
             if (DnsColDef0.ActualWidth > 0 && DnsColDef0.ActualWidth < 60)
@@ -7262,7 +7298,7 @@ namespace MasselGUARD
             DnsColDef0.Width = new GridLength(2.4, GridUnitType.Star);   // Name (sole star)
             // DnsColDef1 (Type) stays fixed 70px
             DnsColDef2.Width = new GridLength(0);                        // Server removed
-            // DnsColDef3 (Rules) fixed 52px, DnsColDef4 (Enable) fixed 76px
+            // DnsColDef3 (Rules) fixed 52px, DnsColDef4 (Hits) fixed 44px, DnsColDef5 (Enable) fixed 76px
         }
 
         // Fires continuously during layout; only act when widths have settled.
@@ -7302,16 +7338,17 @@ namespace MasselGUARD
         {
             if (!_colInitDone) return;
             double w0 = DnsColDef0.ActualWidth, w1 = DnsColDef1.ActualWidth, w2 = DnsColDef2.ActualWidth,
-                   w3 = DnsColDef3.ActualWidth, w4 = DnsColDef4.ActualWidth;
+                   w3 = DnsColDef3.ActualWidth, w4 = DnsColDef4.ActualWidth, w5 = DnsColDef5.ActualWidth;
             if (w0 < 1) return;
             if (Math.Abs(w0 - _vm.DnsCol0W) < 0.5 && Math.Abs(w1 - _vm.DnsCol1W) < 0.5 &&
                 Math.Abs(w2 - _vm.DnsCol2W) < 0.5 && Math.Abs(w3 - _vm.DnsCol3W) < 0.5 &&
-                Math.Abs(w4 - _vm.DnsCol4W) < 0.5) return;
+                Math.Abs(w4 - _vm.DnsCol4W) < 0.5 && Math.Abs(w5 - _vm.DnsCol5W) < 0.5) return;
             _vm.DnsCol0W = Math.Max(DnsColDef0.MinWidth, w0);
             _vm.DnsCol1W = Math.Max(DnsColDef1.MinWidth, w1);
             _vm.DnsCol2W = Math.Max(DnsColDef2.MinWidth, w2);
             _vm.DnsCol3W = Math.Max(DnsColDef3.MinWidth, w3);
             _vm.DnsCol4W = Math.Max(DnsColDef4.MinWidth, w4);
+            _vm.DnsCol5W = Math.Max(DnsColDef5.MinWidth, w5);
         }
 
         // Handle between Status and Data usage: moves where the bars start, in the header and every row.
@@ -7338,6 +7375,9 @@ namespace MasselGUARD
 
         private void DnsRulesThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
             => TradeWidth(DnsColDef3, DnsColDef4, e.HorizontalChange);
+
+        private void DnsHitsThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+            => TradeWidth(DnsColDef4, DnsColDef5, e.HorizontalChange);
 
         /// <summary>Moves the boundary between two neighbouring columns by <paramref name="dx"/>: the left one
         /// grows by what the right one gives up, within both minimums (the total never changes).</summary>
@@ -7391,7 +7431,7 @@ namespace MasselGUARD
         private ColumnDefinition[] ColDefs(string list) => list switch
         {
             "tun" => new[] { TunColDef0, TunColDef1, TunColDef2, TunColDef3 },
-            "dns" => new[] { DnsColDef0, DnsColDef1, DnsColDef2, DnsColDef3, DnsColDef4 },
+            "dns" => new[] { DnsColDef0, DnsColDef1, DnsColDef2, DnsColDef3, DnsColDef4, DnsColDef5 },
             _     => new[] { WifColDef0, WifColDef1, WifColDef2, WifColDef3, WifColDef4, WifColDef5 },
         };
 
@@ -7399,7 +7439,7 @@ namespace MasselGUARD
         private bool[] ColHidden(string list) => list switch
         {
             "tun" => new[] { false, false, !_rulesColShown, false },
-            "dns" => new[] { false, false, true, !_rulesColShown, false },
+            "dns" => new[] { false, false, true, !_rulesColShown, false, false },
             _     => new[] { false, false, false, false, !_wifTunnelCol, !_wifDnsCol },
         };
 

@@ -1334,5 +1334,15 @@
   "BtnDnsLeakProtect": "Bescherming inschakelen",
   "BtnDnsLeakRestore": "Windows-standaard herstellen",
   "DnsPickCustom": "eigen",
-  "DnsPickCustomNote": "Dit is een profiel dat je zelf hebt gemaakt, het komt niet uit de online lijst. Het staat hier zodat je de snelheid kunt testen. Wijzig of verwijder het bij de DNS-profielen."
+  "DnsPickCustomNote": "Dit is een profiel dat je zelf hebt gemaakt, het komt niet uit de online lijst. Het staat hier zodat je de snelheid kunt testen. Wijzig of verwijder het bij de DNS-profielen.",
+  "DnsHitsTip": "Hoe vaak dit profiel in gebruik is genomen (met de hand, door een regel of door een tijdelijke override).",
+  "BtnDnsSpeedTest": "Snelheid van selectie testen",
+  "BtnDnsSpeedTestTip": "Meet de geselecteerde profielen (alle als er niets is geselecteerd) en toont de snelste bovenaan.",
+  "BtnDnsClearHits": "Tellers wissen",
+  "BtnDnsClearHitsTip": "Zet de teller van de geselecteerde profielen (alle als er niets is geselecteerd) terug op 0.",
+  "DnsClearHitsConfirm": "De teller van {0} profiel(en) terugzetten op 0?",
+  "DnsSpeedTitle": "DNS-snelheidstest",
+  "DnsSpeedColPlain": "Gewone DNS",
+  "DnsSpeedColDoh": "DoH",
+  "DnsSpeedAgain": "Opnieuw testen"
 }
