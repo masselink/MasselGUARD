@@ -1332,5 +1332,7 @@
   "DnsPickBlockProxies": "Proxies and VPNs",
   "DnsPickParamFilled": "Filled in",
   "BtnDnsLeakProtect": "Turn on protection",
-  "BtnDnsLeakRestore": "Restore Windows default"
+  "BtnDnsLeakRestore": "Restore Windows default",
+  "DnsPickCustom": "custom",
+  "DnsPickCustomNote": "This is a profile you made yourself, it is not from the online list. It is shown here so you can test its speed. Change or delete it in the DNS profiles."
 }

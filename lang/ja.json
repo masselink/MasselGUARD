@@ -1332,5 +1332,7 @@
   "DnsPickBlockProxies": "プロキシとVPN",
   "DnsPickParamFilled": "入力済み",
   "BtnDnsLeakProtect": "保護をオンにする",
-  "BtnDnsLeakRestore": "Windowsの既定値に戻す"
+  "BtnDnsLeakRestore": "Windowsの既定値に戻す",
+  "DnsPickCustom": "カスタム",
+  "DnsPickCustomNote": "これはご自身で作成したプロファイルで、オンラインリストのものではありません。速度をテストできるようにここに表示しています。編集や削除は DNS プロファイルで行います。"
 }

@@ -434,6 +434,28 @@ namespace MasselGUARD.Models
                 || (s.V4.Count > 0 && p.V4Primary == s.V4[0] && SameTemplate(p, s))
                 || (s.V4.Count == 0 && s.Doh.Length > 0 && string.Equals(p.DohTemplate, s.Doh, StringComparison.OrdinalIgnoreCase)));
 
+        /// <summary>A profile the user made by hand, shaped like a list entry so the picker can show and speed-test it (id <c>custom:&lt;profile id&gt;</c>).</summary>
+        public static DnsListServer FromProfile(DnsProfile p)
+        {
+            static IEnumerable<string> Addrs(params string[] a) => a.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim());
+            var v4 = Addrs(p.V4Primary, p.V4Secondary).ToList();
+            var v6 = Addrs(p.V6Primary, p.V6Secondary).ToList();
+            bool enc = p.IsEncrypted && !string.IsNullOrWhiteSpace(p.DohTemplate);
+            return new DnsListServer
+            {
+                Id = "custom:" + p.Id, Name = p.Name, V4 = v4, V6 = v6,
+                Doh = enc ? p.DohTemplate.Trim() : "",
+                EncryptedOnly = enc && v4.Count + v6.Count == 0,
+            };
+        }
+
+        /// <summary>The profiles that are not an entry of <paramref name="listed"/> (made by hand), as list-shaped entries.</summary>
+        public static List<DnsListServer> CustomEntries(IEnumerable<DnsListServer> listed, IEnumerable<DnsProfile> profiles)
+        {
+            var all = listed.ToList();
+            return profiles.Where(p => !all.Any(s => FindAdded(s, new[] { p }).Any())).Select(FromProfile).ToList();
+        }
+
         private static bool SameTemplate(DnsProfile p, DnsListServer s) =>
             s.Parameters.Count > 0 || string.Equals(p.DohTemplate ?? "", s.Doh, StringComparison.OrdinalIgnoreCase);
 
@@ -514,6 +536,12 @@ namespace MasselGUARD.Models
             {
                 var q9 = data.Servers[0]; var nd = data.Servers[1]; var mv = data.Servers[2];
                 Check(q9.Name == "Quad9 Secured" && q9.Description == "Blocks malware." && nd.Description == "Your own configuration." && mv.Description == "" && mv.Blocks.Count == 0, "entry: name, description and blocks as written");
+
+                // profiles made by hand are shown too (not the ones that are list entries)
+                var mine = new DnsProfile { Name = "Work DNS", V4Primary = "10.1.1.1", V4Secondary = " ", Encryption = "doh", DohTemplate = "https://dns.work.example/dns-query" };
+                var cu = CustomEntries(data.Servers, new[] { new DnsProfile { Name = "quad9 secured" }, mine });
+                Check(cu.Count == 1 && cu[0].Id == "custom:" + mine.Id && cu[0].Name == "Work DNS" && cu[0].V4.SequenceEqual(new[] { "10.1.1.1" }) && cu[0].Doh == mine.DohTemplate && !cu[0].EncryptedOnly, "custom: only profiles that are no list entry, shaped like one");
+                Check(FromProfile(new DnsProfile { Name = "x", Encryption = "doh", DohTemplate = "https://a.example/q" }).EncryptedOnly && FromProfile(new DnsProfile { Name = "y", V4Primary = "1.1.1.1" }).Doh == "", "custom: DoH-only profile is encrypted only, plain profile has no DoH");
 
                 // parameters: the token is the label
                 Check(nd.Parameters.Count == 1 && nd.Parameters[0].Token == "CONFIG_ID", "parameter: a plain string is the token");

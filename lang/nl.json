@@ -1332,5 +1332,7 @@
   "DnsPickBlockProxies": "Proxy's en VPN's",
   "DnsPickParamFilled": "Ingevuld",
   "BtnDnsLeakProtect": "Bescherming inschakelen",
-  "BtnDnsLeakRestore": "Windows-standaard herstellen"
+  "BtnDnsLeakRestore": "Windows-standaard herstellen",
+  "DnsPickCustom": "eigen",
+  "DnsPickCustomNote": "Dit is een profiel dat je zelf hebt gemaakt, het komt niet uit de online lijst. Het staat hier zodat je de snelheid kunt testen. Wijzig of verwijder het bij de DNS-profielen."
 }

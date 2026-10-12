@@ -1,7 +1,7 @@
 # MasselGUARD - Session Handover
 
 **Project:** MasselGUARD - WireGuard + DNS automation manager for Windows (.NET 10; WinExe GUI `MasselGUARD.exe` + console `MasselGUARDcli.exe`).
-**Current:** **5 - Background Badger** (the service back-end, the Browse DNS servers picker, single-number versions) is built and prepared on the branch `service-backend`; **4.6.0 - Wired Weasel** is the latest published release. The version in code is the bare number `5`; the first release tag is `5.0`.
+**Current:** **5 - Background Badger** (the service back-end, the Browse DNS servers picker, single-number versions) is built and merged into `dev` (the `service-backend` branch is gone); **4.6.0 - Wired Weasel** is the latest published release. The version in code is the bare number `5`; the first release tag is `5.0`.
 **Where to start:** [`docs/Handoff-next-version.md`](docs/Handoff-next-version.md) (state of 5.0, what is left before a release, rules and traps), [`docs/ServiceBackend-Design.md`](docs/ServiceBackend-Design.md), [`docs/ServiceBackend-Security.md`](docs/ServiceBackend-Security.md). Architecture: [`CLAUDE.md`](CLAUDE.md). User-facing history: [`docs/WHATSNEW.md`](docs/WHATSNEW.md).
 > **Standing rules (carry every cycle):**
 > 1. **`Models/*.cs` stay WPF-free** - shared with the CLI.

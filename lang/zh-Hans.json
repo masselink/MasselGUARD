@@ -1332,5 +1332,7 @@
   "DnsPickBlockProxies": "代理和 VPN",
   "DnsPickParamFilled": "已填写",
   "BtnDnsLeakProtect": "开启保护",
-  "BtnDnsLeakRestore": "恢复 Windows 默认设置"
+  "BtnDnsLeakRestore": "恢复 Windows 默认设置",
+  "DnsPickCustom": "自定义",
+  "DnsPickCustomNote": "这是您自己创建的配置文件,不在线上列表中。在此显示是为了让您测试其速度。请在 DNS 配置文件中编辑或删除。"
 }

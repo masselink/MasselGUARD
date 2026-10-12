@@ -56,6 +56,8 @@ namespace MasselGUARD.Views
         private string _testName;
         private readonly Dictionary<string, DnsSpeed> _speed = new();
         private CancellationTokenSource? _testCts;
+        private List<DnsListServer> _custom = new();   // profiles the user made by hand: shown and speed-tested, never added or removed here
+        private static bool IsCustom(DnsListServer s) => s.Id.StartsWith("custom:", StringComparison.Ordinal);
         private readonly StackPanel _rows = new();
         private readonly TextBlock _status;
         private readonly StackPanel _details = new();
@@ -259,7 +261,8 @@ namespace MasselGUARD.Views
             _rows.Children.Clear();
             _paramPanels.Clear();
             int shown = 0;
-            IEnumerable<DnsListServer> view = _list.Data.Servers.Where(s => DnsServerList.Matches(s, _search.Text, tag, Words(s)));
+            _custom = DnsServerList.CustomEntries(_list.Data.Servers, _existing);   // the user's own profiles are listed first, marked as custom
+            IEnumerable<DnsListServer> view = _custom.Concat(_list.Data.Servers).Where(s => DnsServerList.Matches(s, _search.Text, tag, Words(s)));
             if (_sortBox.SelectedIndex == 1)   // fastest first: measured ones by time, then unmeasured, failed last
                 view = view.OrderBy(s => !_speed.TryGetValue(s.Id, out var sp) ? 1 : sp.RankMs == null ? 2 : 0)
                            .ThenBy(s => _speed.TryGetValue(s.Id, out var sp) ? sp.RankMs ?? int.MaxValue : int.MaxValue);
@@ -277,7 +280,7 @@ namespace MasselGUARD.Views
         {
             var chk = new CheckBox
             {
-                IsChecked = _checked.Contains(s.Id), VerticalAlignment = VerticalAlignment.Center,
+                IsChecked = IsCustom(s) || _checked.Contains(s.Id), IsEnabled = !IsCustom(s), VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 10, 0),
             };
             var bar = new Border { Width = 5, Background = Brushes.Transparent };
@@ -337,6 +340,13 @@ namespace MasselGUARD.Views
             // What happens to this entry on Apply: stays (grey bar), new (accent bar), will be removed (red bar, struck through), or nothing.
             void Paint()
             {
+                if (IsCustom(s))   // your own profile: marked, not part of the add/remove
+                {
+                    var c = Res("WarningColor");
+                    bar.Background = c; chk.BorderBrush = c;
+                    stateTag.Text = Lang.T("DnsPickCustom"); stateTag.Foreground = c;
+                    return;
+                }
                 bool on = _checked.Contains(s.Id), was = _initial.Contains(s.Id);
                 var (brush, label) = on ? (was ? (Res("TextMuted"), Lang.T("DnsPickInList")) : (Res("Accent"), Lang.T("DnsPickNew")))
                                         : (was ? (Res("Danger"), Lang.T("DnsPickWillRemove")) : ((Brush)Brushes.Transparent, ""));
@@ -442,13 +452,18 @@ namespace MasselGUARD.Views
                 _details.Children.Add(Text(Lang.T("DnsPickNoSelection"), 11, "TextMuted"));
                 return;
             }
+            bool custom = IsCustom(s);
             _details.Children.Add(Text(s.Name, 14, "Accent", bold: true));
             var who = s.Provider + (s.Country.Length > 0 ? "  (" + CountryName(s.Country) + ")" : "");
             if (who.Trim().Length > 0) _details.Children.Add(Text(who, 10, "TextMuted", margin: new Thickness(0, 0, 0, 8)));
+            if (custom) _details.Children.Add(Text(Lang.T("DnsPickCustomNote"), 12, "WarningColor", margin: new Thickness(0, 0, 0, 10)));
             if (s.Description.Length > 0) _details.Children.Add(Text(s.Description, 12, "TextPrimary", margin: new Thickness(0, 0, 0, 10)));
 
-            Fact("DnsPickBlocks", s.Blocks.Count == 0 ? Lang.T("DnsPickBlocksNothing") : string.Join("\n", s.Blocks.Select(BlockText)));
-            Fact("DnsPickLogging", LoggingText(s.Logging));
+            if (!custom)   // what a profile blocks or logs is not known for one you made yourself
+            {
+                Fact("DnsPickBlocks", s.Blocks.Count == 0 ? Lang.T("DnsPickBlocksNothing") : string.Join("\n", s.Blocks.Select(BlockText)));
+                Fact("DnsPickLogging", LoggingText(s.Logging));
+            }
             if (_speed.TryGetValue(s.Id, out var sd))
             {
                 var parts = new List<string>();
@@ -551,10 +566,10 @@ namespace MasselGUARD.Views
             _testName = typed.TrimEnd('.');
             _speed.Clear();
             var tag = (_tagBox.SelectedItem as ComboBoxItem)?.Tag as string;
-            var targets = _list.Data.Servers.Where(s => DnsServerList.Matches(s, _search.Text, tag, Words(s))).ToList();
-            if (_onlyTicked.IsChecked == true)   // only the servers the user ticked (that are visible with the current search and filter)
+            var targets = _custom.Concat(_list.Data.Servers).Where(s => DnsServerList.Matches(s, _search.Text, tag, Words(s))).ToList();
+            if (_onlyTicked.IsChecked == true)   // only the servers the user ticked (that are visible with the current search and filter); the user's own profiles count as ticked
             {
-                targets = targets.Where(s => _checked.Contains(s.Id)).ToList();
+                targets = targets.Where(s => IsCustom(s) || _checked.Contains(s.Id)).ToList();
                 if (targets.Count == 0) { _status.Text = Lang.T("DnsPickTestTickedNone"); return; }
             }
             // an entry with a parameter is only tested once every field is filled in (its address needs the value); an empty field = not tested

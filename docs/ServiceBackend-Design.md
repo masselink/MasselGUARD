@@ -1,6 +1,6 @@
 # Service back-end (5.0) - design and reference
 
-Status: **implemented on branch `service-backend`**, reviewed twice for security (see [`ServiceBackend-Security.md`](ServiceBackend-Security.md)). The manual test plan at the end still has to be run on real machines. The user-facing description is in [`MANUAL.md`](MANUAL.md) chapter 37; the codebase summary is in [`../CLAUDE.md`](../CLAUDE.md).
+Status: **implemented and merged into `dev`**, reviewed twice for security (see [`ServiceBackend-Security.md`](ServiceBackend-Security.md)). The manual test plan at the end still has to be run on real machines. The user-facing description is in [`MANUAL.md`](MANUAL.md) chapter 37; the codebase summary is in [`../CLAUDE.md`](../CLAUDE.md).
 
 ## 1. Why
 

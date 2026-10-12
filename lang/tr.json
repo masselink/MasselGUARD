@@ -1332,5 +1332,7 @@
   "DnsPickBlockProxies": "Proxy'ler ve VPN'ler",
   "DnsPickParamFilled": "Dolduruldu",
   "BtnDnsLeakProtect": "Korumayı aç",
-  "BtnDnsLeakRestore": "Windows varsayılanını geri yükle"
+  "BtnDnsLeakRestore": "Windows varsayılanını geri yükle",
+  "DnsPickCustom": "özel",
+  "DnsPickCustomNote": "Bu, kendi oluşturduğunuz bir profildir ve çevrimiçi listede yer almaz. Hızını test edebilmeniz için burada gösterilir. DNS profillerinden düzenleyebilir veya silebilirsiniz."
 }
