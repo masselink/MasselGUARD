@@ -1336,13 +1336,9 @@
   "DnsPickCustom": "własny",
   "DnsPickCustomNote": "To profil utworzony przez Ciebie, nie pochodzi z listy online. Jest tu pokazany, aby można było sprawdzić jego szybkość. Edytuj lub usuń go w profilach DNS.",
   "DnsHitsTip": "Ile razy ten profil został użyty (ręcznie, przez regułę lub przez czasowe przełączenie).",
-  "BtnDnsSpeedTest": "Testuj szybkość zaznaczonych",
-  "BtnDnsSpeedTestTip": "Mierzy zaznaczone profile (wszystkie, gdy nic nie zaznaczono) i pokazuje najszybszy jako pierwszy.",
-  "BtnDnsClearHits": "Wyczyść liczniki",
-  "BtnDnsClearHitsTip": "Zeruje licznik zaznaczonych profili (wszystkich, gdy nic nie zaznaczono).",
-  "DnsClearHitsConfirm": "Wyzerować licznik profili: {0}?",
   "DnsSpeedTitle": "Test szybkości DNS",
   "DnsSpeedColPlain": "Zwykły DNS",
   "DnsSpeedColDoh": "DoH",
-  "DnsSpeedAgain": "Testuj ponownie"
+  "DnsSpeedAgain": "Testuj ponownie",
+  "DnsEditTestTip": "Mierzy ten profil tak, jak wpisano powyżej (nic nie jest zapisywane), i pokazuje czas odpowiedzi."
 }

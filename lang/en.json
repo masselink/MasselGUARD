@@ -1336,13 +1336,9 @@
   "DnsPickCustom": "custom",
   "DnsPickCustomNote": "This is a profile you made yourself, it is not from the online list. It is shown here so you can test its speed. Change or delete it in the DNS profiles.",
   "DnsHitsTip": "How many times this profile was put in use (by hand, by a rule or by a timed override).",
-  "BtnDnsSpeedTest": "Test speed of selected",
-  "BtnDnsSpeedTestTip": "Times the selected profiles (all when none is selected) and shows the fastest first.",
-  "BtnDnsClearHits": "Clear hit counters",
-  "BtnDnsClearHitsTip": "Sets the hit counter of the selected profiles (all when none is selected) back to 0.",
-  "DnsClearHitsConfirm": "Set the hit counter of {0} profile(s) back to 0?",
   "DnsSpeedTitle": "DNS speed test",
   "DnsSpeedColPlain": "Plain DNS",
   "DnsSpeedColDoh": "DoH",
-  "DnsSpeedAgain": "Test again"
+  "DnsSpeedAgain": "Test again",
+  "DnsEditTestTip": "Times this profile as typed above (nothing is saved) and shows its response time."
 }

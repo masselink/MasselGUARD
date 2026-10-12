@@ -3336,39 +3336,9 @@ namespace MasselGUARD
             }
         }
 
-        /// <summary>The profiles selected in the DNS panel; with nothing selected, all of them.</summary>
-        private List<DnsProfile> DnsPanelTargets()
-        {
-            var ids = DnsProfilesPanelList.SelectedItems.OfType<DnsProfileRow>().Select(r => r.Id).ToHashSet();
-            var all = ConfigSvc.Config.DnsProfiles;
-            return ids.Count == 0 ? all.ToList() : all.Where(p => ids.Contains(p.Id)).ToList();
-        }
-
-        /// <summary>More > Test speed: times the selected profiles (all when none is selected) in a small result window.</summary>
-        private void DnsPanelSpeedTest_Click(object sender, RoutedEventArgs e)
-        {
-            var targets = DnsPanelTargets();
-            if (targets.Count == 0) return;
-            var w = new Views.DnsSpeedWindow(this, targets, ConfigSvc.Config.DnsTestName);
-            w.ShowDialog();
-            if (w.TestName != ConfigSvc.Config.DnsTestName) { ConfigSvc.Config.DnsTestName = w.TestName; ConfigSvc.Save(); }
-        }
-
-        /// <summary>More > Clear hit counters: sets the counter of the selected profiles (all when none is selected) back to 0.</summary>
-        private void DnsPanelClearHits_Click(object sender, RoutedEventArgs e)
-        {
-            var targets = DnsPanelTargets().Where(p => p.ActivationCount > 0).ToList();
-            if (targets.Count == 0) return;
-            if (!ShowThemedYesNo(Lang.T("DnsClearHitsConfirm", targets.Count), Lang.T("BtnDnsClearHits"))) return;
-            foreach (var p in targets) p.ActivationCount = 0;
-            ConfigSvc.Save();
-            LogSvc.Ok($"DNS hit counters cleared ({targets.Count} profile(s)).");
-            RebuildDnsPanel();
-        }
-
         private void DnsPanelAdd_Click(object sender, RoutedEventArgs e)
         {
-            var created = Views.DnsProfileEditor.Show(this, null);
+            var created = Views.DnsProfileEditor.Show(this, null, ConfigSvc.Config);
             if (created == null) return;
             ConfigSvc.Config.DnsProfiles.Add(created);
             ConfigSvc.Save();
@@ -3380,7 +3350,7 @@ namespace MasselGUARD
         {
             var sel = SelectedDnsPanelProfile();
             if (sel == null) return;
-            var edited = Views.DnsProfileEditor.Show(this, sel);
+            var edited = Views.DnsProfileEditor.Show(this, sel, ConfigSvc.Config);
             if (edited == null) return;
             int i = ConfigSvc.Config.DnsProfiles.FindIndex(p => p.Id == sel.Id);
             if (i >= 0) ConfigSvc.Config.DnsProfiles[i] = edited;

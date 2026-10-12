@@ -29,8 +29,8 @@ MasselGUARD can now do its privileged work in a **Windows service**, so the app 
 
 ### Automation and settings
 - **Test rule** opens a window with the verdict and a line-by-line explanation (each condition with what the current network has, day and time for schedules, what the rule would do, notes such as "the rule is disabled"); the log gets the same result.
-- **Hit counter for DNS profiles** - a **Hits** column in the DNS panel counts how many times a profile was put in use (by hand, by a rule or by a timed override), like the counter of a rule. **More > Clear hit counters** resets the selected profiles (all when none is selected).
-- **Test speed of the selected DNS profiles** - **More > Test speed of selected** times the profiles you selected in the DNS panel (all when none is selected) and shows the result in a small window, fastest first.
+- **Hit counter for DNS profiles** - a **Hits** column in the DNS panel counts how many times a profile was put in use (by hand, by a rule or by a timed override), like the counter of a rule. When you edit a profile, **Times triggered** with **(Re)set counter** (same as a rule) is shown in the editor.
+- **Test speed in the DNS profile editor** - a **Test speed** button times the profile as typed (saved or not) and shows the result in a small window.
 - **Add current network** (was "From network") on the Automation panel creates a rule from the network you are on.
 - **DNS leak protection is clearer** - each of the two Windows policies has a status ("Protected" / "Not protected - Windows default") and one button (**Turn on protection** / **Restore Windows default**), and the section says it applies to the whole PC and needs administrator rights.
 - **The release number** is shown next to the name in the title bar, in Settings > About and in the setup wizard.

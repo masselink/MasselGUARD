@@ -1364,10 +1364,6 @@
                                     Content="{Binding [BtnDnsAddProfile], Source={x:Static local:Lang.Instance}}"
                                     Style="{StaticResource SuccessBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
                                     Click="DnsPanelAdd_Click"/>
-                            <Button x:Name="DnsPanelBrowseBtn"
-                                    Content="{Binding [BtnDnsAddPresets], Source={x:Static local:Lang.Instance}}"
-                                    Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
-                                    Margin="6,0,0,0" Click="DnsPanelPresets_Click"/>
                             <Button x:Name="DnsPanelEditBtn"
                                     Content="{Binding [BtnDnsEditProfile], Source={x:Static local:Lang.Instance}}"
                                     Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
@@ -1376,6 +1372,10 @@
                                     Content="{Binding [BtnDnsRemoveProfile], Source={x:Static local:Lang.Instance}}"
                                     Style="{StaticResource DangerBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
                                     Margin="6,0,0,0" IsEnabled="False" Click="DnsPanelDelete_Click"/>
+                            <Button x:Name="DnsPanelBrowseBtn"
+                                    Content="{Binding [BtnDnsAddPresets], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Margin="6,0,0,0" Click="DnsPanelPresets_Click"/>
                             <Button x:Name="DnsPanelMoreBtn"
                                     Content="{Binding [BtnDnsMore], Source={x:Static local:Lang.Instance}}"
                                     Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
@@ -1386,13 +1386,6 @@
                                                   Click="DnsPanelImport_Click"/>
                                         <MenuItem Header="{Binding [BtnDnsExport], Source={x:Static local:Lang.Instance}}"
                                                   Click="DnsPanelExport_Click"/>
-                                        <Separator/>
-                                        <MenuItem Header="{Binding [BtnDnsSpeedTest], Source={x:Static local:Lang.Instance}}"
-                                                  ToolTip="{Binding [BtnDnsSpeedTestTip], Source={x:Static local:Lang.Instance}}"
-                                                  Click="DnsPanelSpeedTest_Click"/>
-                                        <MenuItem Header="{Binding [BtnDnsClearHits], Source={x:Static local:Lang.Instance}}"
-                                                  ToolTip="{Binding [BtnDnsClearHitsTip], Source={x:Static local:Lang.Instance}}"
-                                                  Click="DnsPanelClearHits_Click"/>
                                     </ContextMenu>
                                 </Button.ContextMenu>
                             </Button>

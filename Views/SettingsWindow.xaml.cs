@@ -1613,7 +1613,7 @@ namespace MasselGUARD.Views
 
         private void DnsAdd_Click(object sender, RoutedEventArgs e)
         {
-            var created = DnsProfileEditor.Show(this, null);
+            var created = DnsProfileEditor.Show(this, null, _main.ConfigSvc.Config);
             if (created == null) return;
             _main.ConfigSvc.Config.DnsProfiles.Add(created);
             _main.ConfigSvc.Save();
@@ -1632,7 +1632,7 @@ namespace MasselGUARD.Views
         private void DnsEdit_Click(object sender, RoutedEventArgs e)
         {
             if (DnsProfilesList?.SelectedItem is not Models.DnsProfile selected) return;
-            var edited = DnsProfileEditor.Show(this, selected);
+            var edited = DnsProfileEditor.Show(this, selected, _main.ConfigSvc.Config);
             if (edited == null) return;
             int i = _main.ConfigSvc.Config.DnsProfiles.FindIndex(p => p.Id == selected.Id);
             if (i >= 0) _main.ConfigSvc.Config.DnsProfiles[i] = edited;
