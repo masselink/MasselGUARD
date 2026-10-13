@@ -106,8 +106,25 @@ namespace MasselGUARD.Views
 
         private Brush Res(string key, Brush fallback) => TryFindResource(key) as Brush ?? fallback;
 
+        private string _reportText = "";
+
+        /// <summary>Copies the result as plain text (what is shown, with the indentation), for a bug report or a chat.</summary>
+        private async void Copy_Click(object sender, RoutedEventArgs e)
+        {
+            if (_reportText.Length == 0) return;
+            try { Clipboard.SetText(_reportText); }
+            catch { return; }   // the clipboard can be locked by another program: try again
+            var old = CopyBtn.Content;
+            CopyBtn.Content = Lang.T("AboutCopied");
+            await System.Threading.Tasks.Task.Delay(1500);
+            CopyBtn.Content = old;
+        }
+
         private void Render(SimResult result)
         {
+            _reportText = string.Join(Environment.NewLine, result.Steps.Select(s =>
+                new string(' ', s.Indent * 2) + (s.Indent > 0 && s.Level != SimLevel.Info ? "- " : "") + s.Text));
+            CopyBtn.IsEnabled = _reportText.Length > 0;
             StepsHost.Children.Clear();
             foreach (var s in result.Steps)
             {

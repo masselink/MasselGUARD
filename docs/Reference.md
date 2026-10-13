@@ -141,7 +141,7 @@ TryUpdateWifi()    [called at startup and by the retry timer]
 | 0 | `isState` (DWORD) | Must equal 1 (connected) before reading SSID |
 | 520 | `uSSIDLength` (DWORD) | SSID byte length (clamped to 0–32) |
 | 524 | `ucSSID[32]` | SSID bytes (UTF-8) |
-| 576 | `bSecurityEnabled` (BOOL) | `false` = open network |
+| 588 | `bSecurityEnabled` (BOOL) | `false` = open network |
 
 `WLAN_INTERFACE_INFO` stride: 532 bytes per entry.
 | 580 | `bSecurityEnabled` | 0 = open network |
