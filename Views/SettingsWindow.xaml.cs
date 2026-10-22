@@ -38,7 +38,7 @@ namespace MasselGUARD.Views
             // (Rule add/edit requests are handled on the main window now, not here.)
             _vm.ExportRequested     += OnExportSettings;
             _vm.ImportRequested     += OnImportSettings;
-            _vm.LogLevelChanged     += v => main.LogSvc.IsExtended = v == "extended";
+            _vm.LogLevelChanged     += v => main.LogSvc.SetLevel(v);
 
             InitializeComponent();
             DataContext = _vm;
@@ -1985,17 +1985,15 @@ namespace MasselGUARD.Views
             _loading = true;
             LogLevelPicker.Items.Add(Lang.T("LogLevelNormal"));
             LogLevelPicker.Items.Add(Lang.T("LogLevelExtended"));
-            LogLevelPicker.SelectedIndex = _draft.LogLevelSetting == "extended" ? 1 : 0;
+            LogLevelPicker.Items.Add(Lang.T("LogLevelDebug"));
+            LogLevelPicker.SelectedIndex = _draft.LogLevelSetting switch { "debug" => 2, "extended" => 1, _ => 0 };
             _loading = false;
         }
 
         private void LogLevel_Changed(object sender, SelectionChangedEventArgs e)
         {
             if (_loading) return;
-            if (LogLevelPicker?.SelectedIndex == 1)
-                _vm.LogLevel = "extended";
-            else
-                _vm.LogLevel = "normal";
+            _vm.LogLevel = LogLevelPicker?.SelectedIndex switch { 2 => "debug", 1 => "extended", _ => "normal" };
         }
 
         /// <summary>Populate the clear-on-start toggle + max-size box from the staged config.</summary>
@@ -3039,7 +3037,7 @@ namespace MasselGUARD.Views
 
             // Apply side effects immediately
             Lang.Instance.Load(_vm.Language);
-            _main.LogSvc.IsExtended = _vm.LogLevel == "extended";
+            _main.LogSvc.SetLevel(_vm.LogLevel);
             _main.ApplyManualMode();
             _main._vm.RebuildTunnelList();
             _main.RebuildTunnelGroupsPublic();
@@ -3067,7 +3065,7 @@ namespace MasselGUARD.Views
                 string sa = (a?.ToString() ?? "-").ToLowerInvariant();
                 string sb = (b?.ToString() ?? "-").ToLowerInvariant();
                 if (sa != sb)
-                    log.Debug($"[Settings] {label,-26} {a}  →  {b}");
+                    log.Info($"[Settings] {label,-26} {a}  →  {b}");
             }
 
             Check("Language",              before.Language,              after.Language);
@@ -3097,15 +3095,15 @@ namespace MasselGUARD.Views
             var rulesAdded   = after.Rules.Where(r => !before.Rules.Any(b => b.Ssid == r.Ssid)).ToList();
             var rulesRemoved = before.Rules.Where(r => !after.Rules.Any(a => a.Ssid == r.Ssid)).ToList();
             foreach (var r in rulesAdded)
-                log.Debug($"[Settings] Rule added:   {r.Ssid,-20} → {(string.IsNullOrEmpty(r.Tunnel) ? "disconnect" : r.Tunnel)}");
+                log.Info($"[Settings] Rule added:   {r.Ssid,-20} → {(string.IsNullOrEmpty(r.Tunnel) ? "disconnect" : r.Tunnel)}");
             foreach (var r in rulesRemoved)
-                log.Debug($"[Settings] Rule removed: {r.Ssid}");
+                log.Info($"[Settings] Rule removed: {r.Ssid}");
 
             // Groups: added/removed
             var grpAdded   = after.TunnelGroups.Where(g => !before.TunnelGroups.Any(b => b.Name == g.Name)).ToList();
             var grpRemoved = before.TunnelGroups.Where(g => !after.TunnelGroups.Any(a => a.Name == g.Name)).ToList();
-            foreach (var g in grpAdded)   log.Debug($"[Settings] Group added:   {g.Name}");
-            foreach (var g in grpRemoved) log.Debug($"[Settings] Group removed: {g.Name}");
+            foreach (var g in grpAdded)   log.Info($"[Settings] Group added:   {g.Name}");
+            foreach (var g in grpRemoved) log.Info($"[Settings] Group removed: {g.Name}");
         }
 
         // ── History tab ───────────────────────────────────────────────────────

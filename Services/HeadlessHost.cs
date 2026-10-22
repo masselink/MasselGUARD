@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Security.AccessControl;
 using MasselGUARD.Models;
 
 namespace MasselGUARD.Services
@@ -63,7 +64,10 @@ namespace MasselGUARD.Services
             try
             {
                 var cfg = _state.Config;
-                bool should = cfg is { HeadlessAutomation: true } && !_state.Lease.IsAlive(DateTime.UtcNow);
+                // Only when NO MasselGUARD window runs. The lease says so for a window that talks to the service; a window in
+                // direct mode (the service refused its account, so it runs elevated by itself) cannot renew it, and the service
+                // must not act on its (older) copy of the settings next to a window that runs the automation itself.
+                bool should = cfg is { HeadlessAutomation: true } && !_state.Lease.IsAlive(DateTime.UtcNow) && !WindowRunning();
                 lock (_lock)
                 {
                     if (should && !_running)
@@ -86,6 +90,19 @@ namespace MasselGUARD.Services
             catch (Exception ex) { _log.Debug($"Automation tick failed: {ex.Message}"); }
         }
 
+        /// <summary>True while a MasselGUARD window process runs: it owns the single-instance mutex (created with an ACL the service can open).</summary>
+        private static bool WindowRunning()
+        {
+            try
+            {
+                if (!MutexAcl.TryOpenExisting(@"Global\MasselGUARD_SingleInstance", MutexRights.Synchronize, out var m)) return false;
+                m.Dispose();
+                return true;
+            }
+            catch (UnauthorizedAccessException) { return true; }   // it exists but we may not open it: a window is there
+            catch { return false; }
+        }
+
         private NetworkSnapshot Capture(AppConfig cfg) =>
             NetworkMonitor.Capture(cfg.PrimaryNetworkMode,
                 guid => guid == _wifi.CurrentInterfaceGuid ? (_wifi.CurrentSsid, _wifi.IsOpenNetwork) : (null, false),
@@ -103,6 +120,9 @@ namespace MasselGUARD.Services
                 {
                     var cfg = _state.Config;
                     if (!_running || cfg == null) return;
+                    // Re-check at the moment of acting: this runs from a queued work item, up to a few seconds after the
+                    // takeover was decided, and a window may have started (or renewed its lease) in the meantime.
+                    if (_state.Lease.IsAlive(DateTime.UtcNow) || WindowRunning()) return;
                     var snap = Capture(cfg);
 
                     // Only tunnels this service may touch: a valid name, and no foreign service (WireGuard for Windows, ...)

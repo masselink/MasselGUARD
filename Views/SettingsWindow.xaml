@@ -2393,6 +2393,9 @@
                                                   MinWidth="110" FontSize="11" Padding="8,4"
                                                   SelectionChanged="LogLevel_Changed"/>
                                     </Grid>
+                                    <TextBlock Text="{Binding [LogLevelHint], Source={x:Static local:Lang.Instance}}" TextWrapping="Wrap"
+                                               FontFamily="{DynamicResource Theme.FontFamily}" FontSize="10" Foreground="{DynamicResource TextMuted}"
+                                               Margin="0,-4,0,12"/>
 
                                     <!-- Clear log on start -->
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,10">

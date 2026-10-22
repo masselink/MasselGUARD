@@ -702,6 +702,18 @@ namespace MasselGUARD
                 resetTimer.Start();
             }
 
+            // Enhanced log level: keep a copy of the message in the activity log, in case the toast was missed.
+            try
+            {
+                var log = _mainWindow?.LogSvc;
+                if (log != null && log.IsExtended)
+                {
+                    var parts = new[] { n.Category, n.Primary, n.Secondary }.Where(s => !string.IsNullOrWhiteSpace(s));
+                    log.Info("Notification: " + string.Join(" - ", parts));
+                }
+            }
+            catch { }
+
             Dispatcher.Invoke(() =>
             {
                 try

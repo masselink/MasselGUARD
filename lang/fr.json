@@ -1340,5 +1340,7 @@
   "DnsSpeedColPlain": "DNS classique",
   "DnsSpeedColDoh": "DoH",
   "DnsSpeedAgain": "Tester à nouveau",
-  "DnsEditTestTip": "Mesure ce profil tel que saisi ci-dessus (rien n'est enregistré) et affiche son temps de réponse."
+  "DnsEditTestTip": "Mesure ce profil tel que saisi ci-dessus (rien n'est enregistré) et affiche son temps de réponse.",
+  "LogLevelDebug": "Débogage",
+  "LogLevelHint": "Normal : actions et problèmes. Étendu : aussi ce qui se passe sur les tunnels, les réseaux et l'automatisation. Débogage : aussi les détails techniques (système, compte, icônes, recherches)."
 }

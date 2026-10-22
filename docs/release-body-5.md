@@ -37,6 +37,8 @@ MasselGUARD can now do its privileged work in a **Windows service**, so the app 
 - **Verified updates**: every release ships a `.sha256` next to each zip, and the in-app updater checks it.
 - Installing or updating while the app, the service or a tunnel is running no longer fails with "file in use".
 - **Versioning**: releases are now a single number (5, 6, 7...).
+- **Fixes**: open Wi-Fi networks are recognised again (open-network protection works), no repeated "disconnect" pop-ups after sleep or when only network details change, and the background service no longer acts next to an open window.
+- **Three log levels** (Normal, Enhanced, Debug), a **Hits** counter for DNS profiles, and a **Copy all** button in the Advanced test.
 
 ## Upgrading
 - Download the zip for your PC (`x64` or `arm64`), or update from inside the app.

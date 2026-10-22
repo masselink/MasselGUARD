@@ -181,6 +181,7 @@ namespace MasselGUARD.ViewModels
         private NetworkSnapshot _lastSnapshot = NetworkSnapshot.Empty;
         private bool   _networkEvaluatedOnce;
         private string _lastPrimaryKey = "";
+        private RuleEngine.RuleResult? _lastTunnelDecision;   // the tunnel decision last applied for the primary network (null = none yet / no network)
         private Dictionary<string, string> _lastAdapterKeys = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>The connected networks as of the last evaluation (Wi-Fi + wired, primary flagged).</summary>
@@ -317,17 +318,34 @@ namespace MasselGUARD.ViewModels
                         ApplyRuleResult(_rules.EvaluateWifiDisconnected(cfg));
                     }
                     _lastPrimaryKey = "";
+                    _lastTunnelDecision = null;
                 }
                 else if (firstEvaluation || primaryKey != _lastPrimaryKey)
                 {
                     _lastPrimaryKey = primaryKey;
+                    // Same network, only its details moved (a DHCP renew, the router's MAC resolving late, an extra
+                    // address): decide on a COPY first. When the decision is the one already applied there is
+                    // nothing to announce or count, so no repeated "disconnect" toast and no extra rule hit.
+                    bool sameNetwork = !firstEvaluation && !primaryChanged && _lastTunnelDecision != null;
+                    if (sameNetwork)
+                    {
+                        var probe = _rules.EvaluateNetwork(cfg.DeepClone(), snap.Primary);
+                        if (probe.Action == _lastTunnelDecision!.Action && probe.TunnelName == _lastTunnelDecision.TunnelName
+                            && probe.Reason == _lastTunnelDecision.Reason)
+                        {
+                            _log.Info("Network details changed; the automation decision is the same, nothing to do.");
+                            goto dnsStep;
+                        }
+                    }
                     var r = _rules.EvaluateNetwork(cfg, snap.Primary);
+                    _lastTunnelDecision = r;
                     tunnelResult = r;
                     ApplyRuleResult(r);
                     if (r.Details != null)
                         foreach (var line in r.Details) _log.Info(line);
                     LogSecondaryRuleMatches(snap);
                 }
+                dnsStep:
 
                 // ── DNS: per adapter, only for adapters that changed or appeared ─────
                 var changed = new List<Guid>();
@@ -1064,6 +1082,8 @@ namespace MasselGUARD.ViewModels
             (Application.Current as App)?.ShowTrayNotification(n);
         }
 
+        private string? _lastAnnouncedReason;   // the automation decision last shown as a toast: the same one again, with nothing changing, stays quiet
+
         private void ApplyRuleResult(RuleEngine.RuleResult result)
         {
             if (result.Action == RuleEngine.ActionKind.None) return;
@@ -1072,10 +1092,15 @@ namespace MasselGUARD.ViewModels
 
             if (result.Action == RuleEngine.ActionKind.Disconnect)
             {
-                foreach (var t in TunnelList.Where(t => t.IsActive))
+                var wasActive = TunnelList.Where(t => t.IsActive).ToList();
+                foreach (var t in wasActive)
                     t.DisconnectCommand.Execute(null);
 
-                if (_config.Config.ShowTrayPopupOnSwitch)
+                // Same decision again with nothing to do (e.g. the same network back after the PC woke from sleep): no repeat toast.
+                bool repeat = wasActive.Count == 0 && result.Reason == _lastAnnouncedReason;
+                _lastAnnouncedReason = result.Reason;
+
+                if (_config.Config.ShowTrayPopupOnSwitch && !repeat)
                 {
                     int ms = _config.Config.NotificationDurationSeconds * 1000;
                     // Determine category and strip colour from reason
@@ -1128,6 +1153,9 @@ namespace MasselGUARD.ViewModels
         /// <summary>Stop other tunnels, connect <paramref name="target"/>, and toast the switch.</summary>
         private void ActivateTarget(TunnelEntryViewModel target, string reason)
         {
+            // Same decision again and the tunnel is already the only one up (e.g. the same network back after sleep): no repeat toast.
+            bool repeat = target.IsActive && !TunnelList.Any(t => t.IsActive && t != target) && reason == _lastAnnouncedReason;
+            _lastAnnouncedReason = reason;
             foreach (var t in TunnelList.Where(t => t.IsActive && t != target))
                 t.DisconnectCommand.Execute(null);
 
@@ -1137,7 +1165,7 @@ namespace MasselGUARD.ViewModels
                 target.ConnectCommand.Execute(null);
             }
 
-            if (_config.Config.ShowTrayPopupOnSwitch)
+            if (_config.Config.ShowTrayPopupOnSwitch && !repeat)
             {
                 int ms = _config.Config.NotificationDurationSeconds * 1000;
                 bool isRule    = reason.StartsWith("Rule:");

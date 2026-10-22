@@ -1340,5 +1340,7 @@
   "DnsSpeedColPlain": "普通 DNS",
   "DnsSpeedColDoh": "DoH",
   "DnsSpeedAgain": "重新测试",
-  "DnsEditTestTip": "按上方输入的内容测量此配置文件(不会保存任何内容),并显示响应时间。"
+  "DnsEditTestTip": "按上方输入的内容测量此配置文件(不会保存任何内容),并显示响应时间。",
+  "LogLevelDebug": "调试",
+  "LogLevelHint": "普通:操作和问题。扩展:还包括隧道、网络和自动化中发生的事情。调试:还包括技术细节(系统、账户、图标、查询)。"
 }

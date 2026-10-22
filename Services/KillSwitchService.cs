@@ -230,7 +230,7 @@ namespace MasselGUARD.Services
                 if (names.Count > 0)
                 {
                     lock (_lock) { _splitRuleNames[tunnelName] = names; }
-                    _log.Debug($"[KillSwitch] {names.Count} split-bypass allow(s) - {tunnelName}");
+                    _log.Info($"[KillSwitch] {names.Count} split-bypass allow(s) - {tunnelName}");
                 }
             }
         }

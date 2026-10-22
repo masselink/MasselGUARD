@@ -1340,5 +1340,7 @@
   "DnsSpeedColPlain": "DNS normal",
   "DnsSpeedColDoh": "DoH",
   "DnsSpeedAgain": "Probar de nuevo",
-  "DnsEditTestTip": "Mide este perfil tal como está escrito arriba (no se guarda nada) y muestra su tiempo de respuesta."
+  "DnsEditTestTip": "Mide este perfil tal como está escrito arriba (no se guarda nada) y muestra su tiempo de respuesta.",
+  "LogLevelDebug": "Depuración",
+  "LogLevelHint": "Normal: acciones y problemas. Extendido: también lo que ocurre con túneles, redes y automatización. Depuración: también detalles técnicos (sistema, cuenta, iconos, consultas)."
 }

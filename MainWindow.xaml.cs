@@ -129,7 +129,7 @@ namespace MasselGUARD
             ConfigSvc.Load();
 
             LogSvc     = new LogService();
-            LogSvc.IsExtended = ConfigSvc.Config.LogLevelSetting == "extended";
+            LogSvc.SetLevel(ConfigSvc.Config.LogLevelSetting);
             try
             {
                 var logPath = System.IO.Path.Combine(
@@ -231,13 +231,10 @@ namespace MasselGUARD
             KillSwitchSvc.CleanupStaleRules();
 
             // Log level from config
-            LogSvc.IsExtended = ConfigSvc.Config.LogLevelSetting == "extended";
+            LogSvc.SetLevel(ConfigSvc.Config.LogLevelSetting);
 
             LogSvc.Ok(Lang.T("LogAppStarted"));
-            LogSvc.Info($"Started from: {Environment.ProcessPath ?? AppContext.BaseDirectory}");
-            LogSvc.Debug($"OS    : {Environment.OSVersion}");
-            LogSvc.Debug($".NET  : {Environment.Version}");
-            LogSvc.Debug($"User  : {Environment.UserDomainName}\\{Environment.UserName}");
+            WriteDebugStartupBlock();
 
             // A local tunnel is hosted by a Windows service running as LocalSystem, which cannot
             // read files inside a per-user cloud-synced folder (OneDrive) - the tunnel then dies
@@ -1544,7 +1541,7 @@ namespace MasselGUARD
             var win = new Views.SettingsWindow(this) { Owner = this, InitialTab = initialTab };
             win.ShowDialog();
             // Refresh after settings close
-            LogSvc.IsExtended = ConfigSvc.Config.LogLevelSetting == "extended";
+            LogSvc.SetLevel(ConfigSvc.Config.LogLevelSetting);
             _vm.RebuildTunnelList();
             RebuildTunnelGroups();
             UpdateFooterLabel();
@@ -3183,6 +3180,34 @@ namespace MasselGUARD
             QueueWindowSizeSync(false);
         }
 
+        /// <summary>Log level Debug: one block with the facts a bug report needs (version, system, account, how MasselGUARD runs).
+        /// Written once at start; nothing is collected or sent anywhere. English like the rest of the log.</summary>
+        private void WriteDebugStartupBlock()
+        {
+            if (!LogSvc.IsDebug) return;
+            string Safe(Func<string> f) { try { return f(); } catch (Exception ex) { return "? (" + ex.Message + ")"; } }
+            var cfg = ConfigSvc.Config;
+            bool elevated = Safe(() => new System.Security.Principal.WindowsPrincipal(System.Security.Principal.WindowsIdentity.GetCurrent())
+                .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator).ToString()) == "True";
+            var lines = new (string Label, string Value)[]
+            {
+                ("Version",      Safe(() => $"{UpdateChecker.VersionWithCodename} (build {UpdateChecker.BuildStamp})")),
+                ("Started from", Environment.ProcessPath ?? AppContext.BaseDirectory),
+                ("OS",           Safe(() => $"{System.Runtime.InteropServices.RuntimeInformation.OSDescription} ({System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}), Windows {Environment.OSVersion.Version}")),
+                (".NET",         Safe(() => $"{System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}, process {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}")),
+                ("User",         $"{Environment.UserDomainName}\\{Environment.UserName}, {(elevated ? "elevated" : "not elevated")}"),
+                ("Run mode",     AppRunMode.ToString()),
+                ("Back-end",     Backend.IsService ? "MasselGUARD service" : "direct (in-process)"),
+                ("Service",      Safe(() => Services.ServiceInstaller.Status()?.ToString() ?? "not installed")),
+                ("Language",     $"{cfg.Language} (culture {Lang.Culture.Name})"),
+                ("Theme",        cfg.ActiveTheme),
+                ("Features",     $"tunnels {(cfg.EnableTunnels ? "on" : "off")}, DNS {(cfg.EnableDns ? "on" : "off")}, automation {(cfg.ManualMode ? "off (manual mode)" : "on")}, headless {(cfg.HeadlessAutomation ? "on" : "off")}"),
+                ("Counts",       $"{cfg.Tunnels.Count} tunnel(s), {cfg.Rules.Count} rule(s), {cfg.DnsProfiles.Count} DNS profile(s)"),
+                ("Config",       Safe(() => System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MasselGUARD", "config.json"))),
+            };
+            foreach (var (label, value) in lines) LogSvc.Debug($"Startup: {label,-12} {value}");
+        }
+
         // ── List-row heights ───────────────────────────────────────────────────
         // When both the top (WireGuard | DNS) and bottom (Automation | Activity log) regions are shown,
         // each row is sized by its LEFT list - the tunnels and the automation rules - to fit its entries
@@ -3190,6 +3215,9 @@ namespace MasselGUARD
         // don't grow the row; they scroll. A lone region still fills the content area (no cap), so a
         // single panel stretches down to the history panel.
         private const int MinVisibleRows = 4;
+        private const int MinVisibleRowsBottom = 6;   // the Automation list (and the log beside it) start taller than the tunnel list
+        private double _topRowCap = ListRowMaxHeight;
+        private bool   _rowsBothShown;
         private double _bottomRowCap = ListRowMaxHeight;
         private readonly Dictionary<System.Windows.Controls.ListView, double> _rowHeightCache = new();
 
@@ -3206,19 +3234,26 @@ namespace MasselGUARD
                           : tunnels ? FitListRows(TunnelBoxBorder, TunnelsListView)
                           :           FitListRows(DnsPanelBox, DnsProfilesPanelList);
             double botCap = !both ? double.PositiveInfinity
-                          : wifi    ? FitListRows(WifiRulesPanel, WifiRulesListView)
+                          : wifi    ? FitListRows(WifiRulesPanel, WifiRulesListView, MinVisibleRowsBottom)
                           :           ListRowMaxHeight;   // log only: keep the standard cap
             _bottomRowCap = double.IsPositiveInfinity(botCap) ? ListRowMaxHeight : botCap;
+            _topRowCap = double.IsPositiveInfinity(topCap) ? ListRowMaxHeight : topCap;
+            _rowsBothShown = both;
 
+            // With both regions shown the caps are the MINIMUM (everything fits without scrolling) and the rows
+            // are star-weighted by those minimums, so when the window is dragged taller every box grows by the
+            // same ratio instead of leaving empty space. (SyncWindowToContent bounds them while it measures.)
             if (TunnelsListRow != null)
             {
-                TunnelsListRow.MaxHeight = top ? topCap : double.PositiveInfinity;
+                TunnelsListRow.MaxHeight = double.PositiveInfinity;
                 TunnelsListRow.MinHeight = !top ? 0 : both ? topCap : 165;
+                TunnelsListRow.Height = both ? new GridLength(topCap, GridUnitType.Star) : new GridLength(5, GridUnitType.Star);
             }
             if (WifiRulesPanelRow != null)
             {
-                WifiRulesPanelRow.MaxHeight = bottom ? botCap : double.PositiveInfinity;
+                WifiRulesPanelRow.MaxHeight = double.PositiveInfinity;
                 WifiRulesPanelRow.MinHeight = !bottom ? 0 : both ? botCap : (wifi ? 152 : 90);
+                WifiRulesPanelRow.Height = both ? new GridLength(botCap, GridUnitType.Star) : new GridLength(2, GridUnitType.Star);
             }
         }
 
@@ -3226,7 +3261,7 @@ namespace MasselGUARD
         /// without scrolling - at least MinVisibleRows rows, at most ListRowMaxHeight. Chrome (column
         /// header, borders, margins) = card height minus the list's own height; the row height is measured
         /// from a realized row (remembered for when the list is empty).</summary>
-        private double FitListRows(FrameworkElement? box, System.Windows.Controls.ListView? lv)
+        private double FitListRows(FrameworkElement? box, System.Windows.Controls.ListView? lv, int minRows = MinVisibleRows)
         {
             if (box == null || lv == null || box.ActualHeight <= 0 || lv.ActualHeight <= 0) return ListRowMaxHeight;
             double chrome = box.ActualHeight - lv.ActualHeight + box.Margin.Top + box.Margin.Bottom;
@@ -3236,7 +3271,7 @@ namespace MasselGUARD
                 _rowHeightCache[lv] = row.ActualHeight;
             if (!_rowHeightCache.TryGetValue(lv, out var rowH)) return ListRowMaxHeight;   // not measured yet
 
-            int rows = Math.Max(MinVisibleRows, lv.Items.Count);
+            int rows = Math.Max(minRows, lv.Items.Count);
             return Math.Min(ListRowMaxHeight, Math.Ceiling(chrome + rows * rowH + 4));   // +4: list border slack
         }
 
@@ -3288,9 +3323,17 @@ namespace MasselGUARD
             double savedLogMax = LogContent?.MaxHeight ?? double.PositiveInfinity;
             if (LogContent != null) LogContent.MaxHeight = logProbeCap;
 
+            // The rows may grow (see ApplyRowCaps); for the probe they are bounded to their fitted height.
+            if (_rowsBothShown && TunnelsListRow != null && WifiRulesPanelRow != null)
+            {
+                TunnelsListRow.MaxHeight = _topRowCap;
+                WifiRulesPanelRow.MaxHeight = _bottomRowCap;
+            }
             double w = ActualWidth > 0 ? ActualWidth : Width;
             RootContentGrid.Measure(new Size(w, double.PositiveInfinity));
             double natural = RootContentGrid.DesiredSize.Height + 2;   // + OuterBorder top/bottom (1px each)
+            if (TunnelsListRow != null) TunnelsListRow.MaxHeight = double.PositiveInfinity;
+            if (WifiRulesPanelRow != null) WifiRulesPanelRow.MaxHeight = double.PositiveInfinity;
             RootContentGrid.InvalidateMeasure();                       // drop the probe; real pass re-measures
 
             if (LogContent != null) LogContent.MaxHeight = savedLogMax;  // restore for the real layout

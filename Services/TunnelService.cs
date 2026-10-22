@@ -144,7 +144,7 @@ namespace MasselGUARD.Services
                     if (!ReferenceEquals(rewritten, plaintext) && rewritten != plaintext)
                     {
                         plaintext = rewritten;
-                        _log.Debug($"Split ({split.Mode}) applied to {stored.Name}: " +
+                        _log.Info($"Split ({split.Mode}) applied to {stored.Name}: " +
                                    $"{split.Ranges.Count} range(s).");
                     }
                 }
@@ -172,7 +172,7 @@ namespace MasselGUARD.Services
             }
             else
             {
-                _log.Debug($"Config validation bypassed for {stored.Name} (global setting).");
+                _log.Info($"Config validation bypassed for {stored.Name} (global setting).");
             }
 
             // Service mode connects by name from the service's own store: no plaintext temp file here.
@@ -199,7 +199,7 @@ namespace MasselGUARD.Services
 
             try
             {
-                _log.Debug($"Connecting local tunnel: {stored.Name}");
+                _log.Info($"Connecting local tunnel: {stored.Name}");
                 bool ok2 = viaStore != null
                     ? viaStore.ConnectStored(stored.Name, baseConf, split, msg => _log.Debug(msg), out string err)
                     : _ops.Connect(stored.Name, tempPath, msg => _log.Debug(msg), out err);
@@ -520,7 +520,7 @@ namespace MasselGUARD.Services
         {
             if (string.IsNullOrWhiteSpace(script)) return;
             var result = _scripts.Run(script, hook, tunnel);
-            _log.Debug($"[Script:{hook}] exit={result.ExitCode}" +
+            _log.Info($"[Script:{hook}] exit={result.ExitCode}" +
                 (string.IsNullOrEmpty(result.Output) ? "" : $" - {result.Output}"));
             if (result.ExitCode != 0)
                 _log.Warn($"Script {hook} exited {result.ExitCode}");

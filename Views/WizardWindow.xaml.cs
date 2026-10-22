@@ -278,7 +278,7 @@ namespace MasselGUARD.Views
             if (WizFeatLogToggle    != null) WizFeatLogToggle.IsChecked    = cfg.ActivityLogEnabled;
             if (WizFeatChartsToggle != null) WizFeatChartsToggle.IsChecked = cfg.ChartsEnabled;
 
-            bool debug = cfg.LogLevelSetting == "extended";
+            bool debug = cfg.LogLevelSetting != "normal";   // Enhanced (or Debug, which this two-way choice keeps)
             if (WizLogNormal != null) WizLogNormal.IsChecked = !debug;
             if (WizLogDebug  != null) WizLogDebug.IsChecked  = debug;
 
@@ -345,8 +345,9 @@ namespace MasselGUARD.Views
         {
             if (_settingControls) return;
             bool debug = WizLogDebug?.IsChecked == true;
-            _main.ConfigSvc.Config.LogLevelSetting = debug ? "extended" : "normal";
-            _main.LogSvc.IsExtended = debug;
+            var level = _main.ConfigSvc.Config.LogLevelSetting;   // the wizard only offers Normal / Enhanced: keep a Debug level the user chose in Settings
+            _main.ConfigSvc.Config.LogLevelSetting = !debug ? "normal" : level == "debug" ? "debug" : "extended";
+            _main.LogSvc.SetLevel(_main.ConfigSvc.Config.LogLevelSetting);
         }
 
         private void WizPane_Changed(object sender, RoutedEventArgs e)

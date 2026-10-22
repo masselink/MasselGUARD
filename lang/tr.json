@@ -1340,5 +1340,7 @@
   "DnsSpeedColPlain": "Düz DNS",
   "DnsSpeedColDoh": "DoH",
   "DnsSpeedAgain": "Yeniden test et",
-  "DnsEditTestTip": "Bu profili yukarıda yazıldığı gibi ölçer (hiçbir şey kaydedilmez) ve yanıt süresini gösterir."
+  "DnsEditTestTip": "Bu profili yukarıda yazıldığı gibi ölçer (hiçbir şey kaydedilmez) ve yanıt süresini gösterir.",
+  "LogLevelDebug": "Hata ayıklama",
+  "LogLevelHint": "Normal: eylemler ve sorunlar. Genişletilmiş: ayrıca tünellerde, ağlarda ve otomasyonda olanlar. Hata ayıklama: ayrıca teknik ayrıntılar (sistem, hesap, simgeler, sorgular)."
 }

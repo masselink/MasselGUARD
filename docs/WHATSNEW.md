@@ -29,11 +29,18 @@ MasselGUARD can now do its privileged work in a **Windows service**, so the app 
 
 ### Automation and settings
 - **Test rule** opens a window with the verdict and a line-by-line explanation (each condition with what the current network has, day and time for schedules, what the rule would do, notes such as "the rule is disabled"); the log gets the same result.
+- **Three log levels** - Settings > Activity log > Log level now offers Normal, Enhanced and Debug. Enhanced records what happens on tunnels, networks and automation (rule matches, setting changes, a copy of every notification); Debug adds the technical details and writes a start-up block (version, system, account, how MasselGUARD runs) that is useful in a bug report.
 - **Hit counter for DNS profiles** - a **Hits** column in the DNS panel counts how many times a profile was put in use (by hand, by a rule or by a timed override), like the counter of a rule. When you edit a profile, **Times triggered** with **(Re)set counter** (same as a rule) is shown in the editor.
 - **Test speed in the DNS profile editor** - a **Test speed** button times the profile as typed (saved or not) and shows the result in a small window.
 - **Add current network** (was "From network") on the Automation panel creates a rule from the network you are on.
 - **DNS leak protection is clearer** - each of the two Windows policies has a status ("Protected" / "Not protected - Windows default") and one button (**Turn on protection** / **Restore Windows default**), and the section says it applies to the whole PC and needs administrator rights.
 - **The release number** is shown next to the name in the title bar, in Settings > About and in the setup wizard.
+
+### Fixes
+- **Open Wi-Fi networks are recognised again** - the check that tells a network has no password read the wrong field, so every network looked secured. Open-network protection, the open-network DNS profile and the history warnings now work.
+- **No repeated "disconnect" pop-ups** - a rule no longer re-runs, counts a hit or shows its message again when only details of the same network change (a renewed address, the router's MAC resolving late) or when the PC wakes from sleep and joins the same network.
+- **The background service stays out of the way while a window is open** - it no longer connects your default tunnel next to the window's own automation.
+- **Advanced test** has a **Copy all** button, and the main window's Automation and Activity log boxes start taller and all boxes grow together when you make the window larger.
 
 ### Updates and installing
 - **Verified updates** - every release now ships a `.sha256` file next to each zip; the in-app updater checks the download against it and refuses an update without one.

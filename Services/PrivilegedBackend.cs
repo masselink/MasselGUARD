@@ -31,7 +31,7 @@ namespace MasselGUARD.Services
                 var rpc = new RpcOps(expectedServerPid: ServiceInstaller.ServicePid);
                 if (ServiceInstaller.IsInstalled() && rpc.IsAvailable())
                 {
-                    log.Info("Back-end: MasselGUARD service");
+                    log.Debug("Back-end: MasselGUARD service");
                     return new PrivilegedBackend(true, rpc, rpc, rpc, rpc, rpc);
                 }
             }

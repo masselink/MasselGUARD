@@ -1340,5 +1340,7 @@
   "DnsSpeedColPlain": "Gewone DNS",
   "DnsSpeedColDoh": "DoH",
   "DnsSpeedAgain": "Opnieuw testen",
-  "DnsEditTestTip": "Meet dit profiel zoals hierboven ingevuld (er wordt niets opgeslagen) en toont de reactietijd."
+  "DnsEditTestTip": "Meet dit profiel zoals hierboven ingevuld (er wordt niets opgeslagen) en toont de reactietijd.",
+  "LogLevelDebug": "Debug",
+  "LogLevelHint": "Normaal: acties en problemen. Uitgebreid: ook wat er gebeurt met tunnels, netwerken en automatisering. Debug: ook technische details (systeem, account, pictogrammen, opzoekingen)."
 }
