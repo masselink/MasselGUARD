@@ -42,6 +42,9 @@ MasselGUARD can now do its privileged work in a **Windows service**, so the app 
 - **The background service stays out of the way while a window is open** - it no longer connects your default tunnel next to the window's own automation.
 - **Advanced test** has a **Copy all** button, and the main window's Automation and Activity log boxes start taller and all boxes grow together when you make the window larger.
 
+### Themes
+- **New theme: Copper & Gold** - warm burnished copper on deep brown with gold highlights (and a cream-and-bronze light variant), with its own logo, app and tray icons and a brushed-metal background, panels 75% see-through. Install it from **Settings > Appearance > Download themes**.
+
 ### Updates and installing
 - **Verified updates** - every release now ships a `.sha256` file next to each zip; the in-app updater checks the download against it and refuses an update without one.
 - **Updating and installing while things are in use** - the installer and the updater no longer stop with "The process cannot access the file ... because it is being used by another process" when the service, a connected tunnel or a running window holds the installed exe: the old file is renamed aside and removed later.
