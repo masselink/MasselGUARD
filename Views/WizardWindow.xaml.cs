@@ -100,6 +100,8 @@ namespace MasselGUARD.Views
                         (!_isUpgrade && _main.AppRunMode == MainWindow.AppRunModeKind.Standalone)
                         ? Visibility.Visible : Visibility.Collapsed;
 
+                RefreshWizService();
+
                 _settingControls = true;
                 if (WizStartWithWindowsToggle != null) WizStartWithWindowsToggle.IsChecked = cfg.StartWithWindows;
                 if (WizStartMinimizedToggle   != null) WizStartMinimizedToggle.IsChecked   = cfg.StartMinimized;
@@ -167,7 +169,7 @@ namespace MasselGUARD.Views
             // ── Step 8: Done ─────────────────────────────────────────────────
             if (_vm.Step == 8)
             {
-                if (WizVersionLabel   != null) WizVersionLabel.Text   = $"MasselGUARD v{UpdateChecker.CurrentVersionString}";
+                if (WizVersionLabel   != null) WizVersionLabel.Text   = $"MasselGUARD {UpdateChecker.CurrentVersionString}";
                 if (WizCheckUpdateBtn != null) WizCheckUpdateBtn.Content = Lang.T("BtnCheckUpdate");
                 BuildSummary();
             }
@@ -276,7 +278,7 @@ namespace MasselGUARD.Views
             if (WizFeatLogToggle    != null) WizFeatLogToggle.IsChecked    = cfg.ActivityLogEnabled;
             if (WizFeatChartsToggle != null) WizFeatChartsToggle.IsChecked = cfg.ChartsEnabled;
 
-            bool debug = cfg.LogLevelSetting == "extended";
+            bool debug = cfg.LogLevelSetting != "normal";   // Enhanced (or Debug, which this two-way choice keeps)
             if (WizLogNormal != null) WizLogNormal.IsChecked = !debug;
             if (WizLogDebug  != null) WizLogDebug.IsChecked  = debug;
 
@@ -343,8 +345,9 @@ namespace MasselGUARD.Views
         {
             if (_settingControls) return;
             bool debug = WizLogDebug?.IsChecked == true;
-            _main.ConfigSvc.Config.LogLevelSetting = debug ? "extended" : "normal";
-            _main.LogSvc.IsExtended = debug;
+            var level = _main.ConfigSvc.Config.LogLevelSetting;   // the wizard only offers Normal / Enhanced: keep a Debug level the user chose in Settings
+            _main.ConfigSvc.Config.LogLevelSetting = !debug ? "normal" : level == "debug" ? "debug" : "extended";
+            _main.LogSvc.SetLevel(_main.ConfigSvc.Config.LogLevelSetting);
         }
 
         private void WizPane_Changed(object sender, RoutedEventArgs e)
@@ -571,6 +574,19 @@ namespace MasselGUARD.Views
         private void WizRunPortable_Click(object sender, RoutedEventArgs e)
         {
             if (WizInstallChoice != null) WizInstallChoice.Visibility = Visibility.Collapsed;
+        }
+
+        private void RefreshWizService()
+        {
+            if (WizServiceStatus == null || WizServiceBtn == null) return;
+            WizServiceStatus.Text  = _main.ServiceStatusText();
+            WizServiceBtn.Content  = Lang.T(_main.ServiceInstalled ? "BtnServiceRemove" : "BtnServiceInstall");
+        }
+
+        private void WizService_Click(object sender, RoutedEventArgs e)
+        {
+            _main.ToggleServicePublic();
+            RefreshWizService();
         }
 
         private void WizInstallNow_Click(object sender, RoutedEventArgs e)

@@ -50,6 +50,7 @@ Developer/technical reference for v4.6.0 - Wired Weasel. For end-user instructio
 42. [Licensing & third-party components](#42-licensing--third-party-components)
 43. [Split tunneling (4.0.0)](#43-split-tunneling-400)
 44. [DNS automation](#44-dns-automation)
+45. [Service back-end (5.0)](#45-service-back-end-50)
 
 ---
 
@@ -140,7 +141,7 @@ TryUpdateWifi()    [called at startup and by the retry timer]
 | 0 | `isState` (DWORD) | Must equal 1 (connected) before reading SSID |
 | 520 | `uSSIDLength` (DWORD) | SSID byte length (clamped to 0–32) |
 | 524 | `ucSSID[32]` | SSID bytes (UTF-8) |
-| 576 | `bSecurityEnabled` (BOOL) | `false` = open network |
+| 588 | `bSecurityEnabled` (BOOL) | `false` = open network |
 
 `WLAN_INTERFACE_INFO` stride: 532 bytes per entry.
 | 580 | `bSecurityEnabled` | 0 = open network |
@@ -904,32 +905,11 @@ This ensures the Rules column in the tunnel list stays in sync with any rule cha
 
 ### Entry point
 
-`Program.Main()` calls `CliRunner.IsCliInvocation(args)` before any WPF initialisation. Returns `true` when `args[0]` is any value other than `/service`. CLI mode runs without WPF - no `App`, no `MainWindow`.
+The CLI is its own executable, `MasselGUARDcli.exe` (console subsystem, `MasselGUARDcli/Program.cs` -> `Cli.CliRunner.Run`), built from the same shared sources as the GUI (`MasselGUARDcli.csproj` links them). `MasselGUARD.exe` is a `WinExe`, so Windows never allocates a console for the GUI and there is nothing to hide.
 
-```
-Program.Main(args)
-  ├─ HandleServiceArgs(args)      /service dispatch - exits if matched
-  ├─ CliRunner.IsCliInvocation()  → true when non-/service arg present
-  │    └─ CliRunner.Run(args)     runs CLI, returns exit code
-  └─ HideConsoleForGuiLaunch()    GUI path - detaches console
-```
+The CLI manifest is `asInvoker`; `CliProgram.Main` checks elevation itself. The read-only commands `help`, `version`, `selftest`, `dns` (`status`, `bypass`) and `network` run in any terminal (`IsNonElevatedCommand`); every other command needs an elevated terminal and otherwise prints "MasselGUARDcli requires Administrator privileges" and exits with code 1. Before anything else the CLI sets the working directory and the DLL search path to its own folder so `tunnel.dll` finds `wireguard.dll`.
 
-### Console ownership detection
-
-`OutputType=Exe` (console subsystem) means Windows always allocates a console. For GUI launches, `HideConsoleForGuiLaunch()` hides and frees the console to prevent a black window.
-
-For CLI launches from a **non-elevated terminal**, the `requireAdministrator` manifest causes Windows to create a new isolated console for the elevated process. `IsIsolatedConsole()` detects this:
-
-```csharp
-[DllImport("kernel32.dll")]
-static extern uint GetConsoleProcessList(uint[] list, uint count);
-
-static bool IsIsolatedConsole()
-    => GetConsoleProcessList(new uint[2], 2) <= 1;
-```
-
-When isolated (count ≤ 1), `CliRunner.Run()` pauses before exit so the user can read the output, and prints a tip to run as Administrator for inline output.
-
+`dns bypass` talks to the running window through `Services/CommandPipe`, and falls back to the MasselGUARD service when no window answers (`Services/BypassClient`; the Explorer right-click entries run the windowless `MasselGUARD.exe --bypass` launcher, which uses the same client); `service ...` manages the service (see section 45).
 ### Command routing
 
 `CliRunner.Run()` flow:
@@ -1068,7 +1048,7 @@ Rule-driven DNS resolver selection that works **independently of tunnels** ("on 
 
 **Model C - a parallel axis.** On every network change two decisions run side by side: the tunnel action (`RuleEngine.EvaluateWifi`, unchanged) and the DNS action. The DNS precedence is a **pure, CLI-shared** function `Services/DnsPolicy.cs` → `Evaluate(cfg, ssid, isOpen, now)` returning `DnsResult(None | Apply | Automatic, ProfileId, Reason)` with the same order as the tunnel rule: off (ManualMode / `!DnsAutomationEnabled`) → open-network → SSID rule → trusted rule → schedule rule → default. A dangling profile id fails safe to `None`. `RuleEngine.EvaluateDns` wraps it. `DnsPolicy.IsWithinSchedule` is the single schedule-window impl (RuleEngine delegates to it); `DnsPolicy.IsDnsOnly` (empty `Tunnel` + a `DnsProfileId`) is used by `EvaluateWifi`/`EvaluateSchedules` to **skip DNS-only rules** on the tunnel axis, so such a rule never reads as "disconnect". Covered by `MasselGUARDcli selftest` (19 cases).
 
-**Data model** (WPF-free, CLI-globbed): `Models/DnsProfile.cs` - Id/Name, v4+v6 primary/secondary, `Encryption` (`plain`|`doh`|`auto`), `DohTemplate`, `RequireEncryption`; sentinels `NoneId`(`""`)/`AutomaticId`(`__automatic__`); `BuiltInPresets()`. `TunnelRule.DnsProfileId` attaches DNS to any rule. `AppConfig`: `DnsAutomationEnabled`, `DnsProfiles`, `DefaultDnsProfileId`, `OpenWifiDnsProfileId`, `DnsAddressFamilies` (`both`|`v4`|`v6`). All defaults leave existing behaviour unchanged.
+**Data model** (WPF-free, CLI-globbed): `Models/DnsProfile.cs` - Id/Name, v4+v6 primary/secondary, `Encryption` (`plain`|`doh`|`auto`), `DohTemplate`, `RequireEncryption`, `ListId` (the DNS-list entry it came from); sentinels `NoneId`(`""`)/`AutomaticId`(`__automatic__`); (the old `BuiltInPresets()` was replaced by the DNS server list, see CLAUDE.md "DNS server list"). `TunnelRule.DnsProfileId` attaches DNS to any rule. `AppConfig`: `DnsAutomationEnabled`, `DnsProfiles`, `DefaultDnsProfileId`, `OpenWifiDnsProfileId`, `DnsAddressFamilies` (`both`|`v4`|`v6`). All defaults leave existing behaviour unchanged.
 
 **Application** (`Services/DnsService.cs`, GUI-only): per-interface DNS by adapter GUID → alias via `netsh interface ip[v4|v6] set/add dnsservers` (full System32 path, `ArgumentList`-quoted). **DoH:** encrypted profiles register `netsh dns add encryption server=<ip> dohtemplate=<uri> autoupgrade=yes udpfallback=<no|yes>` per server IP, then set the servers (Windows 11 auto-upgrades to DoH). Gated on Win11 22000+ (`OperatingSystem.IsWindowsVersionAtLeast(10,0,22000)`); a `RequireEncryption` profile on an older build is **refused** (fail-closed), otherwise it downgrades to plain. Well-known resolver IPs carry built-in templates. `ipconfig /flushdns` on each change.
 
@@ -1077,3 +1057,15 @@ Rule-driven DNS resolver selection that works **independently of tunnels** ("on 
 **Lifecycle** (`Services/DnsService` + `%APPDATA%\MasselGUARD\dns_state.json`): the interface's original static/DHCP DNS is snapshotted before the first override (read from the `Tcpip`/`Tcpip6` `NameServer` registry values), and restored on **exit** (`App.OnExit` → `MainViewModel.RestoreDnsOverrides`) and at **startup** after a crash/reboot (`RecoverDnsFromPreviousRun`) - netsh writes persist, so this cleanup is essential.
 
 **UI & CLI:** Settings → **Wifi** (master toggle, default/open-network profile pickers, address families, and a profiles manager whose editor is the code-built `Views/DnsProfileEditor.cs`); `RuleDialog` gained an optional DNS-profile picker (`ResultDnsProfileId`). CLI `dns status` (read-only, non-elevated) prints the config + live per-interface resolvers.
+
+---
+
+## 45. Service back-end (5.0)
+
+The privileged operations (tunnels, DNS, kill switch) can run in a LocalSystem Windows service, **MasselGUARDsvc** (`MasselGUARD.exe /svc`), reached through the named pipe `MasselGUARD.Service`; without it the app elevates itself as before ("direct mode"). The full design (components, RPC operations, data folders, startup/elevation flow, headless automation, update checksums, manual test plan) is in [`ServiceBackend-Design.md`](ServiceBackend-Design.md) and the security model and review log in [`ServiceBackend-Security.md`](ServiceBackend-Security.md). User-facing description: [`MANUAL.md`](MANUAL.md) chapter 37; commands: [`CLIManual.md`](CLIManual.md) (`service`, `dns bypass`).
+
+Facts worth knowing when reading the code elsewhere in this reference:
+- `app.manifest` is `asInvoker` (it was `requireAdministrator` up to 4.6, which is what direct mode still achieves with a UAC relaunch); `Program.Main` decides between unelevated service mode, the scheduled task and a UAC relaunch.
+- Tunnel configs in service mode live in `%ProgramData%\MasselGUARD\tunnels\*.tun` (machine-scope DPAPI), not in `%APPDATA%\...\*.conf.dpapi`; the per-user files remain the source of truth the window pushes from.
+- `dns_state.json` is per user in direct mode and under `%ProgramData%\MasselGUARD` for the service.
+- The updater checks the download against `MasselGUARD-<arch>.zip.sha256`; `BUILD.bat` writes it.

@@ -42,6 +42,7 @@
 34. [Keyboard and window behaviour](#34-keyboard-and-window-behaviour)
 35. [Frequently asked questions](#35-frequently-asked-questions)
 36. [Command-line interface (CLI)](#36-command-line-interface-cli) - see also [`CLIManual.md`](CLIManual.md) for the full reference
+37. [Background service](#37-background-service)
 
 ---
 
@@ -81,10 +82,10 @@ Any combination works, including running with WireGuard or DNS (or both) turned 
 
 1. **Settings → Startup → Installation → Install** (or the install choice in the setup wizard)
 2. Choose a parent folder
-3. Optionally enable **Start with Windows** (Scheduled Task, no UAC prompt on later launches)
+3. Optionally enable **Start with Windows** (with the [background service](#37-background-service) a per-user startup entry, otherwise a Scheduled Task; either way no UAC prompt on later launches)
 4. MasselGUARD relaunches from the installed location
 
-The same place shows the current run mode and offers **Uninstall** when running the installed copy.
+The same place shows the current run mode and offers **Uninstall** when running the installed copy. The installer also offers to install the [background service](#37-background-service) (no UAC prompts when you start MasselGUARD).
 
 ### Managed (portable) - version prompt
 
@@ -142,13 +143,15 @@ Columns: **WireGuard tunnel** | **Status** | **Rules** | **Action**
 
 Title **DNS PROFILES**. Columns: **DNS profile name** | **Type** | **Rules** | **Action**. The Action button applies a profile manually (it stays until you undo it); **Revert to default** hands DNS back to the tunnel or the system. **Rules** counts the Automation rules that use the profile (click to highlight them).
 
-**Toolbar:** Revert to default | Add… | Edit… | Remove | **More…** (Add presets, Import, Export). Drag rows to reorder.
+**Toolbar:** Revert to default | Add… | **Browse DNS servers** | Edit… | Remove | **More…** (Import, Export). Drag rows to reorder.
 
-**Use a profile for a moment.** Right-click a profile and choose **For 10 seconds / 1 minute / 5 minutes / 15 minutes**: the profile applies right away and MasselGUARD goes back to automatic DNS by itself when the time is up (for example, Google DNS for a minute to get past a DNS ad-block). The footer shows a countdown (`Google · 0:42`); click it to stop at once. **Shift+Enter** on the selected profile repeats the last length. The same lengths are in the tray icon's right-click menu (see below). Browsers with their own encrypted DNS (Secure DNS in Chrome and Edge, DoH in Firefox) ignore the Windows resolver, so turn that setting off in the browser for this to work there.
+**Use a profile for a moment.** Right-click a profile and choose **For 10 seconds / 1 minute / 5 minutes / 15 minutes**: the profile applies right away and MasselGUARD goes back to automatic DNS by itself when the time is up (for example, Google DNS for a minute to get past a DNS ad-block). The footer shows a countdown (`Google · 0:42`); click it to stop at once. **Shift+Enter** on the selected profile uses the default bypass length (*Settings > DNS > Default bypass length*, 60 seconds unless you change it; a grey "x.xx minutes" next to the box shows lengths above a minute). A tray message confirms when a bypass starts, stops or ends. The same lengths are in the tray icon's right-click menu (see below). Browsers with their own encrypted DNS (Secure DNS in Chrome and Edge, DoH in Firefox) ignore the Windows resolver, so turn that setting off in the browser for this to work there.
 
-**Bypass profile.** Right-click a profile and choose **Mark as bypass profile** (or pick it in *Settings > DNS > Bypass profile*). It gets a `⏱` mark, and the footer shows **DNS Bypass: <name>**. Click that footer item, press **Ctrl+Shift+B**, or right-click the tray icon and choose **Bypass: <name>** (just above DNS) to switch to it for the last chosen time; use it again while it runs to stop. Switch the whole feature off with *Settings > DNS > Timed DNS override*.
+**Bypass profile.** Right-click a profile and choose **Mark as bypass profile** (or pick it in *Settings > DNS > Bypass profile*). It gets a `⏱` mark, and the footer shows **DNS Bypass: <name>**. Click that footer item, press the **bypass shortcut** (**Ctrl+Alt+D** by default), or right-click the tray icon and choose **Bypass: <name>** (just above DNS) to switch to it for the default bypass length (*Settings > DNS > Default bypass length*, 5 to 3600 seconds, 60 by default); press the shortcut or click the item again while it runs to stop it. Switch the whole feature off with *Settings > DNS > Timed DNS override*.
 
-**From Windows Explorer.** Turn on *Settings > DNS > Windows right-click menu* and right-click the desktop, the empty space of a folder, or a folder: **DNS bypass (MasselGUARD)** offers the same lengths and **Stop now**, with no UAC prompt. MasselGUARD must be running. On Windows 11 the entry is under **Show more options** (Shift+F10). The command-line equivalent is `MasselGUARDcli dns bypass [seconds|stop|toggle]` (see the [CLI manual](CLIManual.md)).
+**Changing the shortcut.** *Settings > DNS > Bypass shortcut*: click the box and press the keys you want (Ctrl, Alt or Win plus one key; a letter, a digit, F1 to F24 or a navigation key). **Clear** removes the shortcut. It is stored in `config.json` as `BypassShortcut` (for example `"Ctrl+Alt+F9"`; an empty text means no shortcut, and an unusable value falls back to `Ctrl+Alt+D` with a line in the activity log). By default it only works while the MasselGUARD window has focus; turn on *Work in every app* (`BypassShortcutGlobal`) to register it system-wide, so it also works in other programs and while MasselGUARD is hidden in the tray. If another program already uses that combination, the system-wide registration fails (logged) and it still works with the window focused.
+
+**From Windows Explorer.** Turn on *Settings > DNS > Windows right-click menu* and right-click the desktop, the empty space of a folder, or a folder: **DNS bypass (MasselGUARD)** offers the same lengths and **Stop now**, with no UAC prompt and no terminal window. It works through the running MasselGUARD window or, when no window is running, through the [background service](#37-background-service); with neither it shows a short message. On Windows 11 the entry is under **Show more options** (Shift+F10). The command-line equivalent is `MasselGUARDcli dns bypass [seconds|stop|toggle]` (see the [CLI manual](CLIManual.md)).
 
 ### Automation panel
 
@@ -166,7 +169,7 @@ Header **ACTIVITY LOG** with the entry count, columns **Time** | **Event**, and 
 
 ### Footer
 
-Left: run mode (green when Managed). Centre: current Wi-Fi network, `⚡` default tunnel and `🔓` open-network tunnel. Right: Administrator status.
+Left: run mode (green when Managed). Right: the primary network (Wi-Fi name, or the wired network), the DNS servers in use, a running timed DNS override with its countdown, the **DNS Bypass** item, and the `⚡` default and `🔓` open-network tunnels.
 
 ---
 
@@ -273,12 +276,16 @@ Rules live in the **Automation** panel on the main window. Every add / edit / de
 
 ### Create a rule from the network you are on
 
-Right-click the **network name in the footer**, or click the **From network** button next to **+ Add** in the Automation panel. For each connected network (Wi-Fi and cable) the menu offers **Create rule from this network…**, which opens the rule dialog already filled in with the one condition that identifies it best: the **SSID** on Wi-Fi; on a cable the **DNS suffix**, else the **gateway MAC**, else the **subnet**. A line in the dialog says what was added, and **+ Add condition** combines it with more. You only choose the tunnel and/or DNS profile and press OK.
+Right-click the **network name in the footer**, or click the **Add current network** button next to **+ Add** in the Automation panel. For each connected network (Wi-Fi and cable) the menu offers **Create rule from this network…**, which opens the rule dialog already filled in with the one condition that identifies it best: the **SSID** on Wi-Fi; on a cable the **DNS suffix**, else the **gateway MAC**, else the **subnet**. A line in the dialog says what was added, and **+ Add condition** combines it with more. You only choose the tunnel and/or DNS profile and press OK.
 
 - If a rule **already matches** the network, the menu offers **Edit rule "X" (position N)…** instead, plus **Create another rule anyway…**.
 - After saving, a note appears when an **earlier** rule also matches that network and so wins (first match wins, top-down); drag the new rule above it to change that.
 - In **Simple Wi-Fi mode** only Wi-Fi networks with a name get a suggestion; wired networks are shown with a short explanation.
 - The menu is not offered when a managed policy locks the rules.
+
+### Test rule
+
+Select a rule and press **Test rule**: a window shows whether its requirement is met **right now**, in one sentence, then line by line what was checked (a tick or a cross for each condition, with what the current network has for it, or the day and time for a schedule rule), what the rule would do (connect a tunnel, disconnect, use a DNS profile) and notes such as "the rule is disabled" or "manual mode is on". The same result is written to the activity log. Nothing is connected or changed, and a rule above this one may still win; use **Advanced test** to see which rule wins for a network you describe.
 
 ### Rule dialog fields
 
@@ -344,7 +351,7 @@ A profile is a named set of resolvers: IPv4/IPv6 servers and an **Encryption** m
 - *Plain* - standard unencrypted DNS.
 - *DNS-over-HTTPS (DoH)* / *Automatic* - encrypted DNS. **DoH needs Windows 11.** Well-known resolvers need no template; for a custom resolver enter its **DoH template URL**. Tick **Require encryption** to fail closed (never fall back to plaintext).
 
-**Add presets** adds the well-known public resolvers (Cloudflare, Google, Quad9, AdGuard, OpenDNS, NextDNS). Profiles can be imported and exported from the DNS panel's **More…** menu.
+**Browse DNS servers** opens a searchable list of public resolvers: tick the ones you want, read what each blocks and logs (details pane, with links to the provider's website and privacy policy) and press **Add selected**. **Test speed** sends a few DNS queries from this PC to the servers in the current list (tick **Only ticked servers** to test just those; servers with an empty field are not tested) (it resolves the host name in the **Test name** box, masselink.net by default; change it to test with a name you care about) and shows each server's response time, with **Fastest first** to sort by it (a DoH-only server is timed over DoH, which includes the encrypted handshake, so it looks slower). Servers already in your list start ticked: untick one to remove its profile. A coloured bar at the left of each row shows what **Apply (+N new, -M removed)** will do (grey = stays, accent = new, red = will be removed), and removing asks for confirmation first; a resolver that needs a personal value (the NextDNS configuration id) shows an empty text box on its row once you select or tick it (so the list stays tidy), labelled with the field's name (CONFIG_ID): fill it in before you Apply (it is part of the server address, so only letters, digits, - and _ are allowed). The list is kept on GitHub (repository setting under **Settings > Diagnostics > DNS server list**), refreshed at most once a day (only changed files are downloaded, and a list with a broken file is not used; invalid entries are skipped), and the servers you add are saved on your PC as well (no copy of the list ships with the app, so the first use needs an internet connection). Profiles can be imported and exported from the DNS panel's **More…** menu.
 
 ### Which DNS applies
 
@@ -357,7 +364,7 @@ When a DNS profile is active, a small badge is drawn over the tray icon (themes 
 
 ### DNS leak protection
 
-On a split-tunnel connection Windows can send DNS queries out other adapters. **Settings → DNS → DNS leak protection** can turn off *Smart multi-homed name resolution* and *Parallel A / AAAA queries* (global Windows settings; reconnect or reboot to apply), and choose how to be alerted to a possible leak (status icon, log warning, tray notification).
+On a split-tunnel connection Windows can send DNS queries out other adapters. **Settings → DNS → DNS leak protection** has two rows, **Keep DNS queries on one adapter** (Windows "smart multi-homed name resolution") and **Look up IPv4 and IPv6 one after the other** (Windows "parallel A / AAAA queries"). Each row shows **Protected** (green) or **Not protected - Windows default** (amber) and has one button: **Turn on protection**, or **Restore Windows default** when it is already on. These are machine-wide Windows policies (every network and every program) and need administrator rights; reconnect your tunnel or reboot to apply. You can also choose how to be alerted to a possible leak (status icon, log warning, tray notification).
 
 The CLI command `MasselGUARDcli dns status` shows the configuration and each interface's live resolvers.
 
@@ -419,11 +426,12 @@ One card per feature - **WireGuard**, **DNS**, **Automation**, **Activity log**,
 
 ## 13. Settings: Startup
 
-- **Start with Windows** - a Scheduled Task at `RunLevel=Highest`, so MasselGUARD starts elevated without a UAC prompt
+- **Start with Windows** - with the MasselGUARD service installed, a per-user startup entry (no administrator rights needed; MasselGUARD starts unelevated and the service does the privileged work). Without the service, a Scheduled Task at `RunLevel=Highest`, so MasselGUARD starts elevated without a UAC prompt
 - **Start minimized** - launch straight to the tray
 - **Free memory while hidden in the tray** - when the window is closed to the tray, MasselGUARD compacts its memory and returns the unused part to Windows (default on). The first redraw after reopening can be slightly slower
 - **Confirm disconnect on exit** - ask before disconnecting active tunnels when exiting (default on)
 - **Installation** - run mode, **Install** / **Uninstall**, and *Don't ask to update the installed version at startup*
+- **Background service** - **Install service** / **Remove service**. The service runs the privileged part (tunnels, DNS, kill switch); MasselGUARD uses it automatically when it is running, otherwise it elevates itself as before. Installing asks for administrator approval once, and installs MasselGUARD to a local folder first when needed (the service cannot run from OneDrive or a network path). The installer and the setup wizard offer the same choice. Terminal: `MasselGUARDcli service install | uninstall | status`.
 
 ---
 
@@ -494,12 +502,13 @@ Below: **Credits & license**, and **What's New** - the release notes, fetched li
 
 ## 19. Settings: DNS
 
+- **DNS profiles** (first on the page) - Add…, **Browse DNS servers**, Edit…, Remove
 - **Enable DNS automation** - the master switch (off by default; nothing changes until you turn it on)
 - **Default DNS**, **Open-network DNS**, **Bypass profile** (the resolver for the quick bypass, see [DNS panel](#dns-panel)), **Address families** (IPv4, IPv6 or both)
 - **Windows right-click menu** - adds the DNS bypass to Windows Explorer's right-click menu (off by default)
 - **Timed DNS override** - the right-click lengths, the tray bypass entry and the keyboard shortcuts (on by default; the override always ends by itself)
-- **DNS profiles** - Add…, **Add presets**, Edit…, Remove
-- **DNS leak protection** - Smart multi-homed name resolution, Parallel A / AAAA queries, and the possible-leak alerts (status icon, activity-log warning, tray notification)
+- **Bypass shortcut** (default Ctrl+Alt+D) with the option to work in every app, and **Default bypass length** (5 to 3600 seconds, 60 by default)
+- **DNS leak protection** (last) - Smart multi-homed name resolution, Parallel A / AAAA queries, and the possible-leak alerts (status icon, activity-log warning, tray notification)
 
 See [§9](#9-dns-automation).
 
@@ -512,6 +521,7 @@ The rules themselves are on the main window; this page holds the settings around
 - **Default Action** - Do nothing / Disconnect all tunnels / Activate tunnel
 - **Open Network Protection** - the tunnel for passwordless Wi-Fi
 - **Trusted networks (SSIDs)** - one SSID per line; **Add current WiFi network** appends the one you're on. Used by *Trusted networks* rules
+- **Keep automation running when MasselGUARD is closed** - needs the [background service](#37-background-service). While no window is open the service keeps applying your rules (tunnel and DNS); closing MasselGUARD then leaves tunnels and the kill switch in place. Off by default.
 - **Display** - the switch that shows the Automation panel on the main window, and *Show Rules column*, which removes the Rules column from both the tunnel list and the DNS profile list
 
 ---
@@ -806,7 +816,7 @@ Hold **Shift** while clicking ✕ (or pressing Alt+F4), or use Tray → Exit.
 Hold **Shift** while launching MasselGUARD. Before any window opens it resets the font override, switches to the System theme (Follow Windows) and sets the language to English, then tells you what was reset.
 
 **Can I run without a UAC prompt?**
-Yes - install MasselGUARD and enable **Start with Windows** (Settings → Startup). Launches then go through the elevated Scheduled Task.
+Yes. The best way is the [background service](#37-background-service) (Settings → Startup → Background service → Install service): MasselGUARD then starts unelevated, with no UAC prompt at all. Without the service, install MasselGUARD and enable **Start with Windows**: launches then go through an elevated Scheduled Task.
 
 **Can I reorder rules, tunnels or DNS profiles?**
 Yes - drag the rows. For rules the order is the evaluation order.
@@ -855,7 +865,7 @@ Settings → About → **Report an issue** opens a GitHub issue with your versio
 
 ### Requirements
 
-Run as Administrator. From a non-elevated terminal, Windows asks for elevation and opens a separate console. Installing with **Start with Windows** avoids the prompt. `help`, `version` and `dns status` work without elevation.
+Run as Administrator. From a non-elevated terminal the CLI tells you it needs elevation (use an administrator terminal, or `sudo`). `help`, `version`, `dns status`, `dns bypass` and `network status` work without elevation.
 
 ### Commands
 
@@ -891,6 +901,40 @@ switch ($LASTEXITCODE) {
     1 { Write-Host "Failed." }
 }
 ```
+
+---
+
+## 37. Background service
+
+MasselGUARD can do its privileged work (connecting tunnels, changing DNS, the kill switch) in a **Windows service** named *MasselGUARD Service*, instead of inside the app. The service is optional: without it MasselGUARD works as before and elevates itself.
+
+**What you get**
+- MasselGUARD **starts without a UAC prompt** (also at Windows start with *Start with Windows*).
+- Your **network rules can keep running when MasselGUARD is closed** (Settings → Automation → *Keep automation running when MasselGUARD is closed*, off by default).
+- A **timed DNS override** ("use Google for 5 minutes") keeps running if you close the window, and ends on time.
+- The **Explorer right-click DNS bypass** and `MasselGUARDcli dns bypass` work when MasselGUARD is not running.
+- Tunnel configs are kept by the service in a machine-encrypted store that only administrators and the system can read; the app sends a config only when it changed.
+
+**Install**
+1. Install MasselGUARD to **Program Files** first (Settings → Startup → Installation → Install). The service refuses to run from a folder that standard users can write to (for example a folder you created in Explorer) and cannot run from OneDrive or a network path.
+2. Settings → Startup → **Background service → Install service**. Windows asks for administrator approval once. On a portable copy the button installs MasselGUARD first and sets the service up as part of that. The installer and the setup wizard offer the same choice, and `MasselGUARDcli service install` does it from a terminal.
+3. Restart MasselGUARD when asked. The activity log (Debug level) says *Back-end: MasselGUARD service*.
+
+**Remove** with the same button (*Remove service*), or `MasselGUARDcli service uninstall`. Uninstalling MasselGUARD removes the service too. MasselGUARD then runs in direct mode again after a restart.
+
+**What changes when it runs**
+- Actions that really need administrator rights while the app is unelevated (installing, updating an installed copy, orphaned-service removal, the DNS-leak policy) offer to restart MasselGUARD as administrator; repeat the action there.
+- *Start with Windows* becomes a per-user startup entry (no approval needed); MasselGUARD waits a few seconds for the service at logon.
+- With *Keep automation running* on, the service takes over a few seconds after the last window closes (or at once when you exit) and hands back when a window opens. It applies tunnel and DNS rules only; it records no history, shows no notifications, applies no data caps or schedule rules and does not run your pre/post connect scripts.
+
+**Who may use it** - Administrators, and the users an administrator lists: the user who installed it, plus `MasselGUARDcli service allow --user DOMAIN\name` (`deny` removes, `users` lists). Stored tunnels and the keep-running automation belong to the user who created them; another user cannot overwrite them.
+
+**Updates** - the in-app updater checks the download against the release's `.sha256` file and refuses an update without it; it also stops and restarts the service around the file copy.
+
+**Troubleshooting**
+- *Service will not start / install refused with a folder message*: reinstall MasselGUARD to Program Files and register the service from there.
+- *Is it running?* Settings → Startup shows the state; `MasselGUARDcli service status`; the service log is `%ProgramData%\MasselGUARD\logs\service.log`.
+- *The app says the service does not answer*: start it (`sc start MasselGUARDsvc` as administrator) or restart MasselGUARD to fall back to direct mode.
 
 ---
 

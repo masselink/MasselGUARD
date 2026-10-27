@@ -1,5 +1,7 @@
 # Feature Modules - Design (feature-dns-automation)
 
+> **Historical.** Implemented in 4.2.0 and changed since: the "at least one module must stay on" rule (`EnsureAtLeastOneModule`) described below was removed in 4.5.0, so WireGuard and DNS may both be off. The settings layout lives in `CLAUDE.md` ("Settings tab structure"); this document is kept for the reasoning behind the modules.
+
 **Status:** design + step 1 done. Branch: `feature-dns-automation` (ships with DNS automation, 4.2.0 "Resolving Raven"). This document is authoritative; mark steps ✅ as they land.
 
 **Headline:** make **WireGuard tunnels** and **DNS automation** two independent modules the user turns on/off - in the setup wizard and in Settings - so MasselGUARD can run as a full tunnel manager, a **DNS-only** resolver switcher, or both. Decisions taken: **full modular both ways** (DNS-only hides *all* tunnel UI; tunnels-only hides the DNS section); **both may be off** (4.5.0; originally ≥1 module always on); **upgraders get both on** (nothing disappears; DNS automation itself stays off until enabled).

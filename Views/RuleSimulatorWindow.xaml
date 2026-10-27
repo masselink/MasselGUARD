@@ -132,6 +132,8 @@
             <Border Grid.Row="3" Background="{DynamicResource WindowBg}" CornerRadius="{DynamicResource Theme.CornerRadiusBottom}">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                             Margin="0,8,16,8" VerticalAlignment="Center">
+                    <Button x:Name="CopyBtn" Content="{Binding [BtnCopyAll], Source={x:Static local:Lang.Instance}}"
+                            Style="{StaticResource FlatBtn}" Click="Copy_Click" IsEnabled="False" Margin="0,0,8,0"/>
                     <Button Content="{Binding [BtnClose], Source={x:Static local:Lang.Instance}}"
                             Style="{StaticResource FlatBtn}" Click="Close_Click"/>
                 </StackPanel>

@@ -25,9 +25,10 @@ namespace MasselGUARD.ViewModels
         private readonly WiFiService    _wifi;
         private readonly RuleEngine     _rules;
         private readonly HistoryService _history;
-        private readonly DnsService     _dns;
+        private readonly IDnsOps        _dns;
+        private readonly IDnsHoldOps?   _hold;   // service mode only: timed DNS override kept by the service
         /// <summary>The live DNS service (shared snapshot/restore state) - used by the diagnostics tester.</summary>
-        public DnsService Dns => _dns;
+        public IDnsOps Dns => _dns;
         private readonly DispatcherTimer _timer;
 
         // ── Observable state ──────────────────────────────────────────────────
@@ -111,7 +112,8 @@ namespace MasselGUARD.ViewModels
         private double _dnsCol1W = 70;  public double DnsCol1W { get => _dnsCol1W; set => SetField(ref _dnsCol1W, value); }
         private double _dnsCol2W = 190; public double DnsCol2W { get => _dnsCol2W; set => SetField(ref _dnsCol2W, value); }
         private double _dnsCol3W = 52;  public double DnsCol3W { get => _dnsCol3W; set => SetField(ref _dnsCol3W, value); }
-        private double _dnsCol4W = 76;  public double DnsCol4W { get => _dnsCol4W; set => SetField(ref _dnsCol4W, value); }
+        private double _dnsCol4W = 44;  public double DnsCol4W { get => _dnsCol4W; set => SetField(ref _dnsCol4W, value); }
+        private double _dnsCol5W = 76;  public double DnsCol5W { get => _dnsCol5W; set => SetField(ref _dnsCol5W, value); }
 
         // ── Commands ──────────────────────────────────────────────────────────
         public RelayCommand AddTunnelCommand    { get; }
@@ -128,7 +130,9 @@ namespace MasselGUARD.ViewModels
             LogService     log,
             WiFiService    wifi,
             RuleEngine     rules,
-            HistoryService history)
+            HistoryService history,
+            IDnsOps?       dnsOps = null,
+            IDnsHoldOps?   dnsHold = null)
         {
             _config  = config;
             _tunnels = tunnels;
@@ -136,7 +140,8 @@ namespace MasselGUARD.ViewModels
             _wifi    = wifi;
             _rules   = rules;
             _history = history;
-            _dns     = new DnsService(_log);
+            _dns     = dnsOps ?? new DnsService(_log);
+            _hold    = dnsHold;
             RecoverDnsFromPreviousRun();   // crash/reboot recovery - before any rule applies
 
             AddTunnelCommand    = new RelayCommand(DoAddTunnel);
@@ -176,6 +181,7 @@ namespace MasselGUARD.ViewModels
         private NetworkSnapshot _lastSnapshot = NetworkSnapshot.Empty;
         private bool   _networkEvaluatedOnce;
         private string _lastPrimaryKey = "";
+        private RuleEngine.RuleResult? _lastTunnelDecision;   // the tunnel decision last applied for the primary network (null = none yet / no network)
         private Dictionary<string, string> _lastAdapterKeys = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>The connected networks as of the last evaluation (Wi-Fi + wired, primary flagged).</summary>
@@ -312,17 +318,34 @@ namespace MasselGUARD.ViewModels
                         ApplyRuleResult(_rules.EvaluateWifiDisconnected(cfg));
                     }
                     _lastPrimaryKey = "";
+                    _lastTunnelDecision = null;
                 }
                 else if (firstEvaluation || primaryKey != _lastPrimaryKey)
                 {
                     _lastPrimaryKey = primaryKey;
+                    // Same network, only its details moved (a DHCP renew, the router's MAC resolving late, an extra
+                    // address): decide on a COPY first. When the decision is the one already applied there is
+                    // nothing to announce or count, so no repeated "disconnect" toast and no extra rule hit.
+                    bool sameNetwork = !firstEvaluation && !primaryChanged && _lastTunnelDecision != null;
+                    if (sameNetwork)
+                    {
+                        var probe = _rules.EvaluateNetwork(cfg.DeepClone(), snap.Primary);
+                        if (probe.Action == _lastTunnelDecision!.Action && probe.TunnelName == _lastTunnelDecision.TunnelName
+                            && probe.Reason == _lastTunnelDecision.Reason)
+                        {
+                            _log.Info("Network details changed; the automation decision is the same, nothing to do.");
+                            goto dnsStep;
+                        }
+                    }
                     var r = _rules.EvaluateNetwork(cfg, snap.Primary);
+                    _lastTunnelDecision = r;
                     tunnelResult = r;
                     ApplyRuleResult(r);
                     if (r.Details != null)
                         foreach (var line in r.Details) _log.Info(line);
                     LogSecondaryRuleMatches(snap);
                 }
+                dnsStep:
 
                 // ── DNS: per adapter, only for adapters that changed or appeared ─────
                 var changed = new List<Guid>();
@@ -1059,6 +1082,8 @@ namespace MasselGUARD.ViewModels
             (Application.Current as App)?.ShowTrayNotification(n);
         }
 
+        private string? _lastAnnouncedReason;   // the automation decision last shown as a toast: the same one again, with nothing changing, stays quiet
+
         private void ApplyRuleResult(RuleEngine.RuleResult result)
         {
             if (result.Action == RuleEngine.ActionKind.None) return;
@@ -1067,10 +1092,15 @@ namespace MasselGUARD.ViewModels
 
             if (result.Action == RuleEngine.ActionKind.Disconnect)
             {
-                foreach (var t in TunnelList.Where(t => t.IsActive))
+                var wasActive = TunnelList.Where(t => t.IsActive).ToList();
+                foreach (var t in wasActive)
                     t.DisconnectCommand.Execute(null);
 
-                if (_config.Config.ShowTrayPopupOnSwitch)
+                // Same decision again with nothing to do (e.g. the same network back after the PC woke from sleep): no repeat toast.
+                bool repeat = wasActive.Count == 0 && result.Reason == _lastAnnouncedReason;
+                _lastAnnouncedReason = result.Reason;
+
+                if (_config.Config.ShowTrayPopupOnSwitch && !repeat)
                 {
                     int ms = _config.Config.NotificationDurationSeconds * 1000;
                     // Determine category and strip colour from reason
@@ -1123,6 +1153,9 @@ namespace MasselGUARD.ViewModels
         /// <summary>Stop other tunnels, connect <paramref name="target"/>, and toast the switch.</summary>
         private void ActivateTarget(TunnelEntryViewModel target, string reason)
         {
+            // Same decision again and the tunnel is already the only one up (e.g. the same network back after sleep): no repeat toast.
+            bool repeat = target.IsActive && !TunnelList.Any(t => t.IsActive && t != target) && reason == _lastAnnouncedReason;
+            _lastAnnouncedReason = reason;
             foreach (var t in TunnelList.Where(t => t.IsActive && t != target))
                 t.DisconnectCommand.Execute(null);
 
@@ -1132,7 +1165,7 @@ namespace MasselGUARD.ViewModels
                 target.ConnectCommand.Execute(null);
             }
 
-            if (_config.Config.ShowTrayPopupOnSwitch)
+            if (_config.Config.ShowTrayPopupOnSwitch && !repeat)
             {
                 int ms = _config.Config.NotificationDurationSeconds * 1000;
                 bool isRule    = reason.StartsWith("Rule:");
@@ -1169,6 +1202,21 @@ namespace MasselGUARD.ViewModels
         {
             try
             {
+                if (_hold != null)
+                {
+                    // Service mode: a timed override started by an earlier window may still be running in the
+                    // service. Pick it up again (countdown + "manual profile" state) and restore the rest.
+                    var h = _hold.GetHold();
+                    if (h.active && _config.Config.DnsProfiles.Any(p => p.Id == h.profileId))
+                    {
+                        _manualDnsProfileId = h.profileId;
+                        _dnsTemp = TempOverride.Start(h.profileId, TimeSpan.FromSeconds(h.remainingSeconds), DateTime.UtcNow);
+                        _log.Info($"DNS: timed override still running in the service ({h.remainingSeconds} s left) - continuing it.");
+                    }
+                    else if (h.active) _hold.CancelHold();
+                    _hold.ReleaseExceptHeld();
+                    return;
+                }
                 int n = _dns.OverrideCount;
                 if (n > 0)
                     _log.Warn($"DNS: restoring {n} interface(s) left overridden by a previous run.");
@@ -1181,7 +1229,16 @@ namespace MasselGUARD.ViewModels
         /// (the process can exit without <see cref="Dispose"/> running). Idempotent.</summary>
         public void RestoreDnsOverrides()
         {
-            try { _dns.RestoreAll(); } catch { }
+            // Service mode: a running timed override stays in force (the service ends it on time).
+            try { if (_hold != null) _hold.ReleaseExceptHeld(); else _dns.RestoreAll(); } catch { }
+        }
+
+        /// <summary>Ends the timed override state, and in service mode the service's hold with it.</summary>
+        private void ClearDnsTemp()
+        {
+            bool wasSet = _dnsTemp.IsSet;
+            _dnsTemp = TempOverride.None;
+            if (wasSet) { try { _hold?.CancelHold(); } catch { } }
         }
 
         // Runtime manual DNS override (DNS panel Enable / Disable / Revert-to-default):
@@ -1218,6 +1275,11 @@ namespace MasselGUARD.ViewModels
         {
             if (string.Equals(_appliedDnsProfileId, profileId, StringComparison.Ordinal)) return;
             _appliedDnsProfileId = profileId;
+            if (profileId != null)   // a hit, like a rule's counter: the profile became the applied one
+            {
+                var p = _config.Config.DnsProfiles.FirstOrDefault(x => x.Id == profileId);
+                if (p != null) { p.ActivationCount++; try { _config.Save(); } catch { /* best-effort */ } }
+            }
             (Application.Current as App)?.OnDnsStateChanged();
         }
 
@@ -1225,7 +1287,7 @@ namespace MasselGUARD.ViewModels
         /// tunnel's own DNS) until Disable / Revert-to-default.</summary>
         public bool ManualApplyDns(DnsProfile profile)
         {
-            _dnsTemp = TempOverride.None;   // a plain Enable is sticky: it cancels any running timed override
+            ClearDnsTemp();   // a plain Enable is sticky: it cancels any running timed override
             _manualDnsProfileId = profile.Id;
             _log.Ok($"DNS: manually enabled '{profile.Name}' (overrides tunnel).");
             ApplyPendingDns();
@@ -1253,7 +1315,10 @@ namespace MasselGUARD.ViewModels
             if (!_config.Config.DnsTempOverrideEnabled || !_config.Config.EnableDns) return false;
             if (!ManualApplyDns(profile)) return false;   // (this clears any earlier timer)
             _dnsTemp = TempOverride.Start(profile.Id, duration, DateTime.UtcNow);
+            // Service mode: the service also holds it, so it ends on time even if this window closes.
+            try { _hold?.RegisterHold(profile.Id, DnsTargets().Where(g => g != Guid.Empty).ToList(), (int)Math.Ceiling(duration.TotalSeconds)); } catch { }
             _log.Ok($"DNS: using '{profile.Name}' for {FormatDuration(duration)} (until {DateTime.Now.Add(duration):HH:mm:ss}), then back to automatic.");
+            ToastBypass(profile.Name, Lang.T("ToastBypassUntil", DateTime.Now.Add(duration).ToString("HH:mm:ss")));
             return true;
         }
 
@@ -1263,8 +1328,9 @@ namespace MasselGUARD.ViewModels
         {
             if (!_dnsTemp.HasExpired(DateTime.UtcNow)) return;
             var name = _config.Config.DnsProfiles.FirstOrDefault(p => p.Id == _dnsTemp.Id)?.Name ?? "profile";
-            ManualDisable();   // also clears _dnsTemp
+            ManualDisable(announce: false);   // also clears _dnsTemp; the "ended" message below replaces the "stopped" one
             _log.Ok($"DNS: temporary override of '{name}' ended, back to automatic.");
+            ToastBypass(Lang.T("ToastBypassEnded"), Lang.T("ToastBypassBack"));
             (Application.Current as App)?.OnDnsStateChanged();
         }
 
@@ -1275,9 +1341,10 @@ namespace MasselGUARD.ViewModels
 
         /// <summary>Disable: clear the manual override so automation takes back over (or, when
         /// automation is off, restores the network's own resolver).</summary>
-        public void ManualDisable()
+        public void ManualDisable(bool announce = true)
         {
-            _dnsTemp = TempOverride.None;
+            bool wasTimed = _dnsTemp.IsSet;
+            ClearDnsTemp();
             _manualDnsProfileId = null;
             _log.Ok("DNS: manual override cleared - following automation.");
             // Undo what the manual override wrote to the physical NIC first - it forces a static
@@ -1291,6 +1358,22 @@ namespace MasselGUARD.ViewModels
             SetActiveDns(null);
             _lastDnsAutoToast = null;   // let automation announce whatever it re-applies
             ApplyPendingDns();
+            if (announce && wasTimed) ToastBypass(Lang.T("ToastBypassStopped"), Lang.T("ToastBypassBack"));
+        }
+
+        /// <summary>The tray message for the timed DNS override (started, stopped, ended): it is something the user did,
+        /// so it confirms the action. Follows the same "pop-up on switch" preference as the automation messages.</summary>
+        private void ToastBypass(string primary, string secondary)
+        {
+            if (!_config.Config.ShowTrayPopupOnSwitch) return;
+            EmitToast(new Views.ToastNotification
+            {
+                Category   = Lang.T("ToastCatDnsBypass"),
+                Primary    = primary,
+                Secondary  = secondary,
+                StripColor = "Accent",
+                DurationMs = _config.Config.NotificationDurationSeconds * 1000,
+            });
         }
 
         /// <summary>Revert to default: undo any DNS override and restore the interface to the exact
@@ -1301,7 +1384,7 @@ namespace MasselGUARD.ViewModels
         /// override must be undone regardless of tunnel ownership.</summary>
         public void ManualRevertToDefault()
         {
-            _dnsTemp = TempOverride.None;
+            ClearDnsTemp();
             _manualDnsProfileId = null;   // stop forcing anything
             _pendingDnsByGuid.Clear();    // and don't let a stale rule result re-apply on the next poll
             foreach (var guid in DnsTargets())

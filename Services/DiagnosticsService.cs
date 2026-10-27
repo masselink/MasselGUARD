@@ -39,7 +39,7 @@ namespace MasselGUARD.Services
         /// <summary>Run the selected suites. Must be awaited on the UI thread (it drives the tunnel
         /// view-models); blocking work is offloaded internally so the UI stays responsive.</summary>
         public async Task RunAsync(bool testLocal, bool testDns, bool testCli,
-                                   MainViewModel vm, TunnelService tunnels, DnsService dns,
+                                   MainViewModel vm, TunnelService tunnels, IDnsOps dns,
                                    AppConfig cfg, Guid ifaceGuid, CancellationToken ct)
         {
             Environment_(cfg);
@@ -143,7 +143,9 @@ namespace MasselGUARD.Services
             Info($"Process arch: {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}   " +
                  $"OS arch: {System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}");
             if (IsElevated()) Pass("Running elevated (administrator).");
-            else              Fail("NOT elevated - driver/service operations will fail. MasselGUARD normally auto-elevates.");
+            else if (ServiceInstaller.Status() == System.ServiceProcess.ServiceControllerStatus.Running)
+                              Pass("Not elevated - privileged operations go through the MasselGUARD service.");
+            else              Fail("NOT elevated and no MasselGUARD service - driver/service operations will fail. MasselGUARD normally auto-elevates.");
             Info($"Exe directory: {TunnelDll.ExeDirPublic}");
             if (IsCloudSyncedPath(TunnelDll.ExeDirPublic))
                 Warn("Exe is in a cloud-synced (OneDrive) path - local tunnels run as LocalSystem and cannot read it. Move to e.g. C:\\MasselGUARD.");
@@ -183,7 +185,7 @@ namespace MasselGUARD.Services
         }
 
         // ── Live tunnel connection test ──────────────────────────────────────────────
-        private async Task LiveTunnelTest(MainViewModel vm, TunnelService tunnels, DnsService? dns,
+        private async Task LiveTunnelTest(MainViewModel vm, TunnelService tunnels, IDnsOps? dns,
                                           AppConfig cfg, Guid guid, bool withDns, CancellationToken ct)
         {
             Head("WireGuard client - live connection test");
@@ -262,7 +264,7 @@ namespace MasselGUARD.Services
         }
 
         // ── DNS test (single throwaway profile - not every configured profile) ───────
-        private async Task DnsTest(AppConfig cfg, Guid guid, DnsService? dns, CancellationToken ct)
+        private async Task DnsTest(AppConfig cfg, Guid guid, IDnsOps? dns, CancellationToken ct)
         {
             Head("DNS profile test");
 
@@ -288,7 +290,7 @@ namespace MasselGUARD.Services
 
         /// <summary>Apply a profile, read resolvers back, verify the servers appear, then restore.
         /// Runs on a background thread (netsh is blocking). Logs each step via the sink.</summary>
-        private void DnsApplyReadRestore(DnsService dns, Guid guid, DnsProfile p, string families)
+        private void DnsApplyReadRestore(IDnsOps dns, Guid guid, DnsProfile p, string families)
         {
             string before = CurrentResolvers(guid);
             if (!dns.ApplyProfile(guid, p, families)) { Warn("  apply returned false (see activity log for the netsh error) - restoring."); dns.Restore(guid); return; }

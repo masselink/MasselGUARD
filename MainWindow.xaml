@@ -99,6 +99,13 @@
                                        Foreground="{DynamicResource Accent}"
                                        VerticalAlignment="Center"
                                        Visibility="{DynamicResource Theme.ShowTitleBarAppName}"/>
+                            <!-- release number in the normal text colour, right behind the name (set in UpdateWindowTitle) -->
+                            <TextBlock x:Name="TitleVersionTag"
+                                       FontFamily="{DynamicResource Theme.HeaderFontFamily}"
+                                       FontSize="{DynamicResource Theme.FontSize.Header}" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimary}"
+                                       Margin="6,0,0,0" VerticalAlignment="Center"
+                                       Visibility="{DynamicResource Theme.ShowTitleBarAppName}"/>
 
                         </StackPanel>
 
@@ -656,7 +663,7 @@
                                                                  row (connected + disconnected) instead of hugging the variable-
                                                                  length status text ("8s" vs "Disconnected"). -->
                                                             <ColumnDefinition Width="{Binding Data.TunStatusW, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}"/>    <!-- status dot + text (width set by the header handle) -->
-                                                            <ColumnDefinition Width="Auto"/>   <!-- DNS leak badge -->
+                                                            <ColumnDefinition Width="0"/>      <!-- (the DNS leak badge now sits inside the status column) -->
                                                             <ColumnDefinition Width="*"/>       <!-- usage rings / bars fill this remaining space -->
                                                         </Grid.ColumnDefinitions>
                                                         <!-- Status dot + text -->
@@ -673,19 +680,20 @@
                                                                        FontSize="{DynamicResource Theme.FontSize}"
                                                                        VerticalAlignment="Center"
                                                                        MaxWidth="98" TextTrimming="CharacterEllipsis"/>
-                                                        </StackPanel>
-                                                        <!-- DNS leak badge - kept its own slot next to the status. -->
-                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
-                                                                    Visibility="{Binding DnsLeakVisibility}">
-                                                            <TextBlock Text="  |  "
-                                                                       Foreground="{DynamicResource TextMuted}"
-                                                                       FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                                       VerticalAlignment="Center"/>
-                                                            <TextBlock Text="{Binding DnsLeakDisplay}"
-                                                                       Foreground="{Binding DnsLeakColor}"
-                                                                       FontSize="{DynamicResource Theme.FontSize.Small}"
-                                                                       VerticalAlignment="Center"
-                                                                       ToolTip="{Binding DnsLeakTooltip}"/>
+                                                            <!-- DNS leak badge: part of the STATUS (right behind the status text, inside the status column),
+                                                                 not of the data-usage area to its right. -->
+                                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                                                        Visibility="{Binding DnsLeakVisibility}">
+                                                                <TextBlock Text=" | "
+                                                                           Foreground="{DynamicResource TextMuted}"
+                                                                           FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                           VerticalAlignment="Center"/>
+                                                                <TextBlock Text="{Binding DnsLeakDisplay}"
+                                                                           Foreground="{Binding DnsLeakColor}"
+                                                                           FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                                           VerticalAlignment="Center"
+                                                                           ToolTip="{Binding DnsLeakTooltip}"/>
+                                                            </StackPanel>
                                                         </StackPanel>
                                                         <!-- Data-cap usage rings - day · week · month, each drawn only when its cap
                                                              is set (d/w/m centre glyph). Pinned in its own right-hand Grid cell with a
@@ -1160,7 +1168,8 @@
                                             <ColumnDefinition x:Name="DnsColDef1" Width="70"   MinWidth="50"/>
                                             <ColumnDefinition x:Name="DnsColDef2" Width="0"    MinWidth="0"/>
                                             <ColumnDefinition x:Name="DnsColDef3" Width="52"   MinWidth="40"/>
-                                            <ColumnDefinition x:Name="DnsColDef4" Width="76"   MinWidth="60"/>
+                                            <ColumnDefinition x:Name="DnsColDef4" Width="44"   MinWidth="36"/>
+                                            <ColumnDefinition x:Name="DnsColDef5" Width="76"   MinWidth="60"/>
                                         </Grid.ColumnDefinitions>
                                         <Button Grid.Column="0" Style="{StaticResource SortHeaderBtn}" Click="DnsSort_Name">
                                             <StackPanel Orientation="Horizontal">
@@ -1205,7 +1214,17 @@
                                                 <TextBlock x:Name="DnsArrowRules" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
                                             </StackPanel>
                                         </Button>
-                                        <TextBlock Grid.Column="4" Text="{Binding [RuleColAction], Source={x:Static local:Lang.Instance}}"
+                                        <Thumb Style="{StaticResource HandleThumb}" Grid.Column="4" x:Name="DnsHitsThumb" Width="5" HorizontalAlignment="Right"
+                                               Background="Transparent" Cursor="SizeWE" Panel.ZIndex="10"
+                                               DragDelta="DnsHitsThumb_DragDelta" DragCompleted="ColThumb_DragCompleted"/>
+                                        <Button Grid.Column="4" Style="{StaticResource SortHeaderBtn}" Click="DnsSort_Hits" HorizontalAlignment="Left"
+                                                ToolTip="{Binding [DnsHitsTip], Source={x:Static local:Lang.Instance}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding [RuleColCount], Source={x:Static local:Lang.Instance}}" FontSize="{DynamicResource Theme.FontSize.Tiny}"/>
+                                                <TextBlock x:Name="DnsArrowHits" Text="" FontSize="{DynamicResource Theme.FontSize.Tiny}" Foreground="{DynamicResource Accent}" Margin="2,0,0,0"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <TextBlock Grid.Column="5" Text="{Binding [RuleColAction], Source={x:Static local:Lang.Instance}}"
                                                    FontSize="{DynamicResource Theme.FontSize.Tiny}"
                                                    Foreground="{DynamicResource TextMuted}"
                                                    HorizontalAlignment="Left" VerticalAlignment="Center"/>
@@ -1253,6 +1272,7 @@
                                                     <ColumnDefinition Width="{Binding Data.DnsCol1W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="50"/>
                                                     <ColumnDefinition Width="{Binding Data.DnsCol2W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="0"/>
                                                     <ColumnDefinition Width="{Binding Data.DnsCol3W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="0"/>
+                                                    <ColumnDefinition Width="{Binding Data.DnsCol4W, Source={StaticResource ColProxy}, Converter={StaticResource PixelGL}}" MinWidth="0"/>
                                                     <!-- Last column takes what is left, so the list's scrollbar can never clip the Enable button -->
                                                     <ColumnDefinition Width="*" MinWidth="60"/>
                                                 </Grid.ColumnDefinitions>
@@ -1303,7 +1323,11 @@
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
-                                                <Button Grid.Column="4" Content="{Binding EnableLabel}"
+                                                <TextBlock Grid.Column="4" Text="{Binding HitsText}"
+                                                           HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                           FontSize="{DynamicResource Theme.FontSize.Small}"
+                                                           Foreground="{DynamicResource TextMuted}"/>
+                                                <Button Grid.Column="5" Content="{Binding EnableLabel}"
                                                         Click="DnsRowEnable_Click"
                                                         FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="8,2"
                                                         HorizontalAlignment="Left" VerticalAlignment="Center">
@@ -1348,14 +1372,16 @@
                                     Content="{Binding [BtnDnsRemoveProfile], Source={x:Static local:Lang.Instance}}"
                                     Style="{StaticResource DangerBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
                                     Margin="6,0,0,0" IsEnabled="False" Click="DnsPanelDelete_Click"/>
+                            <Button x:Name="DnsPanelBrowseBtn"
+                                    Content="{Binding [BtnDnsAddPresets], Source={x:Static local:Lang.Instance}}"
+                                    Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
+                                    Margin="6,0,0,0" Click="DnsPanelPresets_Click"/>
                             <Button x:Name="DnsPanelMoreBtn"
                                     Content="{Binding [BtnDnsMore], Source={x:Static local:Lang.Instance}}"
                                     Style="{StaticResource FlatBtn}" FontSize="{DynamicResource Theme.FontSize.Tiny}" Padding="10,3"
                                     Margin="6,0,0,0" Click="DnsPanelMore_Click">
                                 <Button.ContextMenu>
                                     <ContextMenu>
-                                        <MenuItem Header="{Binding [BtnDnsAddPresets], Source={x:Static local:Lang.Instance}}"
-                                                  Click="DnsPanelPresets_Click"/>
                                         <MenuItem Header="{Binding [BtnDnsImport], Source={x:Static local:Lang.Instance}}"
                                                   Click="DnsPanelImport_Click"/>
                                         <MenuItem Header="{Binding [BtnDnsExport], Source={x:Static local:Lang.Instance}}"

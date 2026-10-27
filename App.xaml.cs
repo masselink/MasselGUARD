@@ -248,10 +248,7 @@ namespace MasselGUARD
             bool isNewInstance = false;
             try
             {
-                _instanceMutex = new Mutex(
-                    initiallyOwned: true,
-                    name: "Global\\MasselGUARD_SingleInstance",
-                    out isNewInstance);
+                _instanceMutex = CreateInstanceMutex(out isNewInstance);
             }
             catch (UnauthorizedAccessException)
             {
@@ -272,10 +269,7 @@ namespace MasselGUARD
                     try
                     {
                         _instanceMutex?.Dispose();
-                        _instanceMutex = new Mutex(
-                            initiallyOwned: true,
-                            name: "Global\\MasselGUARD_SingleInstance",
-                            out isNewInstance);
+                        _instanceMutex = CreateInstanceMutex(out isNewInstance);
                     }
                     catch { }
                 }
@@ -295,10 +289,7 @@ namespace MasselGUARD
                             try
                             {
                                 _instanceMutex?.Dispose();
-                                _instanceMutex = new Mutex(
-                                    initiallyOwned: true,
-                                    name: "Global\\MasselGUARD_SingleInstance",
-                                    out isNewInstance);
+                                _instanceMutex = CreateInstanceMutex(out isNewInstance);
                             }
                             catch { }
                         }
@@ -367,11 +358,38 @@ namespace MasselGUARD
         private const string ShowEventName = "Global\\MasselGUARD_ShowWindow";
         private EventWaitHandle? _showEvent;
 
+        // The app can run unelevated (service mode) or elevated (direct mode). Named objects created by an
+        // elevated process are not openable by an unelevated one with the default ACL, which would break the
+        // single-instance check and the "show me" signal between the two. Grant the signed-in users access.
+        private static System.Security.AccessControl.MutexSecurity InstanceMutexSecurity()
+        {
+            var sec = new System.Security.AccessControl.MutexSecurity();
+            sec.AddAccessRule(new System.Security.AccessControl.MutexAccessRule(
+                new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.AuthenticatedUserSid, null),
+                System.Security.AccessControl.MutexRights.Synchronize | System.Security.AccessControl.MutexRights.Modify,
+                System.Security.AccessControl.AccessControlType.Allow));
+            return sec;
+        }
+
+        private static Mutex CreateInstanceMutex(out bool createdNew) =>
+            MutexAcl.Create(true, "Global\\MasselGUARD_SingleInstance", out createdNew, InstanceMutexSecurity());
+
+        private static EventWaitHandle CreateShowEvent()
+        {
+            var sec = new System.Security.AccessControl.EventWaitHandleSecurity();
+            sec.AddAccessRule(new System.Security.AccessControl.EventWaitHandleAccessRule(
+                new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.AuthenticatedUserSid, null),
+                System.Security.AccessControl.EventWaitHandleRights.Synchronize | System.Security.AccessControl.EventWaitHandleRights.Modify,
+                System.Security.AccessControl.AccessControlType.Allow));
+            return EventWaitHandleAcl.Create(false, EventResetMode.AutoReset, ShowEventName, out _, sec);
+        }
+
+
         private void StartShowRequestListener()
         {
             try
             {
-                _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName, out _);
+                _showEvent = CreateShowEvent();
             }
             catch { return; }   // event unavailable - falls back to BringExistingToFront elsewhere
 
@@ -683,6 +701,18 @@ namespace MasselGUARD
                 resetTimer.Tick += (_, _) => { _lastToastKey = ""; resetTimer.Stop(); };
                 resetTimer.Start();
             }
+
+            // Enhanced log level: keep a copy of the message in the activity log, in case the toast was missed.
+            try
+            {
+                var log = _mainWindow?.LogSvc;
+                if (log != null && log.IsExtended)
+                {
+                    var parts = new[] { n.Category, n.Primary, n.Secondary }.Where(s => !string.IsNullOrWhiteSpace(s));
+                    log.Info("Notification: " + string.Join(" - ", parts));
+                }
+            }
+            catch { }
 
             Dispatcher.Invoke(() =>
             {
@@ -1071,6 +1101,8 @@ namespace MasselGUARD
                 var head = new WinForms.ToolStripMenuItem(Lang.T("DnsBypassTray", bypass.Name));
                 head.Font      = GetTrayFont(bold: true);
                 head.ForeColor = accentColor;
+                var shortcutText = _mainWindow.Dispatcher.Invoke(() => _mainWindow.BypassShortcutText);
+                if (!string.IsNullOrEmpty(shortcutText)) head.ShortcutKeyDisplayString = shortcutText;   // display only
                 foreach (var secs in Models.TempOverride.PresetSeconds)
                 {
                     int s = secs;
@@ -1204,12 +1236,22 @@ namespace MasselGUARD
             // Restore any per-interface DNS override so we never strand a resolver after exit.
             try { _mainWindow?._vm.RestoreDnsOverrides(); } catch { }
 
-            // Restore Windows Firewall policy before disconnecting tunnels.
-            try { _mainWindow?.KillSwitchSvc?.DisableAll(); } catch { }
+            // With "keep automation running" and the service installed, tunnels and the kill switch stay in
+            // place: the service continues the automation and owns them from here.
+            if (_mainWindow != null && _mainWindow.ServiceKeepsAutomation)
+            {
+                _mainWindow.ReleaseAutomationLease();
+            }
+            else
+            {
+                // Restore Windows Firewall policy before disconnecting tunnels.
+                try { _mainWindow?.KillSwitchSvc?.DisableAll(); } catch { }
 
-            // Stop all active local tunnel services before the process exits.
-            // This prevents orphaned WireGuardTunnel$ services remaining in the SCM.
-            try { TunnelDll.DisconnectAll(); } catch { }
+                // Stop all active local tunnel services before the process exits.
+                // This prevents orphaned WireGuardTunnel$ services remaining in the SCM.
+                try { if (_mainWindow != null) _mainWindow.Backend.DisconnectAll(_mainWindow.ConfigSvc.Config.Tunnels); else TunnelDll.DisconnectAll(); } catch { }
+                try { _mainWindow?.ReleaseAutomationLease(); } catch { }
+            }
             try { _commandPipe?.Dispose(); } catch { }
             _trayIcon?.Dispose();
             // Wake the show-request listener so it observes IsShuttingDown and exits, then dispose.

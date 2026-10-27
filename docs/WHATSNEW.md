@@ -1,3 +1,54 @@
+## v5 - Background Badger
+
+MasselGUARD can now do its privileged work in a **Windows service**, so the app starts without a UAC prompt and your network rules keep running when the window is closed. A new **Browse DNS servers** picker replaces the fixed "Add presets" with a searchable, online list of public DNS servers. Without the service everything works exactly as before (portable copies, Scoop and no-service installs keep elevating the app themselves).
+
+**From this release on, versions are a single number**: 5, 6, 7... (the first release tag is `5.0`).
+
+### Background service
+- **One-click install** - **Settings > Startup > Background service > Install service** (also offered by the installer and the setup wizard; `MasselGUARDcli service install` does the same). Windows asks for administrator approval once. MasselGUARD then starts without UAC, and actions that really need administrator rights (installing, updating an installed copy) offer to restart it as administrator.
+- **Automation keeps running when MasselGUARD is closed** (optional, off by default, Settings > Automation) - the service applies your network rules (connect or disconnect a tunnel, switch DNS) while no window is open, for example before you sign in. MasselGUARD sends its settings to the service whenever they change and the service hands control back when a window is open again; closing MasselGUARD then leaves your tunnels and kill switch in place. Not done by the service: history entries, notifications, data caps, schedule rules and your pre/post connect scripts.
+- **A timed DNS override survives closing the window** - "use Google for 5 minutes" is kept by the service: it ends on time even if you close MasselGUARD, and reopening the window picks the countdown up again.
+- **The Explorer right-click DNS bypass works without the window, and without a terminal** - the right-click entries no longer open a console window, and with the service they switch DNS and hold it even when MasselGUARD is not running (`MasselGUARDcli dns bypass` does the same from a terminal).
+- **Start with Windows without administrator rights** - with the service, "Start with Windows" is a per-user startup entry: no approval to switch it on or off, no UAC at logon. Installing the service moves an existing elevated startup task over.
+- **Tunnel configs stay in the service** - a tunnel is connected by name from the service's own machine-encrypted store (`%ProgramData%\MasselGUARD\tunnels`, readable only by SYSTEM and administrators). The window sends a config only when it changed, and no plaintext temp file is written in your profile.
+- **Safer by design** - the service refuses to start from a folder that standard users can write to (install MasselGUARD to Program Files), creates its data folders with a fixed owner and permissions, never changes DNS on anything but a connected network adapter, never touches a WireGuard tunnel service it did not create, does not lower a firewall policy it did not set, and keeps stored tunnels and the keep-running automation per user. `MasselGUARDcli service allow --user NAME | deny --user NAME | users` manage who may use the service.
+
+### Browse DNS servers
+- **A searchable list of public DNS servers** - a button in the DNS panel and in Settings > DNS. Search by name, provider or feature, filter by what a server blocks (malware, ads, trackers, adult content, social media, gambling, proxies), encrypted-only or "needs your input". Each server shows an explanation, what it blocks and logs (in your language), its addresses and links to its website and privacy policy.
+- **Add and remove** - servers already in your list start ticked; tick new ones, untick ones you no longer want, and press **Apply (+N new, -M removed)**. A coloured bar on each row shows what will happen (grey stays, accent new, red removed); removing asks for confirmation first.
+- **Servers that need a value from you** (NextDNS: your configuration id) are marked "Needs your input" and show an empty field labelled with its name (`CONFIG_ID`) when you select or tick them; the typed value replaces it in the server address, and a preview line shows the result. The entry can only be added once the field is valid.
+- **Test speed** - sends a few DNS queries from your PC to the listed servers (optionally only the ticked ones, for any host name you choose, `masselink.net` by default) and shows each server's response time, with **Fastest first** sorting. Servers with an empty field are not tested.
+- **Your own profiles are listed too** - profiles you made yourself appear at the top of the list, marked **custom** (they are not part of Add/Remove), and are included in the speed test.
+- **The list lives on GitHub** ([masselink/MasselGUARD-dnslist](https://github.com/masselink/MasselGUARD-dnslist), open to pull requests) and updates without a new app version: an index plus one file per provider, downloaded at most once a day, only the files that changed, all or nothing; invalid entries are skipped. The servers you add are also saved on your PC, so they stay visible and can be removed again when the list cannot be downloaded. Nothing is ever applied automatically. **Settings > Diagnostics > DNS server list** changes the repository. About 40 servers from 17 providers to start with (AdGuard, Applied Privacy, CIRA Canadian Shield, CleanBrowsing, Cloudflare, Control D, DNS.SB, DNS4EU, FFMUC, Google, LibreDNS, Mullvad, NextDNS, OpenDNS, Quad9, UncensoredDNS, Wikimedia).
+
+### DNS bypass
+- **Configurable shortcut, new default Ctrl+Alt+D** - the quick DNS bypass shortcut is no longer fixed to **Ctrl+Shift+B**; pressing it again while the bypass runs stops it. Set it in **Settings > DNS > Bypass shortcut** (click the box and press the keys; **Clear** removes it).
+- **Work in every app** (optional) - register the shortcut system-wide, so it also works in other programs and while MasselGUARD is hidden in the tray.
+- **Default bypass length** - **Settings > DNS > Default bypass length** (5 to 3600 seconds, 60 by default) sets how long the quick bypass stays on when you give no length: the shortcut, the tray and footer item, Shift+Enter on a profile, the right-click menu and the command line without a number.
+- **A tray message when the bypass starts, stops or ends**, following the *pop-up on switch* setting. Every DNS change already flushes the Windows DNS cache, so names that were blocked a moment ago resolve again at once.
+
+### Automation and settings
+- **Test rule** opens a window with the verdict and a line-by-line explanation (each condition with what the current network has, day and time for schedules, what the rule would do, notes such as "the rule is disabled"); the log gets the same result.
+- **Three log levels** - Settings > Activity log > Log level now offers Normal, Enhanced and Debug. Enhanced records what happens on tunnels, networks and automation (rule matches, setting changes, a copy of every notification); Debug adds the technical details and writes a start-up block (version, system, account, how MasselGUARD runs) that is useful in a bug report.
+- **Hit counter for DNS profiles** - a **Hits** column in the DNS panel counts how many times a profile was put in use (by hand, by a rule or by a timed override), like the counter of a rule. When you edit a profile, **Times triggered** with **(Re)set counter** (same as a rule) is shown in the editor.
+- **Test speed in the DNS profile editor** - a **Test speed** button times the profile as typed (saved or not) and shows the result in a small window.
+- **Add current network** (was "From network") on the Automation panel creates a rule from the network you are on.
+- **DNS leak protection is clearer** - each of the two Windows policies has a status ("Protected" / "Not protected - Windows default") and one button (**Turn on protection** / **Restore Windows default**), and the section says it applies to the whole PC and needs administrator rights.
+- **The release number** is shown next to the name in the title bar, in Settings > About and in the setup wizard.
+
+### Fixes
+- **Open Wi-Fi networks are recognised again** - the check that tells a network has no password read the wrong field, so every network looked secured. Open-network protection, the open-network DNS profile and the history warnings now work.
+- **No repeated "disconnect" pop-ups** - a rule no longer re-runs, counts a hit or shows its message again when only details of the same network change (a renewed address, the router's MAC resolving late) or when the PC wakes from sleep and joins the same network.
+- **The background service stays out of the way while a window is open** - it no longer connects your default tunnel next to the window's own automation.
+- **Advanced test** has a **Copy all** button, and the main window's Automation and Activity log boxes start taller and all boxes grow together when you make the window larger.
+
+### Themes
+- **New theme: Copper & Gold** - warm burnished copper on deep brown with gold highlights (and a cream-and-bronze light variant), with its own logo, app and tray icons and a brushed-metal background, panels 75% see-through. Install it from **Settings > Appearance > Download themes**.
+
+### Updates and installing
+- **Verified updates** - every release now ships a `.sha256` file next to each zip; the in-app updater checks the download against it and refuses an update without one.
+- **Updating and installing while things are in use** - the installer and the updater no longer stop with "The process cannot access the file ... because it is being used by another process" when the service, a connected tunnel or a running window holds the installed exe: the old file is renamed aside and removed later.
+
 ## v4.6.0 - Wired Weasel
 
 Automation now understands **wired networks**, not just Wi-Fi. Rules can match a network by more than its name, several conditions can be combined, and you can see exactly why a rule did (or did not) fire. The app is also noticeably lighter on memory, and saving settings is much quicker.
@@ -38,12 +89,12 @@ Automation now understands **wired networks**, not just Wi-Fi. Rules can match a
 
 ### Create a rule from the network you are on
 
-- **Footer and Add menu** - right-click the network name in the footer, or use the **From network** button next to **+ Add**: **Create rule from this network…** opens the rule dialog pre-filled with the condition that identifies that network best (SSID on Wi-Fi; on a cable the DNS suffix, else the gateway MAC, else the subnet) and a suggested name. You only pick the tunnel and/or DNS profile.
+- **Footer and Add menu** - right-click the network name in the footer, or use the **Add current network** button next to **+ Add**: **Create rule from this network…** opens the rule dialog pre-filled with the condition that identifies that network best (SSID on Wi-Fi; on a cable the DNS suffix, else the gateway MAC, else the subnet) and a suggested name. You only pick the tunnel and/or DNS profile.
 - **Already covered?** If a rule already matches that network the menu offers **Edit rule "X" (position N)…** instead, with **Create another rule anyway…** next to it. After saving, a note says when an earlier rule also matches and so wins.
 
 ### Test your rules
 
-- **Test rule** (the old Test button, now enabled only when a rule is selected) checks whether the selected rule's requirements are met right now. The activity log shows `Test: <rule>` followed by the result, including when the requirement is not met, and notes such as "rule is disabled" or "manual mode is on".
+- **Test rule** (the old Test button, now enabled only when a rule is selected) checks whether the selected rule's requirements are met right now. The result also opens in a window (the log may be hidden): the verdict, a sentence why, each condition with a tick or cross and what the current network has, what the rule would do, and notes such as "rule is disabled" or "manual mode is on"; the activity log gets the same result.
 - **Advanced test** - describe a network (Wi-Fi or wired, SSID, open or not, DNS suffix, gateway MAC, subnets), or fetch the current one, and see **which rule would be triggered and why**. The reasoning panel walks through the real order: automation switches, open-network protection, each network rule with every condition marked as holding or failing, trusted-network rules, and the default action, ending in the tunnel and DNS result. Nothing is connected or changed.
 
 ### Wired networks in the rest of the app

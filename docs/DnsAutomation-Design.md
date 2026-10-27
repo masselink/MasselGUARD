@@ -279,5 +279,5 @@ Steps 1–3 are independently `dotnet build`-verifiable and testable before any 
 - **Multiple active NICs**: v1 targets the matched Wi-Fi interface only - confirm we don't also set Ethernet.
 - **IPv6 default**: if a profile sets only v4, do we force v6 to Automatic/off to prevent v6 leak, or leave v6 untouched? Lean: leave untouched but warn (documented under `DnsAddressFamilies`).
 - **Interaction with corporate/GPO DNS**: detect and refuse-with-notice vs override-and-restore. Lean: snapshot + restore, but surface when the OS reverts our write (GPO re-applies).
-- **Preset NextDNS**: needs a per-user config id in the DoH template - ship as a template with a placeholder the user fills in.
+- **Preset NextDNS**: needs a per-user config id in the DoH template - ship as a template with a placeholder the user fills in. (5.0: the fixed presets were replaced by the "Browse DNS servers" picker and an online list; NextDNS is a list entry with a `CONFIG_ID` parameter field. See `docs/DnsList-Format.md`.)
 - **Managed-preset lock granularity**: lock the whole DNS block vs individual profiles/toggle.

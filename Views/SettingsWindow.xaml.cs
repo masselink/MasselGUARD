@@ -38,7 +38,7 @@ namespace MasselGUARD.Views
             // (Rule add/edit requests are handled on the main window now, not here.)
             _vm.ExportRequested     += OnExportSettings;
             _vm.ImportRequested     += OnImportSettings;
-            _vm.LogLevelChanged     += v => main.LogSvc.IsExtended = v == "extended";
+            _vm.LogLevelChanged     += v => main.LogSvc.SetLevel(v);
 
             InitializeComponent();
             DataContext = _vm;
@@ -54,6 +54,7 @@ namespace MasselGUARD.Views
                 {
                     _loading = true;
                     SharedThemesRepoBox.Text = _draft.SharedThemesRepoUrl ?? "";
+                    if (DnsListRepoBox != null) DnsListRepoBox.Text = _draft.DnsListRepoUrl ?? "";
                     _loading = false;
                 }
                 ApplyFeatureTabVisibility();   // module tabs stay visible; sync their feature stubs
@@ -183,7 +184,7 @@ namespace MasselGUARD.Views
             if (tab == "Notifications") PopulateNotifSettings();
             if (tab == "History")    RefreshHistoryTab();
             if (tab == "Log")        { PopulateLogLevelPicker(); PopulateLogSettings(); }
-            if (tab == "Startup")    { RefreshInstallState(); RefreshDllStatus(); SyncStartWithWindows(); SyncStartupOptions(); SyncConfirmOnClose(); }
+            if (tab == "Startup")    { RefreshInstallState(); RefreshServiceState(); RefreshDllStatus(); SyncStartWithWindows(); SyncStartupOptions(); SyncConfirmOnClose(); }
             if (tab == "About")      RefreshUpdateState();
             if (tab == "Diagnostics") ScanOrphans();
 
@@ -240,6 +241,7 @@ namespace MasselGUARD.Views
             L(TrustedNetworksBox, "TrustedNetworks"); D(AddCurrentTrustedBtn, "TrustedNetworks");
             L(PrimaryNetworkBox, "PrimaryNetworkMode");
             L(SimpleWifiModeToggle, "SimpleWifiMode");
+            L(HeadlessAutomationToggle, "HeadlessAutomation");
             // (WiFi rules list moved to the main window - no rule buttons to gate here.)
 
             // Tunnels
@@ -1252,6 +1254,7 @@ namespace MasselGUARD.Views
                 if (PrimaryNetworkBox.SelectedItem == null) PrimaryNetworkBox.SelectedIndex = 0;
             }
             if (SimpleWifiModeToggle != null) SimpleWifiModeToggle.IsChecked = _draft.SimpleWifiMode;
+            if (HeadlessAutomationToggle != null) HeadlessAutomationToggle.IsChecked = _draft.HeadlessAutomation;
             ApplySimpleModeEnabling();
         }
 
@@ -1262,6 +1265,15 @@ namespace MasselGUARD.Views
             if (PrimaryNetworkBox == null) return;
             bool locked = _main.ConfigSvc.IsLocked("PrimaryNetworkMode");
             PrimaryNetworkBox.IsEnabled = !_draft.SimpleWifiMode && !locked;
+        }
+
+        private void HeadlessAutomation_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+            _draft.HeadlessAutomation = HeadlessAutomationToggle?.IsChecked == true;
+            // Needs the service: say so instead of silently doing nothing.
+            if (_draft.HeadlessAutomation && !_main.ServiceInstalled)
+                _main.ShowThemedInfo(Lang.T("SettingsHeadlessNeedsService"), Lang.T("SettingsHeadlessLabel"));
         }
 
         private void SimpleWifiMode_Changed(object sender, RoutedEventArgs e)
@@ -1424,6 +1436,9 @@ namespace MasselGUARD.Views
             PopulateBypassCombo(cfg.BypassDnsProfileId);
             if (DnsTempToggle != null) DnsTempToggle.IsChecked = cfg.DnsTempOverrideEnabled;
             if (DnsShellToggle != null) DnsShellToggle.IsChecked = cfg.ShellBypassMenuEnabled;
+            if (DnsShortcutBox != null) DnsShortcutBox.Text = cfg.BypassShortcut ?? "";
+            if (DnsShortcutGlobalToggle != null) DnsShortcutGlobalToggle.IsChecked = cfg.BypassShortcutGlobal;
+            if (DnsBypassSecondsBox != null) { DnsBypassSecondsBox.Text = cfg.BypassDefaultSeconds.ToString(); UpdateBypassMinutesHint(); }
 
             if (DnsFamiliesBox != null)
             {
@@ -1466,6 +1481,65 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.BypassDnsProfileId = (DnsBypassBox?.SelectedItem as ComboBoxItem)?.Tag as string ?? "";
             _main.ConfigSvc.Save();
             _main.RebuildDnsPanel();   // moves the bypass marker in the main-window list
+        }
+
+        /// <summary>The shortcut box records the key combination pressed in it (Ctrl, Alt or Win plus one key).</summary>
+        private void DnsShortcutBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (Keyboard.Modifiers == ModifierKeys.None && (e.Key == Key.Tab || e.Key == Key.Escape)) return;   // keep keyboard navigation
+            e.Handled = true;   // the box only records; it never types
+            var text = Views.ShortcutKeys.FromKeyPress(e);
+            if (text == null) return;   // only modifiers so far, or not a usable shortcut: keep waiting
+            _main.ConfigSvc.Config.BypassShortcut = text;
+            _main.ConfigSvc.Save();
+            if (DnsShortcutBox != null) DnsShortcutBox.Text = text;
+            _main.RefreshBypassShortcut();
+        }
+
+        private void DnsShortcutClear_Click(object sender, RoutedEventArgs e)
+        {
+            _main.ConfigSvc.Config.BypassShortcut = "";   // empty = no shortcut
+            _main.ConfigSvc.Save();
+            if (DnsShortcutBox != null) DnsShortcutBox.Text = "";
+            _main.RefreshBypassShortcut();
+        }
+
+        /// <summary>Grey "x.xx minutes" next to the seconds box, only for lengths above 60 seconds (while typing, the value is
+        /// clamped to 5-3600 the same way the setting itself will be).</summary>
+        private void UpdateBypassMinutesHint()
+        {
+            if (DnsBypassMinutesHint == null || DnsBypassSecondsBox == null) return;
+            if (!int.TryParse(DnsBypassSecondsBox.Text.Trim(), out int secs) || secs <= 60)
+            {
+                DnsBypassMinutesHint.Visibility = Visibility.Collapsed;
+                return;
+            }
+            secs = Math.Clamp(secs, AppConfig.BypassSecondsMin, AppConfig.BypassSecondsMax);
+            DnsBypassMinutesHint.Text = Lang.T("SettingsBypassMinutes", (secs / 60.0).ToString("0.00", Lang.Culture));
+            DnsBypassMinutesHint.Visibility = Visibility.Visible;
+        }
+
+        private void DnsBypassSeconds_TextChanged(object sender, TextChangedEventArgs e) => UpdateBypassMinutesHint();
+
+        /// <summary>The default length of the quick bypass: any number is accepted and pulled into 5 to 3600 seconds.</summary>
+        private void DnsBypassSeconds_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_dnsLoading || DnsBypassSecondsBox == null) return;
+            if (int.TryParse(DnsBypassSecondsBox.Text.Trim(), out int secs))
+            {
+                _main.ConfigSvc.Config.BypassDefaultSeconds = secs;   // the setter clamps
+                _main.ConfigSvc.Save();
+            }
+            DnsBypassSecondsBox.Text = _main.ConfigSvc.Config.BypassDefaultSeconds.ToString();   // show what was really stored
+            UpdateBypassMinutesHint();
+        }
+
+        private void DnsShortcutGlobal_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_dnsLoading) return;
+            _main.ConfigSvc.Config.BypassShortcutGlobal = DnsShortcutGlobalToggle?.IsChecked == true;
+            _main.ConfigSvc.Save();
+            _main.RefreshBypassShortcut();
         }
 
         private void DnsShell_Changed(object sender, RoutedEventArgs e)
@@ -1539,7 +1613,7 @@ namespace MasselGUARD.Views
 
         private void DnsAdd_Click(object sender, RoutedEventArgs e)
         {
-            var created = DnsProfileEditor.Show(this, null);
+            var created = DnsProfileEditor.Show(this, null, _main.ConfigSvc.Config);
             if (created == null) return;
             _main.ConfigSvc.Config.DnsProfiles.Add(created);
             _main.ConfigSvc.Save();
@@ -1549,20 +1623,16 @@ namespace MasselGUARD.Views
 
         private void DnsPresets_Click(object sender, RoutedEventArgs e)
         {
-            var existingNames = _main.ConfigSvc.Config.DnsProfiles
-                .Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            int added = 0;
-            foreach (var preset in Models.DnsProfile.BuiltInPresets())
-                if (existingNames.Add(preset.Name)) { _main.ConfigSvc.Config.DnsProfiles.Add(preset); added++; }
-            if (added == 0) return;
+            var (added, removed) = DnsServerPickerWindow.PickAndAdd(this, _main.ConfigSvc.Config);
             _main.ConfigSvc.Save();
+            if (added + removed == 0) return;
             RefreshDnsControls();
         }
 
         private void DnsEdit_Click(object sender, RoutedEventArgs e)
         {
             if (DnsProfilesList?.SelectedItem is not Models.DnsProfile selected) return;
-            var edited = DnsProfileEditor.Show(this, selected);
+            var edited = DnsProfileEditor.Show(this, selected, _main.ConfigSvc.Config);
             if (edited == null) return;
             int i = _main.ConfigSvc.Config.DnsProfiles.FindIndex(p => p.Id == selected.Id);
             if (i >= 0) _main.ConfigSvc.Config.DnsProfiles[i] = edited;
@@ -1915,17 +1985,15 @@ namespace MasselGUARD.Views
             _loading = true;
             LogLevelPicker.Items.Add(Lang.T("LogLevelNormal"));
             LogLevelPicker.Items.Add(Lang.T("LogLevelExtended"));
-            LogLevelPicker.SelectedIndex = _draft.LogLevelSetting == "extended" ? 1 : 0;
+            LogLevelPicker.Items.Add(Lang.T("LogLevelDebug"));
+            LogLevelPicker.SelectedIndex = _draft.LogLevelSetting switch { "debug" => 2, "extended" => 1, _ => 0 };
             _loading = false;
         }
 
         private void LogLevel_Changed(object sender, SelectionChangedEventArgs e)
         {
             if (_loading) return;
-            if (LogLevelPicker?.SelectedIndex == 1)
-                _vm.LogLevel = "extended";
-            else
-                _vm.LogLevel = "normal";
+            _vm.LogLevel = LogLevelPicker?.SelectedIndex switch { 2 => "debug", 1 => "extended", _ => "normal" };
         }
 
         /// <summary>Populate the clear-on-start toggle + max-size box from the staged config.</summary>
@@ -2021,10 +2089,8 @@ namespace MasselGUARD.Views
         // ── DNS leak protection (smart name resolution + parallel A/AAAA) ───────
         private void RefreshDnsLeakSection()
         {
-            UpdateDnsRow(Services.DnsLeakService.IsSmartNameResolutionDisabled(),
-                         DnsLeakStatusLabel, DnsLeakDisableBtn, DnsLeakEnableBtn);
-            UpdateDnsRow(Services.DnsLeakService.IsParallelQueriesDisabled(),
-                         DnsParallelStatusLabel, DnsParallelDisableBtn, DnsParallelEnableBtn);
+            UpdateDnsRow(Services.DnsLeakService.IsSmartNameResolutionDisabled(), DnsLeakStatusLabel, DnsLeakToggleBtn);
+            UpdateDnsRow(Services.DnsLeakService.IsParallelQueriesDisabled(),     DnsParallelStatusLabel, DnsParallelToggleBtn);
 
             // Possible-leak alert channels (icon / log / toast; all off = disabled).
             _loading = true;
@@ -2046,26 +2112,26 @@ namespace MasselGUARD.Views
             _draft.DnsLeakWarnToast = DnsLeakWarnToastToggle?.IsChecked == true;
         }
 
-        private void UpdateDnsRow(bool disabled, System.Windows.Controls.TextBlock? status,
-                                  System.Windows.Controls.Button? disableBtn,
-                                  System.Windows.Controls.Button? enableBtn)
+        /// <summary>One row of the leak section. <paramref name="protectedNow"/> = the Windows feature is switched OFF (DNS cannot leak through it).
+        /// The status says "Protected" or "Not protected"; the single button turns the protection on, or restores the Windows default.</summary>
+        private void UpdateDnsRow(bool protectedNow, System.Windows.Controls.TextBlock? status, System.Windows.Controls.Button? toggle)
         {
             if (status != null)
             {
-                status.Text = disabled
-                    ? Lang.T("SettingsDnsLeakStatusOn")
-                    : Lang.T("SettingsDnsLeakStatusOff");
-                status.Foreground = (System.Windows.Media.Brush)FindResource(
-                    disabled ? "Success" : "TextMuted");
+                status.Text = Lang.T(protectedNow ? "SettingsDnsLeakStatusOn" : "SettingsDnsLeakStatusOff");
+                status.Foreground = (System.Windows.Media.Brush)FindResource(protectedNow ? "Success" : "WarningColor");
             }
-            // Grey out the button matching the current state.
-            if (disableBtn != null) disableBtn.IsEnabled = !disabled;
-            if (enableBtn  != null) enableBtn.IsEnabled  = disabled;
+            if (toggle != null)
+            {
+                toggle.Content = Lang.T(protectedNow ? "BtnDnsLeakRestore" : "BtnDnsLeakProtect");
+                toggle.Style = (Style)FindResource(protectedNow ? "FlatBtn" : "SuccessBtn");
+            }
         }
 
         /// <summary>Runs a DNS-policy change, reports the result, and refreshes the section.</summary>
         private void ApplyDnsPolicy(Action change)
         {
+            if (!_main.EnsureElevated()) return;   // writes an HKLM policy
             try
             {
                 change();
@@ -2078,17 +2144,14 @@ namespace MasselGUARD.Views
             RefreshDnsLeakSection();
         }
 
-        private void DnsLeakDisable_Click(object sender, RoutedEventArgs e) =>
-            ApplyDnsPolicy(Services.DnsLeakService.DisableSmartNameResolution);
+        // one button per row: when protected it restores the Windows default, otherwise it turns the protection on
+        private void DnsLeakToggle_Click(object sender, RoutedEventArgs e) =>
+            ApplyDnsPolicy(Services.DnsLeakService.IsSmartNameResolutionDisabled()
+                ? Services.DnsLeakService.EnableSmartNameResolution : Services.DnsLeakService.DisableSmartNameResolution);
 
-        private void DnsLeakEnable_Click(object sender, RoutedEventArgs e) =>
-            ApplyDnsPolicy(Services.DnsLeakService.EnableSmartNameResolution);
-
-        private void DnsParallelDisable_Click(object sender, RoutedEventArgs e) =>
-            ApplyDnsPolicy(Services.DnsLeakService.DisableParallelQueries);
-
-        private void DnsParallelEnable_Click(object sender, RoutedEventArgs e) =>
-            ApplyDnsPolicy(Services.DnsLeakService.EnableParallelQueries);
+        private void DnsParallelToggle_Click(object sender, RoutedEventArgs e) =>
+            ApplyDnsPolicy(Services.DnsLeakService.IsParallelQueriesDisabled()
+                ? Services.DnsLeakService.EnableParallelQueries : Services.DnsLeakService.DisableParallelQueries);
 
         private void SetLabel(string name, string text)
         {
@@ -2216,14 +2279,13 @@ namespace MasselGUARD.Views
             var cfg     = _main.ConfigSvc.Config;
             var current = UpdateChecker.CurrentVersionString;
 
-            // Version label - large, with optional codename
+            // The release number sits behind the app name ("MasselGUARD v5"); the line below holds only the release name
+            if (AboutVersionTag != null) AboutVersionTag.Text = current;
             if (VersionLabel != null)
             {
                 var codename = UpdateChecker.Codename;
-                // The hero card shows the app name above this line, so only version + codename here.
-                VersionLabel.Text = string.IsNullOrEmpty(codename)
-                    ? $"v{current}"
-                    : $"v{current}  ·  {codename}";
+                VersionLabel.Text = codename;
+                VersionLabel.Visibility = string.IsNullOrEmpty(codename) ? Visibility.Collapsed : Visibility.Visible;
             }
 
             // Build stamp + architecture - small muted line below the version
@@ -2396,6 +2458,8 @@ namespace MasselGUARD.Views
                 return;
             }
 
+            if (UpdateChecker.NeedsElevation() && !_main.EnsureElevated()) return;
+
             if (CheckUpdateBtn != null)  CheckUpdateBtn.IsEnabled = false;
             if (DoUpdateBtn    != null)  DoUpdateBtn.IsEnabled    = false;
             if (UpdateProgressLabel != null)
@@ -2459,6 +2523,19 @@ namespace MasselGUARD.Views
         {
             if (_loading) return;
             _draft.SharedThemesRepoUrl = SharedThemesRepoBox.Text.Trim();
+        }
+
+        private void DnsListRepo_Changed(object sender, TextChangedEventArgs e)
+        {
+            if (_loading) return;
+            var v = DnsListRepoBox.Text.Trim();
+            _draft.DnsListRepoUrl = v.Length == 0 ? Models.AppConfig.DefaultDnsListRepoUrl : v;
+        }
+
+        private void ResetDnsListRepo_Click(object sender, RoutedEventArgs e)
+        {
+            DnsListRepoBox.Text = Models.AppConfig.DefaultDnsListRepoUrl;
+            DnsListRepoBox.CaretIndex = DnsListRepoBox.Text.Length;
         }
 
         /// <summary>Reset the repo URL to the official MasselGUARD themes repository.</summary>
@@ -2623,6 +2700,22 @@ namespace MasselGUARD.Views
         {
             if (_loading) return;
             _draft.SkipTunnelValidation = SkipTunnelValidationToggle?.IsChecked == true;
+        }
+
+        private void RefreshServiceState()
+        {
+            if (ServiceStatusLabel == null) return;
+            bool installed = _main.ServiceInstalled;
+            ServiceStatusLabel.Text = _main.ServiceStatusText();
+            ServiceStatusLabel.Foreground = (System.Windows.Media.Brush)FindResource(installed ? "Accent" : "TextMuted");
+            ServiceBtn.Content = Lang.T(installed ? "BtnServiceRemove" : "BtnServiceInstall");
+        }
+
+        private void ServiceBtn_Click(object sender, System.Windows.RoutedEventArgs e)
+        {
+            _main.ToggleServicePublic();
+            RefreshServiceState();
+            RefreshInstallState();
         }
 
         private void InstallBtn_Click(object sender, System.Windows.RoutedEventArgs e)
@@ -2921,6 +3014,7 @@ namespace MasselGUARD.Views
             _main.ConfigSvc.Config.TrustedNetworks     = _draft.TrustedNetworks;
             _main.ConfigSvc.Config.PrimaryNetworkMode  = _draft.PrimaryNetworkMode;
             _main.ConfigSvc.Config.SimpleWifiMode      = _draft.SimpleWifiMode;
+            _main.ConfigSvc.Config.HeadlessAutomation  = _draft.HeadlessAutomation;
             _main.ConfigSvc.Config.NetworkChangeNotify = _draft.NetworkChangeNotify;
             _main.ConfigSvc.Config.FontOverrideEnabled    = _draft.FontOverrideEnabled;
             _main.ConfigSvc.Config.FontOverrideFamily    = _draft.FontOverrideFamily;
@@ -2943,7 +3037,7 @@ namespace MasselGUARD.Views
 
             // Apply side effects immediately
             Lang.Instance.Load(_vm.Language);
-            _main.LogSvc.IsExtended = _vm.LogLevel == "extended";
+            _main.LogSvc.SetLevel(_vm.LogLevel);
             _main.ApplyManualMode();
             _main._vm.RebuildTunnelList();
             _main.RebuildTunnelGroupsPublic();
@@ -2971,7 +3065,7 @@ namespace MasselGUARD.Views
                 string sa = (a?.ToString() ?? "-").ToLowerInvariant();
                 string sb = (b?.ToString() ?? "-").ToLowerInvariant();
                 if (sa != sb)
-                    log.Debug($"[Settings] {label,-26} {a}  →  {b}");
+                    log.Info($"[Settings] {label,-26} {a}  →  {b}");
             }
 
             Check("Language",              before.Language,              after.Language);
@@ -3001,15 +3095,15 @@ namespace MasselGUARD.Views
             var rulesAdded   = after.Rules.Where(r => !before.Rules.Any(b => b.Ssid == r.Ssid)).ToList();
             var rulesRemoved = before.Rules.Where(r => !after.Rules.Any(a => a.Ssid == r.Ssid)).ToList();
             foreach (var r in rulesAdded)
-                log.Debug($"[Settings] Rule added:   {r.Ssid,-20} → {(string.IsNullOrEmpty(r.Tunnel) ? "disconnect" : r.Tunnel)}");
+                log.Info($"[Settings] Rule added:   {r.Ssid,-20} → {(string.IsNullOrEmpty(r.Tunnel) ? "disconnect" : r.Tunnel)}");
             foreach (var r in rulesRemoved)
-                log.Debug($"[Settings] Rule removed: {r.Ssid}");
+                log.Info($"[Settings] Rule removed: {r.Ssid}");
 
             // Groups: added/removed
             var grpAdded   = after.TunnelGroups.Where(g => !before.TunnelGroups.Any(b => b.Name == g.Name)).ToList();
             var grpRemoved = before.TunnelGroups.Where(g => !after.TunnelGroups.Any(a => a.Name == g.Name)).ToList();
-            foreach (var g in grpAdded)   log.Debug($"[Settings] Group added:   {g.Name}");
-            foreach (var g in grpRemoved) log.Debug($"[Settings] Group removed: {g.Name}");
+            foreach (var g in grpAdded)   log.Info($"[Settings] Group added:   {g.Name}");
+            foreach (var g in grpRemoved) log.Info($"[Settings] Group removed: {g.Name}");
         }
 
         // ── History tab ───────────────────────────────────────────────────────

@@ -26,7 +26,7 @@ namespace MasselGUARD.Services
     /// after a crash (see <see cref="Restore"/> / <see cref="RestoreAll"/>). GUI-side only
     /// (not in <c>MasselGUARDcli.csproj</c>); the app is always elevated so the writes succeed.
     /// </summary>
-    public sealed class DnsService
+    public sealed class DnsService : IDnsOps
     {
         /// <summary>Captured pre-override DNS for one interface. A null static list = the
         /// family was DHCP-managed (restore = back to DHCP); a value = restore that static list.</summary>
@@ -38,7 +38,7 @@ namespace MasselGUARD.Services
             public DateTime CapturedUtc { get; set; }
         }
 
-        private static readonly string StatePath = Path.Combine(
+        private static readonly string DefaultStatePath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "MasselGUARD", "dns_state.json");
 
@@ -48,10 +48,21 @@ namespace MasselGUARD.Services
         private readonly object _lock = new();
         private Dictionary<string, DnsSnapshot> _state;   // key = GUID "B" form, upper-cased
 
-        public DnsService(LogService? log = null)
+        private readonly string _statePath;
+
+        /// <param name="statePath">Where the pre-override snapshot lives. The service passes a path under
+        /// ProgramData (it runs as SYSTEM, whose %APPDATA% is hidden and per-profile).</param>
+        public DnsService(LogService? log = null, string? statePath = null)
         {
-            _log   = log;
-            _state = Load();
+            _log       = log;
+            _statePath = statePath ?? DefaultStatePath;
+            _state     = Load();
+        }
+
+        /// <summary>The interfaces that currently carry a MasselGUARD override.</summary>
+        public IEnumerable<Guid> OverriddenGuids
+        {
+            get { lock (_lock) return _state.Keys.Select(k => Guid.TryParse(k, out var g) ? g : Guid.Empty).Where(g => g != Guid.Empty).ToList(); }
         }
 
         // ── Public API ───────────────────────────────────────────────────────────
@@ -323,12 +334,12 @@ namespace MasselGUARD.Services
             return ni?.Name;
         }
 
-        private static Dictionary<string, DnsSnapshot> Load()
+        private Dictionary<string, DnsSnapshot> Load()
         {
             try
             {
-                if (!File.Exists(StatePath)) return new();
-                var json = File.ReadAllText(StatePath);
+                if (!File.Exists(_statePath)) return new();
+                var json = File.ReadAllText(_statePath);
                 return JsonSerializer.Deserialize<Dictionary<string, DnsSnapshot>>(json) ?? new();
             }
             catch { return new(); }
@@ -338,10 +349,10 @@ namespace MasselGUARD.Services
         {
             try
             {
-                var dir = Path.GetDirectoryName(StatePath);
+                var dir = Path.GetDirectoryName(_statePath);
                 if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-                if (_state.Count == 0) { if (File.Exists(StatePath)) File.Delete(StatePath); return; }
-                File.WriteAllText(StatePath, JsonSerializer.Serialize(_state, JsonOpts));
+                if (_state.Count == 0) { if (File.Exists(_statePath)) File.Delete(_statePath); return; }
+                File.WriteAllText(_statePath, JsonSerializer.Serialize(_state, JsonOpts));
             }
             catch (Exception ex) { _log?.Warn($"DNS: could not persist state - {ex.Message}"); }
         }

@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/masselink/MasselGUARD-dnslist/schema/provider.schema.json",
+  "title": "MasselGUARD DNS list: provider file (servers/<name>.json)",
+  "description": "See docs/DnsList-Format.md. The list is language-neutral: names are the services' own names, description is plain English, everything else is a code the app translates.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "servers"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "provider": { "type": "string", "maxLength": 80 },
+    "website": { "$ref": "#/definitions/httpsUrl" },
+    "privacyPolicy": { "$ref": "#/definitions/httpsUrl" },
+    "country": { "type": "string", "pattern": "^[A-Z]{2}$" },
+    "servers": { "type": "array", "minItems": 1, "maxItems": 50, "items": { "$ref": "#/definitions/server" } }
+  },
+  "definitions": {
+    "httpsUrl": { "type": "string", "pattern": "^https://[^\\s\"'`^&|<>%]{3,190}$" },
+    "server": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "anyOf": [{ "required": ["v4"] }, { "required": ["v6"] }, { "required": ["doh"] }],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,63}$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 400 },
+        "blocks": {
+          "description": "What the resolver blocks. malware (incl. phishing), ads, trackers and adult are translated by the app; other codes show as written.",
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,23}$" }
+        },
+        "logging": { "enum": ["none", "minimal", "short-term", "anonymized", "configurable", "unknown"] },
+        "v4": { "type": "array", "minItems": 1, "maxItems": 4, "uniqueItems": true, "items": { "type": "string", "format": "ipv4" } },
+        "v6": { "type": "array", "minItems": 1, "maxItems": 4, "uniqueItems": true, "items": { "type": "string", "pattern": "^[0-9A-Fa-f:]{2,39}$" } },
+        "doh": { "description": "DNS-over-HTTPS template; may contain the tokens named in parameters.", "$ref": "#/definitions/httpsUrl" },
+        "encryptedOnly": { "type": "boolean" },
+        "parameters": {
+          "description": "Values the user fills in (for example a NextDNS configuration id). Each token must occur in the doh template; the app shows an empty field labelled with the token.",
+          "type": "array",
+          "maxItems": 4,
+          "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,31}$" }
+        }
+      }
+    }
+  }
+}

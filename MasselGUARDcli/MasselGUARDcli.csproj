@@ -20,10 +20,10 @@
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
     <!-- Default versions for IDE / dotnet build without BUILD.bat. -->
-    <Version>4.6.0</Version>
-    <AssemblyVersion>4.6.0.0</AssemblyVersion>
-    <FileVersion>4.6.0.0</FileVersion>
-    <InformationalVersion>4.6.0</InformationalVersion>
+    <Version>5</Version>
+    <AssemblyVersion>5.0.0.0</AssemblyVersion>
+    <FileVersion>5.0.0.0</FileVersion>
+    <InformationalVersion>5</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -41,6 +41,18 @@
     <Compile Include="..\Infrastructure\*.cs" />
     <Compile Include="..\Services\CidrMath.cs" />
     <Compile Include="..\Services\CommandPipe.cs" />
+    <Compile Include="..\Services\PrivilegedOps.cs" />
+    <Compile Include="..\Services\PrivilegedRpc.cs" />
+    <Compile Include="..\Services\DnsHoldKeeper.cs" />
+    <Compile Include="..\Services\DnsProbe.cs" />
+    <Compile Include="..\Services\TunnelStore.cs" />
+    <Compile Include="..\Services\AutostartRunKey.cs" />
+    <Compile Include="..\Services\BypassPlan.cs" />
+    <Compile Include="..\Services\BypassClient.cs" />
+    <Compile Include="..\Services\InstallFiles.cs" />
+    <Compile Include="..\Services\HeadlessAutomation.cs" />
+    <Compile Include="..\Services\SecureFolders.cs" />
+    <Compile Include="..\Services\ServiceInstaller.cs" />
     <Compile Include="..\Services\SplitTunnelBackend.cs" />
     <Compile Include="..\Services\DnsPolicy.cs" />
     <Compile Include="..\Services\NetworkMatcher.cs" />

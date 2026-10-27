@@ -48,11 +48,20 @@ namespace MasselGUARD.Services
             set => _minLevel = value;
         }
 
-        public bool IsExtended
+        /// <summary>True at the Enhanced level and above (Enhanced and Debug): the informational lines are recorded.</summary>
+        public bool IsExtended => _minLevel <= LogLevel.Info;
+
+        /// <summary>True only at the Debug level: the technical lines (system, icons, lookups) are recorded too.</summary>
+        public bool IsDebug => _minLevel <= LogLevel.Debug;
+
+        /// <summary>Applies <c>AppConfig.LogLevelSetting</c>: "normal" (actions and problems), "extended" = Enhanced
+        /// (also what happens on tunnels, networks and automation), "debug" (also technical details).</summary>
+        public void SetLevel(string? setting) => _minLevel = setting switch
         {
-            get => _minLevel <= LogLevel.Info;
-            set => _minLevel = value ? LogLevel.Debug : LogLevel.Ok;
-        }
+            "debug"    => LogLevel.Debug,
+            "extended" => LogLevel.Info,
+            _          => LogLevel.Ok,
+        };
 
         /// <summary>Master switch (mirrors <c>AppConfig.ActivityLogEnabled</c>). When false the log
         /// records nothing new - used by the "Activity log" feature's disable behaviour so a disabled

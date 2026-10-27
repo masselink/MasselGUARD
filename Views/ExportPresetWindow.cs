@@ -30,6 +30,7 @@ namespace MasselGUARD.Views
             }),
             ("PresetSecAutomation", new[] {
                 ("ManualMode", "PresetItemManualMode"),
+                ("HeadlessAutomation", "PresetItemHeadlessAutomation"),
                 ("DefaultAction", "PresetItemDefaultAction"),
                 ("DefaultTunnel", "PresetItemDefaultTunnel"),
                 ("OpenWifiTunnel", "PresetItemOpenWifiTunnel"),
@@ -44,6 +45,9 @@ namespace MasselGUARD.Views
             ("PresetSecDnsLeak", new[] {
                 ("ShowDnsIndicator", "PresetItemShowDnsIndicator"),
                 ("DnsTempOverrideEnabled", "PresetItemDnsTempOverride"),
+                ("BypassShortcut", "PresetItemBypassShortcut"),
+                ("BypassShortcutGlobal", "PresetItemBypassShortcutGlobal"),
+                ("BypassDefaultSeconds", "PresetItemBypassDefaultSeconds"),
                 ("DnsLeakWarnLog", "PresetItemDnsLeakWarnLog"),
                 ("DnsLeakWarnToast", "PresetItemDnsLeakWarnToast"),
             }),

@@ -180,7 +180,8 @@ namespace MasselGUARD.Services
                         // +0   isState (1 = connected)
                         // +520 uSSIDLength
                         // +524 ucSSID[32]
-                        // +576 bSecurityEnabled
+                        // +556 BSS type, +560 BSSID, +568 PHY type, +572 PHY index, +576 signal quality, +580 rx, +584 tx
+                        // +588 bSecurityEnabled, +592 bOneXEnabled, +596 auth algorithm, +600 cipher algorithm
                         int isState = Marshal.ReadInt32(data, 0);
                         if (isState != 1) { WlanFreeMemory(data); continue; }
 
@@ -188,7 +189,9 @@ namespace MasselGUARD.Services
                         byte[] buf = new byte[len];
                         if (len > 0) Marshal.Copy(data + 524, buf, 0, len);
                         string ssid   = Encoding.UTF8.GetString(buf).TrimEnd('\0');
-                        bool   isOpen = Marshal.ReadInt32(data, 576) == 0;
+                        // open = no security. (Offset 576 is the signal quality, non-zero whenever connected: every network looked secured.)
+                        bool   isOpen = Marshal.ReadInt32(data, 588) == 0
+                                        || (Marshal.ReadInt32(data, 596) == 1 && Marshal.ReadInt32(data, 600) == 0);   // 802.11 open auth, no cipher
                         WlanFreeMemory(data);
 
                         if (!string.IsNullOrEmpty(ssid))

@@ -28,7 +28,8 @@ namespace MasselGUARD
         internal readonly RuleEngine     RuleEngine;
         internal readonly ScriptService  ScriptSvc;
         internal readonly Services.HistoryService     HistorySvc;
-        internal readonly Services.KillSwitchService  KillSwitchSvc;
+        internal readonly Services.IKillSwitchOps       KillSwitchSvc;
+        internal readonly Services.PrivilegedBackend    Backend;
 
         // ── ViewModel ─────────────────────────────────────────────────────────
         internal readonly MainViewModel _vm;
@@ -128,13 +129,14 @@ namespace MasselGUARD
             ConfigSvc.Load();
 
             LogSvc     = new LogService();
-            LogSvc.IsExtended = ConfigSvc.Config.LogLevelSetting == "extended";
+            LogSvc.SetLevel(ConfigSvc.Config.LogLevelSetting);
             try
             {
                 var logPath = System.IO.Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                     "MasselGUARD", "masselguard.log");
                 LogSvc.InitPersistence(logPath, ConfigSvc.Config.MaxLogSizeKB, ConfigSvc.Config.ClearLogOnStart);
+                System.Threading.Tasks.Task.Run(() => Services.InstallFiles.CleanupOld(AppContext.BaseDirectory));   // leftovers of an install that replaced files in use
             }
             catch { /* logging must never break startup */ }
 
@@ -147,18 +149,21 @@ namespace MasselGUARD
             HistorySvc.Load();
             HistorySvc.LoadSsid();
             HistorySvc.LoadDns();
-            KillSwitchSvc  = new Services.KillSwitchService(LogSvc);
-            TunnelSvc      = new TunnelService(LogSvc, ScriptSvc, HistorySvc, KillSwitchSvc);
+            Backend        = Services.PrivilegedBackend.Select(LogSvc);
+            KillSwitchSvc  = Backend.KillSwitch;
+            TunnelSvc      = new TunnelService(LogSvc, ScriptSvc, HistorySvc, Backend.KillSwitch, Backend.Tunnels);
             WifiSvc        = new WiFiService();
             RuleEngine     = new RuleEngine();
 
             // ── Build ViewModel ───────────────────────────────────────────────
-            _vm = new MainViewModel(ConfigSvc, TunnelSvc, LogSvc, WifiSvc, RuleEngine, HistorySvc);
+            _vm = new MainViewModel(ConfigSvc, TunnelSvc, LogSvc, WifiSvc, RuleEngine, HistorySvc, Backend.Dns, Backend.Hold);
 
             // ── Wire ViewModel → View dialog requests ─────────────────────────
             _vm.AddTunnelRequested    += OnAddTunnel;
             _vm.EditTunnelRequested   += OnEditTunnel;
             _vm.DeleteTunnelRequested += OnDeleteTunnel;
+            System.Threading.Tasks.Task.Run(PruneServiceStore);   // drop stored configs of tunnels that no longer exist
+            StartAutomationSync();
             _vm.QuickConnectRequested += OnQuickConnect;
             _vm.OpenSettingsRequested += OnOpenSettings;
             _vm.StatusTick            += OnStatusTick;
@@ -185,10 +190,17 @@ namespace MasselGUARD
             base.OnSourceInitialized(e);
             HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)
                       ?.AddHook(WndProc);
+            RefreshBypassShortcut();   // the window handle exists now: register the system-wide hotkey if configured
         }
 
         private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
+            if (msg == WM_HOTKEY && wParam.ToInt32() == BypassHotkeyId)
+            {
+                handled = true;
+                BypassDnsNow();   // system-wide bypass shortcut (BypassShortcutGlobal)
+                return IntPtr.Zero;
+            }
             if (msg == WM_SETTINGCHANGE && lParam != IntPtr.Zero)
             {
                 string? change = Marshal.PtrToStringAuto(lParam);
@@ -219,13 +231,10 @@ namespace MasselGUARD
             KillSwitchSvc.CleanupStaleRules();
 
             // Log level from config
-            LogSvc.IsExtended = ConfigSvc.Config.LogLevelSetting == "extended";
+            LogSvc.SetLevel(ConfigSvc.Config.LogLevelSetting);
 
             LogSvc.Ok(Lang.T("LogAppStarted"));
-            LogSvc.Info($"Started from: {Environment.ProcessPath ?? AppContext.BaseDirectory}");
-            LogSvc.Debug($"OS    : {Environment.OSVersion}");
-            LogSvc.Debug($".NET  : {Environment.Version}");
-            LogSvc.Debug($"User  : {Environment.UserDomainName}\\{Environment.UserName}");
+            WriteDebugStartupBlock();
 
             // A local tunnel is hosted by a Windows service running as LocalSystem, which cannot
             // read files inside a per-user cloud-synced folder (OneDrive) - the tunnel then dies
@@ -257,7 +266,7 @@ namespace MasselGUARD
 
             // Restore or initialise column widths
             InitColumnWidths();
-            PreviewKeyDown += MainWindow_PreviewKeyDown;   // Ctrl+Shift+B = quick DNS bypass
+            PreviewKeyDown += MainWindow_PreviewKeyDown;   // Ctrl+Alt+D (default, configurable) = quick DNS bypass
 
             // Update footer
             UpdateFooterLabel();
@@ -1412,6 +1421,91 @@ namespace MasselGUARD
             LogSvc.Ok($"Tunnel updated: {stored.Name}");
         }
 
+        // ── Snapshot handover (service mode): the window owns the config, the service may run the rules when it is closed ──
+
+        private System.Threading.Timer? _leaseTimer;
+        private System.Windows.Threading.DispatcherTimer? _pushDebounce;
+        private readonly Dictionary<string, string> _pushedTunnelHashes = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>True when closing the window should leave tunnels and the kill switch in place because the
+        /// service continues the automation.</summary>
+        public bool ServiceKeepsAutomation => Backend.IsService && Backend.Automation != null && ConfigSvc.Config.HeadlessAutomation;
+
+        private void StartAutomationSync()
+        {
+            var auto = Backend.Automation;
+            if (auto == null) return;
+            int misses = 0;
+            _leaseTimer = new System.Threading.Timer(_ =>
+            {
+                bool ok = false;
+                try { ok = auto.RenewLease(); } catch { }
+                if (ok) { if (misses >= 3) LogSvc.Info("MasselGUARD service reachable again."); misses = 0; }
+                else if (++misses == 3)
+                    LogSvc.Warn("The MasselGUARD service does not answer. Tunnel, DNS and kill-switch actions will fail until it runs again " +
+                                "(start the service, or restart MasselGUARD to fall back to direct mode).");
+            }, null, 0, 5000);
+            ConfigSvc.ConfigChanged += () =>
+            {
+                _pushDebounce ??= new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+                _pushDebounce.Tick -= PushDebounceTick; _pushDebounce.Tick += PushDebounceTick;
+                _pushDebounce.Stop(); _pushDebounce.Start();
+            };
+            PushAutomationNow();
+        }
+
+        private void PushDebounceTick(object? s, EventArgs e) { _pushDebounce?.Stop(); PushAutomationNow(); }
+
+        /// <summary>Serialises the config and (when the feature is on) the tunnel configs on the UI thread, sends them in the background.</summary>
+        public void PushAutomationNow()
+        {
+            var auto = Backend.Automation;
+            if (auto == null) return;
+            try
+            {
+                var cfg = ConfigSvc.Config;
+                string json = Services.AutomationSnapshot.Serialize(cfg);
+                var tunnels = new List<(string name, string conf, string hash)>();
+                if (cfg.HeadlessAutomation)
+                    foreach (var t in cfg.Tunnels.Where(t => string.IsNullOrEmpty(t.Source) || t.Source == "local"))
+                    {
+                        var conf = TunnelService.DecryptConfig(t);
+                        if (string.IsNullOrEmpty(conf)) continue;
+                        var h = Services.FileTunnelStore.HashOf(conf);
+                        if (_pushedTunnelHashes.TryGetValue(t.Name, out var old) && old == h) continue;
+                        tunnels.Add((t.Name, conf, h));
+                    }
+                System.Threading.Tasks.Task.Run(() =>
+                {
+                    try
+                    {
+                        foreach (var (name, conf, hash) in tunnels)
+                            if (auto.PushTunnel(name, conf)) lock (_pushedTunnelHashes) _pushedTunnelHashes[name] = hash;
+                        auto.PushSnapshot(json);
+                    }
+                    catch { /* the next change pushes again */ }
+                });
+            }
+            catch (Exception ex) { LogSvc.Debug($"Automation push failed: {ex.Message}"); }
+        }
+
+        /// <summary>Called at exit: lets the service take over at once.</summary>
+        public void ReleaseAutomationLease()
+        {
+            try { _leaseTimer?.Dispose(); Backend.Automation?.ReleaseLease(); } catch { }
+        }
+
+        /// <summary>Service mode: keeps the service's encrypted tunnel store in step with the tunnel list.</summary>
+        private void PruneServiceStore()
+        {
+            try
+            {
+                if (Backend.Tunnels is Services.IStoredConnectOps store)
+                    store.PruneStored(ConfigSvc.Config.Tunnels.Where(t => string.IsNullOrEmpty(t.Source) || t.Source == "local").Select(t => t.Name).ToList());
+            }
+            catch { /* best effort */ }
+        }
+
         private void OnDeleteTunnel(StoredTunnel stored)
         {
             var msg   = stored.Source == "local"
@@ -1429,6 +1523,7 @@ namespace MasselGUARD
             ConfigSvc.Config.Tunnels.Remove(stored);
             ConfigSvc.Save();
             LogSvc.Ok($"Tunnel removed: {stored.Name}");
+            System.Threading.Tasks.Task.Run(PruneServiceStore);
             _vm.RebuildTunnelList();
             RebuildTunnelGroups();
         }
@@ -1446,7 +1541,7 @@ namespace MasselGUARD
             var win = new Views.SettingsWindow(this) { Owner = this, InitialTab = initialTab };
             win.ShowDialog();
             // Refresh after settings close
-            LogSvc.IsExtended = ConfigSvc.Config.LogLevelSetting == "extended";
+            LogSvc.SetLevel(ConfigSvc.Config.LogLevelSetting);
             _vm.RebuildTunnelList();
             RebuildTunnelGroups();
             UpdateFooterLabel();
@@ -1472,6 +1567,8 @@ namespace MasselGUARD
             public string EnableLabel { get; init; } = "";   // per-row button: Enable / Disable
             public Visibility EnabledDot => Enabled ? Visibility.Visible : Visibility.Collapsed;
             public int    RulesCount { get; init; }      // numeric, for sorting
+            public int    Hits { get; init; }            // how many times the profile was put in use (the hit counter)
+            public string HitsText => Hits.ToString();
         }
 
         private string _dnsSortCol = "";   // "", Name, Type, Server, Rules
@@ -1500,6 +1597,7 @@ namespace MasselGUARD
                     Server = p.ConnectionDisplay,
                     Rules  = cnt.ToString(),
                     RulesCount = cnt,
+                    Hits = p.ActivationCount,
                     Enabled = on,
                     IsBypass = p.Id == ConfigSvc.Config.BypassDnsProfileId,
                     EnableLabel = Lang.T(on ? "BtnDnsDisable" : "BtnDnsEnable"),
@@ -1602,6 +1700,7 @@ namespace MasselGUARD
                 "Type"   => _dnsSortAsc ? src.OrderBy(r => r.Type,   StringComparer.OrdinalIgnoreCase) : src.OrderByDescending(r => r.Type,   StringComparer.OrdinalIgnoreCase),
                 "Server" => _dnsSortAsc ? src.OrderBy(r => r.Server, StringComparer.OrdinalIgnoreCase) : src.OrderByDescending(r => r.Server, StringComparer.OrdinalIgnoreCase),
                 "Rules"  => _dnsSortAsc ? src.OrderBy(r => r.RulesCount) : src.OrderByDescending(r => r.RulesCount),
+                "Hits"   => _dnsSortAsc ? src.OrderBy(r => r.Hits) : src.OrderByDescending(r => r.Hits),
                 _        => src,
             };
 
@@ -1609,6 +1708,7 @@ namespace MasselGUARD
         private void DnsSort_Type  (object s, RoutedEventArgs e) => DnsSort("Type");
         private void DnsSort_Server(object s, RoutedEventArgs e) => DnsSort("Server");
         private void DnsSort_Rules (object s, RoutedEventArgs e) => DnsSort("Rules");
+        private void DnsSort_Hits  (object s, RoutedEventArgs e) => DnsSort("Hits");
 
         private void DnsSort(string col)
         {
@@ -1625,10 +1725,12 @@ namespace MasselGUARD
             if (DnsArrowType   != null) DnsArrowType.Text   = _dnsSortCol == "Type"   ? (_dnsSortAsc ? asc : desc) : "";
             if (DnsArrowServer != null) DnsArrowServer.Text = _dnsSortCol == "Server" ? (_dnsSortAsc ? asc : desc) : "";
             if (DnsArrowRules  != null) DnsArrowRules.Text  = _dnsSortCol == "Rules"  ? (_dnsSortAsc ? asc : desc) : "";
+            if (DnsArrowHits   != null) DnsArrowHits.Text   = _dnsSortCol == "Hits"   ? (_dnsSortAsc ? asc : desc) : "";
         }
 
         // ── Timed DNS override (optional: Settings > DNS) ─────────────────────
-        private int _lastDnsTempSeconds = 60;   // Shift+Enter repeats the last chosen length
+        /// <summary>The length of the quick bypass when none is chosen (Settings > DNS > Default bypass length).</summary>
+        private int DefaultBypassSeconds => ConfigSvc.Config.BypassDefaultSeconds;
 
         /// <summary>Right-click a DNS profile: use it for 10 s / 1 / 5 / 15 minutes, then back to automatic.</summary>
         private void DnsList_RightClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -1669,7 +1771,7 @@ namespace MasselGUARD
                 || (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Shift) == 0) return;
             if (!ConfigSvc.Config.DnsTempOverrideEnabled) return;
             e.Handled = true;
-            if (DnsProfilesPanelList.SelectedItem is DnsProfileRow row) UseDnsTemporarily(row.Id, _lastDnsTempSeconds);
+            if (DnsProfilesPanelList.SelectedItem is DnsProfileRow row) UseDnsTemporarily(row.Id, DefaultBypassSeconds);
             else BypassDnsNow();   // nothing selected: the marked bypass profile
             RebuildDnsPanel();
         }
@@ -1693,8 +1795,7 @@ namespace MasselGUARD
 
             var p = cfg.DnsProfiles.FirstOrDefault(x => x.Id == cfg.BypassDnsProfileId);
             if (p == null) return "error: no bypass profile is marked (right-click a DNS profile > Mark as bypass profile).";
-            int secs = seconds > 0 ? seconds : _lastDnsTempSeconds;
-            _lastDnsTempSeconds = secs;
+            int secs = seconds > 0 ? seconds : DefaultBypassSeconds;
             if (!_vm.UseDnsTemporarily(p, TimeSpan.FromSeconds(secs))) return "error: could not switch DNS.";
             RebuildDnsPanel();
             return $"ok: using '{p.Name}' for {secs} seconds, then back to automatic.";
@@ -1708,9 +1809,8 @@ namespace MasselGUARD
             {
                 if (!ConfigSvc.Config.ShellBypassMenuEnabled) { Services.ShellMenuService.Unregister(); return; }
                 var exe = Environment.ProcessPath ?? "";
-                var cli = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(exe) ?? AppContext.BaseDirectory, "MasselGUARDcli.exe");
-                if (!System.IO.File.Exists(cli)) { LogSvc.Warn("Explorer menu: MasselGUARDcli.exe not found next to the app, entries not added."); return; }
-                Services.ShellMenuService.Register(cli, exe, k => Lang.T(k));
+                if (!System.IO.File.Exists(exe)) { LogSvc.Warn("Explorer menu: MasselGUARD.exe not found, entries not added."); return; }
+                Services.ShellMenuService.Register(exe, exe, k => Lang.T(k));   // the entries run "MasselGUARD.exe --bypass ..." (no console window)
             }
             catch (Exception ex) { LogSvc.Warn($"Explorer menu: {ex.Message}"); }
         }
@@ -1723,17 +1823,56 @@ namespace MasselGUARD
             if (!cfg.DnsTempOverrideEnabled || !cfg.EnableDns) return;
             if (_vm.DnsTempActive && seconds == null) { _vm.ManualDisable(); RebuildDnsPanel(); return; }
             if (string.IsNullOrEmpty(cfg.BypassDnsProfileId)) { ShowThemedInfo(Lang.T("DnsBypassNoneSet"), Lang.T("DnsBypassBadgeTip"), this); return; }
-            UseDnsTemporarily(cfg.BypassDnsProfileId, seconds ?? _lastDnsTempSeconds);
+            UseDnsTemporarily(cfg.BypassDnsProfileId, seconds ?? DefaultBypassSeconds);
             RebuildDnsPanel();
         }
 
-        /// <summary>Ctrl+Shift+B anywhere in the main window: quick bypass (press again to stop).</summary>
+        // â”€â”€ Quick-bypass shortcut (AppConfig.BypassShortcut, default Ctrl+Alt+D) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        private Models.Shortcut _bypassShortcut;
+        private bool _bypassHotkeyRegistered;
+        private const int BypassHotkeyId = 0x4D47;   // "MG"
+        private const int WM_HOTKEY = 0x0312;
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+        private static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vk);
+        [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+        /// <summary>The configured shortcut as text ("Ctrl+Alt+D"), "" when none; for tooltips and the tray menu.</summary>
+        public string BypassShortcutText => _bypassShortcut.ToString();
+
+        /// <summary>Reads <c>BypassShortcut</c> / <c>BypassShortcutGlobal</c> from the config and applies them: the in-window
+        /// key handler uses the parsed shortcut, and with the global option it is also registered system-wide. An
+        /// unusable text falls back to the default and says so in the log. Called at startup and from Settings.</summary>
+        public void RefreshBypassShortcut()
+        {
+            var cfg = ConfigSvc.Config;
+            if (!Models.Shortcut.TryParse(cfg.BypassShortcut, out var parsed))
+            {
+                LogSvc.Warn($"Bypass shortcut '{cfg.BypassShortcut}' is not usable (needs Ctrl, Alt or Win plus one key); using {Models.Shortcut.DefaultText}.");
+                parsed = Models.Shortcut.ParseOrDefault(null);
+            }
+            _bypassShortcut = parsed;
+
+            // (Re)register the system-wide hotkey.
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return;   // before the window exists: OnSourceInitialized calls this again
+            if (_bypassHotkeyRegistered) { UnregisterHotKey(hwnd, BypassHotkeyId); _bypassHotkeyRegistered = false; }
+            if (cfg.BypassShortcutGlobal && !parsed.IsEmpty)
+            {
+                int vk = Views.ShortcutKeys.ToVirtualKey(parsed);
+                _bypassHotkeyRegistered = vk != 0 && RegisterHotKey(hwnd, BypassHotkeyId,
+                    Views.ShortcutKeys.ToModifiers(parsed) | Views.ShortcutKeys.ModNoRepeat, vk);
+                if (!_bypassHotkeyRegistered)
+                    LogSvc.Warn($"Bypass shortcut {parsed} could not be registered system-wide (another program may already use it); it still works while MasselGUARD has focus.");
+            }
+            UpdateStatusBarCentre();   // the footer tooltip names the shortcut
+        }
+
+        /// <summary>The bypass shortcut pressed while the MasselGUARD window has focus: quick bypass (again = stop).</summary>
         private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
-            var mods = System.Windows.Input.Keyboard.Modifiers;
-            if (e.Key == System.Windows.Input.Key.B
-                && (mods & System.Windows.Input.ModifierKeys.Control) != 0
-                && (mods & System.Windows.Input.ModifierKeys.Shift) != 0)
+            if (Views.ShortcutKeys.Matches(_bypassShortcut, e))
             {
                 e.Handled = true;
                 BypassDnsNow();
@@ -1744,7 +1883,6 @@ namespace MasselGUARD
         {
             var p = ConfigSvc.Config.DnsProfiles.FirstOrDefault(x => x.Id == profileId);
             if (p == null) return;
-            _lastDnsTempSeconds = seconds;
             _vm.UseDnsTemporarily(p, TimeSpan.FromSeconds(seconds));
         }
 
@@ -2214,7 +2352,8 @@ namespace MasselGUARD
         private void UpdateWindowTitle()
         {
             var appName = ThemeManager.Instance.Current.AppName;
-            Title = $"{appName} v{UpdateChecker.CurrentVersionString} - {Lang.T("TrayIdleSubtitle")}";
+            Title = $"{appName} {UpdateChecker.CurrentVersionString} - {Lang.T("TrayIdleSubtitle")}";
+            if (TitleVersionTag != null) TitleVersionTag.Text = UpdateChecker.CurrentVersionString;
         }
 
         private static (ImageSource?, System.Drawing.Icon?) LoadDefaultExeIcon()
@@ -2517,6 +2656,7 @@ namespace MasselGUARD
 
         public void RemoveOrphan(OrphanedService orphan)
         {
+            if (!EnsureElevated()) return;
             _pendingOrphanDeletion.Add(orphan.ServiceName);   // hide from the next scan immediately
             try
             {
@@ -2551,12 +2691,7 @@ namespace MasselGUARD
         /// FileVersion resource) yields an empty build stamp, not "0".</summary>
         private static (string ver, string build) SplitVersion(string full)
         {
-            if (string.IsNullOrWhiteSpace(full)) return ("0.0.0", "");
-            var parts = full.Trim().TrimStart('v', 'V').Split('+')[0].Split('.');
-            string ver   = string.Join('.', parts.Take(3));
-            string build = parts.Length >= 4 ? parts[3] : "";
-            if (build == "0") build = "";
-            return (ver, build);
+            return UpdateChecker.SplitFullVersion(full);
         }
 
         private static bool IsVersionNewer(string current, string previous)
@@ -3045,6 +3180,34 @@ namespace MasselGUARD
             QueueWindowSizeSync(false);
         }
 
+        /// <summary>Log level Debug: one block with the facts a bug report needs (version, system, account, how MasselGUARD runs).
+        /// Written once at start; nothing is collected or sent anywhere. English like the rest of the log.</summary>
+        private void WriteDebugStartupBlock()
+        {
+            if (!LogSvc.IsDebug) return;
+            string Safe(Func<string> f) { try { return f(); } catch (Exception ex) { return "? (" + ex.Message + ")"; } }
+            var cfg = ConfigSvc.Config;
+            bool elevated = Safe(() => new System.Security.Principal.WindowsPrincipal(System.Security.Principal.WindowsIdentity.GetCurrent())
+                .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator).ToString()) == "True";
+            var lines = new (string Label, string Value)[]
+            {
+                ("Version",      Safe(() => $"{UpdateChecker.VersionWithCodename} (build {UpdateChecker.BuildStamp})")),
+                ("Started from", Environment.ProcessPath ?? AppContext.BaseDirectory),
+                ("OS",           Safe(() => $"{System.Runtime.InteropServices.RuntimeInformation.OSDescription} ({System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}), Windows {Environment.OSVersion.Version}")),
+                (".NET",         Safe(() => $"{System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}, process {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}")),
+                ("User",         $"{Environment.UserDomainName}\\{Environment.UserName}, {(elevated ? "elevated" : "not elevated")}"),
+                ("Run mode",     AppRunMode.ToString()),
+                ("Back-end",     Backend.IsService ? "MasselGUARD service" : "direct (in-process)"),
+                ("Service",      Safe(() => Services.ServiceInstaller.Status()?.ToString() ?? "not installed")),
+                ("Language",     $"{cfg.Language} (culture {Lang.Culture.Name})"),
+                ("Theme",        cfg.ActiveTheme),
+                ("Features",     $"tunnels {(cfg.EnableTunnels ? "on" : "off")}, DNS {(cfg.EnableDns ? "on" : "off")}, automation {(cfg.ManualMode ? "off (manual mode)" : "on")}, headless {(cfg.HeadlessAutomation ? "on" : "off")}"),
+                ("Counts",       $"{cfg.Tunnels.Count} tunnel(s), {cfg.Rules.Count} rule(s), {cfg.DnsProfiles.Count} DNS profile(s)"),
+                ("Config",       Safe(() => System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MasselGUARD", "config.json"))),
+            };
+            foreach (var (label, value) in lines) LogSvc.Debug($"Startup: {label,-12} {value}");
+        }
+
         // ── List-row heights ───────────────────────────────────────────────────
         // When both the top (WireGuard | DNS) and bottom (Automation | Activity log) regions are shown,
         // each row is sized by its LEFT list - the tunnels and the automation rules - to fit its entries
@@ -3052,6 +3215,9 @@ namespace MasselGUARD
         // don't grow the row; they scroll. A lone region still fills the content area (no cap), so a
         // single panel stretches down to the history panel.
         private const int MinVisibleRows = 4;
+        private const int MinVisibleRowsBottom = 6;   // the Automation list (and the log beside it) start taller than the tunnel list
+        private double _topRowCap = ListRowMaxHeight;
+        private bool   _rowsBothShown;
         private double _bottomRowCap = ListRowMaxHeight;
         private readonly Dictionary<System.Windows.Controls.ListView, double> _rowHeightCache = new();
 
@@ -3068,19 +3234,26 @@ namespace MasselGUARD
                           : tunnels ? FitListRows(TunnelBoxBorder, TunnelsListView)
                           :           FitListRows(DnsPanelBox, DnsProfilesPanelList);
             double botCap = !both ? double.PositiveInfinity
-                          : wifi    ? FitListRows(WifiRulesPanel, WifiRulesListView)
+                          : wifi    ? FitListRows(WifiRulesPanel, WifiRulesListView, MinVisibleRowsBottom)
                           :           ListRowMaxHeight;   // log only: keep the standard cap
             _bottomRowCap = double.IsPositiveInfinity(botCap) ? ListRowMaxHeight : botCap;
+            _topRowCap = double.IsPositiveInfinity(topCap) ? ListRowMaxHeight : topCap;
+            _rowsBothShown = both;
 
+            // With both regions shown the caps are the MINIMUM (everything fits without scrolling) and the rows
+            // are star-weighted by those minimums, so when the window is dragged taller every box grows by the
+            // same ratio instead of leaving empty space. (SyncWindowToContent bounds them while it measures.)
             if (TunnelsListRow != null)
             {
-                TunnelsListRow.MaxHeight = top ? topCap : double.PositiveInfinity;
+                TunnelsListRow.MaxHeight = double.PositiveInfinity;
                 TunnelsListRow.MinHeight = !top ? 0 : both ? topCap : 165;
+                TunnelsListRow.Height = both ? new GridLength(topCap, GridUnitType.Star) : new GridLength(5, GridUnitType.Star);
             }
             if (WifiRulesPanelRow != null)
             {
-                WifiRulesPanelRow.MaxHeight = bottom ? botCap : double.PositiveInfinity;
+                WifiRulesPanelRow.MaxHeight = double.PositiveInfinity;
                 WifiRulesPanelRow.MinHeight = !bottom ? 0 : both ? botCap : (wifi ? 152 : 90);
+                WifiRulesPanelRow.Height = both ? new GridLength(botCap, GridUnitType.Star) : new GridLength(2, GridUnitType.Star);
             }
         }
 
@@ -3088,7 +3261,7 @@ namespace MasselGUARD
         /// without scrolling - at least MinVisibleRows rows, at most ListRowMaxHeight. Chrome (column
         /// header, borders, margins) = card height minus the list's own height; the row height is measured
         /// from a realized row (remembered for when the list is empty).</summary>
-        private double FitListRows(FrameworkElement? box, System.Windows.Controls.ListView? lv)
+        private double FitListRows(FrameworkElement? box, System.Windows.Controls.ListView? lv, int minRows = MinVisibleRows)
         {
             if (box == null || lv == null || box.ActualHeight <= 0 || lv.ActualHeight <= 0) return ListRowMaxHeight;
             double chrome = box.ActualHeight - lv.ActualHeight + box.Margin.Top + box.Margin.Bottom;
@@ -3098,7 +3271,7 @@ namespace MasselGUARD
                 _rowHeightCache[lv] = row.ActualHeight;
             if (!_rowHeightCache.TryGetValue(lv, out var rowH)) return ListRowMaxHeight;   // not measured yet
 
-            int rows = Math.Max(MinVisibleRows, lv.Items.Count);
+            int rows = Math.Max(minRows, lv.Items.Count);
             return Math.Min(ListRowMaxHeight, Math.Ceiling(chrome + rows * rowH + 4));   // +4: list border slack
         }
 
@@ -3150,9 +3323,17 @@ namespace MasselGUARD
             double savedLogMax = LogContent?.MaxHeight ?? double.PositiveInfinity;
             if (LogContent != null) LogContent.MaxHeight = logProbeCap;
 
+            // The rows may grow (see ApplyRowCaps); for the probe they are bounded to their fitted height.
+            if (_rowsBothShown && TunnelsListRow != null && WifiRulesPanelRow != null)
+            {
+                TunnelsListRow.MaxHeight = _topRowCap;
+                WifiRulesPanelRow.MaxHeight = _bottomRowCap;
+            }
             double w = ActualWidth > 0 ? ActualWidth : Width;
             RootContentGrid.Measure(new Size(w, double.PositiveInfinity));
             double natural = RootContentGrid.DesiredSize.Height + 2;   // + OuterBorder top/bottom (1px each)
+            if (TunnelsListRow != null) TunnelsListRow.MaxHeight = double.PositiveInfinity;
+            if (WifiRulesPanelRow != null) WifiRulesPanelRow.MaxHeight = double.PositiveInfinity;
             RootContentGrid.InvalidateMeasure();                       // drop the probe; real pass re-measures
 
             if (LogContent != null) LogContent.MaxHeight = savedLogMax;  // restore for the real layout
@@ -3200,7 +3381,7 @@ namespace MasselGUARD
 
         private void DnsPanelAdd_Click(object sender, RoutedEventArgs e)
         {
-            var created = Views.DnsProfileEditor.Show(this, null);
+            var created = Views.DnsProfileEditor.Show(this, null, ConfigSvc.Config);
             if (created == null) return;
             ConfigSvc.Config.DnsProfiles.Add(created);
             ConfigSvc.Save();
@@ -3212,7 +3393,7 @@ namespace MasselGUARD
         {
             var sel = SelectedDnsPanelProfile();
             if (sel == null) return;
-            var edited = Views.DnsProfileEditor.Show(this, sel);
+            var edited = Views.DnsProfileEditor.Show(this, sel, ConfigSvc.Config);
             if (edited == null) return;
             int i = ConfigSvc.Config.DnsProfiles.FindIndex(p => p.Id == sel.Id);
             if (i >= 0) ConfigSvc.Config.DnsProfiles[i] = edited;
@@ -3241,14 +3422,11 @@ namespace MasselGUARD
 
         private void DnsPanelPresets_Click(object sender, RoutedEventArgs e)
         {
-            var existing = ConfigSvc.Config.DnsProfiles.Select(p => p.Name)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            int added = 0;
-            foreach (var p in Models.DnsProfile.BuiltInPresets())
-                if (existing.Add(p.Name)) { ConfigSvc.Config.DnsProfiles.Add(p); added++; }
-            if (added == 0) return;
+            var (added, removed) = Views.DnsServerPickerWindow.PickAndAdd(this, ConfigSvc.Config);
             ConfigSvc.Save();
-            LogSvc.Ok($"DNS presets added: {added}");
+            if (added + removed == 0) return;
+            LogSvc.Ok($"DNS servers from the list: {added} added, {removed} removed");
+            if (removed > 0) RefreshWifiRulesPanel();   // rule DNS labels may have changed
             RebuildDnsPanel();
         }
 
@@ -3526,6 +3704,9 @@ namespace MasselGUARD
             LogSvc.Write(r.Met ? LogLevel.Ok : LogLevel.Warn,
                 (r.Met ? "Requirement met: " : "Requirement not met: ") + r.Summary, isContinuation: true);
             LogSvc.Ok($"Test: {rule.RuleName}");
+
+            // the log may be hidden: show the result in a window as well
+            new Views.RuleTestResultWindow(this, rule.RuleName, r).ShowDialog();
         }
 
         // ── Defaults popup ────────────────────────────────────────────────────
@@ -3822,7 +4003,10 @@ namespace MasselGUARD
                 ? ConfigSvc.Config.DnsProfiles.FirstOrDefault(p => p.Id == ConfigSvc.Config.BypassDnsProfileId) : null;
             bool showBypass = bypassProfile != null;
             DnsBypassFooterLabel.Text       = showBypass ? "⏱ " + Lang.T("DnsBypassFooter", bypassProfile!.Name) : "";
-            DnsBypassFooterLabel.ToolTip    = showBypass ? Lang.T(ConfigSvc.Config.DnsTempOverrideEnabled ? "DnsBypassFooterTip" : "DnsBypassFooterTipOff") : null;
+            DnsBypassFooterLabel.ToolTip    = showBypass
+                ? Lang.T(ConfigSvc.Config.DnsTempOverrideEnabled ? "DnsBypassFooterTip" : "DnsBypassFooterTipOff")
+                  + (ConfigSvc.Config.DnsTempOverrideEnabled && !_bypassShortcut.IsEmpty ? "\n" + Lang.T("DnsBypassShortcutHint", _bypassShortcut.ToString()) : "")
+                : null;
             DnsBypassFooterLabel.Visibility = showBypass ? Visibility.Visible : Visibility.Collapsed;
             DnsBypassFooterSep.Visibility   = showBypass && (showDef || showOpen) ? Visibility.Visible : Visibility.Collapsed;
             DnsFooterSep.Visibility   = showDns && (showBypass || showDef || showOpen) ? Visibility.Visible : Visibility.Collapsed;
@@ -4409,6 +4593,7 @@ namespace MasselGUARD
 
                 if (shouldUpdate)
                 {
+                    if (UpdateChecker.NeedsElevation() && !await Dispatcher.InvokeAsync(EnsureElevated)) return;
                     var progress = new System.Progress<string>(
                         msg => LogSvc.Info($"[Update] {msg}"));
                     await UpdateChecker.UpdateAsync(
@@ -4455,6 +4640,7 @@ namespace MasselGUARD
                     return;
                 }
 
+                if (UpdateChecker.NeedsElevation() && !await Dispatcher.InvokeAsync(EnsureElevated)) return;
                 var progress = new System.Progress<string>(msg => LogSvc.Info($"[ARM64] {msg}"));
                 await UpdateChecker.UpdateAsync(
                     release, progress, ConfigSvc.Config, ConfigSvc.Save,
@@ -4592,6 +4778,7 @@ namespace MasselGUARD
 
         public void RunInstallPublic()
         {
+            if (!EnsureElevated()) return;   // Program Files, HKLM and the scheduled task need admin rights
             var mode = AppRunMode;
 
             if (mode == AppRunModeKind.Managed)
@@ -4621,10 +4808,116 @@ namespace MasselGUARD
             DoInstall(installDir);
         }
 
-        private void DoInstall(string installDir)
+        // ── MasselGUARD service (docs/ServiceBackend-Design.md) ──────────────────
+
+        /// <summary>Set by the "Install service" button when MasselGUARD is not installed yet: the
+        /// normal install then sets the service up too, without asking a second time.</summary>
+        private bool _installServiceAfterInstall;
+
+        public bool ServiceInstalled => Services.ServiceInstaller.IsInstalled();
+
+        /// <summary>One line for Settings: whether the service exists and whether this app uses it.</summary>
+        public string ServiceStatusText()
+        {
+            var st = Services.ServiceInstaller.Status();
+            if (st == null) return Lang.T("ServiceStatusNotInstalled");
+            if (st != System.ServiceProcess.ServiceControllerStatus.Running) return Lang.T("ServiceStatusStopped");
+            return Backend.IsService ? Lang.T("ServiceStatusActive") : Lang.T("ServiceStatusRestart");
+        }
+
+        /// <summary>Install the service when absent, remove it when present (Settings and wizard button).</summary>
+        public void ToggleServicePublic()
+        {
+            if (ServiceInstalled) RemoveServiceFromUi(); else InstallServiceFromUi();
+        }
+
+        private void InstallServiceFromUi()
+        {
+            // The service must point at a local, stable copy: installing MasselGUARD comes first.
+            if (AppRunMode != AppRunModeKind.Managed)
+            {
+                if (!ShowThemedYesNo(Lang.T("ServiceNeedsInstall"), Lang.T("ServiceTitle"))) return;
+                _installServiceAfterInstall = true;
+                RunInstallPublic();                 // relaunches the installed copy on success
+                _installServiceAfterInstall = false;
+                return;
+            }
+
+            var exe = System.IO.Path.Combine(GetInstalledPath()!, "MasselGUARD.exe");
+            var (ok, msg) = Services.ServiceInstaller.InstallAuto(exe);
+            if (!ok)
+            {
+                LogSvc.Warn($"Service install failed: {msg}");
+                ShowThemedInfo(Lang.T("ServiceFailed", msg), Lang.T("ServiceTitle"));
+                return;
+            }
+            LogSvc.Ok("MasselGUARD service installed.");
+            // Start with Windows moves from the elevated task to the per-user entry.
+            if (ConfigSvc.Config.StartWithWindows) ApplyAutostart(true, exe);
+            if (ShowThemedYesNo(Lang.T("ServiceInstallDone"), Lang.T("ServiceTitle"))) RestartApp();
+        }
+
+        private void RemoveServiceFromUi()
+        {
+            if (!ShowThemedYesNo(Lang.T("ServiceRemoveConfirm"), Lang.T("ServiceTitle"))) return;
+            var exe = System.IO.Path.Combine(
+                System.IO.Path.GetDirectoryName(Environment.ProcessPath ?? AppContext.BaseDirectory) ?? "", "MasselGUARD.exe");
+            var (ok, msg) = Services.ServiceInstaller.UninstallAuto(exe);
+            if (!ok)
+            {
+                LogSvc.Warn($"Service removal failed: {msg}");
+                ShowThemedInfo(Lang.T("ServiceFailed", msg), Lang.T("ServiceTitle"));
+                return;
+            }
+            LogSvc.Ok("MasselGUARD service removed.");
+            // Back to the elevated task when this process may create it (else the Run entry stays and UAC asks at logon).
+            if (ConfigSvc.Config.StartWithWindows && Services.ServiceInstaller.IsElevated()) ApplyAutostart(true, exe);
+            if (Backend.IsService && ShowThemedYesNo(Lang.T("ServiceRemoveDone"), Lang.T("ServiceTitle"))) RestartApp();
+        }
+
+        /// <summary>For actions that need administrator rights (install, autostart task, HKLM policy, orphan removal,
+        /// updating an installed copy). Returns true when this process is elevated. Otherwise offers to restart
+        /// elevated (UAC) and returns false: the user repeats the action in the elevated instance.</summary>
+        public bool EnsureElevated()
+        {
+            if (Services.ServiceInstaller.IsElevated()) return true;
+            if (!ShowThemedYesNo(Lang.T("ElevationNeededMsg"), Lang.T("ElevationNeededTitle"))) return false;
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                    Environment.ProcessPath ?? System.IO.Path.Combine(AppContext.BaseDirectory, "MasselGUARD.exe"))
+                { Verb = "runas", UseShellExecute = true });
+                Application.Current.Dispatcher.BeginInvoke(() => ((App)Application.Current).ShutdownApp());
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                LogSvc.Warn("Administrator approval was cancelled.");
+                ShowThemedInfo(Lang.T("ElevationCancelled"), Lang.T("ElevationNeededTitle"));
+            }
+            catch (Exception ex) { LogSvc.Warn($"Elevated restart failed: {ex.Message}"); }
+            return false;
+        }
+
+        private void RestartApp()
         {
             try
             {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(
+                    Environment.ProcessPath ?? System.IO.Path.Combine(AppContext.BaseDirectory, "MasselGUARD.exe"))
+                { UseShellExecute = true });
+                Application.Current.Dispatcher.BeginInvoke(() => ((App)Application.Current).ShutdownApp());
+            }
+            catch (Exception ex) { LogSvc.Warn($"Restart failed: {ex.Message}"); }
+        }
+
+        private void DoInstall(string installDir)
+        {
+            // An installed service keeps MasselGUARD.exe locked: stop it before the files are replaced,
+            // and register it again afterwards (it then points at the new copy).
+            bool serviceWasInstalled = Services.ServiceInstaller.IsInstalled();
+            try
+            {
+                if (serviceWasInstalled && Services.ServiceInstaller.IsElevated()) Services.ServiceInstaller.Stop();
                 LogSvc.Info($"Installing to: {installDir}");
                 var currentExe = Environment.ProcessPath ?? AppContext.BaseDirectory;
                 var sourceDir  = System.IO.Path.GetDirectoryName(currentExe)!;
@@ -4641,7 +4934,11 @@ namespace MasselGUARD
                 {
                     var src = System.IO.Path.Combine(sourceDir, name);
                     if (System.IO.File.Exists(src))
-                        System.IO.File.Copy(src, System.IO.Path.Combine(installDir, name), overwrite: true);
+                    {
+                        // A running service / tunnel / window holds the installed file: move it aside if needed.
+                        if (Services.InstallFiles.CopyOverwriting(src, System.IO.Path.Combine(installDir, name)))
+                            LogSvc.Info($"Install: {name} was in use - the old copy was renamed aside and is removed later.");
+                    }
                 }
                 var langSrc = System.IO.Path.Combine(sourceDir, "lang");
                 if (System.IO.Directory.Exists(langSrc))
@@ -4681,22 +4978,35 @@ namespace MasselGUARD
 
                 LogSvc.Ok(Lang.T("InstallDone"));
 
+                // 3b. Service: asked for explicitly, already present (re-point it), or offered now.
+                bool wantService = _installServiceAfterInstall || serviceWasInstalled;
+                if (!wantService)
+                    wantService = ShowThemedYesNo(Lang.T("InstallServicePrompt"), Lang.T("InstallTitle"));
+                if (wantService)
+                {
+                    var (sok, smsg) = Services.ServiceInstaller.InstallAuto(installedExe);
+                    if (sok) LogSvc.Ok("MasselGUARD service installed.");
+                    else
+                    {
+                        LogSvc.Warn($"Service install failed: {smsg}");
+                        ShowThemedInfo(Lang.T("ServiceFailed", smsg), Lang.T("ServiceTitle"));
+                    }
+                }
+
                 // 4. Auto-start - only ask if not already configured
                 if (!GetStartWithWindows())
                 {
                     if (ShowThemedYesNo(Lang.T("InstallAutostart"), Lang.T("InstallAutostartTitle")))
                     {
-                        RunPS($@"$a=New-ScheduledTaskAction -Execute '{installedExe}';$t=New-ScheduledTaskTrigger -AtLogOn;$p=New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest;Register-ScheduledTask -TaskName 'MasselGUARD' -Action $a -Trigger $t -Principal $p -Force");
+                        ApplyAutostart(true, installedExe);
                         ConfigSvc.Config.StartWithWindows = true;
                         ConfigSvc.Save();
-                        LogSvc.Ok(Lang.T("InstallScheduledOk"));
                     }
                 }
                 else
                 {
                     // Already configured - re-register with new exe path silently
-                    RunPS($@"$a=New-ScheduledTaskAction -Execute '{installedExe}';$t=New-ScheduledTaskTrigger -AtLogOn;$p=New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest;Register-ScheduledTask -TaskName 'MasselGUARD' -Action $a -Trigger $t -Principal $p -Force");
-                    LogSvc.Ok(Lang.T("InstallScheduledOk"));
+                    ApplyAutostart(true, installedExe);
                 }
 
                 // 5. Relaunch from installed location
@@ -4709,6 +5019,7 @@ namespace MasselGUARD
             }
             catch (Exception ex)
             {
+                if (serviceWasInstalled) { try { Services.ServiceInstaller.Start(); } catch { } }
                 LogSvc.Warn($"Install failed: {ex.Message}");
                 MessageBox.Show(Lang.T("InstallFailed", ex.Message), Lang.T("InstallTitle"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
@@ -4731,6 +5042,13 @@ namespace MasselGUARD
             try
             {
                 LogSvc.Info("Uninstalling...");
+                Services.AutostartRunKey.Disable();
+                // The service holds MasselGUARD.exe open; remove it first (asks for approval when needed).
+                if (Services.ServiceInstaller.IsInstalled())
+                {
+                    var (sok, smsg) = Services.ServiceInstaller.UninstallAuto(System.IO.Path.Combine(installDir, "MasselGUARD.exe"));
+                    if (!sok) LogSvc.Warn($"Service removal failed: {smsg}");
+                }
                 RunPS("Unregister-ScheduledTask -TaskName 'MasselGUARD' -Confirm:$false -ErrorAction SilentlyContinue");
                 try { Services.ShellMenuService.Unregister(); } catch { }   // Explorer right-click entries
                 var startMenuDir = System.IO.Path.Combine(
@@ -4918,7 +5236,9 @@ namespace MasselGUARD
             }
         }
 
-        public bool GetStartWithWindows()
+        public bool GetStartWithWindows() => Services.AutostartRunKey.IsEnabled() || ScheduledTaskExists();
+
+        private static bool ScheduledTaskExists()
         {
             // Check if our scheduled task exists
             try
@@ -4934,18 +5254,45 @@ namespace MasselGUARD
 
         public void SetStartWithWindows(bool enable)
         {
-            if (enable)
+            // With the service the per-user Run entry is enough (no admin rights). Otherwise the elevated
+            // scheduled task is needed, and so is removing a task that is still there.
+            bool needAdmin = enable ? (!ServiceInstalled || ScheduledTaskExists()) : ScheduledTaskExists();
+            if (needAdmin && !EnsureElevated()) return;
+            var exe = Environment.ProcessPath ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "";
+            ApplyAutostart(enable, exe);
+            if (!enable)
+                try { Services.ShellMenuService.Unregister(); } catch { }   // Explorer right-click entries
+            ConfigSvc.Config.StartWithWindows = enable;
+            ConfigSvc.Save();
+        }
+
+        /// <summary>Registers or removes "start with Windows" for <paramref name="exe"/>. With the MasselGUARD
+        /// service installed it is a per-user Run entry (the app starts unelevated, the service does the
+        /// privileged work); without it, the elevated scheduled task (RunLevel Highest, needs admin).
+        /// The other mechanism is removed so the app is not started twice at logon.</summary>
+        private void ApplyAutostart(bool enable, string exe)
+        {
+            const string removeTask = "Unregister-ScheduledTask -TaskName 'MasselGUARD' -Confirm:$false -ErrorAction SilentlyContinue";
+            bool elevated = Services.ServiceInstaller.IsElevated();
+            if (!enable)
             {
-                var exe = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName ?? "";
-                RunPS($@"$a=New-ScheduledTaskAction -Execute '{exe}';$t=New-ScheduledTaskTrigger -AtLogOn;$p=New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest;Register-ScheduledTask -TaskName 'MasselGUARD' -Action $a -Trigger $t -Principal $p -Force");
+                Services.AutostartRunKey.Disable();
+                if (elevated && ScheduledTaskExists()) RunPS(removeTask);
+                return;
+            }
+            if (ServiceInstalled)
+            {
+                Services.AutostartRunKey.Enable(exe);
+                if (elevated && ScheduledTaskExists()) RunPS(removeTask);
+                else if (ScheduledTaskExists()) LogSvc.Warn("The old elevated startup task is still registered; it needs administrator rights to remove.");
+                LogSvc.Ok("Start with Windows: per-user startup entry registered.");
             }
             else
             {
-                RunPS("Unregister-ScheduledTask -TaskName 'MasselGUARD' -Confirm:$false -ErrorAction SilentlyContinue");
-                try { Services.ShellMenuService.Unregister(); } catch { }   // Explorer right-click entries
+                RunPS($@"$a=New-ScheduledTaskAction -Execute '{exe}';$t=New-ScheduledTaskTrigger -AtLogOn;$p=New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest;Register-ScheduledTask -TaskName 'MasselGUARD' -Action $a -Trigger $t -Principal $p -Force");
+                Services.AutostartRunKey.Disable();
+                LogSvc.Ok(Lang.T("InstallScheduledOk"));
             }
-            ConfigSvc.Config.StartWithWindows = enable;
-            ConfigSvc.Save();
         }
 
         private static bool RunPS(string script)
@@ -6923,17 +7270,17 @@ namespace MasselGUARD
         private void DnsColGrid_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             double total = e.NewSize.Width;
-            // Name (0) is the sole flexible star column; Type (1)/Rules (3)/Enable (4) fixed.
+            // Name (0) is the sole flexible star column; Type (1)/Rules (3)/Hits (4)/Enable (5) fixed.
             // The Server column (2) is removed - pinned to zero width.
             DnsColDef0.MinWidth = 60; DnsColDef1.MinWidth = 50;
             DnsColDef2.MinWidth = 0; DnsColDef2.MaxWidth = 0; DnsColDef2.Width = new GridLength(0);
-            DnsColDef3.MinWidth = _rulesColShown ? 40 : 0; DnsColDef4.MinWidth = 60;
+            DnsColDef3.MinWidth = _rulesColShown ? 40 : 0; DnsColDef4.MinWidth = 36; DnsColDef5.MinWidth = 60;
             if (!_rulesColShown) DnsColDef3.MaxWidth = 0;
-            double reserved = 50 + (_rulesColShown ? 40 : 0) + 60;   // Type + Rules + Enable minimums
+            double reserved = 50 + (_rulesColShown ? 40 : 0) + 36 + 60;   // Type + Rules + Hits + Enable minimums
             DnsColDef0.MaxWidth = Math.Max(60, total - reserved);
             // A Name width saved from a wider window (or theme layout) must not push Type / Action out of a
             // narrower panel: when the fixed columns no longer fit beside it, Name goes back to flexible.
-            double fixedW = DnsColDef1.Width.Value + (_rulesColShown ? DnsColDef3.Width.Value : 0) + DnsColDef4.MinWidth;
+            double fixedW = DnsColDef1.Width.Value + (_rulesColShown ? DnsColDef3.Width.Value : 0) + DnsColDef4.Width.Value + DnsColDef5.MinWidth;
             if (!DnsColDef0.Width.IsStar && DnsColDef0.Width.Value + fixedW > total)
                 DnsColDef0.Width = new GridLength(2.4, GridUnitType.Star);
             if (DnsColDef0.ActualWidth > 0 && DnsColDef0.ActualWidth < 60)
@@ -6964,7 +7311,7 @@ namespace MasselGUARD
             DnsColDef0.Width = new GridLength(2.4, GridUnitType.Star);   // Name (sole star)
             // DnsColDef1 (Type) stays fixed 70px
             DnsColDef2.Width = new GridLength(0);                        // Server removed
-            // DnsColDef3 (Rules) fixed 52px, DnsColDef4 (Enable) fixed 76px
+            // DnsColDef3 (Rules) fixed 52px, DnsColDef4 (Hits) fixed 44px, DnsColDef5 (Enable) fixed 76px
         }
 
         // Fires continuously during layout; only act when widths have settled.
@@ -7004,16 +7351,17 @@ namespace MasselGUARD
         {
             if (!_colInitDone) return;
             double w0 = DnsColDef0.ActualWidth, w1 = DnsColDef1.ActualWidth, w2 = DnsColDef2.ActualWidth,
-                   w3 = DnsColDef3.ActualWidth, w4 = DnsColDef4.ActualWidth;
+                   w3 = DnsColDef3.ActualWidth, w4 = DnsColDef4.ActualWidth, w5 = DnsColDef5.ActualWidth;
             if (w0 < 1) return;
             if (Math.Abs(w0 - _vm.DnsCol0W) < 0.5 && Math.Abs(w1 - _vm.DnsCol1W) < 0.5 &&
                 Math.Abs(w2 - _vm.DnsCol2W) < 0.5 && Math.Abs(w3 - _vm.DnsCol3W) < 0.5 &&
-                Math.Abs(w4 - _vm.DnsCol4W) < 0.5) return;
+                Math.Abs(w4 - _vm.DnsCol4W) < 0.5 && Math.Abs(w5 - _vm.DnsCol5W) < 0.5) return;
             _vm.DnsCol0W = Math.Max(DnsColDef0.MinWidth, w0);
             _vm.DnsCol1W = Math.Max(DnsColDef1.MinWidth, w1);
             _vm.DnsCol2W = Math.Max(DnsColDef2.MinWidth, w2);
             _vm.DnsCol3W = Math.Max(DnsColDef3.MinWidth, w3);
             _vm.DnsCol4W = Math.Max(DnsColDef4.MinWidth, w4);
+            _vm.DnsCol5W = Math.Max(DnsColDef5.MinWidth, w5);
         }
 
         // Handle between Status and Data usage: moves where the bars start, in the header and every row.
@@ -7040,6 +7388,9 @@ namespace MasselGUARD
 
         private void DnsRulesThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
             => TradeWidth(DnsColDef3, DnsColDef4, e.HorizontalChange);
+
+        private void DnsHitsThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+            => TradeWidth(DnsColDef4, DnsColDef5, e.HorizontalChange);
 
         /// <summary>Moves the boundary between two neighbouring columns by <paramref name="dx"/>: the left one
         /// grows by what the right one gives up, within both minimums (the total never changes).</summary>
@@ -7093,7 +7444,7 @@ namespace MasselGUARD
         private ColumnDefinition[] ColDefs(string list) => list switch
         {
             "tun" => new[] { TunColDef0, TunColDef1, TunColDef2, TunColDef3 },
-            "dns" => new[] { DnsColDef0, DnsColDef1, DnsColDef2, DnsColDef3, DnsColDef4 },
+            "dns" => new[] { DnsColDef0, DnsColDef1, DnsColDef2, DnsColDef3, DnsColDef4, DnsColDef5 },
             _     => new[] { WifColDef0, WifColDef1, WifColDef2, WifColDef3, WifColDef4, WifColDef5 },
         };
 
@@ -7101,7 +7452,7 @@ namespace MasselGUARD
         private bool[] ColHidden(string list) => list switch
         {
             "tun" => new[] { false, false, !_rulesColShown, false },
-            "dns" => new[] { false, false, true, !_rulesColShown, false },
+            "dns" => new[] { false, false, true, !_rulesColShown, false, false },
             _     => new[] { false, false, false, false, !_wifTunnelCol, !_wifDnsCol },
         };
 

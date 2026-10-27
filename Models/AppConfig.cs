@@ -181,6 +181,12 @@ namespace MasselGUARD.Models
         /// <summary>Git/HTTPS repo URL the "Download shared themes" button fetches from
         /// (a GitHub repo URL or a direct .zip archive URL). Defaults to the official repo.</summary>
         public string SharedThemesRepoUrl { get; set; } = DefaultSharedThemesRepoUrl;
+        /// <summary>The official DNS server list repository (Settings > DNS > Browse DNS servers reads its latest release).</summary>
+        public const string DefaultDnsListRepoUrl = "https://github.com/masselink/MasselGUARD-dnslist";
+        /// <summary>GitHub repository the DNS server picker downloads the list from (https://github.com/owner/repo).</summary>
+        public string DnsListRepoUrl { get; set; } = DefaultDnsListRepoUrl;
+        /// <summary>The host name the "Test speed" button of the DNS server picker resolves (plain host name; the user can change it there).</summary>
+        public string DnsTestName { get; set; } = "masselink.net";
         /// <summary>When true (default) clicking ✕ shows a confirm dialog before closing.</summary>
         public bool   ConfirmOnClose   { get; set; } = true;
 
@@ -207,6 +213,22 @@ namespace MasselGUARD.Models
         /// <summary>Show a "DNS bypass" cascade in Windows Explorer's right-click menu (desktop and folders).
         /// Per-user registry entries that run the CLI; off by default.</summary>
         public bool ShellBypassMenuEnabled { get; set; } = false;
+        /// <summary>The quick-bypass shortcut as text (see <see cref="Shortcut"/>): modifiers plus one key, e.g.
+        /// "Ctrl+Alt+D". Empty = no shortcut. An unusable value falls back to the default (with a log line).</summary>
+        public string BypassShortcut { get; set; } = Shortcut.DefaultText;
+
+        public const int BypassSecondsMin = 5, BypassSecondsMax = 3600, BypassSecondsDefault = 60;
+        private int _bypassDefaultSeconds = BypassSecondsDefault;
+        /// <summary>How long the quick bypass stays on when no length is given (shortcut, tray and footer click,
+        /// Shift+Enter, the right-click menu and CLI without a number): 5 to 3600 seconds, default 60.</summary>
+        public int BypassDefaultSeconds
+        {
+            get => _bypassDefaultSeconds;
+            set => _bypassDefaultSeconds = Math.Clamp(value, BypassSecondsMin, BypassSecondsMax);
+        }
+        /// <summary>Register the bypass shortcut system-wide (works in every app, also while the window is hidden
+        /// in the tray). Off = it only works while the MasselGUARD window has focus.</summary>
+        public bool BypassShortcutGlobal { get; set; } = false;
 
         // ── Possible-DNS-leak alerts ──────────────────────────────────────────
         // Three independent delivery channels for "this active tunnel may be leaking
@@ -243,7 +265,7 @@ namespace MasselGUARD.Models
         public string OpenWifiDnsProfileId { get; set; } = "";
 
         /// <summary>The "bypass profile": the one resolver you reach for to get past a DNS block (for example
-        /// Google DNS to get around the ad-block). Used by the quick bypass action (tray DNS menu, Ctrl+Shift+B,
+        /// Google DNS to get around the ad-block). Used by the quick bypass action (tray DNS menu, Ctrl+Alt+D,
         /// Shift+Enter with nothing selected) for a timed override. "" = none marked.</summary>
         public string BypassDnsProfileId { get; set; } = "";
 
@@ -263,6 +285,11 @@ namespace MasselGUARD.Models
         /// "the network") and only rules that match a single Wi-Fi name (SSID) are used. Other network rules stay in
         /// the list but are not used; the rule dialog offers only the SSID. Off by default.</summary>
         public bool SimpleWifiMode { get; set; } = false;
+
+        /// <summary>With the MasselGUARD service installed: keep applying the network rules (tunnel + DNS) from the
+        /// service while no window is open, e.g. before sign-in. The window pushes its config to the service and
+        /// the service hands control back when a window renews its lease. Off by default.</summary>
+        public bool HeadlessAutomation { get; set; } = false;
 
         /// <summary>Pop-up when the primary network changes: "off" (default) | "nomatch" (only when no automation
         /// applied to the new network) | "always". Shows the network, whether it is open, the DNS in use and the
