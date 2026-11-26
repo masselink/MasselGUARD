@@ -87,8 +87,8 @@ namespace MasselGUARD.Services
             try
             {
                 using var regKey = Microsoft.Win32.Registry.LocalMachine
-                    .OpenSubKey($@"SYSTEM\CurrentControlSet\Services\WireGuardTunnel${tunnelName}", writable: true);
-                regKey?.SetValue("Description", $"MasselGUARD Tunnel: {tunnelName}");
+                    .OpenSubKey($@"SYSTEM\CurrentControlSet\Services\WireGuardTunnel${TunnelName.Wire(tunnelName)}", writable: true);
+                regKey?.SetValue("Description", TunnelName.ServiceStamp(tunnelName));
                 regKey?.SetValue("DisplayName", $"WireGuard Tunnel: MasselGUARD - {tunnelName}");
             }
             catch { /* non-critical */ }

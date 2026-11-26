@@ -152,6 +152,8 @@
   "TunnelDialogName": "名前",
   "BtnGenerateKey": "鍵を生成",
   "BtnSaveTunnel": "保存",
+  "TunnelNameInvalid": "トンネル名に使えるのは、英字 A-Z、数字、スペース、_ = + . - のみです(32 文字以内)。\n\n候補の名前: {0}",
+  "TunnelNameLockedTip": "名前を変更するには、トンネルを切断してください。",
   "TunnelNameRequired": "トンネル名を入力してください。",
   "TunnelPrivateKeyRequired": "秘密鍵を入力してください。",
   "TunnelValidationTitle": "入力エラー",

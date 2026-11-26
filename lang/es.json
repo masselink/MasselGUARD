@@ -152,6 +152,8 @@
   "TunnelDialogName": "Nombre del túnel",
   "BtnGenerateKey": "Generar",
   "BtnSaveTunnel": "Guardar",
+  "TunnelNameInvalid": "Los nombres de túnel solo pueden usar las letras A-Z, dígitos, espacios y _ = + . -, hasta 32 caracteres.\n\nNombre sugerido: {0}",
+  "TunnelNameLockedTip": "Desconecte el túnel para cambiarle el nombre.",
   "TunnelNameRequired": "Introduzca un nombre de túnel.",
   "TunnelPrivateKeyRequired": "La clave privada es obligatoria.",
   "TunnelValidationTitle": "Validación",

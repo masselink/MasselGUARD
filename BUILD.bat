@@ -4,9 +4,9 @@ setlocal enabledelayedexpansion
 
 rem ── Build number: YYMMDDHHMM ────────────────────────────────────────────────
 for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyMMddHHmm"') do set BUILD_NUM=%%a
-set VERSION=5
+set VERSION=6
 rem Update CODENAME here AND in UpdateChecker.cs when bumping VERSION.
-set CODENAME=Background Badger
+set CODENAME=Mending Meerkat
 
 rem ── Opt out of .NET CLI telemetry ────────────────────────────────────────────
 set DOTNET_CLI_TELEMETRY_OPTOUT=1
@@ -286,6 +286,11 @@ if exist "%~dp0LICENSE" (
 if exist "%~dp0THIRD-PARTY-NOTICES.md" (
     copy /y "%~dp0THIRD-PARTY-NOTICES.md" "%OUT%\THIRD-PARTY-NOTICES.md" >nul
     echo   OK  %ARCH%\THIRD-PARTY-NOTICES.md
+)
+rem Apache-2.0 requires recipients to get a copy of the license (ZXing.Net).
+if exist "%~dp0LICENSE-Apache-2.0.txt" (
+    copy /y "%~dp0LICENSE-Apache-2.0.txt" "%OUT%\LICENSE-Apache-2.0.txt" >nul
+    echo   OK  %ARCH%\LICENSE-Apache-2.0.txt
 )
 
 rem ── Copy the matching-arch WireGuard DLLs ───────────────────────────────────

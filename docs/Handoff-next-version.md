@@ -2,6 +2,8 @@
 
 Status 2026-10-07. Written so a fresh session can pick up without the history. Read `CLAUDE.md` first (the codebase guide); this file says where things stand, what is left before a release, the standing rules and the traps.
 
+> **Update 2026-11-26:** 5 has been released (tag `5.0`). The code is now at **6 - Mending Meerkat** (see `docs/release-body-6.md`), not released yet. The rest of this file describes the state before the 5 release.
+
 ## 1. Where things stand
 
 - **4.6.0 - Wired Weasel** is released-ready and documented (`docs/WHATSNEW.md`, `docs/release-body-4.6.0.md`). Check whether it is pushed, tagged and published (`git log origin/main..main`) and whether the Scoop bucket was bumped.

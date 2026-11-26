@@ -1201,6 +1201,7 @@ namespace MasselGUARD
                 groupNames: groupNames,
                 isGlobalAlways: isGlobalAlways,
                 autoReconnectMode: arMode) { Owner = this };
+            dlg.OtherTunnelNames = ConfigSvc.Config.Tunnels.Select(t => t.Name).ToList();
             if (dlg.ShowDialog() != true) return;
             var stored = new StoredTunnel
             {
@@ -1324,9 +1325,17 @@ namespace MasselGUARD
                     historyMB: historyMB)
                     { Owner = this };
 
+            if (dlg is Views.TunnelConfigDialog configDlg)
+            {
+                configDlg.OtherTunnelNames = ConfigSvc.Config.Tunnels.Where(t => !ReferenceEquals(t, stored)).Select(t => t.Name).ToList();
+                // The service is found by the tunnel's name: no renaming while it is connected.
+                if (_vm.TunnelList.Any(t => ReferenceEquals(t.StoredTunnel, stored) && (t.IsActive || t.IsConnecting || t.IsDisconnecting)))
+                    configDlg.LockName();
+            }
             if (dlg.ShowDialog() != true) return;
 
             bool newDefault, newOpen;
+            var oldName = stored.Name;
 
             if (dlg is Views.TunnelConfigDialog tcd)
             {
@@ -1390,6 +1399,16 @@ namespace MasselGUARD
                 stored.MonthlyCapUseHistory = tmd.ResultMonthlyCapUseHistory;
             }
             else return;
+
+            // A renamed tunnel keeps everything that pointed at it.
+            if (stored.Name != oldName)
+            {
+                var c = ConfigSvc.Config;
+                if (c.DefaultTunnel        == oldName) c.DefaultTunnel        = stored.Name;
+                if (c.OpenWifiTunnel       == oldName) c.OpenWifiTunnel       = stored.Name;
+                if (c.ConnectOnStartTunnel == oldName) c.ConnectOnStartTunnel = stored.Name;
+                foreach (var rule in c.Rules.Where(r => r.Tunnel == oldName)) rule.Tunnel = stored.Name;
+            }
 
             // Apply default action
             if (newDefault)
@@ -2145,8 +2164,8 @@ namespace MasselGUARD
 
             var stored = new StoredTunnel
             {
-                Name   = System.IO.Path.GetFileNameWithoutExtension(ofd.FileName)
-                              .Replace(".conf", ""),
+                Name   = Models.TunnelName.Sanitize(System.IO.Path.GetFileNameWithoutExtension(ofd.FileName)
+                              .Replace(".conf", "")),
                 Source = "local",
                 Path   = ofd.FileName,
             };
@@ -2643,8 +2662,9 @@ namespace MasselGUARD
                     // A tunnel MasselGUARD is mid-connect on (service created, not yet started), active
                     // or mid-disconnect is not an orphan - otherwise the startup scan races an
                     // auto-connect and flags the brand-new service in its brief Stopped window.
-                    var vm = _vm.TunnelList.FirstOrDefault(t => t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-                    if (vm != null && (vm.IsConnecting || vm.IsActive || vm.IsDisconnecting)) continue;
+                    // The service name has "_" where the tunnel name may have spaces.
+                    if (_vm.TunnelList.Any(t => Models.TunnelName.Clashes(t.Name, name)
+                                             && (t.IsConnecting || t.IsActive || t.IsDisconnecting))) continue;
 
                     result.Add(new OrphanedService(svc.ServiceName, name));
                 }
@@ -3955,7 +3975,7 @@ namespace MasselGUARD
 
                 foreach (var t in _vm.TunnelList.Where(t => t.IsActive))
                 {
-                    var s = Servers(nics.FirstOrDefault(n => n.Name.Equals(t.Name, StringComparison.OrdinalIgnoreCase)));
+                    var s = Servers(nics.FirstOrDefault(n => n.Name.Equals(Models.TunnelName.Wire(t.Name), StringComparison.OrdinalIgnoreCase)));
                     if (s.Count > 0) { result = s; break; }
                 }
                 if (result.Count == 0)
@@ -4930,7 +4950,10 @@ namespace MasselGUARD
                 // folder from before themes moved to %APPDATA%. Existing installs are
                 // left alone - this only changes what a fresh install/update copies.
                 System.IO.Directory.CreateDirectory(installDir);
-                foreach (var name in new[] { "MasselGUARD.exe", "MasselGUARDcli.exe", "tunnel.dll", "wireguard.dll" })
+                // The license files travel with the binaries: those licenses ask for it, and the About
+                // page opens the local copies.
+                foreach (var name in new[] { "MasselGUARD.exe", "MasselGUARDcli.exe", "tunnel.dll", "wireguard.dll",
+                                             "LICENSE.txt", "LICENSE-Apache-2.0.txt", "THIRD-PARTY-NOTICES.md" })
                 {
                     var src = System.IO.Path.Combine(sourceDir, name);
                     if (System.IO.File.Exists(src))

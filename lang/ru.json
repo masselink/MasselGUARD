@@ -152,6 +152,8 @@
   "TunnelDialogName": "Имя туннеля",
   "BtnGenerateKey": "Сгенерировать",
   "BtnSaveTunnel": "Сохранить",
+  "TunnelNameInvalid": "В именах туннелей можно использовать только буквы A-Z, цифры, пробелы и _ = + . -, не более 32 символов.\n\nПредлагаемое имя: {0}",
+  "TunnelNameLockedTip": "Отключите туннель, чтобы переименовать его.",
   "TunnelNameRequired": "Введите имя туннеля.",
   "TunnelPrivateKeyRequired": "Требуется закрытый ключ.",
   "TunnelValidationTitle": "Проверка",

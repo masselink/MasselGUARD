@@ -76,8 +76,8 @@ them when the DLLs are rebuilt (`go version -m tunnel.dll` lists them).
 | Package | Version | Copyright | License |
 |---|---|---|---|
 | [Markdig](https://github.com/xoofx/markdig) | 0.38.0 | Alexandre Mutel | [BSD 2-Clause](#bsd-2-clause-license-markdig) |
-| [ZXing.Net](https://github.com/micjahn/ZXing.Net) | 0.16.9 | Author: Michael Jahn | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) |
-| [ZXing.Net.Bindings.Windows.Compatibility](https://github.com/micjahn/ZXing.Net) | 0.16.9 | Author: Michael Jahn | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0) |
+| [ZXing.Net](https://github.com/micjahn/ZXing.Net) | 0.16.9 | Author: Michael Jahn | [Apache-2.0](LICENSE-Apache-2.0.txt) |
+| [ZXing.Net.Bindings.Windows.Compatibility](https://github.com/micjahn/ZXing.Net) | 0.16.9 | Author: Michael Jahn | [Apache-2.0](LICENSE-Apache-2.0.txt) |
 | System.ServiceProcess.ServiceController | 8.0.0 | © Microsoft Corporation | [MIT](#mit-license) |
 | System.Security.Cryptography.ProtectedData | 8.0.0 | © Microsoft Corporation | [MIT](#mit-license) |
 | System.Diagnostics.EventLog (indirect dependency) | 8.0.0 | © Microsoft Corporation | [MIT](#mit-license) |

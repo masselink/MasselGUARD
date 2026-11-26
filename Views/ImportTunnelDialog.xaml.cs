@@ -88,23 +88,9 @@ namespace MasselGUARD.Views
                 if (baseName.EndsWith(".conf", StringComparison.OrdinalIgnoreCase))
                     baseName = Path.GetFileNameWithoutExtension(baseName); // strip .conf from .conf.dpapi
 
-                // Resolve a name collision - overwrite, save under a new name, or cancel.
-                // (MainWindow replaces an existing tunnel when the name matches, so
-                //  "overwrite" keeps the name and "rename" picks a fresh unique one.)
-                if (_alreadyImported.Contains(baseName))
-                {
-                    switch (AskDuplicate(baseName))
-                    {
-                        case DupChoice.Cancel:
-                            return;
-                        case DupChoice.Rename:
-                            var newName = AskNewName(baseName);
-                            if (string.IsNullOrEmpty(newName)) return;   // cancelled
-                            baseName = newName!;
-                            break;
-                        // DupChoice.Overwrite → keep baseName
-                    }
-                }
+                var chosen = ResolveName(baseName);
+                if (chosen == null) return;   // cancelled
+                baseName = chosen;
 
                 var storagePath = Services.TunnelService.SaveConfigToFile(baseName, config);
                 TunnelImported?.Invoke(baseName, "", "local", storagePath, settings);
@@ -172,21 +158,10 @@ namespace MasselGUARD.Views
         {
             var (config, settings) = Services.TunnelExportService.ParseImportText(text);
             if (string.IsNullOrWhiteSpace(config)) return false;
-            if (string.IsNullOrWhiteSpace(baseName)) baseName = "tunnel";
 
-            if (_alreadyImported.Contains(baseName))
-            {
-                switch (AskDuplicate(baseName))
-                {
-                    case DupChoice.Cancel: return false;
-                    case DupChoice.Rename:
-                        var nn = AskNewName(baseName);
-                        if (string.IsNullOrEmpty(nn)) return false;
-                        baseName = nn!;
-                        break;
-                    // Overwrite → keep baseName
-                }
-            }
+            var chosen = ResolveName(baseName);
+            if (chosen == null) return false;
+            baseName = chosen;
 
             var storagePath = Services.TunnelService.SaveConfigToFile(baseName, config);
             _alreadyImported.Add(baseName);
@@ -286,6 +261,22 @@ namespace MasselGUARD.Views
             return result;
         }
 
+        /// <summary>The name to import under: converted to a valid one if needed, then, when it clashes with an
+        /// existing tunnel, overwrite / save as new / cancel (null). MainWindow replaces a tunnel whose name matches
+        /// exactly, so "overwrite" returns the existing tunnel's own name.</summary>
+        private string? ResolveName(string wanted)
+        {
+            var name = Models.TunnelName.IsValid(wanted) ? wanted : Models.TunnelName.Sanitize(wanted);
+            var existing = _alreadyImported.FirstOrDefault(t => Models.TunnelName.Clashes(t, name));
+            if (existing == null) return name;
+            return AskDuplicate(existing) switch
+            {
+                DupChoice.Overwrite => existing,
+                DupChoice.Rename    => AskNewName(name),
+                _                   => null,
+            };
+        }
+
         /// <summary>Prompt for a new, unique tunnel name; loops until unique or cancelled.</summary>
         private string? AskNewName(string original)
         {
@@ -298,7 +289,13 @@ namespace MasselGUARD.Views
                 if (entered == null) return null;               // cancelled
                 entered = entered.Trim();
                 if (entered.Length == 0) { error = Lang.T("ImportNameEmpty"); continue; }
-                if (_alreadyImported.Contains(entered))
+                if (!Models.TunnelName.IsValid(entered))
+                {
+                    suggestion = SuggestUniqueName(entered);
+                    error = Lang.T("TunnelNameInvalid", suggestion);
+                    continue;
+                }
+                if (_alreadyImported.Any(t => Models.TunnelName.Clashes(t, entered)))
                 {
                     error = Lang.T("ImportNameTaken");
                     suggestion = SuggestUniqueName(entered);
@@ -308,15 +305,7 @@ namespace MasselGUARD.Views
             }
         }
 
-        private string SuggestUniqueName(string name)
-        {
-            if (!_alreadyImported.Contains(name)) return name;
-            for (int i = 2; ; i++)
-            {
-                var candidate = $"{name} ({i})";
-                if (!_alreadyImported.Contains(candidate)) return candidate;
-            }
-        }
+        private string SuggestUniqueName(string name) => Models.TunnelName.Unique(name, _alreadyImported);
 
         private void CloseBtn_Click(object sender, RoutedEventArgs e) => Close();
         private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)

@@ -1,3 +1,18 @@
+## v6 - Mending Meerkat
+
+A small release that mainly helps with installing the background service.
+
+- **Tunnels with spaces in their name connect again** - a name such as `2 Block Full` failed with "Cannot start service": Windows was given the config file name with its spaces, which WireGuard refuses. The spaces are now replaced with `_` in the service name, config file and network adapter; the name you see stays the same.
+- **Tunnel names are checked** - a tunnel name can use A-Z, 0-9, spaces and `_ = + . -`, up to 32 characters (WireGuard's rule, with spaces allowed in the app). The editor proposes a valid name, imports convert the name (also `import` without `--name`; an invalid `--name` is refused), and two names that would give the same service, such as `a b` and `a_b`, are not allowed.
+- **Only the right tunnel service is stopped** - before stopping or replacing a tunnel service, MasselGUARD checks that it belongs to that tunnel. A connected tunnel can no longer be renamed (disconnect it first).
+- **Renaming a tunnel keeps its links** - the default tunnel, open-network tunnel, connect-on-start choice and automation rules now follow the new name. Connection history and data-usage totals stay under the old name.
+
+- **Clearer message when the service cannot be installed** - when MasselGUARD refuses the install folder, the message now names the owner, or the account or group that has write access, and shows how to fix it.
+- **Moved program files are repaired** - a file that was moved into the install folder keeps its old owner and permissions. When you install as administrator, and your own account is the only untrusted one on such a program file, MasselGUARD resets it to the folder's permissions and checks it again. Any other account or group is still refused.
+- **Third-party notices** - updated with the licenses of the bundled WireGuard files and libraries; the Apache-2.0 license text now ships with the app as `LICENSE-Apache-2.0.txt`. The built-in installer now copies the license and notices files into the install folder.
+
+---
+
 ## v5 - Background Badger
 
 MasselGUARD can now do its privileged work in a **Windows service**, so the app starts without a UAC prompt and your network rules keep running when the window is closed. A new **Browse DNS servers** picker replaces the fixed "Add presets" with a searchable, online list of public DNS servers. Without the service everything works exactly as before (portable copies, Scoop and no-service installs keep elevating the app themselves).

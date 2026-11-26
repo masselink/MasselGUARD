@@ -1015,7 +1015,7 @@ MasselGUARD's own source is **MIT** (`LICENSE`, repo root). Bundled third-party 
 
 - `tunnel.dll` - WireGuard embeddable tunnel service (wireguard-windows): **MIT**. The Go runtime and `golang.org/x` libraries compiled into it are **BSD 3-Clause**; the notices file records the source commit and versions of the bundled DLLs.
 - `wireguard.dll` - WireGuardNT prebuilt DLL: [**Prebuilt Binaries License**](https://git.zx2c4.com/wireguard-nt/plain/prebuilt-binaries-license.txt) (not open source; the WireGuardNT source is GPLv2). Redistribution needs WireGuard LLC's written consent, **except** insofar as the DLL is distributed alongside other software that uses it only through the API in `wireguard.h` (the "Permitted API"). So ship it unmodified, only together with the app, and call nothing outside that API. The license text governs.
-- NuGet packages - Markdig (**BSD 2-Clause**), ZXing.Net and its Windows bindings (**Apache-2.0**), Microsoft `System.*` packages (**MIT**). Apache-2.0 is currently only linked from the notices file; its full text still has to be added to the repo and release packages.
+- NuGet packages - Markdig (**BSD 2-Clause**), ZXing.Net and its Windows bindings (**Apache-2.0**), Microsoft `System.*` packages (**MIT**). The Apache-2.0 text is in `LICENSE-Apache-2.0.txt` (repo root); `BUILD.bat` copies it into every build and release zip.
 - .NET 10 - framework-dependent (runtime not bundled), © Microsoft, MIT.
 - **WinDivert** - reserved for future per-app split tunneling (a later 4.x; **not yet bundled**); dual **LGPLv3 / GPLv3**, intended via the **LGPLv3** dynamic-link path. Compliance checklist in `HANDOVER.md` §3C.
 

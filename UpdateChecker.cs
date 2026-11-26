@@ -49,7 +49,7 @@ namespace MasselGUARD
         // Major.Minor.Patch only - static, never modified by build.
         // The build timestamp is injected at compile time via -p:InformationalVersion
         // and read at runtime from the assembly attribute (see BuildStamp below).
-        private const string CurrentVersion = "5";
+        private const string CurrentVersion = "6";
 
         // Release codenames - one entry per public version, keyed by Major.Minor.Patch.
         // Update both here AND in BUILD.bat (set CODENAME=...) when bumping the version.
@@ -70,6 +70,7 @@ namespace MasselGUARD
                 { "4.5.0", "Resolving Raven" },
                 { "4.6.0", "Wired Weasel" },
                 { "5", "Background Badger" },
+                { "6", "Mending Meerkat" },
             };
 
         // ── Public: silent background check (called on startup) ──────────────

@@ -122,6 +122,15 @@ namespace MasselGUARD.Services
                 return false;
             }
 
+            // Spaces are replaced on the way to Windows; anything else WireGuard refuses would only
+            // show up as "cannot start service", so say what is wrong here.
+            if (!TunnelName.IsValid(stored.Name))
+            {
+                _log.Warn($"Cannot connect '{stored.Name}': tunnel names can use only A-Z, 0-9, spaces and _ = + . - " +
+                          $"(at most {TunnelName.MaxLength} characters). Rename the tunnel, for example to '{TunnelName.Sanitize(stored.Name)}'.");
+                return false;
+            }
+
             // Decrypt config
             string plaintext = DecryptConfig(stored);
             if (string.IsNullOrEmpty(plaintext))
@@ -177,7 +186,8 @@ namespace MasselGUARD.Services
 
             // Service mode connects by name from the service's own store: no plaintext temp file here.
             var viaStore = _ops as IStoredConnectOps;
-            var tempPath = Path.Combine(TempDir, stored.Name + ".conf");
+            // tunnel.dll derives the tunnel name from the file name, and refuses spaces.
+            var tempPath = Path.Combine(TempDir, TunnelName.Wire(stored.Name) + ".conf");
             if (viaStore == null)
             {
                 // Write to secure temp file
@@ -320,7 +330,12 @@ namespace MasselGUARD.Services
             {
                 // Snapshot bytes BEFORE the adapter is torn down - it disappears on disconnect
                 var finalStats = _ops.GetTrafficStats(stored.Name);
-                _ops.Disconnect(stored.Name, out string disconnErr);
+                if (!_ops.Disconnect(stored.Name, out string disconnErr))
+                {
+                    // Nothing was stopped: keep the history entry and the kill switch as they are.
+                    _log.Warn($"Disconnect failed ({stored.Name}): {disconnErr}");
+                    return false;
+                }
                 LogDisconnect(stored.Name, finalStats, storeTraffic);
                 if (!string.IsNullOrEmpty(disconnErr)) _log.Warn(disconnErr);
                 _ks?.Disable(stored.Name);

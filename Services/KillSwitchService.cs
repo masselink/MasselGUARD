@@ -207,7 +207,7 @@ namespace MasselGUARD.Services
 
             // Allow all traffic through the WireGuard adapter (identified by adapter friendly name)
             AddFwRule(rules, Prefix + "Allow_WG_" + tunnelName, AllProf,
-                iface: tunnelName);
+                iface: Models.TunnelName.Wire(tunnelName));   // the adapter's name has no spaces
 
             // Allow UDP to the server endpoint IP (WireGuard handshake channel)
             if (!string.IsNullOrEmpty(endpointIp))

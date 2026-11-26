@@ -152,6 +152,8 @@
   "TunnelDialogName": "隧道名称",
   "BtnGenerateKey": "生成",
   "BtnSaveTunnel": "保存",
+  "TunnelNameInvalid": "隧道名称只能使用字母 A-Z、数字、空格和 _ = + . -,最多 32 个字符。\n\n建议名称:{0}",
+  "TunnelNameLockedTip": "请先断开隧道,然后再重命名。",
   "TunnelNameRequired": "请输入隧道名称。",
   "TunnelPrivateKeyRequired": "私钥为必填项。",
   "TunnelValidationTitle": "验证",

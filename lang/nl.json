@@ -152,6 +152,8 @@
   "TunnelDialogName": "Tunnelnaam",
   "BtnGenerateKey": "Genereren",
   "BtnSaveTunnel": "Opslaan",
+  "TunnelNameInvalid": "Tunnelnamen mogen alleen de letters A-Z, cijfers, spaties en _ = + . - bevatten, maximaal 32 tekens.\n\nVoorgestelde naam: {0}",
+  "TunnelNameLockedTip": "Verbreek de tunnelverbinding om de naam te wijzigen.",
   "TunnelNameRequired": "Voer een tunnelnaam in.",
   "TunnelPrivateKeyRequired": "Privésleutel is verplicht.",
   "TunnelValidationTitle": "Validatie",
