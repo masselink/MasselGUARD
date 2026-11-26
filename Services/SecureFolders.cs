@@ -40,17 +40,47 @@ namespace MasselGUARD.Services
 
         /// <summary>Pure: does this DACL + owner let a non-administrator change the object (or, for a parent folder,
         /// delete/rename it or rewrite its permissions)? Deny entries are ignored (conservative).</summary>
-        public static bool IsRisky(IEnumerable<AclEntry> entries, string? ownerSid, bool isTarget)
+        public static bool IsRisky(IEnumerable<AclEntry> entries, string? ownerSid, bool isTarget) =>
+            RiskySids(entries, ownerSid, isTarget).Count > 0;
+
+        /// <summary>Pure: the untrusted principals that make the object risky (see <see cref="IsRisky"/>), the owner
+        /// first when the owner is not trusted. Empty when the object is safe.</summary>
+        public static List<string> RiskySids(IEnumerable<AclEntry> entries, string? ownerSid, bool isTarget)
         {
-            if (!IsTrustedSid(ownerSid)) return true;   // the owner can always rewrite the DACL
+            var bad = new List<string>();
+            if (!IsTrustedSid(ownerSid)) bad.Add(ownerSid ?? "");   // the owner can always rewrite the DACL
             var mask = isTarget ? TargetWrite : ParentWrite;
             foreach (var e in entries)
             {
                 if (!e.Allow || e.InheritOnly) continue;           // inherit-only entries only matter for the children, checked on their own
                 if (IsTrustedSid(e.Sid) || e.Sid == SidCreatorOwner) continue;
-                if ((e.Rights & mask) != 0) return true;
+                if ((e.Rights & mask) != 0 && !bad.Contains(e.Sid)) bad.Add(e.Sid);
             }
-            return false;
+            return bad;
+        }
+
+        /// <summary>Pure: one English sentence part naming what is wrong, e.g. "it is owned by PC\bob and PC\bob can
+        /// change it". <paramref name="name"/> turns a SID into an account name.</summary>
+        public static string? RiskReason(IEnumerable<AclEntry> entries, string? ownerSid, bool isTarget, Func<string, string> name)
+        {
+            var list = entries.ToList();
+            var parts = new List<string>();
+            if (!IsTrustedSid(ownerSid))
+                parts.Add(string.IsNullOrEmpty(ownerSid) ? "it has no owner that could be read" : $"it is owned by {name(ownerSid!)}");
+            var mask = isTarget ? TargetWrite : ParentWrite;
+            var writers = list.Where(e => e.Allow && !e.InheritOnly && !IsTrustedSid(e.Sid) && e.Sid != SidCreatorOwner && (e.Rights & mask) != 0)
+                              .Select(e => e.Sid).Distinct().Select(name).ToList();
+            if (writers.Count > 0)
+                parts.Add(string.Join(", ", writers) + (writers.Count == 1 ? " has" : " have") +
+                          (isTarget ? " write access" : " delete or change-permissions access"));
+            return parts.Count == 0 ? null : string.Join(" and ", parts);
+        }
+
+        /// <summary>The account name of a SID ("PC\bob"), else the SID itself.</summary>
+        public static string AccountName(string sid)
+        {
+            try { return new SecurityIdentifier(sid).Translate(typeof(NTAccount)).Value; }
+            catch { return sid; }
         }
 
         private static List<AclEntry> ReadAcl(FileSystemInfo fi, out string? owner)
@@ -64,9 +94,20 @@ namespace MasselGUARD.Services
         }
 
         /// <summary>Null when <paramref name="dir"/> (the folder the service runs from) and its program files
-        /// cannot be changed by non-administrators; otherwise a message saying what is wrong.</summary>
-        public static string? CheckInstallFolder(string dir, IEnumerable<string> files)
+        /// cannot be changed by non-administrators; otherwise a message saying what is wrong and how to fix it.
+        /// With <paramref name="repairForSid"/> (the elevated account that is installing the service), a program file
+        /// in an otherwise safe folder whose ONLY untrusted principal is that account is reset to the folder's
+        /// permissions (owner Administrators, inherited ACL). That is the usual result of MOVING a file into the
+        /// folder (e.g. a wireguard.dll from Downloads): a move keeps the old owner and permissions, a copy does not.
+        /// The account already has administrator rights (it approved the UAC prompt), so no one gains anything new.
+        /// Anything else (Users, Everyone, another account) is still refused. <paramref name="repaired"/> lists the
+        /// files that were reset.</summary>
+        public static string? CheckInstallFolder(string dir, IEnumerable<string> files) =>
+            CheckInstallFolder(dir, files, null, out _);
+
+        public static string? CheckInstallFolder(string dir, IEnumerable<string> files, string? repairForSid, out List<string> repaired)
         {
+            repaired = new List<string>();
             try
             {
                 var di = new DirectoryInfo(dir);
@@ -76,20 +117,50 @@ namespace MasselGUARD.Services
                     if ((d.Attributes & FileAttributes.ReparsePoint) != 0)
                         return $"'{d.FullName}' is a junction or symbolic link, so the service could be redirected to other files.";
                     var acl = ReadAcl(d, out var owner);
-                    if (IsRisky(acl, owner, isTarget: d == di))
+                    var why = RiskReason(acl, owner, isTarget: d == di, AccountName);
+                    if (why != null)
                         return d == di
-                            ? $"The folder '{d.FullName}' can be changed by non-administrators. The service runs as SYSTEM from this folder, so a standard user could replace MasselGUARD.exe or a DLL and get SYSTEM rights. Install MasselGUARD to Program Files first."
-                            : $"The parent folder '{d.FullName}' lets non-administrators rename, delete or re-permission the MasselGUARD folder, so the service could be redirected. Install MasselGUARD to Program Files first.";
+                            ? $"The folder '{d.FullName}' can be changed by non-administrators ({why}). The service runs as SYSTEM from this folder, so a standard user could replace MasselGUARD.exe or a DLL and get SYSTEM rights. Install MasselGUARD to Program Files first."
+                            : $"The parent folder '{d.FullName}' lets non-administrators rename, delete or re-permission the MasselGUARD folder ({why}), so the service could be redirected. Install MasselGUARD to Program Files first.";
                 }
                 foreach (var f in files.Where(File.Exists))
                 {
                     var acl = ReadAcl(new FileInfo(f), out var owner);
-                    if (IsRisky(acl, owner, isTarget: true))
-                        return $"The file '{f}' can be changed by non-administrators. Install MasselGUARD to Program Files first.";
+                    var bad = RiskySids(acl, owner, isTarget: true);
+                    if (bad.Count == 0) continue;
+                    if (repairForSid != null && bad.All(s => s == repairForSid))
+                    {
+                        var err = ResetToInherited(f);
+                        if (err == null)
+                        {
+                            acl = ReadAcl(new FileInfo(f), out owner);
+                            if (acl.Count > 0 && !IsRisky(acl, owner, isTarget: true)) { repaired.Add(f); continue; }
+                        }
+                    }
+                    var why = RiskReason(acl, owner, isTarget: true, AccountName);
+                    return $"The file '{f}' can be changed by non-administrators ({why}). This usually means the file was moved into the folder and kept the permissions of the folder it came from. Delete it and copy it in again (do not move it), or reset it in an administrator terminal: icacls \"{f}\" /setowner *S-1-5-32-544 and icacls \"{f}\" /reset";
                 }
                 return null;
             }
             catch (Exception ex) { return $"The permissions of '{dir}' could not be checked ({ex.Message}); the service is not installed from a location it cannot verify."; }
+        }
+
+        /// <summary>Gives a file the owner Administrators and only the permissions it inherits from its folder
+        /// (what <c>icacls /setowner *S-1-5-32-544</c> + <c>icacls /reset</c> do). Needs an elevated process.
+        /// Null on success, else the error.</summary>
+        public static string? ResetToInherited(string file)
+        {
+            try
+            {
+                var fi = new FileInfo(file);
+                // Owner Administrators and an EMPTY, unprotected (auto-inherited) DACL: Windows then fills it with the
+                // folder's inheritable entries only. Only the owner and DACL sections are written (never the SACL).
+                var sec = new FileSecurity();
+                sec.SetSecurityDescriptorSddlForm("O:BAD:AI", AccessControlSections.Owner | AccessControlSections.Access);
+                fi.SetAccessControl(sec);
+                return null;
+            }
+            catch (Exception ex) { return ex.Message; }
         }
 
         // ── data folders ───────────────────────────────────────────────────────────
@@ -163,6 +234,12 @@ namespace MasselGUARD.Services
             Check(IsRisky(new[] { new AclEntry(Users, FileSystemRights.ChangePermissions, true, false) }, Admin, false), "acl: re-permissioning a parent = risky");
             Check(!IsRisky(new[] { new AclEntry(Users, Modify, false, false) }, Admin, true), "acl: deny entries are ignored (conservative on allow only)");
             Check(!IsRisky(new[] { new AclEntry(SidCreatorOwner, Full, true, false) }, Admin, true), "acl: CREATOR OWNER placeholder is not a principal");
+            Check(RiskySids(new[] { new AclEntry(Me, Full, true, false), new AclEntry(Admin, Full, true, false) }, Me, true).SequenceEqual(new[] { Me }), "acl: a moved file owned by me with my full control names only me");
+            Check(RiskySids(new[] { new AclEntry(Me, Full, true, false), new AclEntry(Users, Modify, true, false) }, Me, true).SequenceEqual(new[] { Me, Users }), "acl: risky principals list owner first, then other writers");
+            Check(RiskySids(new[] { new AclEntry(Admin, Full, true, false), new AclEntry(Users, Read, true, false) }, Admin, true).Count == 0, "acl: a safe file has no risky principals");
+            Check(RiskReason(new[] { new AclEntry(Me, Full, true, false) }, Me, true, s => s == Me ? "PC\\bob" : s) == "it is owned by PC\\bob and PC\\bob has write access", "acl: reason names owner and writer");
+            Check(RiskReason(new[] { new AclEntry(Users, Modify, true, false) }, Admin, true, s => s == Users ? "BUILTIN\\Users" : s) == "BUILTIN\\Users has write access", "acl: reason names a writing group");
+            Check(RiskReason(new[] { new AclEntry(Users, Read, true, false) }, Admin, true, s => s) == null, "acl: no reason for a safe file");
             Check(IsTrustedSid(Admin) && IsTrustedSid(System_) && IsTrustedSid(SidTrustedInstaller.Value) && !IsTrustedSid(Users) && !IsTrustedSid(null), "acl: trusted owners");
 
             // real file system
