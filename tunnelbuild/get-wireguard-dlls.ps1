@@ -210,7 +210,7 @@ if ((Test-Path $tnDll) -and ((Get-PeMachine $tnDll) -eq $peMachine)) {
     $logFile  = Join-Path $Work 'build_log.txt'
     $wrapBat  = Join-Path $Work 'run_build.bat'
     $wrap = "@echo off`r`ncd /d `"$buildDir`"`r`n" +
-            "call build.bat > `"$logFile`" 2>&1`r`necho %ERRORLEVEL% > `"$exitFile`"`r`n"
+            "call .\build.bat > `"$logFile`" 2>&1`r`necho %ERRORLEVEL% > `"$exitFile`"`r`n"
     Set-Content -Path $wrapBat -Value $wrap -Encoding ASCII
 
     $built = $null
