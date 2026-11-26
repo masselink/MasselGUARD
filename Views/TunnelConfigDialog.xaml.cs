@@ -42,6 +42,17 @@ namespace MasselGUARD.Views
 
         private readonly string? _originalName;
 
+        /// <summary>The names of the OTHER tunnels: a new or changed name may not clash with one.</summary>
+        public IReadOnlyList<string> OtherTunnelNames { get; set; } = Array.Empty<string>();
+
+        /// <summary>Makes the name read-only (the tunnel is connected).</summary>
+        public void LockName()
+        {
+            NameBox.IsReadOnly = true;
+            NameBox.Opacity    = 0.6;
+            NameBox.ToolTip    = Lang.T("TunnelNameLockedTip");
+        }
+
         public TunnelConfigDialog(string? existingName = null, string? existingConfig = null,
                                   string? existingGroup = null,
                                   string? preConnect = null, string? postConnect = null,
@@ -387,9 +398,24 @@ namespace MasselGUARD.Views
                 NameBox.Focus();
                 return;
             }
-            // Sanitise name for use as filename
-            foreach (var c in Path.GetInvalidFileNameChars())
-                name = name.Replace(c, '_');
+            // WireGuard's rule; spaces are fine, they become "_" in the service name.
+            bool unchanged = string.Equals(name, _originalName, StringComparison.Ordinal);
+            if (!Models.TunnelName.IsValid(name))
+            {
+                var suggestion = Models.TunnelName.Unique(name, OtherTunnelNames);
+                MessageBox.Show(Lang.T("TunnelNameInvalid", suggestion), Lang.T("TunnelValidationTitle"),
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                NameBox.Text = suggestion;   // shown for the user to accept (save again) or change
+                NameBox.Focus();
+                return;
+            }
+            if (!unchanged && OtherTunnelNames.Any(other => Models.TunnelName.Clashes(other, name)))
+            {
+                MessageBox.Show(Lang.T("ImportNameTaken"), Lang.T("TunnelValidationTitle"),
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                NameBox.Focus();
+                return;
+            }
 
             if (string.IsNullOrWhiteSpace(PrivateKeyBox.Text) && !TabRaw.IsSelected)
             {

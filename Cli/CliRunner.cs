@@ -992,8 +992,24 @@ namespace MasselGUARD.Cli
             if (string.IsNullOrWhiteSpace(tunnelName))
                 tunnelName = Path.GetFileNameWithoutExtension(filePath);
 
+            // WireGuard's rule (spaces allowed): an invalid name typed with --name is refused,
+            // one taken from the file name is converted.
+            if (!TunnelName.IsValid(tunnelName))
+            {
+                if (nameOverride != null)
+                {
+                    PrintResult(quiet, json, "error",
+                        $"Invalid tunnel name '{tunnelName}': use only A-Z, 0-9, spaces and _ = + . - (at most {TunnelName.MaxLength} characters). " +
+                        $"For example: --name \"{TunnelName.Sanitize(tunnelName)}\"");
+                    return 1;
+                }
+                var converted = TunnelName.Sanitize(tunnelName);
+                if (!quiet && !json) CliOutput.Info($"Tunnel name '{tunnelName}' is saved as '{converted}'.");
+                tunnelName = converted;
+            }
+
             // Duplicate check
-            if (cfg.Tunnels.Any(t => string.Equals(t.Name, tunnelName, StringComparison.OrdinalIgnoreCase)))
+            if (cfg.Tunnels.Any(t => TunnelName.Clashes(t.Name, tunnelName)))
             {
                 PrintResult(quiet, json, "error",
                     $"A tunnel named '{tunnelName}' already exists. Use --name to import with a different name.");
@@ -1272,6 +1288,13 @@ namespace MasselGUARD.Cli
             var displayName = !string.IsNullOrWhiteSpace(nameArg)
                 ? nameArg
                 : $"rawconnect-{DateTime.Now:yyMMddHHmm}";
+            if (!TunnelName.IsValid(displayName))
+            {
+                PrintResult(quiet, json, "error",
+                    $"Invalid tunnel name '{displayName}': use only A-Z, 0-9, spaces and _ = + . - (at most {TunnelName.MaxLength} characters). " +
+                    $"For example: --name \"{TunnelName.Sanitize(displayName)}\"");
+                return 1;
+            }
 
             var stored = new StoredTunnel
             {
@@ -1284,7 +1307,7 @@ namespace MasselGUARD.Cli
             // Optionally persist
             if (save)
             {
-                if (cfg.Tunnels.Any(t => string.Equals(t.Name, displayName, StringComparison.OrdinalIgnoreCase)))
+                if (cfg.Tunnels.Any(t => TunnelName.Clashes(t.Name, displayName)))
                 {
                     PrintResult(quiet, json, "error",
                         $"A tunnel named '{displayName}' already exists. Use --name to choose a different name.");

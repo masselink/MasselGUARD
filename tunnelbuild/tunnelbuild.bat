@@ -30,16 +30,17 @@ set "ARCHES="
 set "FORCE="
 set "CHECK="
 set "INSTALL="
+rem "shift /1" keeps %0 intact: a plain "shift" would make %~dp0 point at the current folder.
 :parse_args
 if "%~1"=="" goto args_done
-if /I "%~1"=="check"   ( set "CHECK=1"   & shift & goto parse_args )
-if /I "%~1"=="install" ( set "INSTALL=1" & shift & goto parse_args )
-if /I "%~1"=="force"   ( set "FORCE=1"   & shift & goto parse_args )
-if /I "%~1"=="-force"  ( set "FORCE=1"   & shift & goto parse_args )
-if /I "%~1"=="/force"  ( set "FORCE=1"   & shift & goto parse_args )
-if /I "%~1"=="--force" ( set "FORCE=1"   & shift & goto parse_args )
+if /I "%~1"=="check"   ( set "CHECK=1"   & shift /1 & goto parse_args )
+if /I "%~1"=="install" ( set "INSTALL=1" & shift /1 & goto parse_args )
+if /I "%~1"=="force"   ( set "FORCE=1"   & shift /1 & goto parse_args )
+if /I "%~1"=="-force"  ( set "FORCE=1"   & shift /1 & goto parse_args )
+if /I "%~1"=="/force"  ( set "FORCE=1"   & shift /1 & goto parse_args )
+if /I "%~1"=="--force" ( set "FORCE=1"   & shift /1 & goto parse_args )
 set "ARCHES=%ARCHES% %~1"
-shift
+shift /1
 goto parse_args
 :args_done
 

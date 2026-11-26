@@ -1,7 +1,7 @@
 # MasselGUARD - Session Handover
 
 **Project:** MasselGUARD - WireGuard + DNS automation manager for Windows (.NET 10; WinExe GUI `MasselGUARD.exe` + console `MasselGUARDcli.exe`).
-**Current:** **5 - Background Badger** (the service back-end, the Browse DNS servers picker, single-number versions) is built and merged into `dev` (the `service-backend` branch is gone); **4.6.0 - Wired Weasel** is the latest published release. The version in code is the bare number `5`; the first release tag is `5.0`.
+**Current:** **6 - Mending Meerkat** (tunnel names with spaces, stopping the right tunnel service, the service install folder fix, license files; release text in [`docs/release-body-6.md`](docs/release-body-6.md)) is being prepared on `dev` and is not released yet; **5 - Background Badger** (tag `5.0`) is the latest published release. The version in code is `6`; the release tag is `6.0`.
 **Where to start:** [`docs/Handoff-next-version.md`](docs/Handoff-next-version.md) (state of 5.0, what is left before a release, rules and traps), [`docs/ServiceBackend-Design.md`](docs/ServiceBackend-Design.md), [`docs/ServiceBackend-Security.md`](docs/ServiceBackend-Security.md). Architecture: [`CLAUDE.md`](CLAUDE.md). User-facing history: [`docs/WHATSNEW.md`](docs/WHATSNEW.md).
 > **Standing rules (carry every cycle):**
 > 1. **`Models/*.cs` stay WPF-free** - shared with the CLI.
@@ -9,7 +9,7 @@
 > 3. **Lang files:** every user-facing string goes through `Lang.T`; new keys go into **all 12** `lang/*.json` with full parity and `{0}` placeholder integrity, validated with the app's own parser (`System.Text.Json`). The activity log, CLI, self-test output and the diagnostics "Copy all" report stay **English** (see the Localization bullet in `CLAUDE.md`).
 > 4. **No em-dashes** anywhere in text (UI, lang files, docs, theme descriptions) - use a hyphen.
 > 5. **Native DLLs** live in `wireguard-deps\<arch>\`; a release needs **both** `MasselGUARD-x64.zip` and `MasselGUARD-arm64.zip`.
-> 6. The user runs `BUILD.bat`, tests the (elevated) app and commits. The assistant only `dotnet build`-verifies and never commits.
+> 6. The user runs `BUILD.bat` and tests the (elevated) app. The assistant keeps changes local and commits only when the user asks, to `dev` only.
 
 ---
 
@@ -20,7 +20,7 @@ The checklist for release 5 is in [`docs/Handoff-next-version.md`](docs/Handoff-
 ---
 ## 2. Version-bump checklist (every release)
 
-From 5 on a release is a single number (5, 6, 7...); `UpdateChecker.ParseVersion` reads `5`, `5.0` and `5.0.0` as the same version. The FIRST tag is `5.0` (like the existing tags such as `4.6.0`, no `v`; `5.0` is read too) (installed 4.x copies need a tag with a dot to see it); later tags may be `6`, `7`.
+From 5 on a release is a single number (5, 6, 7...). The release tag and the version in the code must be the same version number, or the app keeps offering the same update. Tag releases with a dot (`6.0`) so installed 4.x copies can read the tag. `UpdateChecker.ParseVersion` reads `5`, `5.0` and `5.0.0` as the same version. The FIRST tag is `5.0` (like the existing tags such as `4.6.0`, no `v`; `5.0` is read too) (installed 4.x copies need a tag with a dot to see it); keep the dot on later tags too (`6.0`).
 
 - `UpdateChecker.cs` - `CurrentVersion` **and** `_codenames["5"]`.
 - Both csproj files - `Version`, `AssemblyVersion` (`N.0.0.0`), `FileVersion`, `InformationalVersion`.
@@ -37,8 +37,10 @@ From 5 on a release is a single number (5, 6, 7...); `UpdateChecker.ParseVersion
 - **Split tunneling** (route/IP-based) exclude/include routing and its kill-switch interplay.
 - **ARM64** build not yet smoke-tested on real ARM64 hardware (DLLs are PE-verified `0xAA64`).
 
-### B. Licensing - one verify item
-- **`wireguard.dll` (wireguard-nt)**: confirm the exact licence and prebuilt-DLL redistribution terms upstream (<https://git.zx2c4.com/wireguard-nt>) and update `THIRD-PARTY-NOTICES.md` (currently marked *VERIFY UPSTREAM*). `tunnel.dll` (wireguard-windows/-go) is MIT. `LICENSE` (MIT) and the About-page credits are in place.
+### B. Licensing - open items
+`THIRD-PARTY-NOTICES.md` was updated with upstream license information checked on 2026-11-26 (summary in `docs/Reference.md` section 42). `LICENSE` (MIT) and the About-page credits are in place. Still open:
+- **Compiler runtime in `tunnel.dll`**: it is built with a C compiler (CGO, llvm-mingw). Not yet checked whether runtime code from it is included and needs its own notice.
+- **`wireguard.dll` in the source repository**: the Prebuilt Binaries License allows redistribution without written consent only alongside software that uses the DLL solely through the `wireguard.h` API. The app's own calls fit this. Whether storing the DLL next to the source in Git is covered is a judgement call, not legal advice; ask WireGuard LLC if in doubt.
 
 ### C. Parked - per-app split tunneling
 Prototyped on WinDivert and reverted (2026-09-10/11); the design and findings are in [`docs/SplitTunneling-Design.md`](docs/SplitTunneling-Design.md) §11. If revisited: WinDivert is dual **LGPLv3 / GPLv3** - take the **LGPLv3** path (dynamic-link an unmodified `WinDivert.dll`, ship its LICENSE + LGPL/GPL texts, keep the DLL user-replaceable), credit Basil (basil00) in About + `THIRD-PARTY-NOTICES.md`, plan an AV-allowlisting note, and note WinDivert 2.2.2 has no arm64 driver.

@@ -651,6 +651,21 @@ namespace MasselGUARD.Services
             Check(RpcValidator.Name("") != null && RpcValidator.Name(null) != null, "name: empty/null rejected");
             Check(RpcValidator.Name(new string('a', 100)) != null, "name: too long rejected");
             Check(RpcValidator.Name("trail ") != null, "name: trailing space rejected");
+            // TunnelName: what a NEW name may be, and what Windows / tunnel.dll get to see.
+            Check(TunnelName.Wire("2 Block Full") == "2_Block_Full" && TunnelName.IsValid(TunnelName.Wire("2 Block Full")), "tunnelname: spaces are replaced for the service, file and adapter");
+            Check(TunnelName.IsValid("2 Block Full") && TunnelName.IsValid("2_Block_Full") && TunnelName.IsValid("a=b+c.d-e"), "tunnelname: spaces are allowed in the app's name");
+            Check(!TunnelName.IsValid(" a") && !TunnelName.IsValid("a ") && !TunnelName.IsValid("   ") && !TunnelName.IsValid("a\tb"), "tunnelname: no spaces at the ends, no other whitespace");
+            Check(!TunnelName.IsValid("") && !TunnelName.IsValid(null) && !TunnelName.IsValid("Büro") && !TunnelName.IsValid("a(1)") && !TunnelName.IsValid("abc\n"), "tunnelname: other characters refused");
+            Check(TunnelName.IsValid(new string('a', 32)) && !TunnelName.IsValid(new string('a', 33)), "tunnelname: at most 32 characters");
+            Check(!TunnelName.IsValid(".a") && !TunnelName.IsValid("a.") && !TunnelName.IsValid("nul") && !TunnelName.IsValid("COM1.x") && TunnelName.IsValid("console"), "tunnelname: dots at the ends and device names refused");
+            Check(TunnelName.Sanitize("2 Block Full") == "2 Block Full" && TunnelName.Sanitize("Büro (1)") == "Buro _1_" && TunnelName.Sanitize("...") == "tunnel", "tunnelname: sanitize keeps spaces");
+            foreach (var raw in new[] { "2 Block Full", "Büro VPN", "con", "nul.txt", ".hidden.", new string('x', 80), "  ", "Тест", new string('a', 31) + ".b" })
+                Check(TunnelName.IsValid(TunnelName.Sanitize(raw)), $"tunnelname: sanitize '{raw}' gives a valid name");
+            Check(TunnelName.Clashes("a b", "A_B") && !TunnelName.Clashes("a b", "ab"), "tunnelname: names with the same service name clash");
+            Check(TunnelName.OtherOwner(TunnelName.ServiceStamp("a b"), "a_b") == "a b" && TunnelName.OtherOwner(TunnelName.ServiceStamp("a_b"), "a b") == "a_b", "serviceowner: a shared service name still belongs to one tunnel");
+            Check(TunnelName.OtherOwner(TunnelName.ServiceStamp("a b"), "a b") == null && TunnelName.OtherOwner(TunnelName.ServiceStamp("Home"), "home") == null, "serviceowner: its own tunnel may stop it");
+            Check(TunnelName.OtherOwner(null, "a b") == null && TunnelName.OtherOwner("", "a b") == null && TunnelName.OtherOwner("Some other description", "a b") == null, "serviceowner: no stamp, no owner to compare");
+            Check(TunnelName.Unique("a b", new[] { "a_b", "a_b_2" }) == "a b_3" && TunnelName.Unique(new string('a', 32), new[] { new string('a', 32) }) == new string('a', 30) + "_2", "tunnelname: unique, within 32 characters");
             Check(RpcValidator.Conf(GoodConf) == null, "conf: good accepted");
             Check(RpcValidator.Conf(GoodConf.Replace("[Peer]", "PostUp = calc.exe\n[Peer]")) != null, "conf: PostUp rejected");
             Check(RpcValidator.Conf(GoodConf.Replace("PrivateKey", "preup")) != null, "conf: PreUp rejected");

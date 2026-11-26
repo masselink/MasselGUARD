@@ -313,13 +313,21 @@ namespace MasselGUARD
             if (!IsTunnelDllAvailable())
             { error = $"tunnel.dll or wireguard.dll not found in: {ExeDir}"; return false; }
 
-            // Service names must not contain spaces (SCM restriction).
-            string safeKey     = tunnelName.Replace(' ', '_');
-            string serviceName = ServicePrefix + safeKey;
+            // No spaces in the service name: neither the SCM entry nor tunnel.dll accepts them.
+            string serviceName = ServicePrefix + TunnelName.Wire(tunnelName);
             log($"Tunnel name  : {tunnelName}");
             log($"Service name : {serviceName}");
             log($"Config       : {confPath}");
             log($"Exe dir      : {ExeDir}");
+
+            // Never replace the running tunnel of ANOTHER name that maps to the same service.
+            var owner = OtherServiceOwner(serviceName, tunnelName);
+            if (owner != null && IsAlive(TunnelName.Wire(tunnelName)))
+            {
+                error = $"Not connected: the service {serviceName} is in use by tunnel '{owner}'. " +
+                        "Disconnect that tunnel first, or rename one of the two.";
+                return false;
+            }
 
             // Stop + delete any stale service (matches WireGuardClient exactly)
             EnsureStopped(serviceName, log);
@@ -342,7 +350,15 @@ namespace MasselGUARD
         {
             error = "";
             lock (_lock) { _connected.Remove(tunnelName); }
-            string serviceName = ServicePrefix + tunnelName.Replace(' ', '_');
+            string serviceName = ServicePrefix + TunnelName.Wire(tunnelName);
+
+            // Stop only this tunnel's own service (and adapter).
+            var owner = OtherServiceOwner(serviceName, tunnelName);
+            if (owner != null)
+            {
+                error = $"Not stopped: the service {serviceName} belongs to tunnel '{owner}', not '{tunnelName}'.";
+                return false;
+            }
             EnsureStopped(serviceName, _ => { });
 
             // wireguard-NT's WireGuardTunnelService() exits in ~50-100 ms after
@@ -362,7 +378,7 @@ namespace MasselGUARD
         {
             try
             {
-                IntPtr adapter = NativeMethods.WireGuardOpenAdapter(tunnelName);
+                IntPtr adapter = NativeMethods.WireGuardOpenAdapter(TunnelName.Wire(tunnelName));
                 if (adapter != IntPtr.Zero)
                     NativeMethods.WireGuardCloseAdapter(adapter);
             }
@@ -381,13 +397,33 @@ namespace MasselGUARD
         // ── IsRunning ─────────────────────────────────────────────────────────
         public static bool IsRunning(string tunnelName)
         {
+            string wire = TunnelName.Wire(tunnelName);
+            // A shared service that belongs to another name: that tunnel is running, this one is not.
+            return OtherServiceOwner(ServicePrefix + wire, tunnelName) == null && IsAlive(wire);
+        }
+
+        /// <summary>The app name stamped on this service when it is not <paramref name="tunnelName"/>; null when it
+        /// is, or the service does not exist or carries no stamp. Readable without administrator rights.</summary>
+        private static string? OtherServiceOwner(string serviceName, string tunnelName)
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                    @"SYSTEM\CurrentControlSet\Services\" + serviceName);
+                return TunnelName.OtherOwner(key?.GetValue("Description") as string, tunnelName);
+            }
+            catch { return null; }
+        }
+
+        private static bool IsAlive(string wire)
+        {
             // Primary: check the SCM service status.
             //
             // When tunnel.dll's WireGuardTunnelService() runs properly it blocks for
             // the lifetime of the tunnel, so the WireGuardTunnel$ service stays in
             // the Running state.  A single SCM query is instant (~µs) and is the
             // most reliable signal in that case.
-            string serviceName = ServicePrefix + tunnelName.Replace(' ', '_');
+            string serviceName = ServicePrefix + wire;
             try
             {
                 using var sc = new ServiceController(serviceName);
@@ -413,7 +449,7 @@ namespace MasselGUARD
             try
             {
                 IntPtr h = NativeMethods.CreateFile(
-                    $@"\\.\pipe\WireGuard\{tunnelName}",
+                    $@"\\.\pipe\WireGuard\{wire}",
                     GENERIC_READ, FILE_SHARE_RW,
                     IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
 
@@ -463,7 +499,7 @@ namespace MasselGUARD
                 var ifaces = System.Net.NetworkInformation.NetworkInterface
                     .GetAllNetworkInterfaces();
                 var iface = ifaces.FirstOrDefault(i =>
-                    i.Name.Equals(tunnelName, StringComparison.OrdinalIgnoreCase));
+                    i.Name.Equals(TunnelName.Wire(tunnelName), StringComparison.OrdinalIgnoreCase));
 
                 if (iface == null) return default;
 
@@ -504,10 +540,11 @@ namespace MasselGUARD
         {
             // Local tunnels (tunnel.dll service) expose \\.\pipe\WireGuard\<name>; WireGuard-for-
             // Windows companions use the ProtectedPrefix path. Try both; benign on failure.
+            var wire = TunnelName.Wire(tunnelName);
             foreach (var pipeName in new[]
                      {
-                         $@"WireGuard\{tunnelName}",
-                         $@"ProtectedPrefix\Administrators\WireGuard\{tunnelName}",
+                         $@"WireGuard\{wire}",
+                         $@"ProtectedPrefix\Administrators\WireGuard\{wire}",
                      })
             {
                 try
@@ -593,8 +630,9 @@ namespace MasselGUARD
                         i.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback)
                     .ToList();
 
+                var wire = TunnelName.Wire(tunnelName);
                 var tunnelIface = ifaces.FirstOrDefault(i =>
-                    i.Name.Equals(tunnelName, StringComparison.OrdinalIgnoreCase));
+                    i.Name.Equals(wire, StringComparison.OrdinalIgnoreCase));
 
                 if (tunnelIface == null) return DnsLeakStatus.Unknown;
 
@@ -603,7 +641,7 @@ namespace MasselGUARD
 
                 // Check other adapters for non-loopback DNS servers
                 bool otherHasDns = ifaces
-                    .Where(i => !i.Name.Equals(tunnelName, StringComparison.OrdinalIgnoreCase))
+                    .Where(i => !i.Name.Equals(wire, StringComparison.OrdinalIgnoreCase))
                     .SelectMany(i => i.GetIPProperties().DnsAddresses)
                     .Any(a => !System.Net.IPAddress.IsLoopback(a));
 
@@ -724,6 +762,15 @@ namespace MasselGUARD
                         log($"[WARN] ChangeServiceConfig2 failed ({Marshal.GetLastWin32Error()})");
                     else
                         log("  SERVICE_SID_TYPE_UNRESTRICTED set ✓");
+
+                    // Record whose service this is BEFORE it starts, so a later stop can check it.
+                    try
+                    {
+                        using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                            @"SYSTEM\CurrentControlSet\Services\" + serviceName, writable: true);
+                        key?.SetValue("Description", TunnelName.ServiceStamp(tunnelName));
+                    }
+                    catch (Exception ex) { log($"[WARN] could not stamp the service: {ex.Message}"); }
 
                     log("Starting service…");
                     using var sc = new ServiceController(serviceName);

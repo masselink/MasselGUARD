@@ -172,7 +172,8 @@ namespace MasselGUARD.Services
         {
             var dir = Path.Combine(RunDir, Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(dir);
-            var path = Path.Combine(dir, name + ".conf");   // tunnel.dll derives the tunnel name from the file name
+            // tunnel.dll derives the tunnel name from the file name, and refuses spaces.
+            var path = Path.Combine(dir, Models.TunnelName.Wire(name) + ".conf");
             File.WriteAllText(path, conf, new System.Text.UTF8Encoding(false));
             return (path, new Cleanup(dir));
         }

@@ -152,6 +152,8 @@
   "TunnelDialogName": "Tünel adı",
   "BtnGenerateKey": "Oluştur",
   "BtnSaveTunnel": "Kaydet",
+  "TunnelNameInvalid": "Tünel adlarında yalnızca A-Z harfleri, rakamlar, boşluklar ve _ = + . - kullanılabilir, en fazla 32 karakter.\n\nÖnerilen ad: {0}",
+  "TunnelNameLockedTip": "Yeniden adlandırmak için tünelin bağlantısını kesin.",
   "TunnelNameRequired": "Bir tünel adı girin.",
   "TunnelPrivateKeyRequired": "Özel anahtar gereklidir.",
   "TunnelValidationTitle": "Doğrulama",

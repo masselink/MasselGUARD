@@ -85,6 +85,8 @@ Any combination works, including running with WireGuard or DNS (or both) turned 
 3. Optionally enable **Start with Windows** (with the [background service](#37-background-service) a per-user startup entry, otherwise a Scheduled Task; either way no UAC prompt on later launches)
 4. MasselGUARD relaunches from the installed location
 
+The installer copies the two programs, the WireGuard DLLs, the language files and the license files (`LICENSE.txt`, `THIRD-PARTY-NOTICES.md` and `licenses\Apache-2.0.txt`).
+
 The same place shows the current run mode and offers **Uninstall** when running the installed copy. The installer also offers to install the [background service](#37-background-service) (no UAC prompts when you start MasselGUARD).
 
 ### Managed (portable) - version prompt
@@ -117,7 +119,7 @@ The wizard runs on first launch and when you start a newer version than the one 
 
 From left to right after the logo and name: five **section buttons** that show or hide the main-window sections - **WireGuard** (shield), **DNS** (globe), **Automation** (robot), **Charts** (bar chart) and **Activity log** (menu lines) - then **Settings** (gear), minimize, maximize and **close to tray**. A section button is accent-coloured while its section is shown. Each button can be hidden, and each of WireGuard / DNS / Automation can be set to *hide only* (the feature keeps running) or *hide and disable* (Settings → General → Features). Themes can replace the section icons.
 
-Below the title bar: **WiFi:** with the current network name (click it to see the Automation rules for that network) and the **⚡ Quick Connect** button.
+Below the title bar: **WiFi:** with the current network name (click it to see the Automation rules for that network).
 
 ### Layout
 
@@ -182,6 +184,14 @@ Left: run mode (green when Managed). Right: the primary network (Wi-Fi name, or 
 - **✎ Edit** (or double-click) opens the editor for the selected tunnel.
 
 Tunnel configs are stored DPAPI-encrypted in `%APPDATA%\MasselGUARD\tunnels\`.
+
+### Tunnel names
+
+- A name can use the letters **A-Z**, **digits**, **spaces** and `_ = + . -`, up to **32 characters**. It cannot start or end with a space or a dot, or be a reserved Windows name such as `CON` or `COM1`.
+- Windows and WireGuard don't accept spaces, so MasselGUARD uses `_` for them in the config file, the service (`WireGuardTunnel$2_Block_Full`) and the network adapter. The app keeps showing the name you typed.
+- Because of that, two names such as `a b` and `a_b` cannot both be added (upper and lower case count as the same).
+- If a name is not allowed, the editor puts a suggestion in the name field: save again to accept it, or type another one. Imports convert the name.
+- **Renaming:** disconnect the tunnel first (the name is locked while it is connected). The default tunnel, open-network tunnel, connect-on-start choice and automation rules follow the new name; connection history and data-usage totals stay under the old name.
 
 ### The tunnel editor
 
@@ -613,7 +623,7 @@ Four hook points per tunnel - **Before connect**, **After connect**, **Before di
 
 ## 25. Quick Connect
 
-**⚡ Quick Connect** (below the title bar) connects a `.conf` or `.conf.dpapi` file without importing it. It appears as `⚡ filename` at the top of the tunnel list and disappears after you disconnect.
+Quick Connect is **not available** in the current version: there is no button for it. To use a `.conf` file, [import it](#adding-editing-and-importing).
 
 ---
 
@@ -932,7 +942,7 @@ MasselGUARD can do its privileged work (connecting tunnels, changing DNS, the ki
 **Updates** - the in-app updater checks the download against the release's `.sha256` file and refuses an update without it; it also stops and restarts the service around the file copy.
 
 **Troubleshooting**
-- *Service will not start / install refused with a folder message*: reinstall MasselGUARD to Program Files and register the service from there.
+- *Service will not start / install refused with a folder message*: the message names the folder or file and who can change it. For a folder, reinstall MasselGUARD to Program Files and register the service from there. A single program file usually has this problem because it was **moved** into the folder and kept its old permissions: copy it in again instead, or use the `icacls` commands shown in the message. An administrator install repairs such a file by itself when your own account is the only untrusted one on it.
 - *Is it running?* Settings → Startup shows the state; `MasselGUARDcli service status`; the service log is `%ProgramData%\MasselGUARD\logs\service.log`.
 - *The app says the service does not answer*: start it (`sc start MasselGUARDsvc` as administrator) or restart MasselGUARD to fall back to direct mode.
 
@@ -942,4 +952,4 @@ MasselGUARD can do its privileged work (connecting tunnels, changing DNS, the ki
 
 MasselGUARD is free, open-source software released under the **MIT License** - you may use, copy, modify, and redistribute it. The full text is in the `LICENSE` file in the project root.
 
-MasselGUARD bundles the WireGuard native libraries, which remain under their own licenses; see `THIRD-PARTY-NOTICES.md`. **WireGuard** is a registered trademark of Jason A. Donenfeld - MasselGUARD is an independent project, not affiliated with or endorsed by WireGuard LLC.
+MasselGUARD bundles the WireGuard native libraries and uses some other libraries, which remain under their own licenses; see `THIRD-PARTY-NOTICES.md` (the Apache-2.0 text is in `licenses\Apache-2.0.txt`). Note that `wireguard.dll` has its own, more restrictive license: do not distribute it on its own. **WireGuard** is a registered trademark of Jason A. Donenfeld - MasselGUARD is an independent project, not affiliated with or endorsed by WireGuard LLC.

@@ -628,10 +628,12 @@ MasselGUARD import <file>
 
 | Flag | Effect |
 |---|---|
-| `--name <display-name>` | Override the tunnel name (default: filename without extension) |
+| `--name <display-name>` | Override the tunnel name (default: filename without extension). See **Tunnel names** below |
 | `--group <name>` | Assign the tunnel to a group (wins over any group carried in the file) |
 | `--password <pw>` | Password for a `.mgconf` encrypted export (required for that format) |
 | `--unsecure` | Store without DPAPI encryption (copies plaintext to the tunnels folder) |
+
+**Tunnel names:** letters A-Z, digits, spaces and `_ = + . -`, at most 32 characters, no space or dot at the start or end, no reserved Windows name. Put a name with spaces in quotes. An invalid `--name` is refused with a suggestion; a name taken from the file name is converted. Two names that differ only in spaces versus `_` (or in upper and lower case) count as duplicates, because they would share one Windows service.
 
 **Default behaviour (secure):** The config is DPAPI-encrypted (`CurrentUser` scope) and written to `%APPDATA%\MasselGUARD\tunnels\<name>.conf.dpapi`. Only the file path is stored in `config.json` - no key material. The original file is not moved or deleted.
 
@@ -733,7 +735,7 @@ MasselGUARD rawconnect --endpoint <host:port> --pubkey <key>
 | `--psk <base64>` | Pre-shared key (inline) |
 | `--pskfile <path>` | Pre-shared key read from a file |
 | `--allowed <CIDRs>` | Allowed IPs (default: `0.0.0.0/0, ::/0`) |
-| `--name <display>` | Display name for this session (default: `rawconnect-YYMMDDHHMM`) |
+| `--name <display>` | Display name for this session (default: `rawconnect-YYMMDDHHMM`). Same rules as for [`import`](#import); an invalid name is refused |
 | `--group <name>` | Group assignment (only relevant with `--save`) |
 | `--save` | Import the tunnel permanently into config before connecting |
 
