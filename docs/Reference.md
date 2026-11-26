@@ -1013,8 +1013,9 @@ Triggers on any difference including build number - `2.9.0.2505181430` vs `2.9.0
 
 MasselGUARD's own source is **MIT** (`LICENSE`, repo root). Bundled third-party components keep their own licenses, documented in `THIRD-PARTY-NOTICES.md` (repo root):
 
-- `tunnel.dll` - WireGuard embeddable tunnel service (wireguard-windows / wireguard-go): **MIT** (verify the exact bundled version).
-- `wireguard.dll` - wireguard-nt: **verify its exact license and prebuilt-DLL redistribution terms upstream** ([git.zx2c4.com/wireguard-nt](https://git.zx2c4.com/wireguard-nt)) before a public release - its terms could affect the combined distribution. Do not assume.
+- `tunnel.dll` - WireGuard embeddable tunnel service (wireguard-windows): **MIT**. The Go runtime and `golang.org/x` libraries compiled into it are **BSD 3-Clause**; the notices file records the source commit and versions of the bundled DLLs.
+- `wireguard.dll` - WireGuardNT prebuilt DLL: [**Prebuilt Binaries License**](https://git.zx2c4.com/wireguard-nt/plain/prebuilt-binaries-license.txt) (not open source; the WireGuardNT source is GPLv2). Redistribution needs WireGuard LLC's written consent, **except** insofar as the DLL is distributed alongside other software that uses it only through the API in `wireguard.h` (the "Permitted API"). So ship it unmodified, only together with the app, and call nothing outside that API. The license text governs.
+- NuGet packages - Markdig (**BSD 2-Clause**), ZXing.Net and its Windows bindings (**Apache-2.0**), Microsoft `System.*` packages (**MIT**). Apache-2.0 is currently only linked from the notices file; its full text still has to be added to the repo and release packages.
 - .NET 10 - framework-dependent (runtime not bundled), © Microsoft, MIT.
 - **WinDivert** - reserved for future per-app split tunneling (a later 4.x; **not yet bundled**); dual **LGPLv3 / GPLv3**, intended via the **LGPLv3** dynamic-link path. Compliance checklist in `HANDOVER.md` §3C.
 

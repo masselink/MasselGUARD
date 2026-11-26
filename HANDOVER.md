@@ -37,8 +37,11 @@ From 5 on a release is a single number (5, 6, 7...); `UpdateChecker.ParseVersion
 - **Split tunneling** (route/IP-based) exclude/include routing and its kill-switch interplay.
 - **ARM64** build not yet smoke-tested on real ARM64 hardware (DLLs are PE-verified `0xAA64`).
 
-### B. Licensing - one verify item
-- **`wireguard.dll` (wireguard-nt)**: confirm the exact licence and prebuilt-DLL redistribution terms upstream (<https://git.zx2c4.com/wireguard-nt>) and update `THIRD-PARTY-NOTICES.md` (currently marked *VERIFY UPSTREAM*). `tunnel.dll` (wireguard-windows/-go) is MIT. `LICENSE` (MIT) and the About-page credits are in place.
+### B. Licensing - open items
+`THIRD-PARTY-NOTICES.md` was updated with upstream license information checked on 2026-11-26 (summary in `docs/Reference.md` section 42). `LICENSE` (MIT) and the About-page credits are in place. Still open:
+- **Apache-2.0 (ZXing.Net)**: the notices file only links it. The license requires giving recipients a copy, so add the full text to the repo and to the release zips before the next release.
+- **Compiler runtime in `tunnel.dll`**: it is built with a C compiler (CGO, llvm-mingw). Not yet checked whether runtime code from it is included and needs its own notice.
+- **`wireguard.dll` in the source repository**: the Prebuilt Binaries License allows redistribution without written consent only alongside software that uses the DLL solely through the `wireguard.h` API. The app's own calls fit this. Whether storing the DLL next to the source in Git is covered is a judgement call, not legal advice; ask WireGuard LLC if in doubt.
 
 ### C. Parked - per-app split tunneling
 Prototyped on WinDivert and reverted (2026-09-10/11); the design and findings are in [`docs/SplitTunneling-Design.md`](docs/SplitTunneling-Design.md) §11. If revisited: WinDivert is dual **LGPLv3 / GPLv3** - take the **LGPLv3** path (dynamic-link an unmodified `WinDivert.dll`, ship its LICENSE + LGPL/GPL texts, keep the DLL user-replaceable), credit Basil (basil00) in About + `THIRD-PARTY-NOTICES.md`, plan an AV-allowlisting note, and note WinDivert 2.2.2 has no arm64 driver.
