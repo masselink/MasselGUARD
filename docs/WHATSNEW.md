@@ -9,7 +9,7 @@ A small release that mainly helps with installing the background service.
 
 - **Clearer message when the service cannot be installed** - when MasselGUARD refuses the install folder, the message now names the owner, or the account or group that has write access, and shows how to fix it.
 - **Moved program files are repaired** - a file that was moved into the install folder keeps its old owner and permissions. When you install as administrator, and your own account is the only untrusted one on such a program file, MasselGUARD resets it to the folder's permissions and checks it again. Any other account or group is still refused.
-- **Third-party notices** - updated with the licenses of the bundled WireGuard files and libraries; the Apache-2.0 license text now ships with the app as `LICENSE-Apache-2.0.txt`. The built-in installer now copies the license and notices files into the install folder.
+- **Third-party notices** - updated with the licenses of the bundled WireGuard files and libraries; the Apache-2.0 license text now ships with the app as `licenses\Apache-2.0.txt`. The built-in installer now copies the license and notices files into the install folder.
 
 ---
 

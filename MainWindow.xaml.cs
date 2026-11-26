@@ -4953,11 +4953,12 @@ namespace MasselGUARD
                 // The license files travel with the binaries: those licenses ask for it, and the About
                 // page opens the local copies.
                 foreach (var name in new[] { "MasselGUARD.exe", "MasselGUARDcli.exe", "tunnel.dll", "wireguard.dll",
-                                             "LICENSE.txt", "LICENSE-Apache-2.0.txt", "THIRD-PARTY-NOTICES.md" })
+                                             "LICENSE.txt", @"licenses\Apache-2.0.txt", "THIRD-PARTY-NOTICES.md" })
                 {
                     var src = System.IO.Path.Combine(sourceDir, name);
                     if (System.IO.File.Exists(src))
                     {
+                        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(System.IO.Path.Combine(installDir, name))!);
                         // A running service / tunnel / window holds the installed file: move it aside if needed.
                         if (Services.InstallFiles.CopyOverwriting(src, System.IO.Path.Combine(installDir, name)))
                             LogSvc.Info($"Install: {name} was in use - the old copy was renamed aside and is removed later.");

@@ -288,9 +288,10 @@ if exist "%~dp0THIRD-PARTY-NOTICES.md" (
     echo   OK  %ARCH%\THIRD-PARTY-NOTICES.md
 )
 rem Apache-2.0 requires recipients to get a copy of the license (ZXing.Net).
-if exist "%~dp0LICENSE-Apache-2.0.txt" (
-    copy /y "%~dp0LICENSE-Apache-2.0.txt" "%OUT%\LICENSE-Apache-2.0.txt" >nul
-    echo   OK  %ARCH%\LICENSE-Apache-2.0.txt
+if exist "%~dp0licenses\Apache-2.0.txt" (
+    if not exist "%OUT%\licenses" mkdir "%OUT%\licenses"
+    copy /y "%~dp0licenses\Apache-2.0.txt" "%OUT%\licenses\Apache-2.0.txt" >nul
+    echo   OK  %ARCH%\licenses\Apache-2.0.txt
 )
 
 rem ── Copy the matching-arch WireGuard DLLs ───────────────────────────────────
