@@ -13,5 +13,8 @@ obj/
 # DLLs placed next to the project for local dev
 tunnel.dll
 wireguard.dll
+# ...but keep the per-arch DLLs in the repo
+!wireguard-deps/*/tunnel.dll
+!wireguard-deps/*/wireguard.dll
 MasselGUARD-themes.lnk
 MasselGUARD-scoop.lnk
