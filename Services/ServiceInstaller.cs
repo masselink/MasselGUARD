@@ -18,8 +18,15 @@ namespace MasselGUARD.Services
 
         /// <summary>A LocalSystem service cannot read a per-user cloud-synced folder, and a service pointing at a
         /// folder that later moves breaks, so the exe must sit in a normal local folder.</summary>
-        public static string? CheckExePath(string exePath)
+        public static string? CheckExePath(string exePath) => CheckExePath(exePath, repair: false, out _);
+
+        /// <summary>With <paramref name="repair"/> (elevated install only), program files whose only problem is that the
+        /// installing account owns them or can write them (a file MOVED into the folder keeps its old permissions) are
+        /// reset to the folder's permissions first; <paramref name="repaired"/> lists them. See
+        /// SecureFolders.CheckInstallFolder.</summary>
+        public static string? CheckExePath(string exePath, bool repair, out List<string> repaired)
         {
+            repaired = new List<string>();
             if (!File.Exists(exePath)) return $"Executable not found: {exePath}";
             foreach (var v in new[] { "OneDrive", "OneDriveCommercial", "OneDriveConsumer" })
             {
@@ -30,7 +37,9 @@ namespace MasselGUARD.Services
             if (exePath.StartsWith(@"\\")) return "The service cannot run from a network path.";
             // SYSTEM runs this exe and loads the DLLs next to it: nobody but administrators may be able to change them.
             var dir = Path.GetDirectoryName(exePath) ?? "";
-            return SecureFolders.CheckInstallFolder(dir, new[] { exePath, Path.Combine(dir, "tunnel.dll"), Path.Combine(dir, "wireguard.dll"), Path.Combine(dir, "MasselGUARDcli.exe") });
+            var me = repair && IsElevated() ? WindowsIdentity.GetCurrent().User?.Value : null;
+            return SecureFolders.CheckInstallFolder(dir, new[] { exePath, Path.Combine(dir, "tunnel.dll"), Path.Combine(dir, "wireguard.dll"), Path.Combine(dir, "MasselGUARDcli.exe") },
+                                                    me, out repaired);
         }
 
         public static bool IsInstalled() => Status() != null;
@@ -89,8 +98,10 @@ namespace MasselGUARD.Services
 
         public static (bool ok, string message) Install(string exePath, IEnumerable<string>? allowUserSids = null)
         {
-            var bad = CheckExePath(exePath);
+            var bad = CheckExePath(exePath, repair: true, out var repaired);
             if (bad != null) return (false, bad);
+            var note = repaired.Count == 0 ? "" :
+                " The permissions of " + string.Join(", ", repaired.Select(f => Path.GetFileName(f))) + " were reset to those of the folder (the file had kept the permissions of the folder it was moved from).";
 
             // Who may call the service besides Administrators: the installing user (and any extras).
             var sids = new List<string>();
@@ -107,7 +118,7 @@ namespace MasselGUARD.Services
             Sc($"description {Name} \"MasselGUARD privileged back-end (tunnels, DNS, kill switch).\"");
             Sc($"failure {Name} reset= 86400 actions= restart/5000/restart/5000/restart/30000");
             var (sok, smsg) = Sc($"start {Name}");
-            return sok ? (true, "Service installed and started.") : (false, "Service installed but did not start: " + smsg);
+            return sok ? (true, "Service installed and started." + note) : (false, "Service installed but did not start: " + smsg + note);
         }
 
         public static (bool ok, string message) Uninstall()
