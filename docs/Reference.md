@@ -1,6 +1,6 @@
 # MasselGUARD - Technical reference
 
-Developer/technical reference for v4.6.0 - Wired Weasel. For end-user instructions see [`MANUAL.md`](MANUAL.md).
+Developer/technical reference for version 6 - Mending Meerkat. For end-user instructions see [`MANUAL.md`](MANUAL.md).
 
 ---
 
@@ -10,8 +10,8 @@ Developer/technical reference for v4.6.0 - Wired Weasel. For end-user instructio
 2. [Startup sequence](#2-startup-sequence)
 3. [WiFi monitoring](#3-wifi-monitoring)
 4. [Rule evaluation](#4-rule-evaluation)
-5. [Connecting a tunnel - Standalone](#5-connecting-a-tunnel---standalone)
-6. [Connecting a tunnel - Companion](#6-connecting-a-tunnel---companion)
+5. [Connecting a tunnel](#5-connecting-a-tunnel)
+6. [External tunnel changes](#6-external-tunnel-changes)
 7. [Disconnecting a tunnel](#7-disconnecting-a-tunnel)
 8. [Pre/post scripts](#8-prepost-scripts)
 9. [Tunnel groups and categories](#9-tunnel-groups-and-categories)
@@ -56,13 +56,14 @@ Developer/technical reference for v4.6.0 - Wired Weasel. For end-user instructio
 
 ## 1. Operating modes
 
-MasselGUARD runs in one of three modes, selected in the setup wizard or Settings → General.
+MasselGUARD manages its own tunnels: you create or import configs in the app, they are stored encrypted, and `tunnel.dll` + `wireguard.dll` (WireGuardNT) next to the executable provide connectivity. No WireGuard application is needed. (The former *Companion* and *Mixed* modes, which drove WireGuard for Windows, have been removed; `ConfigService.DropCompanionTunnels` drops leftover entries when the config is loaded.)
 
-**Standalone** - MasselGUARD owns the tunnel lifecycle entirely. No WireGuard application is required. Tunnel configs are created, encrypted, and stored inside the app. Connectivity is provided by `tunnel.dll` + `wireguard.dll` (wireguard-NT) placed next to the executable.
+The privileged work (tunnels, DNS, kill switch) runs in one of two **back-ends**, chosen at startup:
 
-**Companion** - MasselGUARD automates the official WireGuard for Windows application. It does not store or modify tunnel configs - it only starts and stops the `WireGuardTunnel$<n>` Windows services that WireGuard creates. You link existing WireGuard profiles from the Import dialog.
-
-**Mixed** - Both modes active simultaneously. Local (Standalone) tunnels and linked WireGuard profiles coexist in the same tunnel list and can all be automated.
+| Back-end | When | See |
+|---|---|---|
+| **Service** | The MasselGUARD service is installed, running and accepts this user; the app can then run unelevated | [section 45](#45-service-back-end-50) |
+| **Direct** | Otherwise; the app itself runs elevated | [section 23](#23-run-modes-and-installation) |
 
 ---
 
@@ -70,37 +71,37 @@ MasselGUARD runs in one of three modes, selected in the setup wizard or Settings
 
 ```
 Program.Main()
-  └─ Mutex check (single instance guard - see §2a)
-  └─ UAC elevation check
-  └─ Application.Run(MainWindow)
-        │
-        ▼
-MainWindow.Loaded
-  ├─ LoadConfig()              %APPDATA%\MasselGUARD\config.json
-  │   └─ MigrateInlineConfigsToFiles()  (one-time: inline Config → .conf.dpapi file)
-  ├─ HistoryService.Load()     %APPDATA%\MasselGUARD\tunnel_history.json
-  ├─ HistoryService.LoadSsid() %APPDATA%\MasselGUARD\wifi_history.json
-  ├─ ApplyManualMode()
-  ├─ ApplyLocalTunnelMode()
-  ├─ SetupTimer()              1-second status poll
-  ├─ _startupComplete = true
-  ├─ RegisterWifiEvents()      WlanRegisterNotification
-  ├─ TryUpdateWifi()           captures current SSID immediately at startup
-  ├─ UpdateThemeToggleIcon()
-  ├─ SyncAutoTheme()
-  └─ (optional) ShowWizard()   if no config.json existed
+  ├─ Set working directory + DLL search path to the exe folder
+  ├─ "/service <conf>"  → tunnel service process (TunnelDll.HandleServiceArgs), then exit
+  ├─ "/svc"             → privileged back-end service, then exit
+  ├─ "--bypass ..."     → windowless DNS bypass client, then exit
+  ├─ Elevation decision (section 23)
+  └─ App.Run()
+       ▼
+App.OnStartup
+  ├─ Load language and theme (holding Shift resets font, theme and language)
+  ├─ Single-instance check (see 2a)
+  ├─ new MainWindow()
+  │    ConfigService.Load, LogService, HistoryService (tunnel, network and DNS history),
+  │    PrivilegedBackend.Select, TunnelService, WiFiService, RuleEngine, MainViewModel
+  ├─ Start the command pipe (DNS bypass requests)
+  └─ Show the window (and hide it to the tray with Start minimized)
+       ▼
+MainWindow.OnLoaded
+  ├─ KillSwitch.CleanupStaleRules()
+  ├─ Apply theme and layout; close history entries of tunnels that are no longer running
+  ├─ WiFiService.Start(); query the current SSID
+  ├─ EvaluateNetworkNow(), then StartNetworkWatching()   (a wired-only PC has no Wi-Fi event)
+  ├─ After the first Wi-Fi query settles: connect the "connect on start" tunnel
+  └─ Update check, version prompts, setup wizard (first run or after an upgrade)
 ```
 
 ### 2a - Single-instance guard
 
-A named mutex (`Global\MasselGUARD_SingleInstance`) prevents multiple instances. If the mutex is already held:
+A named mutex (`Global\MasselGUARD_SingleInstance`, usable by elevated and unelevated instances) prevents a second instance. If it is held:
 
-1. Check whether a real MasselGUARD process (by process name, excluding self) is running
-2. If no real process found (orphaned mutex - e.g. after install to new location), retry up to 4 × 500 ms
-3. Only show the "already running" dialog if mutex is held AND a real process exists
-4. If the mutex is acquired after retry, continue normally
-
-This prevents the false-positive "already running" message when relaunching after installation.
+1. Retry for up to 3 s (covers a crashed instance and an update that restarts the app).
+2. If it is still held and another MasselGUARD process exists, show the *already running* dialog: close the other copy and continue here, or bring the running copy to the front and exit.
 
 ---
 
@@ -110,122 +111,110 @@ MasselGUARD uses `wlanapi.dll` directly rather than WMI or process spawning.
 
 ```
 WlanOpenHandle(version=2)
-WlanRegisterNotification(WLAN_NOTIFICATION_SOURCE_ACM)
-  └─ OnNotification() fires on ACM codes:
-       9  = ACM_CONNECTED
+WlanRegisterNotification(ACM source)
+  └─ OnNotification() reacts to:
+       9  = ACM_CONNECTED          ┐ query the SSID (up to 5 tries, 200 ms apart)
+       20 = ACM_CONNECTION_COMPLETE┘
        10 = ACM_DISCONNECTED
-       20 = ACM_CONNECTION_COMPLETE
 
-FireIfChanged(ssid, isOpen)
-  └─ only invokes SsidChanged if ssid != _lastFiredSsid
-     (deduplicates ACM_CONNECTED + ACM_CONNECTION_COMPLETE)
+FireIfChanged(ssid, isOpen)          only raises SsidChanged when the SSID differs from the last one
 
-MainWindow.OnWifiChanged(ssid, isOpen)       [UI thread via Dispatcher.BeginInvoke]
-  └─ ApplyWifiState(ssid, isOpen)            [central handler - also called by TryUpdateWifi]
-       ├─ if ssid != _lastRecordedSsid:
-       │    StoreWifiHistory? → HistoryService.RecordSsidConnect(ssid, isOpen)
-       │                      → HistoryService.RecordSsidDisconnect() (if null)
+MainWindow.OnWifiChanged             [UI thread]
+  └─ ApplyWifiState(ssid, isOpen)    also used by the startup query
        ├─ UpdateWifiLabel(ssid)
-       └─ _vm.ApplyWifiState(ssid, isOpen)
-            ├─ null ssid → 2-second debounce → re-query → disconnect or re-apply
-            └─ non-null → log, EvaluateWifi(), ApplyRuleResult()
-
-TryUpdateWifi()    [called at startup and by the retry timer]
-  └─ QueryCurrentSsid() → ApplyWifiState()  [records SSID immediately on launch]
+       └─ MainViewModel.ApplyWifiState
+            ├─ no SSID  → 2 s debounce, query again, then EvaluateNetworkNow()
+            └─ new SSID → log it, EvaluateNetworkNow()
 ```
 
-`ReadCurrentSsidFromApi()` reads `WLAN_CONNECTION_ATTRIBUTES` directly from memory:
+Wi-Fi events only trigger an evaluation. Rules, DNS and the network history work from a **network snapshot** of all connected Wi-Fi and wired adapters (`Services/NetworkMonitor`); `Services/NetworkWatcher` also re-evaluates after Windows network changes, debounced by `AppConfig.NetworkSettleMs`. See [`NetworkIdentity-Design.md`](NetworkIdentity-Design.md).
+
+`ReadCurrentSsidFromApi()` reads `WLAN_CONNECTION_ATTRIBUTES` from memory:
 
 | Offset | Field | Used for |
 |---|---|---|
-| 0 | `isState` (DWORD) | Must equal 1 (connected) before reading SSID |
-| 520 | `uSSIDLength` (DWORD) | SSID byte length (clamped to 0–32) |
+| 0 | `isState` | Must be 1 (connected) |
+| 520 | `uSSIDLength` | SSID byte length (clamped to 0-32) |
 | 524 | `ucSSID[32]` | SSID bytes (UTF-8) |
-| 588 | `bSecurityEnabled` (BOOL) | `false` = open network |
+| 588 | `bSecurityEnabled` | 0 = open network |
+| 596, 600 | auth and cipher algorithm | 802.11 open authentication with no cipher also counts as open |
 
-`WLAN_INTERFACE_INFO` stride: 532 bytes per entry.
-| 580 | `bSecurityEnabled` | 0 = open network |
-
-A 1-second `DispatcherTimer` also calls `UpdateStatusDisplay()` to keep the active tunnel label and tray icon in sync.
+`WLAN_INTERFACE_INFO` entries are 532 bytes apart.
 
 ---
 
 ## 4. Rule evaluation
 
-`ApplyRules(ssid)` runs every time the WiFi network changes:
+`MainViewModel.ApplyNetworkSnapshot` is the one decision point. The **tunnel** is one decision for the **primary** network only; **DNS** is decided per adapter ([section 44](#44-dns-automation)). The tunnel rules are re-run only when the primary network's identity changes.
+
+`RuleEngine.EvaluateNetwork(cfg, primary)`, first match wins:
 
 ```
-1. Open network protection
-   └─ Is bSecurityEnabled = 0?
-   └─ Is OpenWifiTunnel configured?
-   └─ Yes → SwitchTo(OpenWifiTunnel)  STOP
-
-2. SSID rules
-   └─ Does any rule match the SSID exactly (case-insensitive)?
-   └─ Yes, tunnel set   → SwitchTo(rule.Tunnel)   STOP
-   └─ Yes, tunnel empty → DisconnectAll()          STOP
-
-3. Default action
-   └─ "none"       → do nothing
-   └─ "disconnect" → DisconnectAll()
-   └─ "activate"   → SwitchTo(DefaultTunnel)
+1. Manual mode on, or the WireGuard feature off      → nothing
+2. Open Wi-Fi and OpenWifiTunnel set                 → activate it
+3. Enabled network rules whose conditions all hold   → the FIRST one in the rules table:
+                                                       activate its tunnel; empty tunnel = disconnect
+4. Enabled trusted rules, each on its side of the
+   trusted-networks list                             → activate / disconnect
+5. Default action                                    → "none" | "disconnect" | "activate" DefaultTunnel
 ```
 
-`SwitchTo(target)` stops any active tunnel that is not `target`, then starts `target`. If `target` is already running it logs `AlreadyActive` and returns.
+DNS-only rules are skipped on the tunnel axis. When the last network disappears, `EvaluateWifiDisconnected` applies the default action only if it is *disconnect*. Schedule rules are evaluated separately by `EvaluateSchedules`.
+
+`MainViewModel.ApplyRuleResult` carries out the result: *activate* disconnects the other active tunnels and connects the target (`ActivateTarget`); a reached data cap with *Kill at cap* asks first.
 
 ---
 
-## 5. Connecting a tunnel - Standalone
+## 5. Connecting a tunnel
 
 ```
-StartTunnel(name)
-  ├─ RunTunnelScript(PreConnectScript)
-  ├─ ValidateDlls()
-  ├─ DpapiDecrypt(confPath) → plaintext WireGuard config
-  ├─ WriteSecure(SvcConfPath)
-  │   ├─ File.Create()                    empty - inherits parent ACL
-  │   ├─ SetAccessControl(fileSec)        SYSTEM + Admins + user only
-  │   └─ StreamWriter.Write(plaintext)
-  ├─ TunnelDll.Connect(name, svcConf)
-  │   └─ Creates WireGuardTunnel$<n> SCM service → wireguard-NT
-  ├─ Delete SvcConfPath immediately (~200 ms lifetime)
-  └─ RunTunnelScript(PostConnectScript)
+TunnelService.Connect(stored, cfg, source)
+  ├─ RunScript(PreConnectScript)
+  └─ ConnectLocal
+       ├─ TunnelDll.ValidateDlls()
+       ├─ Check the tunnel name (see below)
+       ├─ DecryptConfig(stored); apply the split-tunnel rewrite; validate the config
+       ├─ Direct mode:  WriteSecure(<exe>\tunnels\temp\<wire>.conf)
+       │                  create empty → ACL: SYSTEM, Administrators, user → write
+       │                TunnelDll.Connect(name, conf)
+       │                delete the temp file
+       ├─ Service mode: connect by name from the service's store (section 45)
+       │
+       │  TunnelDll.Connect
+       │   ├─ Refuses to replace a running service stamped for another tunnel name
+       │   └─ Creates the WireGuardTunnel$<wire> service, stamps its description, starts it
+       └─ Enable the kill switch when configured
+  then: record history, RunScript(PostConnectScript)
 ```
+
+**Tunnel names** (`Models/TunnelName`). The name the user typed is the only one stored. `TunnelName.Wire(name)` (spaces become `_`) is computed whenever Windows or `tunnel.dll` needs it: the staged `.conf` file name (`tunnel.dll` takes the tunnel name from it and accepts only `^[a-zA-Z0-9_=+.-]{1,32}$`), the service name, the adapter, the UAPI pipe and the kill-switch interface. The conversion is never reversed. `IsValid` applies the rule to the wire form (no space at either end); `Clashes` finds names that share a wire form.
+
+**Stopping the right service.** The service description is `MasselGUARD Tunnel: <app name>`, written before the service starts. `TunnelDll.Disconnect` refuses a service stamped for a different name, `IsRunning` is false for it, and `TunnelService.Disconnect` then leaves history and kill switch unchanged. A service without a stamp cannot be told apart. The tunnel editor locks the name while the tunnel is connected.
 
 ---
 
-## 6. Connecting a tunnel - Companion
+## 6. External tunnel changes
 
-```
-StartTunnel(name) - Companion path
-  ├─ RunTunnelScript(PreConnectScript)
-  ├─ EnsureManagerRunning()
-  ├─ ServiceController(SvcName(name)).Start()
-  ├─ WaitForStatus(Running, 15 s)
-  └─ RunTunnelScript(PostConnectScript)
-```
+The former companion (WireGuard for Windows) connect path has been removed. The 1-second status poll (`MainViewModel.RefreshTunnelStatus`) still notices when a tunnel stops outside the app's own disconnect (a crash, or another process).
+
+**Auto-reconnect.** A drop is retried only when auto-reconnect applies to the tunnel (`TunnelService.ShouldAutoReconnect`) and MasselGUARD did not stop the tunnel itself (`ConsumeIntentionalDisconnect`). `AutoReconnectAsync` waits a short grace period, then makes up to 3 attempts with 5, 10 and 15 s back-off, and stops if a kill-enabled data cap is reached.
 
 ---
 
 ## 7. Disconnecting a tunnel
 
 ```
-StopTunnel(name)
-  ├─ RunTunnelScript(PreDisconnectScript)
-  ├─ [local]  TunnelDll.Disconnect(name)  → sc.Stop() + sc.Delete()
-  │   or
-  │   [WG]    ServiceController.Stop() + WaitForStatus(Stopped, 15 s)
-  └─ RunTunnelScript(PostDisconnectScript)
+TunnelService.Disconnect(stored, cfg)
+  ├─ Mark the disconnect as intentional (no auto-reconnect)
+  ├─ RunScript(PreDisconnectScript)
+  ├─ Read the final traffic counters
+  ├─ TunnelDll.Disconnect(name)          directly, or through the service
+  │    ├─ Refuses a service stamped for another tunnel name
+  │    └─ Stops and deletes the service, then closes the adapter
+  ├─ Refused or failed → log the reason; history and kill switch stay as they are
+  ├─ Close the history entry, disable the tunnel's kill switch
+  └─ RunScript(PostDisconnectScript)
 ```
-
-### External transitions (companion tunnels)
-
-The 1-second status poll (`MainViewModel.RefreshTunnelStatus`) compares each tunnel's cached `IsActive` against the live service state. Transitions that MasselGUARD did not initiate (WireGuard app, CLI) are handled explicitly:
-
-- **External connect** → log `Connected: <name> via WireGuard app`, `TunnelService.RecordExternalConnect` opens a history entry (source *WireGuard app*), snapshots byte counters, and clears any stale intentional-disconnect mark and `UserDisconnected` flag.
-- **External disconnect** → `TunnelService.RecordExternalDisconnect` closes the open history entry, writes extended-log continuation lines, and logs `Disconnected: <name> via WireGuard app`.
-
-Auto-reconnect distinguishes a *clean deactivate* from a *crash* by checking whether the `WireGuardTunnel$<name>` SCM entry still exists. The WireGuard app stops the service **before** deleting the entry, so the check at drop time races the deletion - `AutoReconnectAsync` therefore re-checks after a 2 s grace delay (and after every backoff delay) and aborts with `was deactivated via the WireGuard app - not reconnecting` when the entry is gone. Reconnect attempts `await vm.ConnectAsync()` so success/failure is judged after the connect actually finishes.
 
 ---
 
@@ -250,74 +239,56 @@ Script values take two forms:
 
 ## 9. Tunnel groups and categories
 
-Each tunnel can be assigned to a named group. Groups are managed in Settings → Tunnels. The tunnel list shows: All · group tabs · Uncategorized. `RebuildTunnelGroups()` builds the tab strip; selection is preserved by name across rebuilds.
+Each tunnel can be assigned to a named group. Groups are managed in Settings → WireGuard. The tunnel list shows: All · group tabs · Uncategorized. `RebuildTunnelGroups()` builds the tab strip; selection is preserved by name across rebuilds.
 
 ---
 
 ## 10. Quick Connect
 
+**Not available in the current app:** the *Quick Connect* button in `MainWindow.xaml` is collapsed and nothing shows it. The code behind it remains:
+
 ```
 QuickConnect_Click()
   ├─ OpenFileDialog (*.conf, *.conf.dpapi)
-  ├─ ReadAllBytes + DpapiDecrypt if needed
-  ├─ Store in _quickConnectConfig (in-memory only)
-  ├─ StartTunnel via local path
-  └─ Show "⚡ filename" at top of tunnel list
+  ├─ new StoredTunnel { Name = converted file name, Path = the file }   (not added to the config)
+  └─ TunnelService.Connect(...)
 ```
-
-Config is never written to `%APPDATA%\MasselGUARD\tunnels\`.
 
 ---
 
 ## 11. Open network protection
 
-Detects open (passwordless) WiFi by reading `WLAN_SECURITY_ATTRIBUTES.bSecurityEnabled` at offset 580. A value of `0` means no security. Activates the configured protection tunnel **before** any SSID rule or default action. Configure in Settings → WiFi → Open network protection.
+An open (passwordless) Wi-Fi network activates `OpenWifiTunnel` **before** any rule or the default action (step 2 in [section 4](#4-rule-evaluation)). How "open" is detected is described in [section 3](#3-wifi-monitoring). Configure it in Settings → Automation, in the tunnel editor, from a tunnel's context menu or with the **Defaults** button.
 
 ---
 
 ## 12. Kill switch
 
-`KillSwitchService` (late-bound via `HNetCfg.FwPolicy2` / `HNetCfg.FwRule` COM) manages a traffic block rule set in Windows Firewall.
+`KillSwitchService` uses Windows Firewall through late-bound COM (`HNetCfg.FwPolicy2` / `HNetCfg.FwRule`). All rule names start with `MasselGUARD_KS_`.
 
 ### Enable flow
 
 ```
-KillSwitchService.Enable(tunnelName, interfaceAlias, endpointIp, endpointPort)
-  ├─ lock(_lock) / already active → return
-  ├─ _savedDomain/Private/Public = policy.DefaultOutboundAction[prof]
-  ├─ policy.DefaultOutboundAction[ALL_PROFILES] = Block
-  ├─ Add MasselGUARD_KS_Allow_WG - Allow outbound on interfaceAlias (UDP/TCP)
-  ├─ Add MasselGUARD_KS_Allow_Endpoint - Allow UDP to endpointIp:endpointPort
-  ├─ Add MasselGUARD_KS_Allow_Loopback - Allow loopback (127.0.0.1/8)
-  ├─ Add MasselGUARD_KS_Allow_DHCP - Allow UDP port 67/68 (DHCP)
-  └─ _active.Add(tunnelName)
+Enable(tunnelName, endpointIp, bypassRanges)
+  ├─ Already enabled for this tunnel → return
+  ├─ First tunnel: remember each profile's default outbound action, set it to Block,
+  │                add MasselGUARD_KS_Allow_Loopback (127.0.0.0/8, ::1/128)
+  ├─ Add MasselGUARD_KS_Allow_WG_<name>        outbound on the tunnel adapter (name with spaces as "_")
+  ├─ Add MasselGUARD_KS_Allow_EP_<name>        UDP to the server's endpoint address
+  └─ Add MasselGUARD_KS_Allow_Split_<name>_<i> for split-tunnel bypass ranges (section 43)
 ```
 
 ### Disable flow
 
-```
-KillSwitchService.Disable(tunnelName)
-  ├─ _active.Remove(tunnelName)
-  └─ if _active.Count == 0:
-       ├─ Restore DefaultOutboundAction from _savedDomain/Private/Public
-       └─ Remove all MasselGUARD_KS_* rules
-```
-
-`DisableAll()` clears `_active` and always restores policy - called on app exit from `App.OnExit`.
+`Disable(tunnelName)` does nothing for a tunnel that never enabled it. Otherwise it removes that tunnel's rules; when it was the last one, the saved outbound actions are restored and the loopback rule is removed. `DisableAll()` does the same for every tunnel. It runs on app exit, except when the service keeps automation running, which leaves tunnels and kill switch in place.
 
 ### Startup cleanup
 
-`CleanupStaleRules()` called from `MainWindow.Loaded` before anything else:
-1. Restore `DefaultOutboundAction` to `Allow` for all three profiles
-2. Remove every rule whose `Name` starts with `MasselGUARD_KS_`
+`CleanupStaleRules()` removes leftover `MasselGUARD_KS_` rules. The outbound default is put back only when such rules were found or this run raised it, so a block-outbound policy set for other reasons is not lowered.
 
 ### Global mode
 
-`AppConfig.KillSwitchMode` (`"off"` / `"always"`). When `"always"`, `isGlobalAlways = true` is passed to both `TunnelConfigDialog` and `TunnelMetadataDialog` - the per-tunnel toggle is hidden and the effective value is always `true`. The `stored.KillSwitch` field is only written when `!isGlobalAlways`.
-
-### Reference counting
-
-`_active` (`HashSet<string>`) tracks enabled tunnels. Policy is only applied on the **first** `Enable()` and only restored on the **last** `Disable()`. Concurrent tunnels all share the same firewall state.
+`AppConfig.KillSwitchMode`: `"per-tunnel"` (default, uses `StoredTunnel.KillSwitch`) or `"always"`. With *always*, the tunnel editor shows the setting as controlled globally.
 
 ---
 
@@ -325,83 +296,69 @@ KillSwitchService.Disable(tunnelName)
 
 ### config.json - `%APPDATA%\MasselGUARD\config.json`
 
-```json
-{
-  "Rules":         [ { "Ssid": "HomeWifi", "Tunnel": "home" } ],
-  "TunnelGroups":  [ { "Name": "Work", "IsExpanded": true } ],
-  "DefaultAction": "activate",
-  "DefaultTunnel": "home",
-  "OpenWifiTunnel": "home",
-  "Mode":          "Standalone",
-  "ManualMode":    false,
-  "Language":      "en",
-  "ActiveTheme":   "default-dark",
-  "AutoTheme":     false,
-  "LogLevelSetting": "normal",
-  "ShowTrayPopupOnSwitch": true
-}
-```
+Serialised from `Models/AppConfig.cs`, which is the full list of settings. A few of them:
+
+| Key | Content |
+|---|---|
+| `Tunnels`, `TunnelGroups` | Tunnel entries (no key material) and groups |
+| `Rules` | Automation rules, in evaluation order |
+| `TrustedNetworks` | Trusted list: SSIDs and `suffix:` / `mac:` / `subnet:` entries |
+| `DefaultAction`, `DefaultTunnel` | `"none"` / `"disconnect"` / `"activate"` and its tunnel |
+| `OpenWifiTunnel`, `ConnectOnStartTunnel` | Tunnel names |
+| `ManualMode`, `PrimaryNetworkMode` | Automation off; how the primary network is chosen |
+| `KillSwitchMode`, `AutoReconnectMode` | Global modes |
+| `DnsProfiles` and other `Dns*` keys | [Section 44](#44-dns-automation) |
+| `Language`, `ActiveTheme`, `SystemThemeMode`, `LogLevelSetting` | Interface and logging |
 
 ### Tunnel configs
 
 | Path | Format |
 |---|---|
-| `%APPDATA%\MasselGUARD\tunnels\<n>.conf.dpapi` | DPAPI-encrypted WireGuard config (one file per tunnel) |
-| `<ExeDir>\tunnels\temp\<n>.conf` | Plaintext copy for service process (~200 ms lifetime) |
+| `%APPDATA%\MasselGUARD\tunnels\<name>.conf.dpapi` | DPAPI-encrypted WireGuard config (one file per tunnel) |
+| `<ExeDir>\tunnels\temp\<wire>.conf` | Direct mode: short-lived plaintext copy for the tunnel service |
+| `%ProgramData%\MasselGUARD\` | Service mode: the service's encrypted store and staging folder (section 45) |
 
-`StoredTunnel.Config` (inline DPAPI blob in `config.json`) is legacy. `ConfigService.MigrateInlineConfigsToFiles()` runs on every load and moves any inline blobs to `.conf.dpapi` files, nulling `Config` so it no longer appears in JSON. `TunnelService.SaveConfigToFile(name, plaintext)` writes new files.
+`StoredTunnel.Config` (inline DPAPI blob in `config.json`) is legacy; `ConfigService.Load()` moves such entries to files. `TunnelService.SaveConfigToFile(name, plaintext)` writes new files.
 
-### History files
+### History files (in `%APPDATA%\MasselGUARD\`)
 
 | File | Contents |
 |---|---|
-| `%APPDATA%\MasselGUARD\tunnel_history.json` | `ConnectionHistoryEntry[]` - TunnelName, ConnectedAt (UTC), DisconnectedAt (UTC), Source, SessionRxBytes, SessionTxBytes |
-| `%APPDATA%\MasselGUARD\wifi_history.json` | `WifiHistoryEntry[]` - Ssid, ConnectedAt (UTC), DisconnectedAt (UTC), IsOpen |
+| `tunnel_history.json` | `ConnectionHistoryEntry[]` - TunnelName, ConnectedAt (UTC), DisconnectedAt (UTC), Source, SessionRxBytes, SessionTxBytes |
+| `wifi_history.json` | `WifiHistoryEntry[]` for the primary network, Wi-Fi or wired - Ssid (display label), ConnectedAt, DisconnectedAt, IsOpen, Kind, AdapterName, DnsSuffix, GatewayMac |
+| `dns_history.json` | Which DNS profile was applied, and when |
 
-Legacy file names (`history.json`, `ssid_history.json`) are renamed to the new names on first load via `File.Move`.
+The older names `history.json` and `ssid_history.json` are migrated.
 
 ---
 
 ## 14. Activity timeline
 
-### Canvas geometry
+The info panel above the footer has up to three panes, each with its own toggle: **Timeline**, **Data usage** and **DNS**. The range is 24 h, 7 d or 31 d.
 
-Rendered by `RenderChartCore()` into `TimelineCanvas`. Constants: `ChartBarH = 16`, `ChartBarGap = 5`, `ChartSsidGap = 2`.
+### Timeline layout (`RenderChartCore`, into `TimelineCanvas`)
+
+| Band | Content |
+|---|---|
+| Tunnel bar (`ChartBarH` = 16 px) | One bar for all tunnels, one colour per tunnel |
+| Gap (`ChartBarGap` = 5 px) | |
+| Network band (16 px) | One row for the primary network history, one colour per network; only when `ShowWifiInChart && StoreWifiHistory` and there is data |
+| Time axis | |
+
+Colours are derived from the theme's accent colour.
+
+### Hover and navigation
+
+The tooltip depends on the mouse height: over the tunnel bar it leads with the tunnel session, over the network band with the network, and shows the other below a separator. `GetNavEntries()` lists the tunnel sessions in the range; the ◀ ▶ buttons step through them (`ShowNavTooltip`). They are shown with the Timeline pane.
+
+### Visibility (`ApplyInfoSectionMode`)
 
 ```
-Y 0–16       Tunnel bar (all tunnels stacked, one bar)
-Y 16–21      Gap
-Y 21–37      WiFi SSID row 0         (rowTop = wifiBandTop + si*(16+2))
-Y 37–55      WiFi SSID row 1
-...
-Y barsH+     Time axis (20 px)
+chartable = (ShowTimeline && StoreConnectionHistory)
+         || (ShowWifiInChart && StoreWifiHistory)
+         || StoreConnectionHistory
+panel visible = chartable && ChartsEnabled && ChartsSectionVisible
 ```
-
-`_chartWifiBandTop` and `_chartSsids` are set each render pass so `MouseMove` can Y-hit-test without recomputing layout.
-
-### Hover tooltip (`TimelineCanvas_MouseMove`)
-
-A **unified tooltip** is shown regardless of Y position. At each X (= hovered time):
-
-1. Loop `_chartData` → add a row for every tunnel session active at that time (name, time range, duration, live KB/s if near-now)
-2. Call `AddWifiRow()` → append a WiFi row if `wifi_history.json` has an entry covering that time (SSID name, 📶, time range, 🔒/⚠)
-
-Tooltip only shown when at least one tunnel or WiFi entry is found. Crosshair always shown.
-
-`GetSsidAt(DateTime t)` converts `t` to UTC before comparing against UTC-stored entries.
-
-### `< >` navigation
-
-`GetNavEntries()` collects all tunnel sessions in the time window. `ShowNavTooltip()` pins a tooltip to the session's midpoint, then calls `AddWifiRow()` to append the WiFi row for that moment.
-
-### Settings - toggle rules
-
-`ApplyInfoSectionMode()` derives panel visibility:
-```
-visible = (ShowTimeline && StoreConnectionHistory)
-       || (ShowWifiInChart && StoreWifiHistory)
-```
-`StoreConnectionHistory` off disables `ShowTimeline` toggle; `StoreWifiHistory` off disables `ShowWifiInChart` toggle. Neither forces the other's Show toggle off.
 
 ---
 
@@ -420,7 +377,7 @@ using var sw = new StreamWriter(                // 3. write under correct ACL
     new FileStream(path, FileMode.Open, ...));
 ```
 
-ACL: `SYSTEM + Administrators + owning user` only. Deleted within ~200 ms.
+ACL: `SYSTEM + Administrators + owning user` only. The file is deleted right after the connect attempt. This is the direct-mode path; with the service, tunnels are connected from the service's own store (section 45 and [`ServiceBackend-Security.md`](ServiceBackend-Security.md)).
 
 ---
 
@@ -511,49 +468,45 @@ Changing the font picker or size slider while preview is active calls `CancelFon
 
 ## 18. Logging
 
-| Level | Shown in Normal | Shown in Extended |
+`AppConfig.LogLevelSetting` selects one of three levels (Settings → Activity log):
+
+| Level | Setting | Records |
 |---|---|---|
-| `Ok` (green) | ✓ | ✓ |
-| `Warn` (orange) | ✓ | ✓ |
-| `Info` (accent) | - | ✓ |
-| `Debug` (muted) | - | ✓ |
+| **Normal** | `normal` | `Ok` and `Warn` |
+| **Enhanced** | `extended` | Also `Info`: what happens on tunnels, networks and automation |
+| **Debug** | `debug` | Also `Debug`: technical detail, plus a block of system information at startup |
 
-**Normal** - OK and Warn only. `SaveConfig(desc)` logs at Ok level - always visible.
-
-**Extended** - Everything including Info (network changes, mode changes, language changes) and Debug (`[DBG]` connect timing, tunnel config fields).
-
-Continuation lines (detail sub-entries) render with a `↳` prefix in the timestamp colour. Export: **Export Log** button → UTF-8 `.txt`.
+Continuation lines start with `↳`. The log is written to `%APPDATA%\MasselGUARD\masselguard.log`; `ClearLogOnStart` and `MaxLogSizeKB` control how long lines are kept. The main window and the pop-out log window use the same `Views/LogTable` renderer. Log text is always English.
 
 ---
 
 ## 19. Settings panel
 
-| Tab | Key settings |
-|---|---|
-| **General** | Language, app mode, start with Windows, confirm on close |
-| **Tunnels** | Group add/edit/reorder, colours, visibility; auto-reconnect mode, kill switch mode, config validation; hide count, hide empty, DNS indicator |
-| **WiFi** | SSID→tunnel rules, disable WiFi rules toggle, WiFi fallback (none / disconnect / activate + tunnel), open network protection, rules panel visibility |
-| **Appearance** | System mode, custom theme toggle, dark/light theme pickers, theme preview, font override, font preview, notifications, show activity log |
-| **History** | Capture/show toggles, chart time range, connection history list |
-| **Advanced** | Import/export, log level, install/uninstall, WireGuard client, orphaned services |
-| **About** | Version, update check frequency, check now |
+| Group | Tab | Covers |
+|---|---|---|
+| Application | **General** | Language, feature switches, import / export |
+| | **Startup** | Start with Windows, tray behaviour, installation, background service |
+| | **Appearance** | Theme, light / dark, font override |
+| | **Notifications** | Pop-ups and their duration, network-change notification |
+| | **Diagnostics** | System diagnostics, tester, repositories, orphaned tunnel services |
+| | **About** | Version, update check, licenses, What's New |
+| Feature settings | **WireGuard** | Groups, auto-reconnect, kill switch, display options |
+| | **DNS** | DNS automation, profiles, bypass, leak protection |
+| | **Automation** | Rules options, trusted networks, default action, open-network protection |
+| | **Activity log** | Log level, clearing and size |
+| | **History** | What is recorded, chart options, history list |
 
-**Deferred save** - all tabs (including WiFi rules) commit on the main Save button. Cancel reverts theme, font, and activity log visibility to committed state.
+Settings are edited in a draft and committed on **Save** ([section 27](#27-deferred-save-pattern-settingswindow)).
 
 ---
 
 ## 20. Import / Export settings
 
-**Export** (Settings → General → Export settings):
-- Shows a warning that tunnel configs are excluded and future-version compatibility is not guaranteed
-- Writes a `*.masselguard` JSON file containing: Rules, TunnelGroups, DefaultAction, DefaultTunnel, OpenWifiTunnel, ManualMode, Mode, Language, themes, log level, popup toggle
-- Field `AppVersion` stores the exporting app version
+Both directions go through `Services/PresetService`. The format and the managed-preset behaviour are described in the [manual](MANUAL.md) and in `CLAUDE.md` ("Managed preset").
 
-**Import** (Settings → General → Import settings):
-- Reads `*.masselguard` or `*.json`
-- Compares `AppVersion` to running version - shows a Yes/No warning for any mismatch (both older→newer and newer→older)
-- Uses `JsonDocument` for field-by-field parsing - unknown/future fields are silently ignored
-- Rules and TunnelGroups replace existing lists entirely; all other fields merge
+- **Export** (`ConfigService.Export`) writes a `*.masselguard` JSON snapshot of the policy settings (`PresetService.PolicyFields`), including rules and groups, plus `AppVersion`. It never contains tunnel configs or DPAPI data. *Export as preset* can also add locked blocks.
+- **Import** (`ConfigService.Import`) applies every value in the file (`PresetService.ApplyAll`) and ignores `Locked`; unknown fields are ignored. The values stay editable.
+- A `*.masselguard` file **next to the exe** is a managed policy: only what it lists under `Locked` is forced and locked.
 
 ---
 
@@ -567,30 +520,32 @@ BUILD.bat x64        :: single arch
 BUILD.bat arm64
 ```
 
-Per arch (`x64`, `arm64`) BUILD.bat cleans `obj\`/`bin\`, cross-publishes GUI + CLI framework-dependent single-file to `dist\<arch>\` with `-r win-<arch> -p:RuntimeIdentifier=win-<arch>`, copies `lang\` + the matching `wireguard-deps\<arch>\*.dll`, and zips the folder to `dist\MasselGUARD-<arch>.zip`. Both `.csproj` declare `<RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>` with a conditional default RID (win-x64 for IDE builds). ARM64 cross-publishes from an x64 host - the SDK emits a native ARM64 apphost (PE machine `0xAA64`). A release requires **both** `MasselGUARD-x64.zip` and `MasselGUARD-arm64.zip`.
+Per arch (`x64`, `arm64`) BUILD.bat cleans `obj\`/`bin\`, cross-publishes GUI + CLI framework-dependent single-file to `dist\<arch>\` with `-r win-<arch> -p:RuntimeIdentifier=win-<arch>`, copies `lang\`, the license files (`LICENSE.txt`, `THIRD-PARTY-NOTICES.md`, `licenses\Apache-2.0.txt`) and the matching `wireguard-deps\<arch>\*.dll`, and zips the folder to `dist\MasselGUARD-<arch>.zip`. Both `.csproj` declare `<RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>` with a conditional default RID (win-x64 for IDE builds). ARM64 cross-publishes from an x64 host - the SDK emits a native ARM64 apphost (PE machine `0xAA64`). A release requires **both** `MasselGUARD-x64.zip` and `MasselGUARD-arm64.zip`.
 
 (No themes are bundled - they're downloaded from the shared-themes repo into `%APPDATA%`.)
 
 Banner printed during build:
 ```
   --------------------------------------------------
-  MasselGUARD  v4.0.0  |  Forking Fox
+  MasselGUARD  v6  |  Mending Meerkat
   Harold Masselink  |  https://masselink.net
-  Building arch(es): x64 arm64
+  Building arch(es): x64 arm64  |  GUI + CLI  |  release zips
   --------------------------------------------------
 ```
 
-Update `VERSION`/`CODENAME` in both `BUILD.bat` **and** `UpdateChecker.cs` (`_codenames` dictionary) when bumping the version.
+Other arguments, in any order: `nozip`, `run`, `noui` / `nogui` and `nocli` (see `CLAUDE.md`, "Build"). Each release zip gets a `.zip.sha256` file next to it.
+
+Update `VERSION`/`CODENAME` in `BUILD.bat` **and** the version in `UpdateChecker.cs` and both `.csproj` files when bumping the version ([section 40](#40-release-codenames)).
 
 ### Version vs. build stamp
 
-- **Version** (`Major.Minor.Patch`) - static in source; never modified by BUILD.bat
-- **Build stamp** (`YYMMDDHHMM`) - injected as `InformationalVersion` at compile time via `-p:InformationalVersion`; read at runtime from `Assembly.GetEntryAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()`
-- Working tree stays clean after a build; no source file is patched
+- **Version** (a single number from 5 on, such as `6`) - static in source; never modified by BUILD.bat
+- **Build stamp** (`yyMMddHHmm`) - injected as part of `InformationalVersion` at compile time ([section 31](#31-build-number))
+- The working tree stays clean after a build; no source file is patched
 
 ### tunnelbuild\tunnelbuild.bat
 
-Builds the per-architecture native DLLs into `wireguard-deps\<arch>\`. Run with no argument it **prompts** for x64 / arm64 / both / **check**; or pass `x64` / `arm64` / `all` (optionally `force`), or `check [install]`. It orchestrates `get-wireguard-dlls.ps1`, which **downloads** `wireguard.dll` (wireguard-NT, per-arch, from download.wireguard.com/wireguard-nt/) and **builds** `tunnel.dll` from a fresh `wireguard-windows` clone.
+Builds the per-architecture native DLLs into `wireguard-deps\<arch>\`. The built DLLs are committed to the repository, so this is only needed to update them (`force`); after that, update the versions in `THIRD-PARTY-NOTICES.md`. Run with no argument it **prompts** for x64 / arm64 / both / **check**; or pass `x64` / `arm64` / `all` (optionally `force`), or `check [install]`. It orchestrates `get-wireguard-dlls.ps1`, which **downloads** `wireguard.dll` (wireguard-NT, per-arch, from download.wireguard.com/wireguard-nt/) and **builds** `tunnel.dll` from a fresh `wireguard-windows` clone.
 
 - **Hermetic build** - `wireguard-windows`'s own `build.bat` downloads its *own* Go + llvm-mingw toolchain (x86/amd64/arm64) into `.deps` and sets `GOROOT`/`GOARCH`/`CC` itself, so **no system Go or C compiler is required** - only **git**, **curl** and **tar** (curl + tar ship with Windows 10 1803+/11). It builds all three arches every run; the script keeps the one whose PE machine matches the target.
 - **Cache-first** - a DLL is only (re)built when missing or the wrong arch; otherwise "Already cached". **`force`** sets the cached DLL aside as `.forcebak` (auto-restored if the rebuild fails) and rebuilds from scratch.
@@ -610,9 +565,8 @@ The managed code is architecture-portable; only the launcher exe and the two nat
 |---|---|
 | OS | Windows 10 / 11 - x64 or ARM64 (separate native builds) |
 | Runtime | .NET 10 Desktop Runtime (matching architecture) |
-| Elevation | Administrator |
-| Standalone / Mixed | matching-arch `tunnel.dll` + `wireguard.dll` next to exe |
-| Companion / Mixed | WireGuard for Windows installed |
+| Elevation | Needed to install; at start only without the background service ([section 23](#23-run-modes-and-installation)) |
+| Tunnels | Matching-arch `tunnel.dll` + `wireguard.dll` next to the exe |
 
 ---
 
@@ -620,38 +574,37 @@ The managed code is architecture-portable; only the launcher exe and the two nat
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| "Already running" after reinstall | Orphaned mutex from previous install path | Wait 2–3 s and relaunch; the retry logic acquires the mutex after the OS releases it |
-| Tunnel connects but immediately shows disconnected | wireguard-NT service exits after loading kernel driver - SCM logs false positive | Ignore; check tunnel list status |
-| WiFi rule not firing | SSID case mismatch, or disable WiFi rules on | Enable Extended logging; compare detected SSID to rule |
-| Edit button stays disabled | Row must be selected first | Click the tunnel name in the list |
-| Pre/post script not running | Path missing or spaces without quotes | Use Browse; check Extended log for `[Script]` entries |
-| Theme not in picker | `theme.json` missing `type` field | Ensure `type` is `"dark"` or `"light"` |
-| Import warning on same-version file | AppVersion includes `-beta` suffix in old export | Proceed - fields are compatible |
+| "Cannot start service 'WireGuardTunnel$...'" | The tunnel service process ended before it reached Windows (for example a name WireGuard refuses, in builds before 6) | Check the Windows System event log; see [section 5](#5-connecting-a-tunnel) for the name rules |
+| Tunnel fails with "Element not found" | MasselGUARD runs from a cloud-synced folder that LocalSystem cannot read | Move or install it to a normal local folder |
+| A rule does not fire | Rule order, a disabled rule, manual mode, Simple Wi-Fi mode, or conditions that do not match | Use **Test rule** / **Advanced test**, `MasselGUARDcli network status`, and the Enhanced log level |
+| Edit button stays disabled | No row selected | Click the row first |
+| Pre/post script not running | Wrong path | Use Browse; check the log for `[Script]` entries at Enhanced or Debug level |
+| Theme not in picker | No readable `theme.json` in its folder | See the themes repository's `THEME_EXAMPLE.md` |
 
 ---
 
 ## 23. Run modes and installation
 
-`MainWindow.AppRunModeKind` enum:
+`MainWindow.AppRunModeKind`:
 
 | Value | Condition |
 |---|---|
 | `Standalone` | `GetInstalledPath()` returns null |
-| `ManagedPortable` | Installed path found, but current exe directory ≠ installed path |
-| `Managed` | Current exe directory == installed path (using `Path.GetFullPath()` comparison) |
+| `ManagedPortable` | An installed copy exists, but this exe runs from another folder |
+| `Managed` | This exe runs from the installed folder |
 
-`GetInstalledPath()`:
-1. Checks `AppConfig.InstalledPath` (stored as a directory); tests `File.Exists(dir + "\MasselGUARD.exe")`
-2. Falls back to `HKLM\SOFTWARE\MasselGUARD\InstallPath`; syncs found value back to config
+`GetInstalledPath()` checks `AppConfig.InstalledPath`, then `HKLM\SOFTWARE\MasselGUARD\InstallPath`.
 
-**UAC bypass** (`Program.cs`):
+**Elevation** (`app.manifest` is `asInvoker`; `Program.Main` decides):
+
 ```
-if (!IsElevated() && ScheduledTaskExists("MasselGUARD"))
-    Process.Start("schtasks.exe", "/run /tn MasselGUARD /i")
-    Environment.Exit(0)
+elevated                                → continue
+not elevated, service usable            → continue unelevated (service back-end)
+otherwise, scheduled task "MasselGUARD" → run the task (highest privileges, no prompt) and exit
+otherwise                               → relaunch with a UAC prompt (declining ends the app)
 ```
 
-The `MasselGUARD` Scheduled Task is created at `RunLevel=Highest` during install when the user opts in to "Start with Windows". This is the same pattern used by WireGuard for Windows.
+**Start with Windows** is a per-user `HKCU\...\Run` entry when the service is installed (`Services/AutostartRunKey`), otherwise the elevated scheduled task. `MainWindow.ApplyAutostart` keeps only one of the two.
 
 ---
 
@@ -674,14 +627,13 @@ The icon is only redrawn when `_lastTrayActiveCount` changes - not on the 1-seco
 
 ## 25. WiFi Rules panel (main window)
 
-A read-only summary of `AppConfig.Rules` displayed below the tunnel management buttons in `Grid.Row="3"` (header) and `Grid.Row="4"` (content) of the left column.
+The Automation panel lists `AppConfig.Rules` with a fixed `#` column for the evaluation order, and has buttons to add (also from the current network), edit, delete, enable or disable, and test rules. `RefreshWifiRulesPanel()` shows it when:
 
-Visibility logic in `RefreshWifiRulesPanel()`:
 ```
-visible = AppConfig.ShowWifiRulesOnMainWindow && !AppConfig.ManualMode
+AppConfig.ShowWifiRulesOnMainWindow && !AppConfig.ManualMode
 ```
 
-The right column (Activity Log) uses `Grid.RowSpan="5"` so it always fills the full height of the outer grid regardless of the left panel height.
+Clicking a column header sorts the display only; evaluation always follows the stored order. Row heights and the placement of the activity log are handled by `ApplyContentGeometry`.
 
 ---
 
@@ -701,129 +653,72 @@ The right column (Activity Log) uses `Grid.RowSpan="5"` so it always fills the f
 
 ## 27. Deferred-save pattern (SettingsWindow)
 
-`SettingsWindow` creates `_draft = _main.ConfigSvc.Config.DeepClone()` on `Loaded`. All handler mutations target `_draft`. `_vm` (SettingsViewModel) is populated from `_draft` and stages additional fields (rules, language, mode, log level, themes).
+`SettingsWindow` creates `_draft = _main.ConfigSvc.Config.DeepClone()` when it loads. Handlers change `_draft`; `_vm` (SettingsViewModel) stages further fields.
 
-On **Save** (`SaveBtn_Click`):
-1. Snapshot `before = _main.ConfigSvc.Config.DeepClone()`
-2. Copy all `_draft` fields to `ConfigSvc.Config` (includes font override, activity log, confirm-on-close, theme fields)
-3. Call `_vm.DoSave()` - writes `_vm` fields to config and calls `ConfigSvc.Save()`
-4. If extended logging: call `LogChangedSettings(before, ConfigSvc.Config)` - logs only differing fields
+On **Save**, `SaveBtn_Click` calls `CommitDraft()` and closes. `CommitDraft` marks the window as saved, takes a snapshot of the old config, writes the draft and the view-model fields to the config, saves, applies the side effects, and logs the settings that changed (`LogChangedSettings`).
 
-On **Cancel / close without Save** (`OnClosing`):
-- Always: both preview timers stopped (`_fontPreviewTimer`, `_themePreviewTimer`)
-- Theme reverted to `_originalTheme` via `ThemeManager.Instance.Load(_originalTheme)`
-- Font reverted to committed config via `ThemeManager.ApplyFontOverride(...)`
-- Activity log panel visibility reverted to `_main.ConfigSvc.Config.ShowActivityLog`
-
-`_savedSuccessfully = true` is set in `SaveBtn_Click` before `Close()` - `OnClosing` skips the revert block on a successful save.
+On **close without saving** (`OnClosing`):
+- the theme and font preview timers are stopped
+- if the Dark / Light / Follow system choice was changed, the user is asked whether to keep it; *yes* commits the draft like Save
+- otherwise the committed theme and font are applied again (`ApplyThemeFromConfig`) and the activity-log visibility is restored
 
 ---
 
 ## 28. WiFi rule name and execution counter
 
-`TunnelRule` model fields added:
-```csharp
-public string Name           { get; set; } = "";   // display name
-public int    ExecutionCount { get; set; } = 0;    // incremented by RuleEngine on match
-```
+`TunnelRule.Name` is the optional display name; without one, `RuleName` summarises the rule. `ExecutionCount` is raised by `RuleEngine` when a network or trusted rule decides the tunnel.
 
-`RuleEngine.EvaluateWifi` increments `match.ExecutionCount++` before returning a result. Config is saved by the caller after rule execution.
-
-**Directional trusted rules.** A `trusted`-kind `TunnelRule` carries `TrustedWhen` (`"untrusted"` | `"trusted"`; `TrustedWhenOnList` is the parsed bool). In `EvaluateWifi` step 4 the engine loops every enabled trusted rule and a rule matches only on its side of `AppConfig.TrustedNetworks` (`TrustedWhenOnList ? isTrusted : !isTrusted`); the first match activates its tunnel (empty `Tunnel` → disconnect), and the non-matching side falls through to the Default action. Two rules therefore cover both directions against one shared SSID list. The field serialises with the rule (managed-preset "Rules" export/import carries it automatically).
-
-`WifiRuleRow` display class auto-generates `RuleName` when `rule.Name` is empty:
-```csharp
-var autoName = string.IsNullOrEmpty(r.Tunnel)
-    ? $"{ssid} → disconnect"
-    : $"{ssid} → {r.Tunnel}";
-RuleName = string.IsNullOrEmpty(r.Name) ? autoName : r.Name;
-```
+**Directional trusted rules.** A `trusted` rule carries `TrustedWhen` (`"untrusted"` or `"trusted"`; `TrustedWhenOnList` is the parsed bool) and fires only on that side of `AppConfig.TrustedNetworks`. The first matching rule activates its tunnel (an empty tunnel disconnects); otherwise evaluation continues with the default action. Two rules can therefore cover both directions with one shared list.
 
 ---
 
 ## 29. WiFi rules drag-to-reorder
 
-`WifiRulesListView` has `AllowDrop="True"`. Three handlers:
-- `PreviewMouseDown` - captures `WifiRuleRow` and start position
-- `PreviewMouseMove` - starts `DragDrop.DoDragDrop` after 4 px movement
-- `Drop` - finds source and target by SSID, removes and reinserts in `ConfigSvc.Config.Rules`, saves
+`WifiRulesListView` handles `PreviewMouseDown`, `PreviewMouseMove` (a drag starts after 4 px), `DragOver` / `DragLeave` (drop line) and `Drop`. The drop moves the dragged rule **instance** within `ConfigSvc.Config.Rules` to the position of the drop line, saves and refreshes. Rows are not matched by their text, because several rules can show the same value.
 
 ---
 
 ## 30. Double-fire prevention
 
-Two guards prevent rules firing twice on a network switch:
-
-**Guard 1** - `ApplyWifiState` entry:
-```csharp
-if (ssid == _currentSsid) return;   // already on this SSID
-```
-
-**Guard 2** - Debounce callback:
-```csharp
-var (live, liveOpen) = _wifi.QueryCurrentSsid();
-if (!string.IsNullOrEmpty(live))
-{
-    if (live != _currentSsid)   // only apply if connect event hasn't already handled it
-        ApplyWifiState(live, liveOpen);
-    return;
-}
-```
-
-Sequence on network switch (MasselTHINGS → MasselNET):
-1. `ACM_DISCONNECTED` → debounce timer starts (2 s)
-2. `ACM_CONNECTED` → `ApplyWifiState("MasselNET")` → `_currentSsid = "MasselNET"` → rule fires
-3. Debounce fires 2 s later → re-queries → `live = "MasselNET"` → Guard 2: `live == _currentSsid` → no-op
+| Guard | Where |
+|---|---|
+| The same SSID is not reported twice | `WiFiService.FireIfChanged`, and `MainViewModel.ApplyWifiState` (`ssid == _currentSsid`) |
+| A disconnect is only acted on after 2 s, and not when the radio has a network again | the disconnect debounce in `ApplyWifiState` |
+| An unchanged network snapshot does nothing | `ApplyNetworkSnapshot` (`snap.SameAs(previous)`) |
+| Wi-Fi associated but without an address yet is not a disconnect | `ApplyNetworkSnapshot` |
+| Same network with changed details and the same decision: no action, no extra rule hit | `ApplyNetworkSnapshot` (evaluates a copy of the config first) |
+| No repeated pop-up for the same decision | `ApplyRuleResult` / `ActivateTarget` (`_lastAnnouncedReason`) |
 
 ---
 
 ## 31. Build number
 
-`BUILD.bat` generates the build stamp and passes it to MSBuild - no source file is modified:
+`BUILD.bat` creates the build stamp (`yyMMddHHmm`) and passes it to MSBuild; no source file is modified:
 
 ```bat
 for /f %%a in ('powershell -NoProfile -Command "Get-Date -Format yyMMddHHmm"') do set BUILD_NUM=%%a
-dotnet publish -p:Version=%VERSION% -p:InformationalVersion=%VERSION%.%BUILD_NUM%
+dotnet publish ... -p:Version=%VERSION% -p:InformationalVersion=%VERSION%.%BUILD_NUM%
 ```
 
-`UpdateChecker.BuildStamp` reads it back at runtime:
-```csharp
-Assembly.GetEntryAssembly()
-    ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-    ?.InformationalVersion;
-// → "4.0.0.2608200000"  (last 10 chars = build stamp)
-```
-
-`Version.TryParse` handles 4-part versions for comparison. The version component (`Major.Minor.Patch`) is always static; only the build stamp changes between builds.
+`UpdateChecker.BuildStamp` reads `AssemblyInformationalVersionAttribute`, and `UpdateChecker.SplitFullVersion` separates version and stamp (`6.<stamp>`, or the older `4.6.0.<stamp>`). Update checks compare versions only (Major.Minor.Patch, a missing part is 0), never the stamp.
 
 ---
 
 ## 32. Tray menu icons
 
-`DrawMenuIcon(MenuIconKind)` produces a 16×16 GDI+ bitmap using theme colours from `Application.Current.Resources`:
-
-| Kind | Description |
-|---|---|
-| `ShieldOff` | Shield filled with `BorderColor` |
-| `ShieldOn` | Shield filled with `Success` + white checkmark |
-| `Window` | Window frame with Accent title bar + 3 dots |
-| `Exit` | Door + right arrow in `ErrorColor` |
-
-`UpdateTrayStatus` updates `_tunnelMenuHeader.Image` to `ShieldOn`/`ShieldOff` based on `activeCount`.
+`App.DrawMenuIcon(MenuIconKind)` draws the tray menu icons with GDI+ in theme colours. The kinds are `ShieldOff`, `ShieldOn`, `Window`, `Exit`, `Dns` and `Diag`. `UpdateTrayStatus` updates the tray text and icons when the number of active tunnels changes.
 
 ---
 
 ## 33. Notification duration
 
-`AppConfig.NotificationDurationSeconds` (default 5). Picker in Settings → Appearance: 3 / 5 / 10 / 15 / 30 seconds.
-
-`ShowTrayNotification(title, body, durationMs)` uses `_trayIcon.ShowBalloonTip(durationMs)` with `BalloonTipIcon = ToolTipIcon.Info`. The shield tray icon appears as the notification source in the Windows notification centre automatically.
+`AppConfig.NotificationDurationSeconds` (default 5); the picker in Settings → Notifications offers 3, 5, 10, 15 and 30 seconds. Notifications are MasselGUARD's own pop-up windows (`Views/ToastWindow`), not Windows balloon tips; see [section 37](#37-toast-notification-model).
 
 ---
 
 ## 34. Defaults button popup
 
-`DefaultsBtn_Click` builds a code-only `Window` (no XAML) with two `ComboBox` pickers - default action tunnel and open network protection - each with a "- clear -" entry. Positioned at:
+`DefaultsBtn_Click` builds a code-only `Window` (no XAML) with three `ComboBox` pickers - default action, open network protection and connect on start - each with a "clear" entry. Positioned at:
 
 ```csharp
 var winPos = PointToScreen(new Point(0, 0));
@@ -831,7 +726,7 @@ popup.Left = winPos.X / dpiX + (ActualWidth  - popup.ActualWidth)  / 2;
 popup.Top  = winPos.Y / dpiY + (ActualHeight - popup.ActualHeight) / 2;
 ```
 
-On Save: writes `DefaultAction`, `DefaultTunnel`, `OpenWifiTunnel` to config, then calls `NotifyAllBadges()`, `UpdateStatusBarCentre()`, `RefreshWifiRulesPanel()`, `_vm.RebuildTunnelList()`, `ApplyGroupFilter()`.
+On Save: writes `DefaultAction`, `DefaultTunnel`, `OpenWifiTunnel` and `ConnectOnStartTunnel` to config, then calls `NotifyAllBadges()`, `UpdateStatusBarCentre()`, `RefreshWifiRulesPanel()`, `_vm.RebuildTunnelList()`, `ApplyGroupFilter()`.
 
 ---
 
@@ -850,26 +745,13 @@ btn.Drop      += TunnelTabDrop;
 
 ## 36. Settings tab routing
 
-`TabBtn_Click` maps button `Name` → page name via a `switch`:
+`SettingsWindow.TabBtn_Click` maps the button name to a tab name, and `ShowTab(tab)` shows the matching `Page*` panel, marks the button with `Tag="Active"` (used only for the highlight) and refreshes that page:
 
-```csharp
-string tab = btn.Name switch
-{
-    "TabBtnTunnels"       => "Tunnels",
-    "TabBtnWifi"          => "Wifi",
-    "TabBtnAppearance"    => "Appearance",
-    "TabBtnAdvanced"      => "Advanced",
-    "TabBtnHistory"       => "History",
-    "TabBtnAbout"         => "About",
-    _                     => "General",
-};
-```
-
-Legacy tab names are mapped inside `ShowTab` for callers that still pass the pre-3.7 names: `"Groups"` → `"Tunnels"`, `"Rules"`/`"DefaultAction"` → `"Wifi"`.
-
-`Tab` is not used for routing because `SideTabBtn` style triggers on `Tag="Active"` for the highlight - the tag is exclusively for visual state.
-
-`ShowTab(tab)` sets visibility on all `Page*` controls, sets `TabBtn*.Tag = "Active"` for the active button, and calls the appropriate refresh method.
+| Button | Tab name |
+|---|---|
+| `TabBtnTunnels` / `TabBtnDns` / `TabBtnWifi` / `TabBtnLog` / `TabBtnHistory` | `Tunnels` / `Dns` / `Wifi` / `Log` / `History` |
+| `TabBtnStartup` / `TabBtnAppearance` / `TabBtnNotifications` / `TabBtnDiagnostics` / `TabBtnAbout` | `Startup` / `Appearance` / `Notifications` / `Diagnostics` / `About` |
+| any other | `General` |
 
 ---
 
@@ -885,7 +767,7 @@ Legacy tab names are mapped inside `ShowTab` for callers that still pass the pre
 | `StripColor` | `string?` | Resource key (`"Accent"`, `"Success"`, `"Warning"`) or hex |
 | `DurationMs` | `int` | Auto-dismiss duration in ms |
 
-`ShowTrayNotification(ToastNotification n)` deduplicates by `Category|Primary|Secondary` key, suppressing identical notifications within 1 second. A `DispatcherTimer` resets the key after 1 second.
+`ShowTrayNotification(ToastNotification n)` deduplicates by `Category|Primary|Secondary` key, suppressing identical notifications within 1 second. A `DispatcherTimer` resets the key after 1 second. **Interactive** toasts, which ask for a decision (for example connecting over a data cap), are never deduplicated, and while one is waiting for an answer other new toasts are dropped. At the Enhanced and Debug log levels each shown message is also written to the log.
 
 The legacy `ShowTrayNotification(string title, string body, int durationMs)` overload maps to a `ToastNotification` with `Category = title`, `Primary = body`.
 
@@ -912,46 +794,34 @@ The CLI manifest is `asInvoker`; `CliProgram.Main` checks elevation itself. The 
 `dns bypass` talks to the running window through `Services/CommandPipe`, and falls back to the MasselGUARD service when no window answers (`Services/BypassClient`; the Explorer right-click entries run the windowless `MasselGUARD.exe --bypass` launcher, which uses the same client); `service ...` manages the service (see section 45).
 ### Command routing
 
-`CliRunner.Run()` flow:
+`CliRunner.Run()`:
 
 ```
-1. Parse global flags: --json, --quiet / -q
-2. Early switch: help / --help / -h / -?  → CmdHelp()  (no config needed)
+1. Read global flags: --json, --quiet / -q, --active, --group <name>, --logtype
+2. help and selftest run without loading the config
 3. ConfigService.Load()
-4. cmd switch:
-     list / --list           → CmdList(cfg, json)
-     status / --status       → CmdStatus(cfg, json)
-     connect                 → CmdConnect(args, cfg, json, quiet)
-     disconnect              → CmdDisconnect(args, cfg, json, quiet)
-     disconnect-all          → CmdDisconnectAll(cfg, json, quiet)
-     version / --version/-v  → CmdVersion(cfg, json)
-     _                       → UnknownCmd(cmd)
+4. Switch on the command: list, status, connect, disconnect, disconnect-all, info, dns, network,
+   service, log, tunnel-history, wifi-history / network-history, import, delete / remove,
+   rawconnect, check-update, version; anything else is reported as unknown
 5. Console.Out.Flush()
-6. IsIsolatedConsole() pause (if !quiet)
 ```
+
+See [`CLIManual.md`](CLIManual.md) for each command.
 
 ### Version command
 
-`CmdVersion` reads update status from `cfg.LatestKnownVersion` (populated by the GUI's background update check):
-
-```csharp
-string updateStatus =
-    string.IsNullOrEmpty(latestKnown)             ? "unknown - run 'MasselGUARD status' to check" :
-    UpdateChecker.IsNewerVersion(latestKnown)      ? $"update available - v{latestKnown}" :
-    UpdateChecker.IsAheadOfLatest(latestKnown)     ? $"ahead of latest ({latestKnown})" :
-                                                     "up to date";
-```
+`CmdVersion` takes the update status from `cfg.LatestKnownVersion` (stored by the last update check): *unknown*, *update available*, *ahead of latest* or *up to date*.
 
 Plain output:
 ```
-MasselGUARD v4.0.0  |  Forking Fox
-build:   2608200000
-arch:    x64
+MasselGUARDcli v6  |  Mending Meerkat
+build:   <yyMMddHHmm>
+arch:    arm64
 Harold Masselink  |  https://masselink.net
 Update:  up to date
 ```
 
-JSON output adds `arch` and `update_status` fields alongside `version`, `codename`, `build`. `arch` comes from `UpdateChecker.ArchMoniker` (`RuntimeInformation.ProcessArchitecture` → `x64`/`arm64`/`x86`).
+JSON output has `version`, `codename`, `build`, `arch` and `update_status`. `arch` comes from `UpdateChecker.ArchMoniker` (`x64` / `arm64` / `x86`).
 
 ### Exit codes
 
@@ -976,36 +846,21 @@ JSON output adds `arch` and `update_status` fields alongside `version`, `codenam
 
 ## 40. Release codenames
 
-`UpdateChecker._codenames` - static dictionary keyed by `"Major.Minor.Patch"`:
+`UpdateChecker._codenames` maps the version, written exactly as in `CurrentVersion`, to a codename (for example `{ "4.6.0", "Wired Weasel" }`, `{ "5", "Background Badger" }`, `{ "6", "Mending Meerkat" }`). `UpdateChecker.Codename` returns the name for the current version or `""`; `VersionWithCodename` returns for example `"6 - Mending Meerkat"`.
 
-```csharp
-private static readonly Dictionary<string, string> _codenames =
-    new(StringComparer.OrdinalIgnoreCase)
-    {
-        { "3.8.0", "Protective Pangolin" },
-        { "3.9.0", "Adaptive Armadillo" },
-        { "3.9.5", "Selective Serval" },
-        { "4.0.0", "Forking Fox" },
-    };
-```
-
-`UpdateChecker.Codename` returns the name for the current version or `""` if none is assigned. `UpdateChecker.VersionWithCodename` returns `"4.2.0 - Resolving Raven"` or just `"4.2.0"`.
-
-Codenames are assigned per `Major.Minor.Patch` release only - not per build. Update the dictionary in `UpdateChecker.cs` **and** `BUILD.bat` when bumping `VERSION`.
+When the version changes, update the dictionary and `CurrentVersion` in `UpdateChecker.cs`, `VERSION` and `CODENAME` in `BUILD.bat`, and the default versions in both `.csproj` files.
 
 ---
 
 ## 41. Managed Portable version check
 
-`NormaliseVersion(v)` strips leading `v`/`V` and whitespace. Comparison:
+In `ManagedPortable` mode the app compares its own full version with the installed exe's `ProductVersion` (else `FileVersion`):
 
-```csharp
-if (NormaliseVersion(currentVer) == NormaliseVersion(installedVer)) return; // identical, no prompt
-bool currentIsNewer = IsVersionNewer(currentVer, installedVer);
-string msg = currentIsNewer ? "...is newer than..." : "...differs from...";
-```
+1. Same version (`NormaliseVersion` ignores a `v` prefix and trailing zeros) **and** same build stamp: no prompt.
+2. Different versions: `IsVersionNewer` compares them part by part.
+3. Same version, different build: the higher stamp is newer.
 
-Triggers on any difference including build number - `2.9.0.2505181430` vs `2.9.0.2505161200` will prompt. `IsVersionNewer` uses 4-part `Version.TryParse` comparison so build timestamps sort correctly.
+The prompt says whether this copy is newer or just different, and offers to install it over the installed copy.
 
 ---
 
@@ -1047,17 +902,17 @@ Route/IP-based split tunneling. Full design in [`SplitTunneling-Design.md`](Spli
 
 Rule-driven DNS resolver selection that works **independently of tunnels** ("on Wi-Fi X → DNS Y", plain or DoH). Full design in [`DnsAutomation-Design.md`](DnsAutomation-Design.md); this is the implementation summary.
 
-**Model C - a parallel axis.** On every network change two decisions run side by side: the tunnel action (`RuleEngine.EvaluateWifi`, unchanged) and the DNS action. The DNS precedence is a **pure, CLI-shared** function `Services/DnsPolicy.cs` → `Evaluate(cfg, ssid, isOpen, now)` returning `DnsResult(None | Apply | Automatic, ProfileId, Reason)` with the same order as the tunnel rule: off (ManualMode / `!DnsAutomationEnabled`) → open-network → SSID rule → trusted rule → schedule rule → default. A dangling profile id fails safe to `None`. `RuleEngine.EvaluateDns` wraps it. `DnsPolicy.IsWithinSchedule` is the single schedule-window impl (RuleEngine delegates to it); `DnsPolicy.IsDnsOnly` (empty `Tunnel` + a `DnsProfileId`) is used by `EvaluateWifi`/`EvaluateSchedules` to **skip DNS-only rules** on the tunnel axis, so such a rule never reads as "disconnect". Covered by `MasselGUARDcli selftest` (19 cases).
+**Model C - a parallel axis.** On a network change two decisions run side by side: the tunnel action for the primary network (`RuleEngine.EvaluateNetwork`) and the DNS action for each adapter. The DNS precedence is a **pure, CLI-shared** function `Services/DnsPolicy.cs` → `Evaluate(cfg, networkIdentity, now)` returning `DnsResult(None | Apply | Automatic, ProfileId, Reason)`: off (manual mode, or DNS automation or the DNS feature off) → open network → network rules (first in the table) → trusted rule → schedule rule → default. A dangling profile id fails safe to `None`. `RuleEngine.EvaluateDns` wraps it. `DnsPolicy.IsWithinSchedule` is the single schedule-window impl (RuleEngine delegates to it); `DnsPolicy.IsDnsOnly` (empty `Tunnel` + a `DnsProfileId`) is used on the tunnel axis to **skip DNS-only rules**, so such a rule never reads as "disconnect". Covered by the `DnsPolicy` suite of `MasselGUARDcli selftest`.
 
 **Data model** (WPF-free, CLI-globbed): `Models/DnsProfile.cs` - Id/Name, v4+v6 primary/secondary, `Encryption` (`plain`|`doh`|`auto`), `DohTemplate`, `RequireEncryption`, `ListId` (the DNS-list entry it came from); sentinels `NoneId`(`""`)/`AutomaticId`(`__automatic__`); (the old `BuiltInPresets()` was replaced by the DNS server list, see CLAUDE.md "DNS server list"). `TunnelRule.DnsProfileId` attaches DNS to any rule. `AppConfig`: `DnsAutomationEnabled`, `DnsProfiles`, `DefaultDnsProfileId`, `OpenWifiDnsProfileId`, `DnsAddressFamilies` (`both`|`v4`|`v6`). All defaults leave existing behaviour unchanged.
 
 **Application** (`Services/DnsService.cs`, GUI-only): per-interface DNS by adapter GUID → alias via `netsh interface ip[v4|v6] set/add dnsservers` (full System32 path, `ArgumentList`-quoted). **DoH:** encrypted profiles register `netsh dns add encryption server=<ip> dohtemplate=<uri> autoupgrade=yes udpfallback=<no|yes>` per server IP, then set the servers (Windows 11 auto-upgrades to DoH). Gated on Win11 22000+ (`OperatingSystem.IsWindowsVersionAtLeast(10,0,22000)`); a `RequireEncryption` profile on an older build is **refused** (fail-closed), otherwise it downgrades to plain. Well-known resolver IPs carry built-in templates. `ipconfig /flushdns` on each change.
 
-**Resolver ownership.** `MainViewModel.ApplyWifiState` calls `ApplyDnsForCurrentNetwork` alongside the tunnel action, targeting `WiFiService.CurrentInterfaceGuid`. While any tunnel is active (`_tunnelOwnsDns`, recomputed in `RefreshTunnelStatus`) the tunnel's own DNS/NRPT supersedes, so the DNS action is **held**; on the tunnel's falling edge it's re-asserted. `None` restores any prior override (hands an unmatched network its own resolver back).
+**Resolver ownership.** `ApplyNetworkSnapshot` evaluates DNS for each adapter that appeared or changed and `ApplyPendingDns` applies it to that adapter. A profile the user enabled by hand outranks everything, including a connected tunnel's DNS. Otherwise, while any tunnel is active (`_tunnelOwnsDns`, recomputed in `RefreshTunnelStatus`) the tunnel's own DNS supersedes, so the rule's DNS action is **held** and applied again when the tunnel goes down. `None` restores any prior override (an unmatched network gets its own resolver back). An adapter that disappears gets its original DNS restored.
 
 **Lifecycle** (`Services/DnsService` + `%APPDATA%\MasselGUARD\dns_state.json`): the interface's original static/DHCP DNS is snapshotted before the first override (read from the `Tcpip`/`Tcpip6` `NameServer` registry values), and restored on **exit** (`App.OnExit` → `MainViewModel.RestoreDnsOverrides`) and at **startup** after a crash/reboot (`RecoverDnsFromPreviousRun`) - netsh writes persist, so this cleanup is essential.
 
-**UI & CLI:** Settings → **Wifi** (master toggle, default/open-network profile pickers, address families, and a profiles manager whose editor is the code-built `Views/DnsProfileEditor.cs`); `RuleDialog` gained an optional DNS-profile picker (`ResultDnsProfileId`). CLI `dns status` (read-only, non-elevated) prints the config + live per-interface resolvers.
+**UI & CLI:** Settings → **DNS** (master toggle, default/open-network profile pickers, address families, and a profiles manager whose editor is the code-built `Views/DnsProfileEditor.cs`); `RuleDialog` gained an optional DNS-profile picker (`ResultDnsProfileId`). CLI `dns status` (read-only, non-elevated) prints the config + live per-interface resolvers.
 
 ---
 

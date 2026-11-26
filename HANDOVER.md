@@ -1,7 +1,7 @@
 # MasselGUARD - Session Handover
 
 **Project:** MasselGUARD - WireGuard + DNS automation manager for Windows (.NET 10; WinExe GUI `MasselGUARD.exe` + console `MasselGUARDcli.exe`).
-**Current:** **6 - Mending Meerkat** (the service install folder fix, license notices) is being prepared on `dev` and is not released yet; **5 - Background Badger** (tag `5.0`) is the latest published release. The version in code is `6`; the release tag is `6.0`.
+**Current:** **6 - Mending Meerkat** (tunnel names with spaces, stopping the right tunnel service, the service install folder fix, license files; release text in [`docs/release-body-6.md`](docs/release-body-6.md)) is being prepared on `dev` and is not released yet; **5 - Background Badger** (tag `5.0`) is the latest published release. The version in code is `6`; the release tag is `6.0`.
 **Where to start:** [`docs/Handoff-next-version.md`](docs/Handoff-next-version.md) (state of 5.0, what is left before a release, rules and traps), [`docs/ServiceBackend-Design.md`](docs/ServiceBackend-Design.md), [`docs/ServiceBackend-Security.md`](docs/ServiceBackend-Security.md). Architecture: [`CLAUDE.md`](CLAUDE.md). User-facing history: [`docs/WHATSNEW.md`](docs/WHATSNEW.md).
 > **Standing rules (carry every cycle):**
 > 1. **`Models/*.cs` stay WPF-free** - shared with the CLI.
@@ -9,7 +9,7 @@
 > 3. **Lang files:** every user-facing string goes through `Lang.T`; new keys go into **all 12** `lang/*.json` with full parity and `{0}` placeholder integrity, validated with the app's own parser (`System.Text.Json`). The activity log, CLI, self-test output and the diagnostics "Copy all" report stay **English** (see the Localization bullet in `CLAUDE.md`).
 > 4. **No em-dashes** anywhere in text (UI, lang files, docs, theme descriptions) - use a hyphen.
 > 5. **Native DLLs** live in `wireguard-deps\<arch>\`; a release needs **both** `MasselGUARD-x64.zip` and `MasselGUARD-arm64.zip`.
-> 6. The user runs `BUILD.bat`, tests the (elevated) app and commits. The assistant only `dotnet build`-verifies and never commits.
+> 6. The user runs `BUILD.bat` and tests the (elevated) app. The assistant keeps changes local and commits only when the user asks, to `dev` only.
 
 ---
 

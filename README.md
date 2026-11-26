@@ -54,11 +54,11 @@ Light and dark are both built in, and colours and section icons are themeable. I
 - **A resolver per network, with or without a tunnel**, on its own axis next to the tunnel rules.
 - **Profiles manager** - IPv4/IPv6 profiles, plain or DoH, a searchable **Browse DNS servers** list of public resolvers kept on GitHub (masselink/MasselGUARD-dnslist), and **Require encryption** to fail closed.
 - **DNS panel** on the main window with per-row Enable and a clickable rules count; a manual choice overrides the tunnel's DNS until you revert it.
-- **Timed DNS bypass** - use a profile (mark one as your bypass profile, for example Google DNS) for 10 seconds up to 15 minutes to get past a DNS ad-block, then go back to automatic. From the DNS list, the tray menu, a keyboard shortcut (**Ctrl+Shift+B** by default, configurable), the footer, or an optional entry in Windows Explorer's right-click menu; MasselGUARDcli dns bypass does the same from a terminal.
+- **Timed DNS bypass** - use a profile (mark one as your bypass profile, for example Google DNS) for 10 seconds up to 15 minutes to get past a DNS ad-block, then go back to automatic. From the DNS list, the tray menu, a keyboard shortcut (**Ctrl+Alt+D** by default, configurable), the footer, or an optional entry in Windows Explorer's right-click menu; MasselGUARDcli dns bypass does the same from a terminal.
 - **Leak protection** for the two Windows split-tunnel DNS-leak gaps. Your original DNS is saved before the first override and restored on exit or after a crash.
 
 ### Tunnels
-- Connect / disconnect with live uptime, **groups** as colour-coded tabs, drag to reorder, Quick Connect for any `.conf`, pre/post scripts, and pre-flight config validation.
+- Connect / disconnect with live uptime, **groups** as colour-coded tabs, drag to reorder, pre/post scripts, and pre-flight config validation.
 - **Kill switch** per tunnel or global, via Windows Firewall; stale rules from a crash are cleaned up at startup.
 - **Auto-reconnect** after unexpected drops (3 attempts, backed off); intentional disconnects are never retried.
 - **Split tunneling** by IP range, and **data-usage caps** per day, week and month with bars or rings on each row (warn, or optionally disconnect at the cap).
@@ -95,7 +95,7 @@ A **`.masselguard`** file is a full settings snapshot. Import it to apply and ed
 |---|---|
 | OS | Windows 10 or 11 - **x64 or ARM64** (separate native builds) |
 | Runtime | [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) for your architecture |
-| Elevation | Administrator (or the Scheduled Task for a UAC-free launch) |
+| Elevation | None at start with the background service. Without it, Administrator (or the Scheduled Task for a UAC-free launch) |
 | WireGuard engine | `tunnel.dll` + `wireguard.dll` (wireguard-NT) next to the exe, included in the release zip. No separate WireGuard install needed. |
 
 ### Which download?
@@ -136,7 +136,7 @@ BUILD.bat x64              :: one architecture
 BUILD.bat x64 nozip run    :: quick test build, then start it
 ```
 
-Each architecture publishes natively (framework-dependent single file) into `dist\<arch>\` and is zipped to `dist\MasselGUARD-<arch>.zip`. A release needs **both** zips and their `.zip.sha256` files (the in-app updater refuses a release without them). The native DLLs are built or fetched with `tunnelbuild\tunnelbuild.bat`. All build options, the version-bump checklist and the architecture details are in [`CLAUDE.md`](CLAUDE.md) and [`docs/Reference.md`](docs/Reference.md).
+Each architecture publishes natively (framework-dependent single file) into `dist\<arch>\` and is zipped to `dist\MasselGUARD-<arch>.zip`. A release needs **both** zips and their `.zip.sha256` files (the in-app updater refuses a release without them). The native DLLs for both architectures are in the repository (`wireguard-deps\<arch>\`); `tunnelbuild\tunnelbuild.bat` rebuilds or refetches them. All build options, the version-bump checklist and the architecture details are in [`CLAUDE.md`](CLAUDE.md) and [`docs/Reference.md`](docs/Reference.md).
 
 ---
 
@@ -150,4 +150,4 @@ Tunnel configs are stored as individual DPAPI-encrypted `.conf.dpapi` files in `
 
 MasselGUARD's own source code is licensed under the **MIT License** - see [`LICENSE`](LICENSE).
 
-It also bundles third-party components (the WireGuard native DLLs) that remain under their own licenses - see [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md). **WireGuard** is a registered trademark of Jason A. Donenfeld; MasselGUARD is an independent project, not affiliated with or endorsed by WireGuard LLC.
+It also bundles the WireGuard native DLLs and uses some other libraries, which remain under their own licenses - see [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) (the Apache-2.0 text is in [`licenses/`](licenses/Apache-2.0.txt)). `wireguard.dll` has its own, more restrictive license: do not distribute it on its own. **WireGuard** is a registered trademark of Jason A. Donenfeld; MasselGUARD is an independent project, not affiliated with or endorsed by WireGuard LLC.

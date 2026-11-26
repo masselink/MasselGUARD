@@ -1,15 +1,31 @@
 ## v6 - Mending Meerkat
 
-A small release that mainly helps with installing the background service.
+A maintenance release: tunnels with **spaces in their name** can connect, MasselGUARD takes more care about **which tunnel service it stops**, installing the **background service** is easier to get right, and the **third-party licenses** are complete and travel with the app.
 
-- **Tunnels with spaces in their name connect again** - a name such as `2 Block Full` failed with "Cannot start service": Windows was given the config file name with its spaces, which WireGuard refuses. The spaces are now replaced with `_` in the service name, config file and network adapter; the name you see stays the same.
-- **Tunnel names are checked** - a tunnel name can use A-Z, 0-9, spaces and `_ = + . -`, up to 32 characters (WireGuard's rule, with spaces allowed in the app). The editor proposes a valid name, imports convert the name (also `import` without `--name`; an invalid `--name` is refused), and two names that would give the same service, such as `a b` and `a_b`, are not allowed.
-- **Only the right tunnel service is stopped** - before stopping or replacing a tunnel service, MasselGUARD checks that it belongs to that tunnel. A connected tunnel can no longer be renamed (disconnect it first).
-- **Renaming a tunnel keeps its links** - the default tunnel, open-network tunnel, connect-on-start choice and automation rules now follow the new name. Connection history and data-usage totals stay under the old name.
+### Tunnel names
+- **Names with spaces work** - a tunnel such as `2 Block Full` failed with *Cannot start service*: WireGuard takes the tunnel name from the config file name, and refuses spaces. MasselGUARD now uses `2_Block_Full` for the config file, the Windows service, the network adapter and the kill switch, and keeps showing `2 Block Full` everywhere in the app.
+- **Names are checked before they cause trouble** - a tunnel name can use the letters A-Z, digits, spaces and `_ = + . -`, up to 32 characters. It cannot start or end with a space or a dot, or be a reserved Windows name such as `CON`.
+  - The tunnel editor proposes a valid name when yours is not.
+  - Importing converts the name where needed. On the command line, an invalid `--name` is refused with a suggestion; a name taken from the file name is converted.
+  - Two names that would share one service, such as `a b` and `a_b`, cannot both be added.
+  - A tunnel you already have with other characters (for example `ü` or brackets) now gets a log message that says what is wrong and suggests a name.
 
-- **Clearer message when the service cannot be installed** - when MasselGUARD refuses the install folder, the message now names the owner, or the account or group that has write access, and shows how to fix it.
-- **Moved program files are repaired** - a file that was moved into the install folder keeps its old owner and permissions. When you install as administrator, and your own account is the only untrusted one on such a program file, MasselGUARD resets it to the folder's permissions and checks it again. Any other account or group is still refused.
-- **Third-party notices** - updated with the licenses of the bundled WireGuard files and libraries; the Apache-2.0 license text now ships with the app as `licenses\Apache-2.0.txt`. The built-in installer now copies the license and notices files into the install folder.
+### Connecting and disconnecting
+- **Only the right service is stopped** - each tunnel service is labelled with the tunnel's own name. MasselGUARD checks that label before it stops or replaces a service, and does not show a tunnel as connected because another tunnel's service is running. When a disconnect is refused or fails, the kill switch stays on, the history entry stays open and the log says why.
+- **A connected tunnel cannot be renamed** - the name is locked in the editor until you disconnect.
+- **Renaming keeps what points at the tunnel** - the default tunnel, the open-network tunnel, the connect-on-start choice and your automation rules follow the new name. Connection history and data-usage totals stay under the old name.
+
+### Installing the background service
+- **A clearer message when the install folder is refused** - it now names the owner, or the account or group with write access, and shows how to fix it.
+- **Moved program files are repaired** - a file that was moved into the install folder keeps its old owner and permissions. When you install as administrator and your own account is the only untrusted one on such a file, MasselGUARD resets it to the folder's permissions and checks it again. Any other account or group is still refused.
+
+### Licenses
+- **Complete third-party notices** - the license terms of `wireguard.dll` and `tunnel.dll`, and the libraries that were missing from the list.
+- **The license files travel with the app** - release zips now include the Apache-2.0 text (`licenses\Apache-2.0.txt`), and the built-in installer copies it, `LICENSE.txt` and `THIRD-PARTY-NOTICES.md` into the install folder.
+
+### For developers
+- `tunnel.dll` and `wireguard.dll` for x64 and ARM64 are now part of the repository (`wireguard-deps\<arch>\`), so a fresh clone builds with tunnel support.
+- `tunnelbuild.bat` works when you pass it arguments such as `arm64`, and the `tunnel.dll` build no longer depends on cmd searching the current folder.
 
 ---
 
